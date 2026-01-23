@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { LabInvoice as Invoice, Patient, Employee, Doctor, Test, ReportTemplate, LabReport, defaultPregnancyTemplates } from './DiagnosticData'; 
 import UltrasonographyReportEditor from './UltrasonographyReportEditor';
@@ -109,8 +108,8 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
     const handlePrintReport = () => {
         const content = document.getElementById('printable-report-content');
         if (!content) return;
-        const technologist = employees.find((e:any) => e.emp_id === selectedTechnologistId);
-        const consultant = doctors.find((d:any) => d.doctor_id === selectedConsultantId);
+        const technologist = employees.find((e: any) => e.emp_id === selectedTechnologistId);
+        const consultant = doctors.find((d: any) => d.doctor_id === selectedConsultantId);
 
         const win = window.open('', '_blank');
         if (!win) return;
@@ -222,7 +221,7 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
                         <input placeholder="Search ID/Name..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full px-4 py-2 border rounded-2xl text-sm bg-white outline-none focus:ring-2 focus:ring-blue-500 font-bold shadow-sm" />
                     </div>
                     <div className="flex-1 overflow-y-auto px-2 py-4 space-y-3 custom-scrollbar">
-                        {invoices.filter((i:any) => i.patient_name.toLowerCase().includes(searchTerm.toLowerCase()) || i.invoice_id.includes(searchTerm)).map((r:any) => {
+                        {invoices.filter((i: any) => i.patient_name.toLowerCase().includes(searchTerm.toLowerCase()) || i.invoice_id.includes(searchTerm)).map((r: any) => {
                             const completedCount = reports.filter((rep: any) => rep.invoice_id === r.invoice_id).length;
                             const isAllDone = completedCount >= r.items.length;
                             return (
@@ -230,7 +229,7 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
                                     <div className="font-black text-sm uppercase tracking-tight">{r.patient_name}</div>
                                     <div className="flex justify-between items-center mt-2">
                                         <span className="text-[10px] opacity-60 font-mono">{r.invoice_id}</span>
-                                        <span className={`text-[8px] px-2 py-1 rounded-full font-black uppercase ${isAllDone ? 'bg-emerald-50 text-white' : 'bg-orange-500 text-white'}`}>{isAllDone ? 'Ready' : 'Pending'}</span>
+                                        <span className={`text-[8px] px-2 py-1 rounded-full font-black uppercase ${isAllDone ? 'bg-emerald-500 text-white' : 'bg-orange-500 text-white'}`}>{isAllDone ? 'Ready' : 'Pending'}</span>
                                     </div>
                                 </div>
                             );

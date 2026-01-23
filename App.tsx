@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { ViewState, UserRole, DepartmentPasswords } from './types';
 import Dashboard from './components/Dashboard';
@@ -48,7 +47,7 @@ const App: React.FC = () => {
   const [reagents, setReagents] = useState(mockReagents);
   const [labInvoices, setLabInvoices] = useState(mockInvoices);
   const [dueCollections, setDueCollections] = useState(mockDueCollections);
-  const [reports, setReports] = useState<LabReport[]>([]); // Fixed: Added Type
+  const [reports, setReports] = useState<LabReport[]>([]); // Fix: Typed as LabReport[] instead of never[]
   const [employees, setEmployees] = useState(mockEmployees);
   const [medicines, setMedicines] = useState(mockMedicines);
   const [clinicalDrugs, setClinicalDrugs] = useState(initialClinicalDrugs);
