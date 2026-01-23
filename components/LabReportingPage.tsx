@@ -55,10 +55,10 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
         const clickedTest = tests.find((t: Test) => t.test_name === activeTestName);
         if (!clickedTest) return [activeTestName];
         if (['Ultrasonography (USG)', 'X-Ray', 'ECG'].includes(clickedTest.category)) return [activeTestName];
-        return currentInvoice.items.filter(item => {
-            const testDef = tests.find(t => t.test_name === item.test_name);
+        return currentInvoice.items.filter((item: any) => {
+            const testDef = tests.find((t: any) => t.test_name === item.test_name);
             return testDef && ['Hematology', 'Biochemistry', 'Serology', 'Immunology', 'Hormone', 'Clinical Pathology', 'Others'].includes(testDef.category);
-        }).map(item => item.test_name);
+        }).map((item: any) => item.test_name);
     }, [currentInvoice, activeTestName, tests]);
 
     useEffect(() => {
@@ -80,7 +80,7 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
         let updatedReports: LabReport[] = [];
         setReports((prev: LabReport[]) => {
             let newList = [...prev];
-            testsToSave.forEach(tName => {
+            testsToSave.forEach((tName: string) => {
                 const existing = prev.find(r => r.invoice_id === selectedInvoiceId && r.test_name === tName);
                 const newReport: LabReport = {
                     report_id: existing?.report_id || `REP-${selectedInvoiceId}-${tName.replace(/\s+/g, '')}`,
@@ -98,7 +98,7 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
 
         if (currentInvoice) {
             const completedTestsForInvoice = updatedReports.filter(r => r.invoice_id === selectedInvoiceId).map(r => r.test_name);
-            const allTestsDone = currentInvoice.items.every(item => completedTestsForInvoice.includes(item.test_name));
+            const allTestsDone = currentInvoice.items.every((item: any) => completedTestsForInvoice.includes(item.test_name));
             if (allTestsDone && currentInvoice.status !== 'Cancelled') {
                 setInvoices((prev: Invoice[]) => prev.map(inv => inv.invoice_id === selectedInvoiceId ? { ...inv, status: 'Report Ready' } : inv));
             }
@@ -302,8 +302,8 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
                                                 <table className="w-full border-collapse border-2 border-black">
                                                     <thead className="bg-slate-100"><tr><th className="border-2 border-black p-2 text-left text-[11px] uppercase font-black w-[45%]">Investigation</th><th className="border-2 border-black p-2 text-center text-[11px] uppercase font-black w-[20%]">Result</th><th className="border-2 border-black p-2 text-center text-[11px] uppercase font-black w-[15%]">Unit</th><th className="border-2 border-black p-2 text-left text-[11px] uppercase font-black w-[20%]">Normal Range</th></tr></thead>
                                                     <tbody>
-                                                        {activeTestGroup.map(tName => {
-                                                            const testDef = tests.find(t => t.test_name === tName);
+                                                        {activeTestGroup.map((tName: string) => {
+                                                            const testDef = tests.find((t: any) => t.test_name === tName);
                                                             const val = currentReportData?.[tName] || '';
                                                             const isAlert = isOutOfRange(val, testDef?.normal_range || '');
                                                             return (

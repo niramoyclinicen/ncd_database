@@ -229,7 +229,6 @@ interface ClinicCertificate {
     createdDate: string;
 }
 
-// Fixed line 208: Added missing monthOptions to fix "Cannot find name" error.
 const monthOptions = [
     { value: 0, name: 'January' }, { value: 1, name: 'February' }, { value: 2, name: 'March' },
     { value: 3, name: 'April' }, { value: 4, name: 'May' }, { value: 5, name: 'June' },
@@ -327,14 +326,14 @@ const CertificateModal: React.FC<{
         if(selectedAdmission) {
             // Pre-fill defaults based on type
             if(type === 'birth') {
-                setCertData(prev => ({...prev, details: { ...prev.details, sex: selectedPatient?.gender === 'Female' ? 'Female' : 'Male', weight: '3.0kg', deliveryType: 'Normal' }}));
+                setCertData((prev: any) => ({...prev, details: { ...prev.details, sex: selectedPatient?.gender === 'Female' ? 'Female' : 'Male', weight: '3.0kg', deliveryType: 'Normal' }}));
             } else if(type === 'death') {
-                setCertData(prev => ({...prev, details: { ...prev.details, cause: 'Cardiac Arrest', certBy: selectedAdmission.doctor_name }}));
+                setCertData((prev: any) => ({...prev, details: { ...prev.details, cause: 'Cardiac Arrest', certBy: selectedAdmission.doctor_name }}));
             } else if(type === 'referral') {
-                setCertData(prev => ({...prev, details: { ...prev.details, refTo: 'Sirajgonj Sadar Hospital', reason: 'Advanced Management' }}));
+                setCertData((prev: any) => ({...prev, details: { ...prev.details, refTo: 'Sirajgonj Sadar Hospital', reason: 'Advanced Management' }}));
             }
         }
-    }, [selectedAdmissionId, type]);
+    }, [selectedAdmissionId, type, selectedPatient]);
 
     const handleSave = () => {
         if(!selectedAdmissionId) return alert("প্রথমে পেশেন্ট সিলেক্ট করুন");
@@ -559,7 +558,6 @@ const CertificateModal: React.FC<{
     );
 };
 
-// Fixed line 560: Implemented missing DischargeRxMasterModal component.
 const DischargeRxMasterModal: React.FC<{
     admissions: AdmissionRecord[];
     patients: Patient[];
@@ -740,9 +738,9 @@ const AdmissionAndTreatmentPage: React.FC<{
         const now = new Date();
         const timeStr = now.toTimeString().slice(0, 5);
         setRoundTime(timeStr);
-        if(!currentOrder.time) setCurrentOrder(prev => ({...prev, time: timeStr}));
+        if(!currentOrder.time) setCurrentOrder((prev: any) => ({...prev, time: timeStr}));
         if(admissionData.doctor_name && !roundDoctor) setRoundDoctor(admissionData.doctor_name);
-    }, [admissionData.doctor_name]);
+    }, [admissionData.doctor_name, currentOrder.time, roundDoctor]);
 
     const handleGetNewId = () => {
         const today = new Date();
@@ -755,8 +753,8 @@ const AdmissionAndTreatmentPage: React.FC<{
 
     // SYNC FUNCTION: Propagates current admission record changes to the global admissions list
     const syncAdmissionToGlobal = (record: AdmissionRecord) => {
-        setAdmissions(prev => {
-            const idx = prev.findIndex(a => a.admission_id === record.admission_id);
+        setAdmissions((prev: any) => {
+            const idx = prev.findIndex((a: any) => a.admission_id === record.admission_id);
             if(idx >= 0) { 
                 const newArr = [...prev]; 
                 newArr[idx] = record; 
@@ -986,7 +984,7 @@ const AdmissionAndTreatmentPage: React.FC<{
             strength: newDrugEntry.strength, genericName: newDrugEntry.generic,
             requestedBy: admissionData.doctor_name || 'Doctor', date: new Date().toISOString().split('T')[0], status: 'Pending'
         };
-        setDrugDemands(prev => [demand, ...prev]);
+        setDrugDemands((prev: any) => [demand, ...prev]);
 
         setSuccessMessage("New drug added for prescription!");
         setShowDrugDemandModal(false);
@@ -1147,7 +1145,7 @@ const AdmissionAndTreatmentPage: React.FC<{
                                     <div className="space-y-4">
                                         {admissionData.clinical_orders.map(block => (
                                             <div key={block.id} className={`bg-[#172554] border ${editingOrderBlockId === block.id ? 'border-yellow-500 ring-2 ring-yellow-500' : 'border-gray-600'} rounded shadow`}>
-                                                <div className="bg-[#2d3748] p-2 flex justify-between items-center border-b border-gray-600"><div className="flex gap-3 items-center"><span className="text-blue-400 font-bold font-mono">{block.date} {block.time}</span><span className="text-xs bg-blue-900 px-2 py-0.5 rounded text-blue-200">{block.category}</span><span className="text-green-400 text-sm">Diet: {block.diet}</span></div><div className="flex gap-2"><button onClick={() => handleEditOrder(block)} className="text-yellow-500 text-xs font-bold hover:text-yellow-400">EDIT</button><button onClick={()=>{if(confirm("Delete?")) setAdmissionData(prev=>({...prev, clinical_orders: prev.clinical_orders.filter(o=>o.id!==block.id)}))}} className="text-red-500 text-xs font-bold hover:text-red-400">DEL</button></div></div>
+                                                <div className="bg-[#2d3748] p-2 flex justify-between items-center border-b border-gray-600"><div className="flex gap-3 items-center"><span className="text-blue-400 font-bold font-mono">{block.date} {block.time}</span><span className="text-xs bg-blue-900 px-2 py-0.5 rounded text-blue-200">{block.category}</span><span className="text-green-400 text-sm">Diet: {block.diet}</span></div><div className="flex gap-2"><button onClick={() => handleEditOrder(block)} className="text-yellow-500 text-xs font-bold hover:text-yellow-400">EDIT</button><button onClick={()=>{if(confirm("Delete?")) setAdmissionData((prev: any)=>({...prev, clinical_orders: prev.clinical_orders.filter((o: any)=>o.id!==block.id)}))}} className="text-red-500 text-xs font-bold hover:text-red-400">DEL</button></div></div>
                                                 <div className="p-3">{block.medications.map((m, i) => (<div key={i} className="text-sm text-gray-200 flex items-center mb-1"><span className="w-5 text-gray-500">{i+1}.</span><span className="font-bold">{m.type} {m.name}</span><span className="text-gray-400 ml-2">({m.dosage})</span><span className="mx-2 text-gray-600">---</span><span className="text-yellow-500 font-mono">{getFrequencyText(m.frequency)}</span></div>))}{block.note && <div className="mt-2 pt-2 border-t border-gray-700 text-sm text-amber-200"><span className="text-gray-500 text-xs font-bold mr-2">NOTE:</span>{block.note}</div>}</div>
                                             </div>
                                         ))}
@@ -1314,11 +1312,11 @@ const AdmissionAndTreatmentPage: React.FC<{
             )}
 
             {/* Modals */}
-            {showIndicationManager && <GenericManagerPage title="Manage Indication" placeholder="Enter Indication Name" items={indications} setItems={setIndications as any} onClose={()=>setShowIndicationManager(false)} onSaveAndSelect={(id, name)=>{setAdmissionData(prev=>({...prev, indication:name})); setShowIndicationManager(false);}} />}
-            {showServiceManager && <GenericManagerPage title="Manage Services" placeholder="Enter Service Name" items={services} setItems={setServices as any} onClose={()=>setShowServiceManager(false)} onSaveAndSelect={(id, name)=>{setAdmissionData(prev=>({...prev, service_name:name})); setShowServiceManager(false);}} />}
-            {showNewPatientForm && <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4"><div className="bg-[#1f2937] rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto border border-gray-600"><div className="p-4"><PatientInfoPage patients={patients} setPatients={setPatients} isEmbedded={true} onClose={()=>setShowNewPatientForm(false)} onSaveAndSelect={(id,name)=>{setAdmissionData(prev=>({...prev, patient_id:id, patient_name:name})); setShowNewPatientForm(false);}}/></div></div></div>}
-            {showNewDoctorForm && <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4"><div className="bg-[#1f2937] rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto border border-gray-600"><div className="p-4"><DoctorInfoPage doctors={doctors} setDoctors={setDoctors} isEmbedded={true} onClose={()=>setShowNewDoctorForm(false)} onSaveAndSelect={(id,name)=>{setAdmissionData(prev=>({...prev, doctor_id:id, doctor_name:name})); setShowNewDoctorForm(false);}}/></div></div></div>}
-            {showNewReferrarForm && <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4"><div className="bg-[#1f2937] rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto border border-gray-600"><div className="p-4"><ReferrerInfoPage referrars={referrars} setReferrars={setReferrars} isEmbedded={true} onClose={()=>setShowNewReferrarForm(false)} onSaveAndSelect={(id,name)=>{setAdmissionData(prev=>({...prev, referrer_id:id, referrer_name:name})); setShowNewReferrarForm(false);}}/></div></div></div>}
+            {showIndicationManager && <GenericManagerPage title="Manage Indication" placeholder="Enter Indication Name" items={indications} setItems={setIndications as any} onClose={()=>setShowIndicationManager(false)} onSaveAndSelect={(id, name)=>{setAdmissionData((prev: any)=>({...prev, indication:name})); setShowIndicationManager(false);}} />}
+            {showServiceManager && <GenericManagerPage title="Manage Services" placeholder="Enter Service Name" items={services} setItems={setServices as any} onClose={()=>setShowServiceManager(false)} onSaveAndSelect={(id, name)=>{setAdmissionData((prev: any)=>({...prev, service_name:name})); setShowServiceManager(false);}} />}
+            {showNewPatientForm && <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4"><div className="bg-[#1f2937] rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto border border-gray-600"><div className="p-4"><PatientInfoPage patients={patients} setPatients={setPatients} isEmbedded={true} onClose={()=>setShowNewPatientForm(false)} onSaveAndSelect={(id,name)=>{setAdmissionData((prev: any)=>({...prev, patient_id:id, patient_name:name})); setShowNewPatientForm(false);}}/></div></div></div>}
+            {showNewDoctorForm && <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4"><div className="bg-[#1f2937] rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto border border-gray-600"><div className="p-4"><DoctorInfoPage doctors={doctors} setDoctors={setDoctors} isEmbedded={true} onClose={()=>setShowNewDoctorForm(false)} onSaveAndSelect={(id,name)=>{setAdmissionData((prev: any)=>({...prev, doctor_id:id, doctor_name:name})); setShowNewDoctorForm(false);}}/></div></div></div>}
+            {showNewReferrarForm && <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4"><div className="bg-[#1f2937] rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto border border-gray-600"><div className="p-4"><ReferrerInfoPage referrars={referrars} setReferrars={setReferrars} isEmbedded={true} onClose={()=>setShowNewReferrarForm(false)} onSaveAndSelect={(id,name)=>{setAdmissionData((prev: any)=>({...prev, referrer_id:id, referrer_name:name})); setShowNewReferrarForm(false);}}/></div></div></div>}
             {showDrugDemandModal && <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4"><div className="bg-[#1f2937] rounded-lg w-full max-w-md border border-gray-600 shadow-2xl p-6"><h3 className="text-xl font-bold text-white mb-4">New Drug</h3><input value={newDrugEntry.name} onChange={e=>setNewDrugEntry({...newDrugEntry, name:e.target.value})} className="w-full p-2 bg-[#2d3748] border border-gray-600 rounded text-white mb-2" placeholder="Trade Name"/><input value={newDrugEntry.generic} onChange={e=>setNewDrugEntry({...newDrugEntry, generic:e.target.value})} className="w-full p-2 bg-[#2d3748] border border-gray-600 rounded text-white mb-4" placeholder="Generic Name (e.g. Paracetamol)"/><button onClick={handleSaveNewDrugEntry} className="px-4 py-2 bg-blue-600 text-white rounded">Add</button><button onClick={()=>setShowDrugDemandModal(false)} className="px-4 py-2 bg-gray-600 text-white rounded ml-2">Cancel</button></div></div>}
             
             {showTemplateModal && (
@@ -1337,7 +1335,7 @@ const AdmissionAndTreatmentPage: React.FC<{
                                         <div className="font-bold text-blue-400">{t.name}</div>
                                         <div className="text-xs text-gray-500">{t.category} - {t.medications.length} meds</div>
                                     </div>
-                                    <button onClick={()=>{setTemplates(prev=>prev.filter(x=>x.id!==t.id))}} className="text-red-500 text-xs">Del</button>
+                                    <button onClick={()=>{setTemplates((prev: any)=>prev.filter((x: any)=>x.id!==t.id))}} className="text-red-500 text-xs">Del</button>
                                 </div>
                             ))}
                             {templates.length === 0 && <div className="text-center text-gray-500 p-4">No templates saved yet.</div>}
@@ -1485,7 +1483,7 @@ const IndoorInvoicePage: React.FC<{
         // Logic: If discharge_date is set, clear the bed in admission (Release).
         // If invoice discharge date is cleared/empty, ensure the bed stays occupied.
         if (formData.admission_id) {
-            setAdmissions(prev => prev.map(adm => {
+            setAdmissions((prev: any) => prev.map((adm: any) => {
                 if (adm.admission_id === formData.admission_id) {
                     const hasDischargeDate = !!formData.discharge_date;
                     return { 
@@ -1499,8 +1497,8 @@ const IndoorInvoicePage: React.FC<{
             }));
         }
 
-        setIndoorInvoices(prev => {
-            const idx = prev.findIndex(inv => inv.daily_id === formData.daily_id);
+        setIndoorInvoices((prev: any) => {
+            const idx = prev.findIndex((inv: any) => inv.daily_id === formData.daily_id);
             if (idx >= 0) { const newArr = [...prev]; newArr[idx] = formData; return newArr; }
             return [...prev, formData];
         });
@@ -1730,8 +1728,8 @@ const ClinicDueCollectionPage: React.FC<{
         if (!selectedInvoice || amount <= 0) return;
         const newCollection: ClinicDueCollection = { collection_id: Date.now().toString(), invoice_id: selectedInvoice.daily_id, patient_name: selectedInvoice.patient_name, collection_date: new Date().toISOString().split('T')[0], amount_collected: amount };
         const updatedInvoice = { ...selectedInvoice, paid_amount: selectedInvoice.paid_amount + amount, due_bill: selectedInvoice.due_bill - amount };
-        setClinicDueCollections(prev => [...prev, newCollection]);
-        setIndoorInvoices(prev => prev.map(inv => inv.daily_id === updatedInvoice.daily_id ? updatedInvoice : inv));
+        setClinicDueCollections((prev: any) => [...prev, newCollection]);
+        setIndoorInvoices((prev: any) => prev.map((inv: any) => inv.daily_id === updatedInvoice.daily_id ? updatedInvoice : inv));
         setSuccessMessage("Collected!");
         handlePrintReceipt(selectedInvoice, amount);
         setSelectedInvoice(null);

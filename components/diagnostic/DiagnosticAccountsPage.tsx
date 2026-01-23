@@ -32,8 +32,6 @@ const subCategoryMap: Record<string, string[]> = {
     'Others': ['Entertainment', 'Donation', 'Emergency']
 };
 
-const collectionSubMenus = ['All', 'Pathology', 'Hormone', 'Ultrasonography', 'X-Ray', 'ECG', 'Others'];
-
 const monthOptions = [
     { value: 0, name: 'January' }, { value: 1, name: 'February' }, { value: 2, name: 'March' },
     { value: 3, name: 'April' }, { value: 4, name: 'May' }, { value: 5, name: 'June' },
@@ -106,16 +104,15 @@ const ReagentPurchaseModule: React.FC<any> = ({ onSave, onCancel, employees, edi
                 <button onClick={onCancel} className="text-2xl hover:text-rose-500 transition-colors">&times;</button>
             </div>
             
-            {/* Header Data Row */}
             <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                     <label className="block text-[10px] font-black text-slate-500 uppercase ml-1 mb-1">Invoice No</label>
                     <input value={invNo} onChange={e=>setInvNo(e.target.value)} placeholder="Inv No" className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white font-bold"/>
                 </div>
                 <div>
-                    <label className="block text-[10px] font-black text-slate-500 uppercase ml-1 mb-1">Purchased By (ক্রয় করেছেন)</label>
+                    <label className="block text-[10px] font-black text-slate-500 uppercase ml-1 mb-1">Purchased By</label>
                     <select value={purchasedBy} onChange={e=>setPurchasedBy(e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white font-bold outline-none focus:ring-1 focus:ring-emerald-500">
-                        <option value="">-- সিলেক্ট করুন --</option>
+                        <option value="">-- Select --</option>
                         {employees.filter((e:any)=>e.is_current_month).map((e:any)=><option key={e.emp_id} value={e.emp_name}>{e.emp_name}</option>)}
                     </select>
                 </div>
@@ -125,16 +122,14 @@ const ReagentPurchaseModule: React.FC<any> = ({ onSave, onCancel, employees, edi
                 </div>
             </div>
 
-            {/* Entry Form (Maintained in 3 Rows as requested) */}
             <div className="p-6 bg-slate-950/60 mx-6 rounded-2xl border border-slate-800 space-y-4 shadow-inner">
-                {/* Row 1: Basic Info */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <div className="space-y-1">
                         <label className="text-[8px] font-black text-slate-500 uppercase ml-2">Reagent Name</label>
                         <input placeholder="Item Name" value={tempItem.name} onChange={e=>setTempItem({...tempItem, name:e.target.value})} className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-sm text-white font-bold placeholder:text-slate-600"/>
                     </div>
                     <div className="space-y-1">
-                        <label className="text-[8px] font-black text-slate-500 uppercase ml-2">Manufacturer / Company</label>
+                        <label className="text-[8px] font-black text-slate-500 uppercase ml-2">Company</label>
                         <input placeholder="Company" value={tempItem.company} onChange={e=>setTempItem({...tempItem, company:e.target.value})} className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-sm text-white font-bold placeholder:text-slate-600"/>
                     </div>
                     <div className="space-y-1">
@@ -143,44 +138,35 @@ const ReagentPurchaseModule: React.FC<any> = ({ onSave, onCancel, employees, edi
                     </div>
                 </div>
 
-                {/* Row 2: Capacity & Pricing */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <div className="space-y-1">
-                        <label className="text-[8px] font-black text-slate-500 uppercase ml-2">Volume / Size (e.g. 500ml)</label>
-                        <input placeholder="e.g. 500ml / 1L" value={tempItem.volume} onChange={e=>setTempItem({...tempItem, volume:e.target.value})} className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-sm text-white font-bold placeholder:text-slate-600"/>
+                        <label className="text-[8px] font-black text-slate-500 uppercase ml-2">Volume/Size</label>
+                        <input placeholder="e.g. 500ml" value={tempItem.volume} onChange={e=>setTempItem({...tempItem, volume:e.target.value})} className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-sm text-white font-bold placeholder:text-slate-600"/>
                     </div>
                     <div className="space-y-1">
-                        <label className="text-[8px] font-black text-slate-500 uppercase ml-2">Expected Tests (test count)</label>
+                        <label className="text-[8px] font-black text-slate-500 uppercase ml-2">Expected Tests</label>
                         <input placeholder="e.g. 250 Tests" value={tempItem.testCapacity} onChange={e=>setTempItem({...tempItem, testCapacity:e.target.value})} className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-sm text-white font-bold placeholder:text-slate-600"/>
                     </div>
                     <div className="space-y-1">
-                        <label className="text-[8px] font-black text-slate-500 uppercase ml-2">Unit Buy Price</label>
+                        <label className="text-[8px] font-black text-slate-500 uppercase ml-2">Unit Price</label>
                         <input type="number" placeholder="Price" value={tempItem.unitPrice || ''} onChange={e=>setTempItem({...tempItem, unitPrice:parseFloat(e.target.value)})} onFocus={e=>e.target.select()} className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-sm text-white font-bold text-center"/>
                     </div>
                 </div>
 
-                {/* Row 3: Final Qty & Add Button */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <div className="space-y-1">
-                        <label className="text-[8px] font-black text-slate-500 uppercase ml-2">Total Bottles/Packs</label>
+                        <label className="text-[8px] font-black text-slate-500 uppercase ml-2">Qty</label>
                         <input type="number" placeholder="Quantity" value={tempItem.qty || ''} onChange={e=>setTempItem({...tempItem, qty:parseFloat(e.target.value)})} onFocus={e=>e.target.select()} className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-sm text-white font-bold text-center"/>
                     </div>
                     <div className="md:col-span-2 flex items-end">
-                        <button onClick={addItem} className="w-full h-[50px] bg-emerald-600 text-white font-black uppercase text-xs rounded-xl hover:bg-emerald-500 shadow-xl transition-all">+ Add Item to Invoice</button>
+                        <button onClick={addItem} className="w-full h-[50px] bg-emerald-600 text-white font-black uppercase text-xs rounded-xl hover:bg-emerald-500 shadow-xl transition-all">+ Add Item</button>
                     </div>
                 </div>
 
-                {/* Item Listing Table */}
                 <div className="mt-4 max-h-40 overflow-y-auto border-t border-slate-800 pt-3 custom-scrollbar">
                     <table className="w-full text-left border-collapse">
                         <thead className="text-slate-500 text-[10px] font-black uppercase border-b border-slate-800">
-                            <tr>
-                                <th className="pb-2">Description & Size</th>
-                                <th className="pb-2 text-center">Tests</th>
-                                <th className="pb-2 text-right">Price</th>
-                                <th className="pb-2 text-center">Qty</th>
-                                <th className="pb-2 text-right">Total</th>
-                            </tr>
+                            <tr><th className="pb-2">Description</th><th className="pb-2 text-center">Tests</th><th className="pb-2 text-right">Price</th><th className="pb-2 text-center">Qty</th><th className="pb-2 text-right">Total</th></tr>
                         </thead>
                         <tbody className="divide-y divide-slate-800">
                             {items.map(i=>(
@@ -200,7 +186,6 @@ const ReagentPurchaseModule: React.FC<any> = ({ onSave, onCancel, employees, edi
                 </div>
             </div>
 
-            {/* Calculations Area */}
             <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
                 <div className="flex gap-10">
                     <div className="text-center">
@@ -302,7 +287,6 @@ const DailyExpenseForm: React.FC<any> = ({ selectedDate, onDateChange, dailyExpe
         }]);
     }, [dailyExpenseItems, selectedDate]);
 
-    // Listen for Edit trigger from main list
     useEffect(() => {
         const handleEdit = (e: any) => { if(e.detail?.category === 'Reagent buy') { setEditingReagent(e.detail); setReagentMode(true); } };
         window.addEventListener('edit-reagent-entry', handleEdit);
@@ -425,7 +409,7 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                                 newStock[idx] = {
                                     ...newStock[idx],
                                     quantity: newStock[idx].quantity + boughtItem.qty,
-                                    expiry_date: boughtItem.expiryDate,
+                                    expiry_date: boughtItem.expiryDate, 
                                     company: boughtItem.company,
                                     capacity_per_unit: boughtItem.testCapacity,
                                     unit: boughtItem.volume
@@ -453,18 +437,6 @@ const DiagnosticAccountsPage: React.FC<any> = ({
         setSuccessMessage("Expense data & Stock synced successfully!");
     };
 
-    const resetFilters = () => {
-        setSelectedDate(todayStr);
-        setSelectedMonth(new Date().getMonth());
-        setSelectedYear(new Date().getFullYear());
-        setDetailSearch('');
-        setDueSearch('');
-        setDetailCategory('All');
-        setEntrySearch('');
-        setEntryCategoryFilter('All');
-        setIsTodayDetailView(false);
-    };
-
     const filteredSavedEntries = useMemo(() => {
         const rawEntries = detailedExpenses[selectedDate] || [];
         return rawEntries.filter((ex: any) => {
@@ -478,82 +450,50 @@ const DiagnosticAccountsPage: React.FC<any> = ({
         });
     }, [detailedExpenses, selectedDate, entrySearch, entryCategoryFilter]);
 
-    const todayCounts = useMemo(() => {
-        const todayInvoices = invoices.filter((inv: any) => inv.invoice_date === todayStr);
-        const counts: Record<string, number> = { All: todayInvoices.length, Pathology: 0, Hormone: 0, Ultrasonography: 0, 'X-Ray': 0, ECG: 0, Others: 0 };
-        
-        todayInvoices.forEach((inv: any) => {
-            const testNames = inv.items.map((it: any) => (it.test_name || '').toLowerCase());
-            if (testNames.some((t: string) => t.includes('usg') || t.includes('ultra'))) counts.Ultrasonography++;
-            if (testNames.some((t: string) => t.includes('x-ray') || t.includes('xray'))) counts['X-Ray']++;
-            if (testNames.some((t: string) => t.includes('ecg'))) counts.ECG++;
-            if (testNames.some((t: string) => t.includes('hormone') || ['tsh','t3','t4'].some(k => t.includes(k)))) counts.Hormone++;
-            const isSpecial = testNames.some((t: string) => ['usg', 'ultra', 'x-ray', 'xray', 'ecg', 'hormone', 'tsh', 't3', 't4'].some(k => t.includes(k)));
-            if (!isSpecial && testNames.length > 0) counts.Pathology++;
-            else if (isSpecial && testNames.length > 1) {
-                if (testNames.some((t: string) => !['usg', 'ultra', 'x-ray', 'xray', 'ecg', 'hormone', 'tsh', 't3', 't4'].some(k => t.includes(k)))) {
-                    counts.Pathology++;
-                }
-            }
-        });
-        return counts;
-    }, [invoices, todayStr]);
-
     const stats = useMemo(() => {
         const getRangeStats = (rangeType: 'daily' | 'monthly' | 'yearly') => {
-            const relevantInvoices = invoices.filter((inv: any) => {
-                if (rangeType === 'daily') return inv.invoice_date === selectedDate;
-                const d = new Date(inv.invoice_date);
+            const isMatch = (dateStr: string) => {
+                const d = new Date(dateStr);
+                if (rangeType === 'daily') return dateStr === selectedDate;
                 if (rangeType === 'monthly') return d.getMonth() === selectedMonth && d.getFullYear() === selectedYear;
                 return d.getFullYear() === selectedYear;
-            });
-            const relevantDueColls = dueCollections.filter((dc: any) => {
-                const isDiag = dc.invoice_id.startsWith('INV-');
-                if (rangeType === 'daily') return dc.collection_date === selectedDate && isDiag;
-                const d = new Date(dc.collection_date);
-                if (rangeType === 'monthly') return d.getMonth() === selectedMonth && d.getFullYear() === selectedYear && isDiag;
-                return d.getFullYear() === selectedYear && isDiag;
-            });
+            };
 
             const coll = { pathology: 0, hormone: 0, usg: 0, xray: 0, ecg: 0, others: 0, dueRecov: 0 };
-            relevantInvoices.forEach((inv: any) => {
-                inv.items.forEach((item: any) => {
-                    const testName = (item.test_name || '').toLowerCase();
-                    const val = (item.price * item.quantity);
-                    const ratio = inv.total_amount > 0 ? (inv.paid_amount / inv.total_amount) : 0;
-                    const paidVal = val * ratio;
-                    if (testName.includes('usg') || testName.includes('ultra')) coll.usg += paidVal;
-                    else if (testName.includes('x-ray') || testName.includes('xray')) coll.xray += paidVal;
-                    else if (testName.includes('ecg')) coll.ecg += paidVal;
-                    else if (testName.includes('hormone') || testName.includes('tsh') || testName.includes('t3') || testName.includes('t4')) coll.hormone += paidVal;
-                    else if (['hematology', 'biochemistry', 'clinical pathology', 'serology'].some(c => (inv.category || '').toLowerCase().includes(c)) || true) coll.pathology += paidVal;
-                    else coll.others += paidVal;
-                });
+            invoices.forEach((inv: any) => {
+                if (isMatch(inv.invoice_date) && inv.status !== 'Cancelled') {
+                    inv.items.forEach((item: any) => {
+                        const testName = (item.test_name || '').toLowerCase();
+                        const val = (item.price * item.quantity);
+                        const ratio = inv.total_amount > 0 ? (inv.paid_amount / inv.total_amount) : 0;
+                        const paidVal = val * ratio;
+                        if (testName.includes('usg') || testName.includes('ultra')) coll.usg += paidVal;
+                        else if (testName.includes('x-ray') || testName.includes('xray')) coll.xray += paidVal;
+                        else if (testName.includes('ecg')) coll.ecg += paidVal;
+                        else if (testName.includes('hormone') || ['tsh','t3','t4'].some(k=>testName.includes(k))) coll.hormone += paidVal;
+                        else coll.pathology += paidVal;
+                    });
+                }
             });
-            coll.dueRecov = relevantDueColls.reduce((s: any, c: any) => s + c.amount_collected, 0);
+
+            dueCollections.forEach((dc: any) => {
+                if (isMatch(dc.collection_date) && dc.invoice_id.startsWith('INV')) {
+                    coll.dueRecov += dc.amount_collected;
+                }
+            });
 
             const exp = { total: 0 };
             const expenseMap: Record<string, number> = {};
             expenseCategories.forEach(c => expenseMap[c] = 0);
 
-            if (rangeType === 'daily') {
-                (detailedExpenses[selectedDate] || []).forEach((it: any) => {
-                    expenseMap[it.category] = (expenseMap[it.category] || 0) + it.paidAmount;
-                    exp.total += it.paidAmount;
-                });
-            } else {
-                Object.entries(detailedExpenses).forEach(([date, items]: any) => {
-                    const d = new Date(date);
-                    const isMonthMatch = d.getMonth() === selectedMonth && d.getFullYear() === selectedYear;
-                    const isYearMatch = d.getFullYear() === selectedYear;
-                    if ((rangeType === 'monthly' && isMonthMatch) || (rangeType === 'yearly' && isYearMatch)) {
-                        items.forEach((it: any) => {
-                            expenseMap[it.category] = (expenseMap[it.category] || 0) + it.paidAmount;
-                            exp.total += it.paidAmount;
-                        });
-                    }
-                });
-            }
+            Object.entries(detailedExpenses).forEach(([date, items]: any) => {
+                if (isMatch(date)) {
+                    items.forEach((it: any) => {
+                        expenseMap[it.category] = (expenseMap[it.category] || 0) + it.paidAmount;
+                        exp.total += it.paidAmount;
+                    });
+                }
+            });
 
             const totalColl = Object.values(coll).reduce((s, v) => s + v, 0);
             return { coll, exp, totalColl, expenseMap, balance: totalColl - exp.total };
@@ -569,13 +509,12 @@ const DiagnosticAccountsPage: React.FC<any> = ({
             return d.getMonth() === selectedMonth && d.getFullYear() === selectedYear;
         }).filter((inv: any) => {
             const matchesSearch = inv.patient_name.toLowerCase().includes(detailSearch.toLowerCase()) || 
-                                 inv.invoice_date.includes(detailSearch) ||
-                                 inv.items.some((it: any) => it.test_name.toLowerCase().includes(detailSearch.toLowerCase()));
+                                 inv.invoice_date.includes(detailSearch);
             if (detailCategory === 'All') return matchesSearch;
             const hasCategoryTest = inv.items.some((item: any) => {
                 const test = (item.test_name || '').toLowerCase();
                 if (detailCategory === 'Pathology') return !['usg', 'ultra', 'x-ray', 'xray', 'ecg', 'hormone'].some(k => test.includes(k));
-                if (detailCategory === 'Hormone') return (test.includes('hormone') || ['tsh','t3','t4','ft3','ft4','prolactin'].some(k => test.includes(k)));
+                if (detailCategory === 'Hormone') return (test.includes('hormone') || ['tsh','t3','t4'].some(k => test.includes(k)));
                 if (detailCategory === 'Ultrasonography') return (test.includes('usg') || test.includes('ultra'));
                 if (detailCategory === 'X-Ray') return (test.includes('x-ray') || test.includes('xray'));
                 if (detailCategory === 'ECG') return test.includes('ecg');
@@ -592,10 +531,10 @@ const DiagnosticAccountsPage: React.FC<any> = ({
             paid: inv.paid_amount,
             pc: inv.special_commission || 0,
             balance: inv.due_amount
-        })).sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        })).sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
         const grouped: Record<string, any[]> = {};
-        results.forEach(row => {
+        results.forEach((row: any) => {
             if (!grouped[row.date]) grouped[row.date] = [];
             grouped[row.date].push(row);
         });
@@ -606,69 +545,47 @@ const DiagnosticAccountsPage: React.FC<any> = ({
         return invoices.filter((inv: any) => 
             inv.due_amount > 1 && 
             (inv.patient_name.toLowerCase().includes(dueSearch.toLowerCase()) || inv.invoice_id.toLowerCase().includes(dueSearch.toLowerCase()))
-        ).sort((a,b) => new Date(b.invoice_date).getTime() - new Date(a.invoice_date).getTime());
+        ).sort((a: any, b: any) => new Date(b.invoice_date).getTime() - new Date(a.invoice_date).getTime());
     }, [invoices, dueSearch]);
 
-    // --- PRINT FUNCTIONS (Standard A4 White Paper) ---
     const handlePrintSummary = (currentStats: any, rangeLabel: string) => {
         const win = window.open('', '_blank');
         if(!win) return;
         const html = `
             <html>
                 <head>
-                    <title>Summary Report</title>
                     <script src="https://cdn.tailwindcss.com"></script>
-                    <style>
-                        @page { size: A4; margin: 20mm; }
-                        body { background: white; font-family: serif; color: black; }
-                        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-                        th, td { border: 1px solid black; padding: 6px 10px; text-align: left; font-size: 11pt; }
-                        th { background: #f3f4f6; font-weight: bold; }
-                        .text-right { text-align: right; }
-                        .font-bold { font-weight: bold; }
-                        .header { text-align: center; border-bottom: 2px solid black; padding-bottom: 10px; margin-bottom: 20px; }
-                        .title { text-align: center; font-size: 16pt; font-weight: bold; text-decoration: underline; margin-bottom: 20px; }
-                    </style>
+                    <style>@page { size: A4; margin: 20mm; } body { background: white; font-family: serif; color: black; }</style>
                 </head>
-                <body>
-                    <div class="header">
+                <body class="p-10">
+                    <div class="text-center mb-8 border-b-2 border-black pb-4">
                         <h1 class="text-2xl font-black uppercase">Niramoy Clinic & Diagnostic</h1>
-                        <p class="text-sm">Enayetpur, Sirajgonj | Mobile: 01730 923007</p>
+                        <p class="text-sm">Summary Report: ${rangeLabel}</p>
                     </div>
-                    <div class="title">Diagnostic Accounts Summary: ${rangeLabel}</div>
-                    
-                    <h3>1. Collection Analysis</h3>
-                    <table>
-                        <thead><tr><th>Category</th><th class="text-right">Amount (৳)</th></tr></thead>
-                        <tbody>
-                            <tr><td>Pathology</td><td class="text-right">${currentStats.coll.pathology.toLocaleString()}</td></tr>
-                            <tr><td>Hormone</td><td class="text-right">${currentStats.coll.hormone.toLocaleString()}</td></tr>
-                            <tr><td>USG</td><td class="text-right">${currentStats.coll.usg.toLocaleString()}</td></tr>
-                            <tr><td>X-Ray</td><td class="text-right">${currentStats.coll.xray.toLocaleString()}</td></tr>
-                            <tr><td>ECG</td><td class="text-right">${currentStats.coll.ecg.toLocaleString()}</td></tr>
-                            <tr><td>Due Recovery</td><td class="text-right">${currentStats.coll.dueRecov.toLocaleString()}</td></tr>
-                            <tr class="font-bold bg-gray-100"><td>Total Collection</td><td class="text-right">${currentStats.totalColl.toLocaleString()}</td></tr>
-                        </tbody>
-                    </table>
-
-                    <h3 class="mt-8">2. Expense Analysis</h3>
-                    <table>
-                        <thead><tr><th>Category</th><th class="text-right">Amount (৳)</th></tr></thead>
-                        <tbody>
-                            ${expenseCategories.map(cat => `<tr><td>${expenseCategoryBanglaMap[cat] || cat}</td><td class="text-right">${(currentStats.expenseMap[cat] || 0).toLocaleString()}</td></tr>`).join('')}
-                            <tr class="font-bold bg-gray-100"><td>Total Expense</td><td class="text-right">${currentStats.exp.total.toLocaleString()}</td></tr>
-                        </tbody>
-                    </table>
-
-                    <div class="mt-10 p-4 border-2 border-black">
-                        <div class="flex justify-between font-bold text-xl">
-                            <span>Net Balance:</span>
-                            <span>${currentStats.balance.toLocaleString()} ৳</span>
+                    <div class="grid grid-cols-2 gap-10">
+                        <div>
+                            <h3 class="font-bold border-b border-black mb-2 uppercase text-sm">Collection</h3>
+                            <table class="w-full text-xs">
+                                <tr><td>Pathology</td><td class="text-right">${currentStats.coll.pathology.toLocaleString()}</td></tr>
+                                <tr><td>Hormone</td><td class="text-right">${currentStats.coll.hormone.toLocaleString()}</td></tr>
+                                <tr><td>USG</td><td class="text-right">${currentStats.coll.usg.toLocaleString()}</td></tr>
+                                <tr><td>X-Ray</td><td class="text-right">${currentStats.coll.xray.toLocaleString()}</td></tr>
+                                <tr><td>ECG</td><td class="text-right">${currentStats.coll.ecg.toLocaleString()}</td></tr>
+                                <tr><td>Due Recovery</td><td class="text-right">${currentStats.coll.dueRecov.toLocaleString()}</td></tr>
+                                <tr class="font-bold border-t border-black"><td>Total</td><td class="text-right">${currentStats.totalColl.toLocaleString()}</td></tr>
+                            </table>
+                        </div>
+                        <div>
+                            <h3 class="font-bold border-b border-black mb-2 uppercase text-sm">Expenses</h3>
+                            <table class="w-full text-xs">
+                                ${expenseCategories.map(cat => `<tr><td>${expenseCategoryBanglaMap[cat] || cat}</td><td class="text-right">৳${(currentStats.expenseMap[cat] || 0).toLocaleString()}</td></tr>`).join('')}
+                                <tr class="font-bold border-t border-black"><td>Total</td><td class="text-right">${currentStats.exp.total.toLocaleString()}</td></tr>
+                            </table>
                         </div>
                     </div>
-                    <div class="mt-20 flex justify-between px-10">
-                        <div class="border-t border-black w-40 text-center text-xs pt-1">Accountant</div>
-                        <div class="border-t border-black w-40 text-center text-xs pt-1">Manager</div>
+                    <div class="mt-12 p-6 border-4 border-black flex justify-between items-center">
+                        <span class="text-xl font-black uppercase">Net Balance:</span>
+                        <span class="text-3xl font-black">৳${currentStats.balance.toLocaleString()}</span>
                     </div>
                 </body>
             </html>
@@ -681,48 +598,16 @@ const DiagnosticAccountsPage: React.FC<any> = ({
         const win = window.open('', '_blank');
         if(!win) return;
         const html = `
-            <html>
-                <head>
-                    <script src="https://cdn.tailwindcss.com"></script>
-                    <style>@page { size: A4 landscape; margin: 10mm; }</style>
-                </head>
-                <body class="p-8 bg-white text-black font-serif">
-                    <div class="text-center mb-6 border-b-2 border-black pb-4">
-                        <h1 class="text-2xl font-black uppercase">Niramoy Clinic & Diagnostic</h1>
-                        <p class="text-sm font-bold">Diagnostic Collection Detailed Log - ${label}</p>
-                    </div>
-                    <table class="w-full text-[10pt] border-collapse border border-black">
-                        <thead>
-                            <tr class="bg-gray-100">
-                                <th class="border border-black p-2">Date</th>
-                                <th class="border border-black p-2">Patient</th>
-                                <th class="border border-black p-2">Referrer</th>
-                                <th class="border border-black p-2">Tests</th>
-                                <th class="border border-black p-2 text-right">Bill</th>
-                                <th class="border border-black p-2 text-right">Paid</th>
-                                <th class="border border-black p-2 text-right">PC</th>
-                                <th class="border border-black p-2 text-right">Due</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${Object.entries(data).map(([date, rows]) => 
-                                rows.map((r, i) => `
-                                    <tr>
-                                        ${i === 0 ? `<td class="border border-black p-2 font-bold" rowspan="${rows.length}">${date}</td>` : ''}
-                                        <td class="border border-black p-2">${r.patient}</td>
-                                        <td class="border border-black p-2">${r.referrer}</td>
-                                        <td class="border border-black p-2 italic text-[9pt]">${r.tests}</td>
-                                        <td class="border border-black p-2 text-right">${r.totalBill}</td>
-                                        <td class="border border-black p-2 text-right font-bold">${r.paid}</td>
-                                        <td class="border border-black p-2 text-right">${r.pc}</td>
-                                        <td class="border border-black p-2 text-right">${r.balance}</td>
-                                    </tr>
-                                `).join('')
-                            ).join('')}
-                        </tbody>
-                    </table>
-                </body>
-            </html>
+            <html><head><script src="https://cdn.tailwindcss.com"></script></head><body class="p-8 bg-white text-black font-serif">
+                <div class="text-center mb-6 border-b-2 border-black pb-4">
+                    <h1 class="text-2xl font-black uppercase">Niramoy Clinic & Diagnostic</h1>
+                    <p class="text-sm">Detailed Collection Journal - ${label}</p>
+                </div>
+                <table class="w-full text-[10pt] border-collapse border border-black">
+                    <thead><tr class="bg-gray-100"><th class="border border-black p-2">Date</th><th className="border border-black p-2">Patient</th><th className="border border-black p-2">Tests</th><th className="border border-black p-2 text-right">Bill</th><th className="border border-black p-2 text-right">Paid</th><th className="border border-black p-2 text-right">Due</th></tr></thead>
+                    <tbody>${Object.entries(data).map(([date, rows]) => rows.map((r, i) => `<tr>${i === 0 ? `<td class="border border-black p-2 font-bold" rowspan="${rows.length}">${date}</td>` : ''}<td class="border border-black p-2">${r.patient}</td><td class="border border-black p-2 italic text-[9pt]">${r.tests}</td><td class="border border-black p-2 text-right">${r.totalBill}</td><td class="border border-black p-2 text-right font-bold">${r.paid}</td><td class="border border-black p-2 text-right">${r.balance}</td></tr>`).join('')).join('')}</tbody>
+                </table>
+            </body></html>
         `;
         win.document.write(html); win.document.close();
         setTimeout(() => { win.print(); win.close(); }, 500);
@@ -749,255 +634,115 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                 </div>
             </header>
 
-            <main className="flex-1 p-6 space-y-8 container mx-auto overflow-y-auto">
+            <main className="flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar">
                 {activeTab === 'entry' && (
-                    <div className="animate-fade-in space-y-8">
+                    <div className="space-y-6">
                         <DailyExpenseForm selectedDate={selectedDate} onDateChange={setSelectedDate} dailyExpenseItems={detailedExpenses[selectedDate] || []} onSave={handleSaveExpense} employees={employees} />
-                        
-                        <div className="bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-2xl">
-                             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 border-b border-slate-700 pb-4">
-                                <h4 className="text-lg font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                                    <Activity className="text-emerald-500" /> Saved Entry List for {selectedDate}
-                                </h4>
-                                
-                                <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-                                    <div className="relative flex-1 min-w-[200px]">
-                                        <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={14} />
-                                        <input 
-                                            type="text" 
-                                            placeholder="Search entries..." 
-                                            value={entrySearch}
-                                            onChange={e => setEntrySearch(e.target.value)}
-                                            className="w-full bg-slate-900 border border-slate-700 rounded-full pl-10 pr-4 py-1.5 text-xs text-white focus:border-blue-500 outline-none"
-                                        />
-                                    </div>
-                                    <select 
-                                        value={entryCategoryFilter} 
-                                        onChange={e => setEntryCategoryFilter(e.target.value)}
-                                        className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white outline-none focus:border-blue-500"
-                                    >
-                                        <option value="All">All Categories</option>
-                                        {expenseCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-                                    </select>
-                                </div>
-                             </div>
-
-                             <div className="overflow-x-auto min-h-[200px]">
-                                <table className="w-full text-left text-sm">
-                                    <thead className="bg-slate-950/50 text-slate-500 text-[10px] uppercase font-black tracking-widest">
-                                        <tr>
-                                            <th className="p-4">Category</th>
-                                            <th className="p-4">Sub-Category</th>
-                                            <th className="p-4">Description</th>
-                                            <th className="p-4 text-right">Amount</th>
-                                            <th className="p-4 text-center">X</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-700/50">
-                                        {filteredSavedEntries.length > 0 ? filteredSavedEntries.map((ex: any) => (
-                                            <tr key={ex.id} className="hover:bg-slate-700/30 transition-colors">
-                                                <td className="p-4">
-                                                    <span className="text-blue-400 font-bold text-xs uppercase">{ex.category}</span>
-                                                    <div className="text-[9px] text-slate-500 font-bold font-bengali">{expenseCategoryBanglaMap[ex.category]}</div>
-                                                </td>
-                                                <td className="p-4 text-slate-300 font-black text-sm">{ex.subCategory || '---'}</td>
-                                                <td className="p-4 text-slate-500 text-xs italic">{ex.description || 'No description'}</td>
-                                                <td className="p-4 text-right text-emerald-400 font-black text-base">৳ {ex.paidAmount.toLocaleString()}</td>
-                                                <td className="p-4 text-center">
-                                                    {ex.category === 'Reagent buy' && (
-                                                        <button onClick={()=>window.dispatchEvent(new CustomEvent('edit-reagent-entry', {detail: ex}))} className="text-blue-400 hover:text-white bg-blue-900/30 px-3 py-1 rounded-lg text-[9px] font-black uppercase border border-blue-800 transition-all">Edit</button>
-                                                    )}
-                                                </td>
+                        <div className="bg-slate-800 p-6 rounded-2xl border border-slate-700">
+                            <h3 className="text-lg font-black text-white uppercase mb-4">Saved Entries for {selectedDate}</h3>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left">
+                                    <thead><tr className="text-xs text-slate-500 uppercase font-black border-b border-slate-700"><th className="p-3">Category</th><th className="p-3">Description</th><th className="p-3 text-right">Amount</th></tr></thead>
+                                    <tbody>
+                                        {filteredSavedEntries.map((ex: any) => (
+                                            <tr key={ex.id} className="border-b border-slate-800 hover:bg-slate-750">
+                                                <td className="p-3 font-bold text-slate-300">{ex.category}</td>
+                                                <td className="p-3 text-slate-400">{ex.description}</td>
+                                                <td className="p-3 text-right font-black text-rose-400">{ex.paidAmount.toLocaleString()}</td>
                                             </tr>
-                                        )) : (
-                                            <tr>
-                                                <td colSpan={5} className="p-20 text-center text-slate-600 italic font-black uppercase opacity-30 text-lg tracking-[0.2em]">
-                                                    No entries found matching filters
-                                                </td>
-                                            </tr>
-                                        )}
+                                        ))}
                                     </tbody>
-                                    {filteredSavedEntries.length > 0 && (
-                                        <tfoot className="bg-slate-900 font-black border-t-2 border-slate-700">
-                                            <tr>
-                                                <td colSpan={3} className="p-4 text-right text-slate-500 uppercase tracking-widest text-xs">Filtered Total:</td>
-                                                <td className="p-4 text-right text-white text-lg underline decoration-emerald-500">
-                                                    ৳ {filteredSavedEntries.reduce((s: number, i: any) => s + i.paidAmount, 0).toLocaleString()}
-                                                </td>
-                                                <td></td>
-                                            </tr>
-                                        </tfoot>
-                                    )}
                                 </table>
-                             </div>
+                            </div>
                         </div>
                     </div>
                 )}
 
                 {(activeTab === 'daily' || activeTab === 'monthly' || activeTab === 'yearly') && (
-                    <div className="animate-fade-in space-y-8">
-                        <div className="flex justify-between items-center bg-slate-800 p-5 rounded-2xl border border-slate-700 shadow-xl">
-                             <h2 className="text-xl font-black text-white uppercase tracking-tighter">
-                                {activeTab === 'daily' ? `Daily Hishab: ${selectedDate}` : 
-                                 activeTab === 'monthly' ? `Monthly Hishab: ${monthOptions[selectedMonth].name} ${selectedYear}` : 
-                                 `Yearly Hishab: ${selectedYear}`}
-                             </h2>
-                             <div className="flex gap-4">
-                                <button 
-                                    onClick={() => handlePrintSummary(
-                                        activeTab === 'daily' ? stats.daily : activeTab === 'monthly' ? stats.monthly : stats.yearly,
-                                        activeTab === 'daily' ? selectedDate : activeTab === 'monthly' ? `${monthOptions[selectedMonth].name} ${selectedYear}` : `${selectedYear}`
-                                    )}
-                                    className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-xl text-[10px] font-black uppercase shadow-lg flex items-center gap-2"
-                                >
-                                    <PrinterIcon size={14}/> Print Summary
-                                </button>
-                                {activeTab === 'daily' ? (
-                                    <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} className="bg-slate-700 border border-slate-600 rounded p-2 text-white font-bold" />
-                                ) : (
-                                    <>
-                                        {activeTab === 'monthly' && (
-                                            <select value={selectedMonth} onChange={e => setSelectedMonth(parseInt(e.target.value))} className="bg-slate-700 border-none rounded p-2 text-white font-bold">{monthOptions.map(m => <option key={m.value} value={m.value}>{m.name}</option>)}</select>
-                                        )}
-                                        <select value={selectedYear} onChange={e => setSelectedYear(parseInt(e.target.value))} className="bg-slate-700 border-none rounded p-2 text-white font-bold">{[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}</select>
-                                    </>
+                    <div className="space-y-8">
+                        <div className="flex justify-between items-center bg-slate-800 p-6 rounded-2xl border border-slate-700 no-print">
+                            <h3 className="text-xl font-black text-white uppercase">
+                                {activeTab === 'daily' ? `Daily Summary: ${selectedDate}` : 
+                                 activeTab === 'monthly' ? `Monthly Summary: ${monthOptions[selectedMonth].name} ${selectedYear}` : 
+                                 `Yearly Summary: ${selectedYear}`}
+                            </h3>
+                            <div className="flex gap-4">
+                                {activeTab !== 'daily' && (
+                                    <div className="flex gap-2">
+                                        <select value={selectedMonth} onChange={e => setSelectedMonth(parseInt(e.target.value))} className="bg-slate-900 border border-slate-700 p-2 rounded text-white text-xs font-bold">{monthOptions.map(m => <option key={m.value} value={m.value}>{m.name}</option>)}</select>
+                                        <select value={selectedYear} onChange={e => setSelectedYear(parseInt(e.target.value))} className="bg-slate-900 border border-slate-700 p-2 rounded text-white text-xs font-bold">{[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}</select>
+                                    </div>
                                 )}
-                             </div>
+                                <button onClick={() => handlePrintSummary(stats[activeTab], activeTab)} className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-xl font-black uppercase text-xs shadow-lg flex items-center gap-2"><PrinterIcon size={14}/> Print Summary</button>
+                            </div>
                         </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                            <SummaryBox 
-                                title="Collection (কালেকশন)" 
-                                colorClass="text-blue-400" 
-                                totalLabel="Total Collection" 
-                                totalValue={activeTab === 'daily' ? stats.daily.totalColl : activeTab === 'monthly' ? stats.monthly.totalColl : stats.yearly.totalColl} 
-                                items={[
-                                    { label: 'Pathology', value: activeTab === 'daily' ? stats.daily.coll.pathology : activeTab === 'monthly' ? stats.monthly.coll.pathology : stats.yearly.coll.pathology }, 
-                                    { label: 'Hormone', value: activeTab === 'daily' ? stats.daily.coll.hormone : activeTab === 'monthly' ? stats.monthly.coll.hormone : stats.yearly.coll.hormone }, 
-                                    { label: 'USG', value: activeTab === 'daily' ? stats.daily.coll.usg : activeTab === 'monthly' ? stats.monthly.coll.usg : stats.yearly.coll.usg }, 
-                                    { label: 'X-Ray', value: activeTab === 'daily' ? stats.daily.coll.xray : activeTab === 'monthly' ? stats.monthly.coll.xray : stats.yearly.coll.xray }, 
-                                    { label: 'ECG', value: activeTab === 'daily' ? stats.daily.coll.ecg : activeTab === 'monthly' ? stats.monthly.coll.ecg : stats.yearly.coll.ecg }, 
-                                    { label: 'Due Recovery', value: activeTab === 'daily' ? stats.daily.coll.dueRecov : activeTab === 'monthly' ? stats.monthly.coll.dueRecov : stats.yearly.coll.dueRecov }
-                                ]} 
-                            />
-                            <SummaryBox 
-                                title="Expenses (খরচ)" 
-                                colorClass="text-rose-400" 
-                                totalLabel="Total Expense" 
-                                totalValue={activeTab === 'daily' ? stats.daily.exp.total : activeTab === 'monthly' ? stats.monthly.exp.total : stats.yearly.exp.total} 
-                                items={expenseCategories.map(cat => ({ 
-                                    label: expenseCategoryBanglaMap[cat], 
-                                    value: activeTab === 'daily' ? (stats.daily.expenseMap[cat] || 0) : activeTab === 'monthly' ? (stats.monthly.expenseMap[cat] || 0) : (stats.yearly.expenseMap[cat] || 0) 
-                                }))} 
-                            />
-                        </div>
-
-                        <div className="flex flex-col md:flex-row items-center justify-center gap-10 pt-5 no-print">
-                            <div className="inline-block p-10 bg-gradient-to-br from-indigo-700 to-slate-900 rounded-[3rem] border border-white/10 shadow-2xl text-center transform hover:scale-105 transition-all shrink-0">
-                                <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.3em] mb-2 drop-shadow-md">Net Balance</p>
-                                <h4 className={`text-6xl font-black ${ (activeTab === 'daily' ? stats.daily.balance : activeTab === 'monthly' ? stats.monthly.balance : stats.yearly.balance) >= 0 ? 'text-green-400' : 'text-rose-500' } drop-shadow-xl`}>
-                                    { (activeTab === 'daily' ? stats.daily.balance : activeTab === 'monthly' ? stats.monthly.balance : stats.yearly.balance).toLocaleString() } ৳
-                                </h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            <SummaryBox title="Collection Analysis" colorClass="text-emerald-400" totalLabel="Total Collection" totalValue={stats[activeTab].totalColl} items={[{ label: 'Pathology', value: stats[activeTab].coll.pathology }, { label: 'Hormone', value: stats[activeTab].coll.hormone }, { label: 'USG', value: stats[activeTab].coll.usg }, { label: 'X-Ray', value: stats[activeTab].coll.xray }, { label: 'ECG', value: stats[activeTab].coll.ecg }, { label: 'Due Recovery', value: stats[activeTab].coll.dueRecov }]} />
+                            <SummaryBox title="Expense Analysis" colorClass="text-rose-400" totalLabel="Total Expense" totalValue={stats[activeTab].exp.total} items={expenseCategories.slice(0, 8).map(c => ({ label: expenseCategoryBanglaMap[c] || c, value: stats[activeTab].expenseMap[c] }))} />
+                            <div className="flex flex-col gap-6">
+                                <div className="bg-gradient-to-br from-slate-800 to-slate-900 border-2 border-blue-500/30 p-8 rounded-[2.5rem] text-center shadow-2xl">
+                                    <p className="text-slate-500 text-xs font-black uppercase mb-2">Net Cash Balance</p>
+                                    <h4 className={`text-4xl font-black ${stats[activeTab].balance >= 0 ? 'text-green-400' : 'text-rose-500'}`}>৳ {stats[activeTab].balance.toLocaleString()}</h4>
+                                </div>
+                                <SimplePieChart title="Expense Distribution" data={expenseCategories.map((c, idx) => ({ label: expenseCategoryBanglaMap[c] || c, value: stats[activeTab].expenseMap[c], color: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#6366f1'][idx % 8] }))} />
                             </div>
                         </div>
                     </div>
                 )}
 
                 {activeTab === 'detail' && (
-                    <div className="animate-fade-in space-y-6">
-                        <div className="bg-slate-800 p-6 rounded-3xl border border-slate-700 shadow-2xl flex flex-col gap-6">
-                            <div className="flex flex-wrap justify-between items-center gap-4 border-b border-slate-700 pb-4 no-print">
-                                <h3 className="text-xl font-black text-white uppercase tracking-tighter">Collection Detailed List</h3>
-                                <div className="flex items-center gap-3">
-                                    <button 
-                                        onClick={() => handlePrintDetail(detailTableData, isTodayDetailView ? todayStr : `${monthOptions[selectedMonth].name} ${selectedYear}`)}
-                                        className="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2 rounded-xl text-xs font-black uppercase flex items-center gap-2 shadow-lg"
-                                    >
-                                        <PrinterIcon size={14}/> Print Detailed Log
-                                    </button>
-                                    <div className="relative w-64">
-                                        <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
-                                        <input type="text" placeholder="Search Patient, Test..." value={detailSearch} onChange={e => setDetailSearch(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-full pl-10 pr-4 py-2 text-xs text-white focus:border-blue-500 outline-none" />
-                                    </div>
-                                    <button onClick={() => setIsTodayDetailView(!isTodayDetailView)} className={`px-4 py-2 rounded-xl text-xs font-black uppercase transition-all shadow-md flex items-center gap-2 ${isTodayDetailView ? 'bg-emerald-600 text-white' : 'bg-slate-900 border border-slate-700 text-slate-400 hover:text-slate-200'}`}><Activity size={14} /> Today</button>
+                    <div className="space-y-6">
+                        <div className="flex justify-between items-center bg-slate-800 p-6 rounded-2xl border border-slate-700 no-print">
+                            <div className="flex gap-4 items-center">
+                                <h3 className="text-xl font-black text-white uppercase">Collection Detail Journal</h3>
+                                <div className="flex gap-2 bg-slate-900 p-1 rounded-xl">
+                                    <button onClick={() => setIsTodayDetailView(true)} className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all ${isTodayDetailView ? 'bg-blue-600 text-white' : 'text-slate-500'}`}>Today</button>
+                                    <button onClick={() => setIsTodayDetailView(false)} className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all ${!isTodayDetailView ? 'bg-blue-600 text-white' : 'text-slate-500'}`}>Monthly</button>
                                 </div>
                             </div>
-
-                            <div className="overflow-x-auto min-h-[400px]">
-                                <table className="w-full text-left text-xs border-collapse">
-                                    <thead className="bg-slate-950/80 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-700">
-                                        <tr>
-                                            <th className="p-4">Date</th>
-                                            <th className="p-4">Patient Name</th>
-                                            <th className="p-4">Referrer</th>
-                                            <th className="p-4 text-right">Total Bill</th>
-                                            <th className="p-4 text-right text-emerald-400">Paid</th>
-                                            <th className="p-4 text-right text-red-400">Balance</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-800">
-                                        {Object.entries(detailTableData).length > 0 ? (Object.entries(detailTableData) as [string, any[]][]).map(([date, rows]) => (
-                                            <React.Fragment key={date}>
-                                                {(rows as any[]).map((row, i) => (
-                                                    <tr key={i} className="hover:bg-slate-700/30 transition-colors">
-                                                        <td className="p-4 text-slate-500 font-mono text-[10px]">{row.date}</td>
-                                                        <td className="p-4 font-bold text-slate-100">{row.patient}</td>
-                                                        <td className="p-4 text-slate-400 font-medium">{row.referrer}</td>
-                                                        <td className="p-4 text-right font-bold text-slate-300">{row.totalBill.toLocaleString()}</td>
-                                                        <td className="p-4 text-right font-black text-emerald-400">{row.paid.toLocaleString()}</td>
-                                                        <td className="p-4 text-right font-black text-red-500">{row.balance.toLocaleString()}</td>
-                                                    </tr>
-                                                ))}
-                                            </React.Fragment>
-                                        )) : (
-                                            <tr><td colSpan={6} className="p-20 text-center text-slate-600 italic font-black uppercase opacity-30 text-xl tracking-[0.2em]">No Data Found</td></tr>
-                                        )}
-                                    </tbody>
-                                </table>
-                            </div>
+                            <button onClick={() => handlePrintDetail(detailTableData, isTodayDetailView ? todayStr : `${monthOptions[selectedMonth].name} ${selectedYear}`)} className="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-2 rounded-xl font-black uppercase text-xs shadow-lg flex items-center gap-2"><PrinterIcon size={14}/> Print Detail Log</button>
+                        </div>
+                        <div className="overflow-x-auto rounded-2xl border border-slate-700 shadow-2xl">
+                            <table className="w-full text-left border-collapse">
+                                <thead className="bg-slate-950 text-slate-500 text-[10px] font-black uppercase tracking-widest border-b border-slate-800">
+                                    <tr><th className="p-4">Date</th><th className="p-4">Patient</th><th className="p-4">Tests</th><th className="p-4 text-right">Bill</th><th className="p-4 text-right">Paid</th><th className="p-4 text-right">Due</th></tr>
+                                </thead>
+                                <tbody className="bg-slate-900/50">
+                                    {Object.entries(detailTableData).map(([date, rows]) => (
+                                        <React.Fragment key={date}>
+                                            <tr className="bg-slate-800/50"><td colSpan={6} className="p-3 font-black text-sky-400 border-y border-slate-700">{date}</td></tr>
+                                            {rows.map((r, i) => (
+                                                <tr key={i} className="border-b border-slate-800 hover:bg-slate-800/30 transition-colors">
+                                                    <td className="p-4"></td><td className="p-4 font-bold text-slate-200 uppercase">{r.patient}</td><td className="p-4 text-slate-400 italic text-xs truncate max-w-[200px]" title={r.tests}>{r.tests}</td><td className="p-4 text-right text-slate-300">৳{r.totalBill.toLocaleString()}</td><td className="p-4 text-right font-black text-emerald-400">৳{r.paid.toLocaleString()}</td><td className="p-4 text-right font-black text-rose-500">৳{r.balance.toLocaleString()}</td>
+                                                </tr>
+                                            ))}
+                                        </React.Fragment>
+                                    ))}
+                                </tbody>
+                            </table>
                         </div>
                     </div>
                 )}
 
                 {activeTab === 'due' && (
-                    <div className="animate-fade-in space-y-6">
-                        <div className="bg-white rounded-2xl shadow-2xl overflow-hidden border border-slate-300">
-                            <div className="p-6 bg-slate-100 border-b border-slate-200 flex justify-between items-center">
-                                <h3 className="text-xl font-black text-slate-800 uppercase tracking-tighter">Outstanding Dues List</h3>
-                                <input value={dueSearch} onChange={e=>setDueSearch(e.target.value)} placeholder="Search Patient..." className="p-2.5 w-80 bg-white border border-slate-300 rounded-xl text-sm font-bold text-slate-800 outline-none" />
-                            </div>
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-left text-[11px] border-collapse">
-                                    <thead className="bg-slate-50 border-b-2 border-slate-300 text-slate-700 uppercase font-black tracking-wider">
-                                        <tr>
-                                            <th className="p-3 border-r border-slate-200">Date</th>
-                                            <th className="p-3 border-r border-slate-200">Patient Name</th>
-                                            <th className="p-3 border-r border-slate-200 text-right">Total Bill</th>
-                                            <th className="p-3 text-right bg-red-50 text-red-700">Due Balance</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-200">
-                                        {dueList.map((inv, idx) => (
-                                            <tr key={idx} className="hover:bg-blue-50 transition-colors text-slate-900 font-medium">
-                                                <td className="p-3 border-r border-slate-200">{inv.invoice_date}</td>
-                                                <td className="p-3 border-r border-slate-200 font-black">{inv.patient_name}</td>
-                                                <td className="p-3 border-r border-slate-200 text-right font-bold">{inv.total_amount.toLocaleString()}</td>
-                                                <td className="p-3 text-right font-black text-red-600 bg-red-50/50">{inv.due_amount.toLocaleString()}</td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                    <tfoot className="bg-slate-900 text-white font-black text-sm">
-                                        <tr>
-                                            <td colSpan={3} className="p-4 text-right uppercase">Total Due:</td>
-                                            <td className="p-4 text-right text-yellow-400">৳ {dueList.reduce((s,i)=>s+i.due_amount, 0).toLocaleString()}</td>
-                                        </tr>
-                                    </tfoot>
-                                </table>
+                    <div className="bg-slate-800 p-8 rounded-3xl border border-slate-700 shadow-2xl">
+                        <div className="flex justify-between items-center mb-8 border-b border-slate-700 pb-4">
+                            <h3 className="text-2xl font-black text-rose-500 uppercase tracking-tighter">Diagnostic Outstanding Due List</h3>
+                            <div className="relative w-64">
+                                <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16}/><input value={dueSearch} onChange={e=>setDueSearch(e.target.value)} placeholder="Search Patient/ID..." className="w-full bg-slate-950 border border-slate-700 rounded-full pl-10 pr-4 py-2 text-xs text-white focus:border-blue-500 outline-none"/>
                             </div>
                         </div>
+                        <div className="overflow-x-auto"><table className="w-full text-left"><thead className="text-slate-500 text-[10px] font-black uppercase tracking-widest border-b border-slate-800"><tr><th className="pb-4">Date</th><th className="pb-4">Invoice ID</th><th className="pb-4">Patient Name</th><th className="pb-4 text-right">Bill</th><th className="pb-4 text-right">Paid</th><th className="pb-4 text-right">Balance Due</th></tr></thead>
+                            <tbody className="divide-y divide-slate-800">
+                                {dueList.map(d => (
+                                    <tr key={d.invoice_id} className="hover:bg-slate-700/20 transition-colors"><td className="py-4 text-slate-400 font-mono text-xs">{d.invoice_date}</td><td className="py-4 font-black text-sky-400 text-xs">{d.invoice_id}</td><td className="py-4 font-black text-slate-200 uppercase">{d.patient_name}</td><td className="py-4 text-right font-bold text-slate-400">{d.total_amount.toLocaleString()}</td><td className="py-4 text-right font-bold text-emerald-500">{d.paid_amount.toLocaleString()}</td><td className="py-4 text-right font-black text-rose-500 text-lg">৳{d.due_amount.toLocaleString()}</td></tr>
+                                ))}
+                            </tbody>
+                        </table></div>
                     </div>
                 )}
             </main>
+            {successMessage && <div className="fixed bottom-10 left-1/2 -translate-x-1/2 bg-emerald-600 text-white px-8 py-3 rounded-2xl shadow-2xl font-black uppercase tracking-widest animate-fade-in-up z-[200]">{successMessage}</div>}
         </div>
     );
 };

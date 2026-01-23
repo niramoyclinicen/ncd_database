@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { GoogleGenAI, Type } from "@google/genai";
 import { Search, X, MessageSquare, Send, Sparkles, Loader2 } from 'lucide-react';
@@ -36,7 +37,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({
     useEffect(() => { if (isOpen) scrollToBottom(); }, [messages, isOpen]);
 
     // --- AI TOOLS DEFINITION ---
-    const tools = [
+    const tools: any = [
         {
             functionDeclarations: [
                 {
@@ -84,8 +85,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({
         setMessages(newMessages); setInput(''); setLoading(true);
         
         try {
-            // Create a new GoogleGenAI instance right before making an API call to ensure it uses the correct key.
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
             const todayStr = new Date().toISOString().split('T')[0];
 
             const response = await ai.models.generateContent({
@@ -129,8 +129,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({
                         let total = 0;
                         let count = 0;
                         
-                        // Fix: Explicitly typed 'exp' as 'ExpenseItem' to resolve 'unknown' property access errors.
-                        Object.values(detailedExpenses).flat().forEach((exp: ExpenseItem) => {
+                        Object.values(detailedExpenses).flat().forEach((exp: any) => {
                             const catMatch = exp.category.toLowerCase().includes(category.toLowerCase());
                             const descMatch = description ? exp.description.toLowerCase().includes(description.toLowerCase()) : true;
                             if (catMatch && descMatch) {

@@ -17,7 +17,7 @@ import {
   mockPatients, mockDoctors, mockReferrars, mockTests, mockReagents, 
   mockInvoices, mockDueCollections, mockEmployees, mockMedicines,
   mockPurchaseInvoices, mockSalesInvoices, mockAdmissions, mockIndoorInvoices,
-  initialAppointments, initialClinicalDrugs, PrescriptionRecord
+  initialAppointments, initialClinicalDrugs, PrescriptionRecord, LabReport
 } from './components/DiagnosticData';
 
 const App: React.FC = () => {
@@ -48,7 +48,7 @@ const App: React.FC = () => {
   const [reagents, setReagents] = useState(mockReagents);
   const [labInvoices, setLabInvoices] = useState(mockInvoices);
   const [dueCollections, setDueCollections] = useState(mockDueCollections);
-  const [reports, setReports] = useState([]);
+  const [reports, setReports] = useState<LabReport[]>([]); // Fixed: Added Type
   const [employees, setEmployees] = useState(mockEmployees);
   const [medicines, setMedicines] = useState(mockMedicines);
   const [clinicalDrugs, setClinicalDrugs] = useState(initialClinicalDrugs);
