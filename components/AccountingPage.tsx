@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { 
   AccountingIcon, 
@@ -30,7 +29,7 @@ interface AccountingPageProps {
   salesInvoices: SalesInvoice[];
   indoorInvoices: IndoorInvoice[];
   medicines: Medicine[];
-  setReagents: React.Dispatch<React.SetStateAction<Reagent[]>>; // NEW
+  setReagents: React.Dispatch<React.SetStateAction<Reagent[]>>;
 }
 
 interface AccountingButtonProps {
@@ -64,6 +63,51 @@ const AccountingButton: React.FC<AccountingButtonProps> = ({ label, icon, onClic
   </button>
 );
 
+const BackgroundGraphic = () => (
+  <div className="absolute inset-0 overflow-hidden pointer-events-none flex items-center justify-center opacity-[0.07]">
+    {/* Large Outer Mandala */}
+    <svg viewBox="0 0 500 500" className="absolute w-[120%] h-[120%] text-amber-500 animate-spin-slow" style={{ animationDuration: '80s' }}>
+      <defs>
+        <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="currentColor" stopOpacity="1" />
+          <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.5" />
+        </linearGradient>
+      </defs>
+      <g transform="translate(250,250)">
+        {[0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330].map((angle) => (
+          <path
+            key={angle}
+            d="M0,0 C50,-100 150,-100 200,0 C150,100 50,100 0,0"
+            fill="none"
+            stroke="url(#grad1)"
+            strokeWidth="1.5"
+            transform={`rotate(${angle})`}
+          />
+        ))}
+        <circle cx="0" cy="0" r="40" fill="none" stroke="currentColor" strokeWidth="2" strokeDasharray="10 5" />
+        <circle cx="0" cy="0" r="100" fill="none" stroke="currentColor" strokeWidth="1" opacity="0.5" />
+      </g>
+    </svg>
+
+    {/* Inner Counter-Rotating Mandala */}
+    <svg viewBox="0 0 500 500" className="absolute w-[80%] h-[80%] text-cyan-500 animate-spin-slow-reverse" style={{ animationDuration: '60s' }}>
+      <g transform="translate(250,250)">
+        {[15, 45, 75, 105, 135, 165, 195, 225, 255, 285, 315, 345].map((angle) => (
+          <rect
+            key={angle}
+            x="-50" y="-50" width="100" height="100"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1"
+            transform={`rotate(${angle})`}
+            opacity="0.6"
+          />
+        ))}
+      </g>
+    </svg>
+  </div>
+);
+
 const AccountingPage: React.FC<AccountingPageProps> = ({ 
   onBack, invoices, dueCollections, detailedExpenses, setDetailedExpenses, employees, setEmployees,
   purchaseInvoices, salesInvoices, indoorInvoices, medicines, setReagents
@@ -79,7 +123,7 @@ const AccountingPage: React.FC<AccountingPageProps> = ({
             employees={employees} 
             detailedExpenses={detailedExpenses} 
             setDetailedExpenses={setDetailedExpenses}
-            setReagents={setReagents} // NEW
+            setReagents={setReagents} 
         />
     );
   }
@@ -137,11 +181,8 @@ const AccountingPage: React.FC<AccountingPageProps> = ({
 
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col relative overflow-hidden">
-        {/* Background Elements */}
-        <div className="absolute inset-0 pointer-events-none">
-            <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-amber-900/10 rounded-full blur-[100px]"></div>
-            <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-900/10 rounded-full blur-[100px]"></div>
-        </div>
+        {/* New Graphic Background Animation */}
+        <BackgroundGraphic />
 
         {/* Header */}
         <header className="bg-slate-800 shadow-xl border-b border-slate-700 z-20 relative">

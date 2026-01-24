@@ -84,7 +84,8 @@ const AIAssistant: React.FC<AIAssistantProps> = ({
         setMessages(newMessages); setInput(''); setLoading(true);
         
         try {
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+            // Initializing GoogleGenAI instance right before the call as per requirements.
+            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
             const todayStr = new Date().toISOString().split('T')[0];
 
             const response = await ai.models.generateContent({
