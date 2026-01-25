@@ -8,19 +8,18 @@ import { createClient } from '@supabase/supabase-js';
 const SUPABASE_URL = process.env.SUPABASE_URL || '';
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || '';
 
-// Validation logic to prevent crashing with "Invalid supabaseUrl" error
-const isValidUrl = (url: string) => {
+// URL validation to prevent Supabase Client from throwing a fatal error
+const isValidSupabaseConfig = (url: string, key: string) => {
   try {
-    return url.startsWith('http://') || url.startsWith('https://');
+    return url && key && (url.startsWith('http://') || url.startsWith('https://'));
   } catch {
     return false;
   }
 };
 
-// Only initialize if keys are present and URL is valid.
-// This prevents the "Blank Screen" by allowing the module to export without error.
-const supabase = (isValidUrl(SUPABASE_URL) && SUPABASE_ANON_KEY) 
-  ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) 
+// Initialize only if valid credentials exist, otherwise keep as null to prevent crash
+const supabase = isValidSupabaseConfig(SUPABASE_URL, SUPABASE_ANON_KEY)
+  ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
   : null;
 
 const LOCAL_STORAGE_KEY = 'ncd_offline_cache_v1';
@@ -29,7 +28,7 @@ const MASTER_RECORD_ID = 1;
 export const dbService = {
   saveToCloud: async (appState: any) => {
     try {
-      // Always save to local storage as primary backup
+      // Primary local backup
       localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(appState));
 
       if (supabase) {
@@ -45,7 +44,7 @@ export const dbService = {
       }
       return { success: true };
     } catch (error) {
-      console.warn("Cloud Sync Fallback: Data saved to LocalStorage only.", error);
+      console.warn("Database Sync Status: Local storage only.", error);
       return { success: false, error };
     }
   },
@@ -65,11 +64,11 @@ export const dbService = {
         }
       }
 
-      // Fallback to local storage if cloud is not available or empty
+      // Fallback if cloud is unavailable
       const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
       return saved ? JSON.parse(saved) : defaultData;
     } catch (error) {
-      console.warn("Cloud Fetch Fallback: Loading from LocalStorage.", error);
+      console.warn("Database Load Status: Using local data.", error);
       const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
       return saved ? JSON.parse(saved) : defaultData;
     }
