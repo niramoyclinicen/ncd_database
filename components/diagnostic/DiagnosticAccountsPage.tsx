@@ -108,6 +108,7 @@ const DailyExpenseForm: React.FC<any> = ({ selectedDate, onDateChange, dailyExpe
                                 </td>
                                 <td className="py-2 pr-2"><input value={item.description} onChange={e => handleItemChange(item.id, 'description', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded p-1.5 text-white text-xs" /></td>
                                 <td className="py-2 pr-2"><input type="number" value={item.paidAmount} onChange={e => handleItemChange(item.id, 'paidAmount', parseFloat(e.target.value) || 0)} className="w-24 bg-slate-800 border border-slate-700 rounded p-1.5 text-white text-xs text-right" onFocus={e => e.target.select()} /></td>
+                                {/* Fix: pass item.id instead of id to removeItem to resolve "Cannot find name 'id'" error */}
                                 <td className="py-2 text-center"><button onClick={() => removeItem(item.id)} className="text-red-500 font-bold">×</button></td>
                             </tr>
                         ))}
@@ -133,7 +134,7 @@ const DiagnosticAccountsPage: React.FC<any> = ({
     const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
     const [activeTab, setActiveTab] = useState<'entry' | 'daily' | 'monthly' | 'yearly' | 'detail' | 'due'>('entry');
-    const [detailViewMode, setDetailViewMode] = useState<'today' | 'historical' | 'monthly_summary'>('today');
+    const [detailViewMode, setDetailViewMode] = useState<'today' | 'historical' | 'monthly_summary' | 'monthly_expense'>('today');
     const [detailSearch, setDetailSearch] = useState('');
     const [dueSearch, setDueSearch] = useState('');
     const [entrySearch, setEntrySearch] = useState('');
@@ -219,7 +220,7 @@ const DiagnosticAccountsPage: React.FC<any> = ({
         return { daily: getRangeStats('daily'), monthly: getRangeStats('monthly'), yearly: getRangeStats('yearly') };
     }, [invoices, dueCollections, detailedExpenses, selectedDate, selectedMonth, selectedYear]);
 
-    // Data processing for the Detailed Collection Log with Date Grouping and 10 specific columns
+    // Data processing for the Detailed Collection Log
     const detailTableData = useMemo(() => {
         const filtered = invoices.filter((inv: any) => {
             if (detailViewMode === 'today') return inv.invoice_date === todayStr;
@@ -231,15 +232,10 @@ const DiagnosticAccountsPage: React.FC<any> = ({
             return matchesSearch && inv.status !== 'Cancelled';
         });
 
-        // Map and Calculate 10 Columns
         const results = filtered.map((inv: any) => {
-            // USG Calculation: sum of all test charges marked as USG
             const usgAmt = inv.items.reduce((sum: number, item: any) => sum + (item.usg_exam_charge || 0), 0);
-            // PC: Special commission
             const pcAmt = inv.special_commission || 0;
-            // Cash Paid: Amount collected at billing
             const cashPaid = inv.paid_amount || 0;
-            // Balance: Cash Paid - USG - PC (Clinic's Net)
             const balance = cashPaid - usgAmt - pcAmt; 
             
             return {
@@ -257,7 +253,6 @@ const DiagnosticAccountsPage: React.FC<any> = ({
             };
         }).sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-        // Grouping by Date
         const grouped: Record<string, any[]> = {};
         results.forEach((row: any) => {
             if (!grouped[row.date]) grouped[row.date] = [];
@@ -266,7 +261,7 @@ const DiagnosticAccountsPage: React.FC<any> = ({
         return grouped;
     }, [invoices, detailSearch, selectedMonth, selectedYear, detailViewMode, todayStr]);
 
-    // Monthly Collection Summary Cumulative Logic
+    // Monthly Collection Summary logic
     const monthlySummaryData = useMemo(() => {
         const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
         const dailyData = [];
@@ -290,6 +285,28 @@ const DiagnosticAccountsPage: React.FC<any> = ({
         return dailyData;
     }, [invoices, dueCollections, selectedMonth, selectedYear]);
 
+    // --- NEW: Monthly Expense Summary Logic ---
+    const monthlyExpenseData = useMemo(() => {
+        const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
+        const dailyData = [];
+        let runningTotal = 0;
+
+        for (let day = 1; day <= daysInMonth; day++) {
+            const currentDayStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            
+            const dayExpenses = detailedExpenses[currentDayStr] || [];
+            const dayTotal = dayExpenses.reduce((s: number, i: any) => s + (i.paidAmount || 0), 0);
+            runningTotal += dayTotal;
+
+            dailyData.push({
+                date: currentDayStr,
+                expense: dayTotal,
+                runningTotal: runningTotal
+            });
+        }
+        return dailyData;
+    }, [detailedExpenses, selectedMonth, selectedYear]);
+
     const dueList = useMemo(() => {
         return invoices.filter((inv: any) => 
             inv.due_amount > 1 && inv.status !== 'Cancelled' &&
@@ -297,7 +314,7 @@ const DiagnosticAccountsPage: React.FC<any> = ({
         ).sort((a: any, b: any) => new Date(b.invoice_date).getTime() - new Date(a.invoice_date).getTime());
     }, [invoices, dueSearch]);
 
-    // --- PRINT FUNCTIONS (LANDSCAPE A4) ---
+    // --- PRINT FUNCTIONS ---
     const handlePrintSummary = (currentStats: any, rangeLabel: string) => {
         const win = window.open('', '_blank');
         if(!win) return;
@@ -405,6 +422,99 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                             </table>
                         </div>
                     `).join('')}
+                </body>
+            </html>
+        `;
+        win.document.write(html); win.document.close();
+        setTimeout(() => { win.print(); win.close(); }, 750);
+    };
+
+    const handlePrintMonthlyTracker = () => {
+        const win = window.open('', '_blank');
+        if(!win) return;
+        const totalCollectionValue = monthlySummaryData.reduce((s, day) => s + day.collection, 0);
+        const html = `
+            <html>
+                <head>
+                    <title>Monthly Performance Tracker</title>
+                    <script src="https://cdn.tailwindcss.com"></script>
+                    <style>
+                        @page { size: A4 portrait; margin: 10mm; }
+                        body { font-family: 'Segoe UI', Tahoma, sans-serif; color: black; background: white; margin: 0; padding: 0; }
+                        .page-container { width: 100%; padding: 5mm; box-sizing: border-box; }
+                        .header-text { text-align: center; margin-bottom: 10px; border-bottom: 2px solid black; padding-bottom: 5px; }
+                        h1 { font-size: 18pt; font-weight: 900; margin: 0; }
+                        table { width: 100%; border-collapse: collapse; margin-top: 5px; font-size: 8.5pt; }
+                        th, td { border: 1px solid #000; padding: 4px 8px; text-align: left; line-height: 1.2; }
+                        th { background: #f3f4f6; font-weight: 900; text-transform: uppercase; font-size: 8pt; }
+                        .text-right { text-align: right; }
+                        .font-black { font-weight: 900; }
+                        .footer-total { background: #f9fafb; font-weight: 900; font-size: 10pt; }
+                    </style>
+                </head>
+                <body>
+                    <div class="page-container">
+                        <div class="header-text">
+                            <h1 class="uppercase">Niramoy Clinic & Diagnostic</h1>
+                            <p class="font-bold">Monthly Collection Tracker - ${monthOptions[selectedMonth].name} ${selectedYear}</p>
+                        </div>
+                        <table>
+                            <thead><tr><th>Date (তারিখ)</th><th class="text-right">Daily Collection</th><th class="text-right">Running Total</th></tr></thead>
+                            <tbody>
+                                ${monthlySummaryData.map(day => `
+                                    <tr><td class="font-mono font-bold">${day.date}</td><td class="text-right">৳ ${day.collection.toLocaleString()}</td><td class="text-right font-black">৳ ${day.runningTotal.toLocaleString()}</td></tr>
+                                `).join('')}
+                            </tbody>
+                            <tfoot><tr class="footer-total"><td class="text-right">GRAND TOTAL:</td><td class="text-right text-emerald-600">৳ ${totalCollectionValue.toLocaleString()}</td><td class="text-right">---</td></tr></tfoot>
+                        </table>
+                    </div>
+                </body>
+            </html>
+        `;
+        win.document.write(html); win.document.close();
+        setTimeout(() => { win.print(); win.close(); }, 750);
+    };
+
+    // --- NEW: Print Monthly Expense Tracker ---
+    const handlePrintMonthlyExpenseTracker = () => {
+        const win = window.open('', '_blank');
+        if(!win) return;
+        const totalExpenseValue = monthlyExpenseData.reduce((s, day) => s + day.expense, 0);
+        const html = `
+            <html>
+                <head>
+                    <title>Monthly Expense Tracker</title>
+                    <script src="https://cdn.tailwindcss.com"></script>
+                    <style>
+                        @page { size: A4 portrait; margin: 10mm; }
+                        body { font-family: 'Segoe UI', Tahoma, sans-serif; color: black; background: white; margin: 0; padding: 0; }
+                        .page-container { width: 100%; padding: 5mm; box-sizing: border-box; }
+                        .header-text { text-align: center; margin-bottom: 10px; border-bottom: 2px solid black; padding-bottom: 5px; }
+                        h1 { font-size: 18pt; font-weight: 900; margin: 0; }
+                        table { width: 100%; border-collapse: collapse; margin-top: 5px; font-size: 8.5pt; }
+                        th, td { border: 1px solid #000; padding: 4px 8px; text-align: left; line-height: 1.2; }
+                        th { background: #f3f4f6; font-weight: 900; text-transform: uppercase; font-size: 8pt; }
+                        .text-right { text-align: right; }
+                        .font-black { font-weight: 900; }
+                        .footer-total { background: #fef2f2; font-weight: 900; font-size: 10pt; }
+                    </style>
+                </head>
+                <body>
+                    <div class="page-container">
+                        <div class="header-text">
+                            <h1 class="uppercase">Niramoy Clinic & Diagnostic</h1>
+                            <p class="font-bold">Monthly Expense Tracker - ${monthOptions[selectedMonth].name} ${selectedYear}</p>
+                        </div>
+                        <table>
+                            <thead><tr><th>Date (তারিখ)</th><th class="text-right">Daily Expense</th><th class="text-right">Running Total</th></tr></thead>
+                            <tbody>
+                                ${monthlyExpenseData.map(day => `
+                                    <tr><td class="font-mono font-bold">${day.date}</td><td class="text-right">৳ ${day.expense.toLocaleString()}</td><td class="text-right font-black">৳ ${day.runningTotal.toLocaleString()}</td></tr>
+                                `).join('')}
+                            </tbody>
+                            <tfoot><tr class="footer-total"><td class="text-right">GRAND TOTAL:</td><td class="text-right text-rose-600">৳ ${totalExpenseValue.toLocaleString()}</td><td class="text-right">---</td></tr></tfoot>
+                        </table>
+                    </div>
                 </body>
             </html>
         `;
@@ -590,14 +700,15 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                                         <button onClick={() => setDetailViewMode('today')} className={`px-6 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${detailViewMode === 'today' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500'}`}>Today</button>
                                         <button onClick={() => setDetailViewMode('historical')} className={`px-6 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${detailViewMode === 'historical' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500'}`}>Historical</button>
                                         <button onClick={() => setDetailViewMode('monthly_summary')} className={`px-6 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${detailViewMode === 'monthly_summary' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-500'}`}>Monthly Collection</button>
+                                        <button onClick={() => setDetailViewMode('monthly_expense')} className={`px-6 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${detailViewMode === 'monthly_expense' ? 'bg-rose-600 text-white shadow-lg' : 'text-slate-500'}`}>Monthly Expense</button>
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-3">
                                     <button 
-                                        onClick={handlePrintDetailedLog}
+                                        onClick={detailViewMode === 'monthly_summary' ? handlePrintMonthlyTracker : detailViewMode === 'monthly_expense' ? handlePrintMonthlyExpenseTracker : handlePrintDetailedLog}
                                         className="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2 rounded-xl text-xs font-black uppercase flex items-center gap-2 shadow-lg"
                                     >
-                                        <PrinterIcon size={14}/> Print Detailed Log
+                                        <PrinterIcon size={14}/> {detailViewMode === 'monthly_summary' ? 'Print Tracker' : detailViewMode === 'monthly_expense' ? 'Print Expense' : 'Print Detailed Log'}
                                     </button>
                                     <div className="relative w-64">
                                         <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
@@ -625,6 +736,30 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                                                     <td className="p-4 font-bold text-slate-300 font-mono">{day.date}</td>
                                                     <td className="p-4 text-right font-black text-slate-400">৳ {day.collection.toLocaleString()}</td>
                                                     <td className="p-4 text-right font-black text-emerald-400 text-lg">৳ {day.runningTotal.toLocaleString()}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            ) : detailViewMode === 'monthly_expense' ? (
+                                <div className="animate-fade-in bg-slate-900 border border-slate-700 rounded-2xl overflow-hidden shadow-2xl max-w-4xl mx-auto w-full">
+                                    <div className="p-5 bg-slate-950 border-b border-slate-700 flex justify-between items-center font-black uppercase text-xs tracking-widest text-rose-400">
+                                        <span>Monthly Expense Tracker: {monthOptions[selectedMonth].name} {selectedYear}</span>
+                                        <div className="flex gap-2">
+                                            <select value={selectedMonth} onChange={e => setSelectedMonth(parseInt(e.target.value))} className="bg-slate-800 p-1 rounded text-[10px] text-white outline-none border border-slate-700">{monthOptions.map(m => <option key={m.value} value={m.value}>{m.name}</option>)}</select>
+                                            <select value={selectedYear} onChange={e => setSelectedYear(parseInt(e.target.value))} className="bg-slate-800 p-1 rounded text-[10px] text-white outline-none border border-slate-700">{[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}</select>
+                                        </div>
+                                    </div>
+                                    <table className="w-full text-left border-collapse text-xs">
+                                        <thead className="bg-slate-950 text-slate-500 font-black uppercase tracking-widest text-[10px]">
+                                            <tr><th className="p-5 border-b border-slate-800">Date (তারিখ)</th><th className="p-5 border-b border-slate-800 text-right">Daily Expense (দিনের খরচ)</th><th className="p-5 border-b border-slate-800 text-right text-rose-400">Running Total (মোট খরচ)</th></tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-800/50">
+                                            {monthlyExpenseData.map((day, i) => (
+                                                <tr key={i} className={`hover:bg-slate-800/40 transition-colors ${day.expense > 0 ? 'bg-rose-950/5' : ''}`}>
+                                                    <td className="p-4 font-bold text-slate-300 font-mono">{day.date}</td>
+                                                    <td className="p-4 text-right font-black text-slate-400">৳ {day.expense.toLocaleString()}</td>
+                                                    <td className="p-4 text-right font-black text-rose-400 text-lg">৳ {day.runningTotal.toLocaleString()}</td>
                                                 </tr>
                                             ))}
                                         </tbody>

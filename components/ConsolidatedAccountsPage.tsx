@@ -1,8 +1,7 @@
-
 import React, { useMemo, useState, useEffect } from 'react';
 import { LabInvoice, DueCollection, ExpenseItem, Employee, PurchaseInvoice, SalesInvoice, Medicine } from './DiagnosticData';
 import { IndoorInvoice } from './ClinicPage';
-import { BackIcon, FileTextIcon, UsersIcon, WalletIcon, MoneyIcon, TrendingDownIcon, ChartIcon, PlusIcon, Activity, TrashIcon, SaveIcon } from './Icons';
+import { BackIcon, FileTextIcon, UsersIcon, WalletIcon, MoneyIcon, TrendingDownIcon, ChartIcon, PlusIcon, Activity, TrashIcon, SaveIcon, PrinterIcon } from './Icons';
 
 interface ConsolidatedAccountsPageProps {
   onBack: () => void;
@@ -99,10 +98,17 @@ const expenseMapSequence = [
     { key: 'Old Loan Repay', label: 'পূর্বের ঋণ পরিশোধ' }
 ];
 
+const clinicExpenseCategories = [
+    'Stuff salary', 'Generator', 'Motorcycle', 'Marketing', 'Clinic development', 
+    'Medicine buy (Pharmacy)', 'X-Ray', 'House rent', 'Stationery', 'Food/Refreshment', 
+    'Doctor donation', 'Repair/Instruments', 'Press', 'License/Official', 
+    'Bank/NGO Installment', 'Mobile', 'Interest/Loan', 'Others', 'Old Loan Repay'
+];
+
 const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
   onBack, labInvoices, dueCollections, detailedExpenses, employees, purchaseInvoices, salesInvoices, indoorInvoices, medicines = []
 }) => {
-    const [activeView, setActiveView] = useState<'accounts' | 'shareholders' | 'money_mgmt' | 'final_status' | 'future_plans' | 'shareholder_mgmt'>('accounts');
+    const [activeView, setActiveView] = useState<'monthly_expense_sheet' | 'accounts' | 'shareholders' | 'money_mgmt' | 'final_status' | 'future_plans' | 'shareholder_mgmt'>('accounts');
     const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth());
     const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
     
@@ -115,7 +121,6 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
     const [profitDistAmount, setProfitDistAmount] = useState<number>(0);
     const [manualLoanInstallment, setManualLoanInstallment] = useState<number>(0);
 
-    // Editing State
     const [editingPartner, setEditingPartner] = useState<number | null>(null);
     const [newPlan, setNewPlan] = useState<Partial<FuturePlan>>({ title: '', estimatedCost: 0, status: 'Pending', targetDate: '' });
 
@@ -144,7 +149,6 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
         if(confirm("পরিকল্পনাটি মুছে ফেলতে চান?")) setFuturePlans(futurePlans.filter(p => p.id !== id));
     };
 
-    // Added missing updatePlan function to update future plans state
     const updatePlan = (id: string, field: keyof FuturePlan, val: any) => {
         setFuturePlans(prev => prev.map(p => p.id === id ? { ...p, [field]: val } : p));
     };
@@ -153,19 +157,39 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
         setDynamicShareholders(dynamicShareholders.map(s => s.id === id ? { ...s, [field]: val } : s));
     };
 
+    const expenseSheetData = useMemo(() => {
+        const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
+        const rows = [];
+        for (let d = 1; d <= daysInMonth; d++) {
+            const dateStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+            const dailyExps = detailedExpenses[dateStr] || [];
+            const categorySums: Record<string, number> = {};
+            clinicExpenseCategories.forEach(cat => categorySums[cat] = 0);
+            dailyExps.forEach(exp => {
+                if (categorySums[exp.category] !== undefined) categorySums[exp.category] += exp.paidAmount;
+            });
+            const totalDay = Object.values(categorySums).reduce((a, b) => a + b, 0);
+            rows.push({ date: dateStr, categories: categorySums, total: totalDay });
+        }
+        const columnTotals: Record<string, number> = {};
+        clinicExpenseCategories.forEach(cat => {
+            columnTotals[cat] = rows.reduce((sum, row) => sum + row.categories[cat], 0);
+        });
+        const grandTotal = rows.reduce((sum, row) => sum + row.total, 0);
+        return { rows, columnTotals, grandTotal };
+    }, [detailedExpenses, selectedMonth, selectedYear]);
+
     const summary = useMemo(() => {
         const isSelectedMonth = (dateStr: string) => {
             if (!dateStr) return false;
             const d = new Date(dateStr);
             return d.getMonth() === selectedMonth && d.getFullYear() === selectedYear;
         };
-
         const isBeforeSelectedMonth = (dateStr: string) => {
             if (!dateStr) return false;
             const d = new Date(dateStr);
             return d.getFullYear() < selectedYear || (d.getFullYear() === selectedYear && d.getMonth() < selectedMonth);
         };
-
         const calcNetPrev = () => {
             const prevLab = labInvoices.filter(inv => isBeforeSelectedMonth(inv.invoice_date) && inv.status !== 'Cancelled').reduce((s, i) => s + i.paid_amount, 0);
             const prevLabDue = dueCollections.filter(dc => isBeforeSelectedMonth(dc.collection_date) && dc.invoice_id.startsWith('INV')).reduce((s, dc) => s + dc.amount_collected, 0);
@@ -180,23 +204,17 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
             const net = (prevLab + prevLabDue + prevClinic + prevClinicDue + prevMedSales) - (prevExp + prevMedPurch);
             return net > 0 ? net : 0;
         };
-
         const prevJer = calcNetPrev();
         const diagCurrent = labInvoices.filter(inv => isSelectedMonth(inv.invoice_date) && inv.status !== 'Cancelled').reduce((s, i) => s + i.paid_amount, 0);
         const diagDue = dueCollections.filter(dc => isSelectedMonth(dc.collection_date) && dc.invoice_id.startsWith('INV')).reduce((s, dc) => s + dc.amount_collected, 0);
-        
         const clinicCurrent = indoorInvoices.filter(inv => isSelectedMonth(inv.invoice_date)).reduce((s, i) => s + i.paid_amount, 0);
         const clinicDue = dueCollections.filter(dc => isSelectedMonth(dc.collection_date) && !dc.invoice_id.startsWith('INV')).reduce((s, dc) => s + dc.amount_collected, 0);
-
         const medSalesCurrent = salesInvoices.filter(inv => isSelectedMonth(inv.invoiceDate)).reduce((s, i) => s + i.netPayable, 0);
         const medPurchCurrent = purchaseInvoices.filter(inv => isSelectedMonth(inv.invoiceDate)).reduce((s, i) => s + i.paidAmount, 0);
-
         const totalDiag = diagCurrent + diagDue;
         const totalClinic = clinicCurrent + clinicDue;
         const totalMedNet = medSalesCurrent - medPurchCurrent;
-
         const grandTotalCollection = totalDiag + totalClinic + medSalesCurrent + prevJer - houseRentDeduction;
-
         const groupedExp: Record<string, number> = {};
         expenseMapSequence.forEach(e => groupedExp[e.key] = 0);
         Object.entries(detailedExpenses).forEach(([date, items]) => {
@@ -205,22 +223,17 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                 groupedExp[key] += it.paidAmount;
             });
         });
-        
         const monthlyLoanRepayments = repayments.filter(r => isSelectedMonth(r.date)).reduce((s, r) => s + r.amount, 0);
         groupedExp['Interest/Loan'] += monthlyLoanRepayments;
         groupedExp['Interest/Loan'] += manualLoanInstallment;
-
         const totalExpense = Object.values(groupedExp).reduce((s, v) => s + (v as number), 0);
         const netProfit = grandTotalCollection - totalExpense;
         const finalClosingJer = netProfit - profitDistAmount;
-
         const totalShares = dynamicShareholders.reduce((s, h) => s + h.shares, 0);
         const profitPerShare = totalShares > 0 ? profitDistAmount / totalShares : 0;
-
         return {
             prevJer, diagCurrent, diagDue, totalDiag, clinicCurrent, clinicDue, totalClinic,
-            medSalesCurrent, medPurchCurrent, totalMedNet,
-            grandTotalCollection, groupedExp, totalExpense, netProfit, finalClosingJer, profitPerShare, totalShares
+            medSalesCurrent, medPurchCurrent, totalMedNet, grandTotalCollection, groupedExp, totalExpense, netProfit, finalClosingJer, profitPerShare, totalShares
         };
     }, [labInvoices, dueCollections, indoorInvoices, salesInvoices, purchaseInvoices, detailedExpenses, selectedMonth, selectedYear, houseRentDeduction, profitDistAmount, manualLoanInstallment, dynamicShareholders, repayments]);
 
@@ -233,46 +246,53 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
     const handlePrintSpecific = (elementId: string) => {
         const content = document.getElementById(elementId);
         if (!content) return;
-
         const win = window.open('', '', 'width=1000,height=1200');
+        if(!win) return;
+        const isLandscape = elementId === 'section-monthly-expense';
         const html = `
             <html>
                 <head>
                     <title>NcD Report Print</title>
                     <script src="https://cdn.tailwindcss.com"></script>
-                    <style>@page { size: A4; margin: 15mm; } body { background: white; font-family: serif; color: black; }</style>
+                    <style>
+                        @page { size: A4 ${isLandscape ? 'landscape' : 'portrait'}; margin: 5mm; } 
+                        body { background: white; font-family: 'Segoe UI', Tahoma, sans-serif; color: black; }
+                        table { width: 100%; border-collapse: collapse; font-size: ${isLandscape ? '6pt' : '8pt'}; }
+                        th, td { border: 1px solid #000; padding: 2px; text-align: left; }
+                        th { background: #f3f4f6; font-weight: bold; text-transform: uppercase; text-align: center; }
+                        .text-right { text-align: right; }
+                        .font-bold { font-weight: bold; }
+                        .vertical-header { writing-mode: vertical-rl; transform: rotate(180deg); white-space: nowrap; height: 80px; padding: 5px; font-size: 5pt; }
+                    </style>
                 </head>
-                <body class="p-10">
+                <body class="p-2">
                     <div class="print-wrapper">${content.innerHTML}</div>
-                    <script>setTimeout(() => { window.print(); window.close(); }, 700);</script>
+                    <script>setTimeout(() => { window.print(); window.close(); }, 750);</script>
                 </body>
             </html>
         `;
-        win?.document.write(html);
-        win?.document.close();
+        win.document.write(html); win.document.close();
     };
 
-    const commonTableHeadClass = "p-1.5 border border-black bg-gray-100 text-center font-bold text-[10.5pt] font-bengali h-9";
     const commonTableCellClass = "p-1.5 border border-black font-bold text-[10.5pt] font-bengali h-9";
     const commonAmtCellClass = "p-1.5 border border-black text-right font-black text-[10.5pt] w-[110px] h-9";
 
     return (
         <div className="min-h-screen bg-slate-100 flex flex-col font-sans">
-            <header className="bg-slate-800 p-4 border-b border-slate-700 sticky top-0 z-[100] no-print flex flex-col md:flex-row justify-between items-center text-white gap-4">
+            <header className="bg-slate-800 p-4 border-b border-slate-700 sticky top-0 z-[100] no-print flex flex-col md:flex-row justify-between items-center text-white gap-4 shadow-xl">
                 <div className="flex items-center gap-4">
                     <button onClick={onBack} className="p-2 bg-slate-700 rounded-full hover:bg-slate-600 transition-colors"><BackIcon className="w-5 h-5" /></button>
                     <h1 className="font-bold uppercase tracking-tight text-sm">Accounts Console</h1>
                 </div>
-
                 <div className="flex bg-slate-900/50 p-1 rounded-lg border border-slate-700 overflow-x-auto max-w-full">
-                    <button onClick={() => setActiveView('accounts')} className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all whitespace-nowrap ${activeView === 'accounts' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'}`}>Accounts Sheet</button>
-                    <button onClick={() => setActiveView('shareholders')} className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all whitespace-nowrap ${activeView === 'shareholders' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'}`}>Profit Share</button>
-                    <button onClick={() => setActiveView('final_status')} className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all whitespace-nowrap ${activeView === 'final_status' ? 'bg-amber-600 text-white' : 'text-slate-400 hover:text-white'}`}>Status</button>
-                    <button onClick={() => setActiveView('money_mgmt')} className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all whitespace-nowrap ${activeView === 'money_mgmt' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-white'}`}>Money Mgmt</button>
-                    <button onClick={() => setActiveView('future_plans')} className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all whitespace-nowrap ${activeView === 'future_plans' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'}`}>Future Plans</button>
-                    <button onClick={() => setActiveView('shareholder_mgmt')} className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all whitespace-nowrap ${activeView === 'shareholder_mgmt' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white'}`}>Partner Mgmt</button>
+                    <button onClick={() => setActiveView('monthly_expense_sheet')} className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all whitespace-nowrap ${activeView === 'monthly_expense_sheet' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}>Monthly Expense Sheet</button>
+                    <button onClick={() => setActiveView('accounts')} className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all whitespace-nowrap ${activeView === 'accounts' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}>Accounts Sheet</button>
+                    <button onClick={() => setActiveView('shareholders')} className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all whitespace-nowrap ${activeView === 'shareholders' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}>Profit Share</button>
+                    <button onClick={() => setActiveView('final_status')} className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all whitespace-nowrap ${activeView === 'final_status' ? 'bg-amber-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}>Status</button>
+                    <button onClick={() => setActiveView('money_mgmt')} className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all whitespace-nowrap ${activeView === 'money_mgmt' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}>Money Mgmt</button>
+                    <button onClick={() => setActiveView('future_plans')} className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all whitespace-nowrap ${activeView === 'future_plans' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}>Future Plans</button>
+                    <button onClick={() => setActiveView('shareholder_mgmt')} className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all whitespace-nowrap ${activeView === 'shareholder_mgmt' ? 'bg-slate-700 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}>Partner Mgmt</button>
                 </div>
-
                 <div className="flex gap-4 items-center">
                     <select value={selectedMonth} onChange={e => setSelectedMonth(parseInt(e.target.value))} className="bg-slate-700 border-none rounded p-1 text-white text-xs">{monthOptions.map(m => <option key={m.value} value={m.value}>{m.name}</option>)}</select>
                     <select value={selectedYear} onChange={e => setSelectedYear(parseInt(e.target.value))} className="bg-slate-700 border-none rounded p-1 text-white text-xs">{[2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}</select>
@@ -280,12 +300,49 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
             </header>
 
             <div className="flex-1 overflow-y-auto p-4 md:p-8 bg-slate-200">
-                
+                {activeView === 'monthly_expense_sheet' && (
+                    <div id="section-monthly-expense" className="relative animate-fade-in">
+                        <button onClick={() => handlePrintSpecific('section-monthly-expense')} className="no-print absolute top-2 right-2 p-2 bg-emerald-600 text-white rounded-full shadow-lg hover:bg-emerald-500 z-50 flex items-center gap-2"><PrinterIcon size={18} /> <span className="text-xs font-bold">Print Landscape</span></button>
+                        <main className="p-4 max-w-[297mm] mx-auto w-full bg-white text-black shadow-2xl flex flex-col border border-gray-300 font-sans">
+                            <div className="text-center mb-4 border-b-2 border-black pb-2">
+                                <h1 className="text-2xl font-black uppercase text-blue-900 leading-none">Niramoy Clinic & Diagnostic</h1>
+                                <p className="text-xs font-bold mt-1">Monthly Clinic Expense Ledger - {monthOptions[selectedMonth].name} {selectedYear}</p>
+                            </div>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-[7.5px] border-collapse border border-black">
+                                    <thead>
+                                        <tr className="bg-gray-100">
+                                            <th className="border border-black p-1 w-16">Date</th>
+                                            {clinicExpenseCategories.map(cat => (<th key={cat} className="border border-black p-1 vertical-header text-[7px] leading-tight break-words min-w-[35px] max-w-[50px]">{cat}</th>))}
+                                            <th className="border border-black p-1 w-20 bg-gray-200">Total</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {expenseSheetData.rows.map(row => (
+                                            <tr key={row.date} className="hover:bg-blue-50 transition-colors">
+                                                <td className="border border-black p-1 text-center font-mono font-bold">{row.date.split('-')[2]} {monthOptions[parseInt(row.date.split('-')[1])-1].name.substring(0,3)}</td>
+                                                {clinicExpenseCategories.map(cat => (<td key={cat} className="border border-black p-1 text-right font-medium">{row.categories[cat] > 0 ? row.categories[cat].toLocaleString() : '-'}</td>))}
+                                                <td className="border border-black p-1 text-right font-black bg-gray-50">{row.total > 0 ? row.total.toLocaleString() : '-'}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                    <tfoot className="bg-gray-100 font-black">
+                                        <tr>
+                                            <td className="border border-black p-1 text-center">TOTALS:</td>
+                                            {clinicExpenseCategories.map(cat => (<td key={cat} className="border border-black p-1 text-right text-blue-900">{expenseSheetData.columnTotals[cat] > 0 ? expenseSheetData.columnTotals[cat].toLocaleString() : '-'}</td>))}
+                                            <td className="border border-black p-1 text-right text-emerald-700 text-[10pt] shadow-inner">৳{expenseSheetData.grandTotal.toLocaleString()}</td>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                            </div>
+                            <div className="mt-4 text-[7px] italic text-gray-400 text-center">Printed at: {new Date().toLocaleString()} | IMS System</div>
+                        </main>
+                    </div>
+                )}
+
                 {activeView === 'accounts' && (
                     <div id="section-accounts" className="relative">
-                        <button onClick={() => handlePrintSpecific('section-accounts')} className="no-print absolute top-2 right-2 p-2 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-500 z-50">
-                            <FileTextIcon className="w-5 h-5" />
-                        </button>
+                        <button onClick={() => handlePrintSpecific('section-accounts')} className="no-print absolute top-2 right-2 p-2 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-500 z-50"><FileTextIcon className="w-5 h-5" /></button>
                         <main className="p-10 max-w-[210mm] mx-auto w-full bg-white text-black shadow-2xl flex flex-col border border-gray-300 font-serif">
                             <div className="text-center mb-6 border-b-2 border-black pb-3">
                                 <h1 className="text-4xl font-black uppercase text-blue-900 leading-none">Niramoy Clinic & Diagnostic</h1>
@@ -421,7 +478,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
 
                 {activeView === 'future_plans' && (
                     <div className="max-w-4xl mx-auto space-y-8 animate-fade-in no-print">
-                        <div className="bg-slate-900 p-8 rounded-[2.5rem] shadow-2xl border border-slate-800">
+                        <div className="bg-slate-900 p-8 rounded-[2.5rem] border border-slate-800">
                             <h3 className="text-xl font-black text-white mb-6 font-bengali flex items-center gap-3"><Activity className="text-indigo-400" /> নতুন ফিউচার প্ল্যান যুক্ত করুন</h3>
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
                                 <div className="md:col-span-1"><label className="text-[10px] font-black text-slate-500 uppercase ml-2">পরিকল্পনার নাম</label><input value={newPlan.title} onChange={e=>setNewPlan({...newPlan, title: e.target.value})} className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white font-bold" /></div>
@@ -430,7 +487,6 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                 <button onClick={addFuturePlan} className="md:col-span-3 py-4 bg-indigo-600 text-white rounded-xl font-black uppercase tracking-widest hover:bg-indigo-500 shadow-xl transition-all">সেভ করুন</button>
                             </div>
                         </div>
-
                         <div className="space-y-4">
                             {futurePlans.map(plan => (
                                 <div key={plan.id} className="bg-white p-6 rounded-3xl border border-slate-200 shadow-lg flex justify-between items-center group hover:border-indigo-400 transition-all">
@@ -450,17 +506,13 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                     </div>
                                 </div>
                             ))}
-                            {futurePlans.length === 0 && <div className="p-20 text-center text-slate-400 font-black uppercase italic tracking-widest opacity-30">No plans defined yet</div>}
                         </div>
                     </div>
                 )}
 
-                {/* Rest of view logic (money_mgmt, shareholders, status) remains same but with improved accessibility */}
                 {activeView === 'shareholders' && (
                     <div id="section-shareholders" className="relative">
-                        <button onClick={() => handlePrintSpecific('section-shareholders')} className="no-print absolute top-2 right-2 p-2 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-500 z-50">
-                            <FileTextIcon className="w-5 h-5" />
-                        </button>
+                        <button onClick={() => handlePrintSpecific('section-shareholders')} className="no-print absolute top-2 right-2 p-2 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-500 z-50"><FileTextIcon className="w-5 h-5" /></button>
                         <main className="p-10 max-w-[210mm] mx-auto w-full bg-white text-black shadow-2xl flex flex-col border border-gray-300 font-serif min-h-[296mm]">
                             <div className="text-center mb-8 border-b-2 border-black pb-3">
                                 <h1 className="text-3xl font-black uppercase text-blue-900 leading-none">নিরাময় ক্লিনিক এন্ড ডায়াগনস্টিক</h1>
@@ -480,9 +532,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                         </tr>
                                     ))}
                                 </tbody>
-                                <tfoot>
-                                    <tr className="bg-slate-900 text-white font-black h-12"><td colSpan={2} className="text-right px-4">মোট বণ্টন =</td><td className="text-center">{summary.totalShares}</td><td className="text-right px-2 text-yellow-400">{profitDistAmount.toLocaleString()} ৳</td><td></td></tr>
-                                </tfoot>
+                                <tfoot><tr className="bg-slate-900 text-white font-black h-12"><td colSpan={2} className="text-right px-4">মোট বণ্টন =</td><td className="text-center">{summary.totalShares}</td><td className="text-right px-2 text-yellow-400">{profitDistAmount.toLocaleString()} ৳</td><td></td></tr></tfoot>
                             </table>
                         </main>
                     </div>
@@ -490,9 +540,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
 
                 {activeView === 'final_status' && (
                     <div id="section-status" className="relative">
-                        <button onClick={() => handlePrintSpecific('section-status')} className="no-print absolute top-2 right-2 p-2 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-500 z-50">
-                            <FileTextIcon className="w-5 h-5" />
-                        </button>
+                        <button onClick={() => handlePrintSpecific('section-status')} className="no-print absolute top-2 right-2 p-2 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-500 z-50"><FileTextIcon className="w-5 h-5" /></button>
                         <main className="max-w-[210mm] mx-auto w-full bg-white p-12 text-black shadow-2xl h-auto flex flex-col font-serif border border-gray-300">
                             <div className="text-center mb-10 border-b-4 border-slate-900 pb-4">
                                 <h1 className="text-3xl font-black uppercase text-slate-900 leading-none">Institution Final Status Report</h1>
