@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { ViewState, UserRole, DepartmentPasswords } from './types';
 import Dashboard from './components/Dashboard';
@@ -47,7 +48,7 @@ const App: React.FC = () => {
   const [reagents, setReagents] = useState(mockReagents);
   const [labInvoices, setLabInvoices] = useState(mockInvoices);
   const [dueCollections, setDueCollections] = useState(mockDueCollections);
-  const [reports, setReports] = useState<LabReport[]>([]); // Fix: Typed as LabReport[] instead of never[]
+  const [reports, setReports] = useState<LabReport[]>([]);
   const [employees, setEmployees] = useState(mockEmployees);
   const [medicines, setMedicines] = useState(mockMedicines);
   const [clinicalDrugs, setClinicalDrugs] = useState(initialClinicalDrugs);
@@ -120,19 +121,14 @@ const App: React.FC = () => {
   ]);
 
   // --- HANDLERS ---
-  const handleAdminLogin = (password: string) => {
-    if (password === passwords.ADMIN) {
-      setIsAdminLoggedIn(true);
-      setUserRole('ADMIN');
-    } else {
-      alert("ভুল এডমিন পাসওয়ার্ড!");
-    }
-  };
-
   const handleDepartmentLogin = (password: string, dept: keyof DepartmentPasswords, role: UserRole, targetView: ViewState) => {
     if (password === passwords[dept]) {
+      if (dept === 'ADMIN') {
+        setIsAdminLoggedIn(true);
+      }
       setUserRole(role);
       setViewState(targetView);
+      setPendingDeptLogin(null);
     } else {
       alert("ভুল পাসওয়ার্ড! অনুগ্রহ করে আবার চেষ্টা করুন।");
     }
@@ -163,15 +159,15 @@ const App: React.FC = () => {
       case ViewState.MARKETING:
         setPendingDeptLogin({ dept: 'DIAGNOSTIC', role: 'DIAGNOSTIC_ADMIN', view });
         break;
+      case ViewState.ADMIN_SETTINGS:
+        setPendingDeptLogin({ dept: 'ADMIN', role: 'ADMIN', view });
+        break;
       default:
         setViewState(view);
     }
   };
 
   // --- RENDER LOGIC ---
-  if (!isAdminLoggedIn && viewState === ViewState.DASHBOARD && !pendingDeptLogin) {
-    return <DepartmentLogin department="ADMIN" onLogin={handleAdminLogin} onBack={() => {}} />;
-  }
 
   if (pendingDeptLogin) {
     return (
@@ -277,7 +273,7 @@ const App: React.FC = () => {
       case ViewState.DOCTOR_PORTAL:
         return (
           <DoctorPortal 
-            doctor={doctors[0]} // In a real app, this would be the logged-in doctor
+            doctor={doctors[0]} 
             appointments={appointments}
             patients={patients}
             prescriptions={prescriptions}
@@ -306,7 +302,6 @@ const App: React.FC = () => {
     <div className="min-h-screen bg-slate-950">
       {renderContent()}
       
-      {/* Global AI Assistant - Only visible when logged in */}
       {(isAdminLoggedIn || userRole !== 'NONE') && (
         <AIAssistant 
           detailedExpenses={detailedExpenses}
