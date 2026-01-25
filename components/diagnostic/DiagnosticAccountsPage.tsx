@@ -108,7 +108,6 @@ const DailyExpenseForm: React.FC<any> = ({ selectedDate, onDateChange, dailyExpe
                                 </td>
                                 <td className="py-2 pr-2"><input value={item.description} onChange={e => handleItemChange(item.id, 'description', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded p-1.5 text-white text-xs" /></td>
                                 <td className="py-2 pr-2"><input type="number" value={item.paidAmount} onChange={e => handleItemChange(item.id, 'paidAmount', parseFloat(e.target.value) || 0)} className="w-24 bg-slate-800 border border-slate-700 rounded p-1.5 text-white text-xs text-right" onFocus={e => e.target.select()} /></td>
-                                {/* Fix: pass item.id instead of id to removeItem to resolve "Cannot find name 'id'" error */}
                                 <td className="py-2 text-center"><button onClick={() => removeItem(item.id)} className="text-red-500 font-bold">×</button></td>
                             </tr>
                         ))}
@@ -150,7 +149,6 @@ const DiagnosticAccountsPage: React.FC<any> = ({
         setSuccessMessage("Expense data saved successfully!");
     };
 
-    // Helper for grouping date display (e.g., 01-Jan-2026)
     const formatGroupingDate = (dateStr: string) => {
         const d = new Date(dateStr);
         return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-');
@@ -220,9 +218,7 @@ const DiagnosticAccountsPage: React.FC<any> = ({
         return { daily: getRangeStats('daily'), monthly: getRangeStats('monthly'), yearly: getRangeStats('yearly') };
     }, [invoices, dueCollections, detailedExpenses, selectedDate, selectedMonth, selectedYear]);
 
-    // Data processing for the Detailed Collection Log
     const detailTableData = useMemo(() => {
-        // Fix: Added type assertion to invoices to resolve potential unknown type issues
         const filtered = (invoices as any[]).filter((inv: any) => {
             if (detailViewMode === 'today') return inv.invoice_date === todayStr;
             const d = new Date(inv.invoice_date);
@@ -262,7 +258,6 @@ const DiagnosticAccountsPage: React.FC<any> = ({
         return grouped;
     }, [invoices, detailSearch, selectedMonth, selectedYear, detailViewMode, todayStr]);
 
-    // Monthly Collection Summary logic
     const monthlySummaryData = useMemo(() => {
         const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
         const dailyData = [];
@@ -271,8 +266,8 @@ const DiagnosticAccountsPage: React.FC<any> = ({
         for (let day = 1; day <= daysInMonth; day++) {
             const currentDayStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
             
-            const dayInvoices = invoices.filter((inv: any) => inv.invoice_date === currentDayStr && inv.status !== 'Cancelled');
-            const dayDueRecov = dueCollections.filter((dc: any) => dc.collection_date === currentDayStr && dc.invoice_id.startsWith('INV-'));
+            const dayInvoices = (invoices as any[]).filter((inv: any) => inv.invoice_date === currentDayStr && inv.status !== 'Cancelled');
+            const dayDueRecov = (dueCollections as any[]).filter((dc: any) => dc.collection_date === currentDayStr && dc.invoice_id.startsWith('INV-'));
             
             const dayCollection = dayInvoices.reduce((s, i) => s + i.paid_amount, 0) + dayDueRecov.reduce((s, d) => s + d.amount_collected, 0);
             runningTotal += dayCollection;
@@ -286,7 +281,6 @@ const DiagnosticAccountsPage: React.FC<any> = ({
         return dailyData;
     }, [invoices, dueCollections, selectedMonth, selectedYear]);
 
-    // --- NEW: Monthly Expense Summary Logic ---
     const monthlyExpenseData = useMemo(() => {
         const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
         const dailyData = [];
@@ -295,7 +289,7 @@ const DiagnosticAccountsPage: React.FC<any> = ({
         for (let day = 1; day <= daysInMonth; day++) {
             const currentDayStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
             
-            const dayExpenses = detailedExpenses[currentDayStr] || [];
+            const dayExpenses = (detailedExpenses[currentDayStr] || []) as any[];
             const dayTotal = dayExpenses.reduce((s: number, i: any) => s + (i.paidAmount || 0), 0);
             runningTotal += dayTotal;
 
@@ -309,7 +303,7 @@ const DiagnosticAccountsPage: React.FC<any> = ({
     }, [detailedExpenses, selectedMonth, selectedYear]);
 
     const dueList = useMemo(() => {
-        return invoices.filter((inv: any) => 
+        return (invoices as any[]).filter((inv: any) => 
             inv.due_amount > 1 && inv.status !== 'Cancelled' &&
             (inv.patient_name.toLowerCase().includes(dueSearch.toLowerCase()) || inv.invoice_id.toLowerCase().includes(dueSearch.toLowerCase()))
         ).sort((a: any, b: any) => new Date(b.invoice_date).getTime() - new Date(a.invoice_date).getTime());
@@ -386,7 +380,6 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                         <h1 class="text-2xl font-black uppercase">Niramoy Clinic & Diagnostic</h1>
                         <p class="text-sm">Diagnostic Collection Detailed Journal - ${monthOptions[selectedMonth].name} ${selectedYear}</p>
                     </div>
-                    {/* Fix: Added type assertion to detailTableData results to resolve Property 'map' does not exist on type 'unknown' error */}
                     ${Object.entries(detailTableData as Record<string, any[]>).map(([date, rows]) => `
                         <div class="mb-8">
                             <div class="date-header">Date- ${formatGroupingDate(date)}</div>
@@ -406,7 +399,6 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {/* Fix: Added type assertion to rows to resolve Property 'map' does not exist on type 'unknown' error */}
                                     ${(rows as any[]).map(r => `
                                         <tr>
                                             <td class="font-mono">${r.id.split('-').pop()}</td>
@@ -478,7 +470,6 @@ const DiagnosticAccountsPage: React.FC<any> = ({
         setTimeout(() => { win.print(); win.close(); }, 750);
     };
 
-    // --- NEW: Print Monthly Expense Tracker ---
     const handlePrintMonthlyExpenseTracker = () => {
         const win = window.open('', '_blank');
         if(!win) return;
@@ -770,12 +761,10 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                                 </div>
                             ) : (
                                 <div className="space-y-12">
-                                    {/* Fix: Added type assertion to detailTableData results to resolve Property 'map' does not exist on type 'unknown' error */}
                                     {Object.entries(detailTableData as Record<string, any[]>).length > 0 ? Object.entries(detailTableData as Record<string, any[]>).map(([date, rows]) => (
                                         <div key={date} className="animate-fade-in bg-slate-900 border-2 border-slate-800 rounded-[2.5rem] overflow-hidden shadow-2xl">
                                             <div className="bg-slate-800 p-4 border-b border-slate-700 flex justify-between items-center px-10 shadow-inner">
                                                 <h4 className="text-lg font-black text-sky-400 tracking-widest uppercase">Date- {formatGroupingDate(date)}</h4>
-                                                {/* Fix: Added type assertion to rows to resolve Property 'length' does not exist on type 'unknown' error */}
                                                 <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{(rows as any[]).length} Patient Records</span>
                                             </div>
                                             <div className="overflow-x-auto">
@@ -795,7 +784,6 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                                                         </tr>
                                                     </thead>
                                                     <tbody className="divide-y divide-slate-800">
-                                                        {/* Fix: Added type assertion to rows to resolve Property 'map' does not exist on type 'unknown' error */}
                                                         {(rows as any[]).map((row, i) => (
                                                             <tr key={i} className="hover:bg-slate-800/40 transition-colors group">
                                                                 <td className="p-4 font-mono text-[10px] text-slate-500">{row.id.split('-').pop()}</td>
@@ -846,7 +834,7 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-200">
-                                        {dueList.map((inv: any, idx) => (
+                                        {dueList.map((inv: any, idx: number) => (
                                             <tr key={idx} className="hover:bg-blue-50 transition-colors text-slate-900 font-medium">
                                                 <td className="p-3 border-r border-slate-200 font-mono text-[10px]">{inv.invoice_date}</td>
                                                 <td className="p-3 border-r border-slate-200 font-black uppercase">{inv.patient_name}</td>
