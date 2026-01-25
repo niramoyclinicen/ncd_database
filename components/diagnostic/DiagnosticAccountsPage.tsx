@@ -222,7 +222,8 @@ const DiagnosticAccountsPage: React.FC<any> = ({
 
     // Data processing for the Detailed Collection Log
     const detailTableData = useMemo(() => {
-        const filtered = invoices.filter((inv: any) => {
+        // Fix: Added type assertion to invoices to resolve potential unknown type issues
+        const filtered = (invoices as any[]).filter((inv: any) => {
             if (detailViewMode === 'today') return inv.invoice_date === todayStr;
             const d = new Date(inv.invoice_date);
             return d.getMonth() === selectedMonth && d.getFullYear() === selectedYear;
@@ -385,7 +386,8 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                         <h1 class="text-2xl font-black uppercase">Niramoy Clinic & Diagnostic</h1>
                         <p class="text-sm">Diagnostic Collection Detailed Journal - ${monthOptions[selectedMonth].name} ${selectedYear}</p>
                     </div>
-                    ${Object.entries(detailTableData).map(([date, rows]) => `
+                    {/* Fix: Added type assertion to detailTableData results to resolve Property 'map' does not exist on type 'unknown' error */}
+                    ${Object.entries(detailTableData as Record<string, any[]>).map(([date, rows]) => `
                         <div class="mb-8">
                             <div class="date-header">Date- ${formatGroupingDate(date)}</div>
                             <table>
@@ -404,7 +406,8 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    ${rows.map(r => `
+                                    {/* Fix: Added type assertion to rows to resolve Property 'map' does not exist on type 'unknown' error */}
+                                    ${(rows as any[]).map(r => `
                                         <tr>
                                             <td class="font-mono">${r.id.split('-').pop()}</td>
                                             <td class="font-bold">${r.patientDesc}</td>
@@ -767,11 +770,13 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                                 </div>
                             ) : (
                                 <div className="space-y-12">
-                                    {Object.entries(detailTableData).length > 0 ? Object.entries(detailTableData).map(([date, rows]) => (
+                                    {/* Fix: Added type assertion to detailTableData results to resolve Property 'map' does not exist on type 'unknown' error */}
+                                    {Object.entries(detailTableData as Record<string, any[]>).length > 0 ? Object.entries(detailTableData as Record<string, any[]>).map(([date, rows]) => (
                                         <div key={date} className="animate-fade-in bg-slate-900 border-2 border-slate-800 rounded-[2.5rem] overflow-hidden shadow-2xl">
                                             <div className="bg-slate-800 p-4 border-b border-slate-700 flex justify-between items-center px-10 shadow-inner">
                                                 <h4 className="text-lg font-black text-sky-400 tracking-widest uppercase">Date- {formatGroupingDate(date)}</h4>
-                                                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{rows.length} Patient Records</span>
+                                                {/* Fix: Added type assertion to rows to resolve Property 'length' does not exist on type 'unknown' error */}
+                                                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{(rows as any[]).length} Patient Records</span>
                                             </div>
                                             <div className="overflow-x-auto">
                                                 <table className="w-full text-left text-[11px] border-collapse">
@@ -790,7 +795,8 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                                                         </tr>
                                                     </thead>
                                                     <tbody className="divide-y divide-slate-800">
-                                                        {rows.map((row, i) => (
+                                                        {/* Fix: Added type assertion to rows to resolve Property 'map' does not exist on type 'unknown' error */}
+                                                        {(rows as any[]).map((row, i) => (
                                                             <tr key={i} className="hover:bg-slate-800/40 transition-colors group">
                                                                 <td className="p-4 font-mono text-[10px] text-slate-500">{row.id.split('-').pop()}</td>
                                                                 <td className="p-4">

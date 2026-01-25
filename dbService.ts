@@ -17,7 +17,8 @@ const isValidUrl = (url: string) => {
   }
 };
 
-// Only initialize if keys are present
+// Only initialize if keys are present and URL is valid.
+// This prevents the "Blank Screen" by allowing the module to export without error.
 const supabase = (isValidUrl(SUPABASE_URL) && SUPABASE_ANON_KEY) 
   ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) 
   : null;
@@ -28,6 +29,7 @@ const MASTER_RECORD_ID = 1;
 export const dbService = {
   saveToCloud: async (appState: any) => {
     try {
+      // Always save to local storage as primary backup
       localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(appState));
 
       if (supabase) {
@@ -43,7 +45,7 @@ export const dbService = {
       }
       return { success: true };
     } catch (error) {
-      console.error("Cloud Sync Error:", error);
+      console.warn("Cloud Sync Fallback: Data saved to LocalStorage only.", error);
       return { success: false, error };
     }
   },
@@ -63,10 +65,11 @@ export const dbService = {
         }
       }
 
+      // Fallback to local storage if cloud is not available or empty
       const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
       return saved ? JSON.parse(saved) : defaultData;
     } catch (error) {
-      console.error("Cloud Fetch Error:", error);
+      console.warn("Cloud Fetch Fallback: Loading from LocalStorage.", error);
       const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
       return saved ? JSON.parse(saved) : defaultData;
     }
