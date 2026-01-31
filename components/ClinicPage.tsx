@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Patient, Doctor, Employee, Medicine, Referrar, MedicineItem } from './DiagnosticData';
 import SearchableSelect from './SearchableSelect';
@@ -166,6 +167,8 @@ export interface IndoorInvoice {
   net_payable?: number;
   admission_date?: string;
   discharge_date?: string;
+  status?: string; 
+  return_date?: string; // New: added for refund accounting
 }
 
 const emptyIndoorInvoice: IndoorInvoice = {
@@ -203,7 +206,8 @@ const emptyIndoorInvoice: IndoorInvoice = {
   special_discount_amount: 0,
   net_payable: 0,
   admission_date: '',
-  discharge_date: ''
+  discharge_date: '',
+  status: 'Posted'
 };
 
 interface ClinicDueCollection {
@@ -1366,7 +1370,7 @@ const IndoorInvoicePage: React.FC<{
 
     const activeEmployees = useMemo(() => employees.filter(e => e.is_current_month), [employees]);
 
-    // Calculate Stats
+    // Calculate Stats - Updated with Return logic
     const stats = useMemo(() => {
         const now = new Date();
         const today = now.toISOString().split('T')[0];
@@ -1376,17 +1380,35 @@ const IndoorInvoicePage: React.FC<{
         let todayColl = 0, todayDue = 0, monthColl = 0, yearColl = 0, totalDue = 0;
 
         indoorInvoices.forEach(inv => {
-            if (inv.invoice_date === today) {
+            // Collection today (not returned or returned on other day)
+            if (inv.invoice_date === today && inv.status !== 'Cancelled') {
                 todayColl += inv.paid_amount;
                 todayDue += inv.due_bill;
             }
-            if (inv.invoice_date.startsWith(currentMonth)) {
+            // If returned today, subtract from today's collection
+            if (inv.return_date === today && inv.status === 'Returned') {
+                todayColl -= inv.paid_amount;
+            }
+
+            // Monthly
+            if (inv.invoice_date.startsWith(currentMonth) && inv.status !== 'Cancelled') {
                 monthColl += inv.paid_amount;
             }
-            if (inv.invoice_date.startsWith(currentYear)) {
+            if (inv.return_date?.startsWith(currentMonth) && inv.status === 'Returned') {
+                monthColl -= inv.paid_amount;
+            }
+
+            // Yearly
+            if (inv.invoice_date.startsWith(currentYear) && inv.status !== 'Cancelled') {
                 yearColl += inv.paid_amount;
             }
-            totalDue += inv.due_bill;
+            if (inv.return_date?.startsWith(currentYear) && inv.status === 'Returned') {
+                yearColl -= inv.paid_amount;
+            }
+
+            if (inv.status !== 'Returned' && inv.status !== 'Cancelled') {
+                totalDue += inv.due_bill;
+            }
         });
 
         return { todayColl, todayDue, monthColl, yearColl, totalDue };
@@ -1417,7 +1439,7 @@ const IndoorInvoicePage: React.FC<{
             const totals = calculateTotals(formData.items, 0, paid, special);
             setFormData(prev => ({ ...prev, [name]: val, ...totals }));
         } else {
-            setFormData(prev => ({ ...prev, [name]: val }));
+            setFormData(prev => ({ ...prev, [name]: value }));
         }
     };
 
@@ -1425,15 +1447,13 @@ const IndoorInvoicePage: React.FC<{
         if (!selectedAdmission) return alert("Select Patient first.");
         const today = new Date();
         const dStr = today.toISOString().split('T')[0].replace(/-/g, '');
-        // Prefix CLIN- used for differentiation in Accounts
         const newId = `CLIN-${dStr}-${indoorInvoices.length + 1}`;
-        setFormData(prev => ({ ...prev, daily_id: newId, invoice_date: today.toISOString().split('T')[0], admission_id: selectedAdmission.admission_id, patient_name: selectedAdmission.patient_name }));
+        setFormData(prev => ({ ...prev, daily_id: newId, invoice_date: today.toISOString().split('T')[0], admission_id: selectedAdmission.admission_id, patient_name: selectedAdmission.patient_name, status: 'Posted' }));
     };
 
     const handleServiceChange = (id: number, field: keyof ServiceItem, value: any) => {
         let updatedItems = formData.items.map(item => item.id === id ? { ...item, [field]: value } : item);
         
-        // AUTO-CALCULATE MEDICINE BILL IF TYPE IS 'Medicine'
         if (field === 'service_type' && (value === 'Medicine' || value === 'medicine') && formData.admission_id) {
             const latestAdm = admissions.find(a => a.admission_id === formData.admission_id);
             if (latestAdm && latestAdm.nurse_chart) {
@@ -1478,9 +1498,6 @@ const IndoorInvoicePage: React.FC<{
         e.preventDefault();
         if (!formData.daily_id) return alert("Generate ID first");
         
-        // 2. BED RELEASE & REVERSE LOGIC
-        // Logic: If discharge_date is set, clear the bed in admission (Release).
-        // If invoice discharge date is cleared/empty, ensure the bed stays occupied.
         if (formData.admission_id) {
             setAdmissions((prev: AdmissionRecord[]) => prev.map((adm: AdmissionRecord) => {
                 if (adm.admission_id === formData.admission_id) {
@@ -1488,7 +1505,6 @@ const IndoorInvoicePage: React.FC<{
                     return { 
                         ...adm, 
                         discharge_date: formData.discharge_date || undefined, 
-                        // If discharged, clear bed. If not discharged, keep current bed (or restore if was empty)
                         bed_no: hasDischargeDate ? '' : (adm.bed_no || 'RE-ASSIGNED') 
                     };
                 }
@@ -1506,7 +1522,14 @@ const IndoorInvoicePage: React.FC<{
         setSelectedAdmission(null);
     };
 
-    // --- PRINT FINAL INVOICE ---
+    const handleReturnInvoice = (inv: IndoorInvoice) => {
+        if (inv.status === 'Returned') return alert("This invoice is already returned.");
+        if (window.confirm(`আপনি কি এই ইনভয়েসের (${inv.daily_id}) টাকা রিটার্ন করতে চান? এটি আজকের ক্যাশ বক্স থেকে বাদ যাবে।`)) {
+            const todayStr = new Date().toISOString().split('T')[0];
+            setIndoorInvoices(prev => prev.map(item => item.daily_id === inv.daily_id ? { ...item, status: 'Returned', return_date: todayStr } : item));
+            setSuccessMessage("Invoice Returned successfully. Today's cash updated.");
+        }
+    };
 
     const handlePrintInvoice = (inv: IndoorInvoice) => {
         const win = window.open('', '_blank');
@@ -1534,7 +1557,7 @@ const IndoorInvoicePage: React.FC<{
                     <p>Enayetpur, Sirajgonj | Mobile: 01730 923007</p>
                     <p style="font-size: 10px; opacity: 0.7;">Govt. Reg No: ${CLINIC_REGISTRATION}</p>
                 </div>
-                <div class="inv-title">INPATIENT BILL / INVOICE</div>
+                <div class="inv-title">INPATIENT BILL / INVOICE ${inv.status === 'Returned' ? '(RETURNED)' : ''}</div>
                 <div class="grid-info">
                     <div>
                         <b>Patient Name:</b> ${inv.patient_name}<br>
@@ -1568,6 +1591,7 @@ const IndoorInvoicePage: React.FC<{
                     <div class="total-row" style="color: green"><span>Paid Amount:</span> <span>৳${inv.paid_amount.toFixed(2)}</span></div>
                     <div class="total-row" style="color: red"><span>Due Balance:</span> <span>৳${inv.due_bill.toFixed(2)}</span></div>
                 </div>
+                ${inv.status === 'Returned' ? '<div style="color: red; text-align: center; border: 2px solid red; padding: 10px; margin-top: 20px; font-weight: bold; font-size: 16px;">RETURNED / REFUNDED</div>' : ''}
                 <div class="signature-area">
                     <div style="border-top: 1px solid #000; width: 150px; text-align: center;">Accountant</div>
                     <div style="border-top: 1px solid #000; width: 150px; text-align: center;">Authorized Sign</div>
@@ -1598,7 +1622,7 @@ const IndoorInvoicePage: React.FC<{
             <div className="bg-[#20293a] p-6 rounded border border-[#374151]">
                 <h3 className="text-xl font-bold text-white mb-4 border-b border-gray-700 pb-2">Indoor Invoice</h3>
                 <div className="flex gap-4 mb-6">
-                    <select className="w-1/3 p-2 bg-[#2d2d55] border border-gray-600 rounded text-white" onChange={e => { const adm = admissions.find(a => a.admission_id === e.target.value); setSelectedAdmission(adm || null); if(adm) setFormData({...emptyIndoorInvoice, admission_id: adm.admission_id, patient_id: adm.patient_id, patient_name: adm.patient_name, admission_date: adm.admission_date}); }} value={selectedAdmission?.admission_id || ''}> <option value="">Select Patient...</option>{admissions.map(a => <option key={a.admission_id} value={a.admission_id}>{a.patient_name} ({a.admission_id})</option>)} </select>
+                    <select className="w-1/3 p-2 bg-[#2d2d55] border border-gray-600 rounded text-white" onChange={e => { const adm = admissions.find(a => a.admission_id === e.target.value); setSelectedAdmission(adm || null); if(adm) setFormData({...emptyIndoorInvoice, admission_id: adm.admission_id, patient_id: adm.patient_id, patient_name: adm.patient_name, admission_date: adm.admission_date, status: 'Posted'}); }} value={selectedAdmission?.admission_id || ''}> <option value="">Select Patient...</option>{admissions.map(a => <option key={a.admission_id} value={a.admission_id}>{a.patient_name} ({a.admission_id})</option>)} </select>
                     <button onClick={handleGenerateId} className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded">Generate ID</button>
                 </div>
                 {formData.daily_id && (
@@ -1675,8 +1699,11 @@ const IndoorInvoicePage: React.FC<{
                             <thead className="bg-[#1f2937] text-gray-400 sticky top-0"><tr><th className="p-2">ID</th><th className="p-2">Date</th><th className="p-2">Patient</th><th className="p-2 text-right">Total</th><th className="p-2 text-right">Paid</th><th className="p-2 text-right">Due</th><th className="p-2 text-center">Action</th></tr></thead>
                             <tbody className="divide-y divide-gray-700">
                                 {indoorInvoices.map(inv => (
-                                    <tr key={inv.daily_id} onClick={() => handleLoadInvoice(inv)} className={`cursor-pointer hover:bg-gray-700 ${selectedInvoiceId === inv.daily_id ? 'bg-blue-900/30' : ''}`}>
-                                        <td className="p-2 font-mono text-xs">{inv.daily_id}</td><td className="p-2">{inv.invoice_date}</td><td className="p-2">{inv.patient_name}</td><td className="p-2 text-right">{inv.total_bill.toFixed(2)}</td><td className="p-2 text-right text-green-400">{inv.paid_amount.toFixed(2)}</td><td className="p-2 text-right text-red-400">{inv.due_bill.toFixed(2)}</td><td className="p-2 text-center"><button onClick={(e) => { e.stopPropagation(); handlePrintInvoice(inv); }} className="text-sky-400 hover:text-white text-xs font-bold underline">Print</button></td>
+                                    <tr key={inv.daily_id} onClick={() => handleLoadInvoice(inv)} className={`cursor-pointer hover:bg-gray-700 ${selectedInvoiceId === inv.daily_id ? 'bg-blue-900/30' : ''} ${inv.status === 'Returned' ? 'opacity-50 line-through' : ''}`}>
+                                        <td className="p-2 font-mono text-xs">{inv.daily_id}</td><td className="p-2">{inv.invoice_date}</td><td className="p-2">{inv.patient_name}</td><td className="p-2 text-right">{inv.total_bill.toFixed(2)}</td><td className="p-2 text-right text-green-400">{inv.paid_amount.toFixed(2)}</td><td className="p-2 text-right text-red-400">{inv.due_bill.toFixed(2)}</td><td className="p-2 text-center space-x-2">
+                                            <button onClick={(e) => { e.stopPropagation(); handlePrintInvoice(inv); }} className="text-sky-400 hover:text-white text-xs font-bold underline">Print</button>
+                                            {inv.status !== 'Returned' && <button onClick={(e) => { e.stopPropagation(); handleReturnInvoice(inv); }} className="text-rose-400 hover:text-rose-600 text-xs font-bold underline">Return</button>}
+                                        </td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -1700,9 +1727,8 @@ const ClinicDueCollectionPage: React.FC<{
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedInvoice, setSelectedInvoice] = useState<IndoorInvoice | null>(null);
     const [amount, setAmount] = useState<number>(0);
-    const dueInvoices = indoorInvoices.filter(inv => inv.due_bill > 0.5 && inv.patient_name.toLowerCase().includes(searchTerm.toLowerCase()));
+    const dueInvoices = indoorInvoices.filter(inv => inv.status !== 'Returned' && inv.due_bill > 0.5 && inv.patient_name.toLowerCase().includes(searchTerm.toLowerCase()));
     
-    // --- PRINT RECEIPT ---
     const handlePrintReceipt = (invoice: IndoorInvoice, paidAmount: number) => {
         const win = window.open('', '_blank');
         if (!win) return;
@@ -1780,7 +1806,6 @@ const BedManagementPage: React.FC<{ admissions: AdmissionRecord[]; }> = ({ admis
     const wards = [{ id: 'male_ward', name: 'Male Ward', beds: Array.from({length: 5}, (_, i) => `M-${String(i+1).padStart(2, '0')}`) }, { id: 'female_ward', name: 'Female Ward', beds: Array.from({length: 5}, (_, i) => `F-${String(i+1).padStart(2, '0')}`) }, { id: 'cabin', name: 'Cabins', beds: ['CAB-101', 'CAB-102', 'CAB-103', 'CAB-104', 'VIP-01'] }];
     const getBedStatus = (bedId: string) => admissions.find(a => a.bed_no === bedId && !a.discharge_date);
 
-    // --- PRINT BED STATUS ---
     const handlePrintBedMap = () => {
         const win = window.open('', '_blank');
         if (!win) return;
@@ -1905,7 +1930,6 @@ const ClinicPage: React.FC<ClinicPageProps> = ({
                 </div>
             </div>
             
-            {/* Render the Master Discharge/Rx Modal */}
             {showRxMaster && (
                 <DischargeRxMasterModal 
                     admissions={admissions} 

@@ -34,18 +34,18 @@ const monthOptions = [
 ];
 
 const SummaryBox = ({ title, items, totalLabel, totalValue, colorClass }: any) => (
-    <div className={`bg-slate-800 border border-slate-700 rounded-2xl p-5 shadow-lg flex flex-col h-full`}>
+    <div className={`bg-slate-800 border border-slate-700 rounded-2xl p-6 shadow-lg flex flex-col h-full`}>
         <h4 className={`text-lg font-black ${colorClass} mb-4 uppercase border-b border-slate-700 pb-2 text-white`}>{title}</h4>
-        <div className="space-y-2 flex-1">
+        <div className="space-y-3 flex-1">
             {items.map((it: any, idx: number) => (
                 <div key={idx} className="flex justify-between items-center text-sm border-b border-slate-700/30 pb-1 text-slate-300">
-                    <span className="font-medium">{it.label}:</span>
-                    <span className="font-bold text-white">{it.value.toLocaleString()}</span>
+                    <span className="font-bold">{it.label}:</span>
+                    <span className="font-black text-white">{it.value.toLocaleString()}</span>
                 </div>
             ))}
         </div>
         <div className={`mt-4 pt-3 border-t-2 border-slate-700 flex justify-between items-center`}>
-            <span className="text-xs font-black text-slate-400 uppercase tracking-widest">{totalLabel}</span>
+            <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest">{totalLabel}</span>
             <span className={`text-xl font-black ${colorClass}`}>{totalValue.toLocaleString()} ৳</span>
         </div>
     </div>
@@ -72,72 +72,87 @@ const DailyExpenseForm: React.FC<any> = ({ selectedDate, onDateChange, dailyExpe
     const totalPaid = items.reduce((acc, item) => acc + (Number(item.paidAmount) || 0), 0);
 
     return (
-        <div className="bg-sky-950/40 rounded-2xl p-6 border border-sky-800 shadow-xl no-print">
+        <div className="bg-sky-950/40 rounded-[2rem] p-8 border border-sky-800 shadow-xl no-print">
             <div className="flex justify-between items-center mb-6 border-b border-sky-800 pb-4">
-                <h3 className="text-xl font-bold text-sky-100 flex items-center gap-2"><Activity className="w-5 h-5 text-sky-400" /> Daily Expense Entry</h3>
-                <input type="date" value={selectedDate} onChange={(e) => onDateChange(e.target.value)} className="bg-slate-800 border border-slate-700 rounded p-2 text-white text-sm" />
+                <h3 className="text-xl font-black text-sky-100 flex items-center gap-3"><Activity className="w-6 h-6 text-sky-400" /> Daily Expense Entry</h3>
+                <input type="date" value={selectedDate} onChange={(e) => onDateChange(e.target.value)} className="bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white text-sm font-black" />
             </div>
             <div className="overflow-x-auto min-h-[150px]">
                 <table className="w-full text-left">
                     <thead>
-                        <tr><th className="pb-3 text-[10px] text-slate-500 uppercase tracking-widest">Category</th><th className="pb-3 text-[10px] text-slate-500 uppercase tracking-widest">Sub-Category</th><th className="pb-3 text-[10px] text-slate-500 uppercase tracking-widest">Description</th><th className="pb-3 text-right text-[10px] text-slate-500 uppercase tracking-widest">Paid Amt</th><th className="pb-3 text-center text-[10px] text-slate-500 uppercase tracking-widest">X</th></tr>
+                        <tr className="text-[11px] text-slate-500 uppercase font-black tracking-widest">
+                            <th className="pb-3 pl-2">Category</th>
+                            <th className="pb-3 pl-2">Employee / Details</th>
+                            <th className="pb-3 pl-2">Description</th>
+                            <th className="pb-3 text-right">Paid Amount</th>
+                            <th className="pb-3 text-center">X</th>
+                        </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800">
                         {items.map(item => (
                             <tr key={item.id}>
-                                <td className="py-2 pr-2">
-                                    <select value={item.category} onChange={e => handleItemChange(item.id, 'category', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded p-1.5 text-white text-xs">
+                                <td className="py-3 pr-2">
+                                    <select value={item.category} onChange={e => handleItemChange(item.id, 'category', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white text-sm font-black outline-none focus:border-blue-500">
                                         {expenseCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
                                     </select>
                                 </td>
-                                <td className="py-2 pr-2">
-                                    <input 
-                                        list={`list-${item.id}`} 
-                                        value={item.subCategory} 
-                                        onChange={e => handleItemChange(item.id, 'subCategory', e.target.value)} 
-                                        className="w-full bg-slate-800 border border-slate-700 rounded p-1.5 text-white text-xs font-bold focus:border-blue-500 outline-none" 
-                                        placeholder="Type or select..." 
-                                    />
-                                    <datalist id={`list-${item.id}`}>
-                                        {item.category === 'Stuff salary' ? (
-                                            employees.filter((e:any) => e.is_current_month).map((e:any) => <option key={e.emp_id} value={e.emp_name} />)
-                                        ) : (
-                                            subCategoryMap[item.category]?.map((sub, i) => <option key={i} value={sub} />)
-                                        )}
-                                    </datalist>
+                                <td className="py-3 pr-2">
+                                    {item.category === 'Stuff salary' ? (
+                                        <select 
+                                            value={item.subCategory} 
+                                            onChange={e => handleItemChange(item.id, 'subCategory', e.target.value)} 
+                                            className="w-full bg-slate-800 border-2 border-amber-600/50 rounded-xl p-2.5 text-white text-sm font-black outline-none focus:border-amber-500"
+                                        >
+                                            <option value="">-- Select Employee --</option>
+                                            {employees.filter((e:any) => e.is_current_month).map((e:any) => <option key={e.emp_id} value={e.emp_name}>{e.emp_name}</option>)}
+                                        </select>
+                                    ) : (
+                                        <>
+                                            <input 
+                                                list={`list-${item.id}`} 
+                                                value={item.subCategory} 
+                                                onChange={e => handleItemChange(item.id, 'subCategory', e.target.value)} 
+                                                className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white text-sm font-black outline-none focus:border-blue-500" 
+                                                placeholder="Sub-category..." 
+                                            />
+                                            <datalist id={`list-${item.id}`}>
+                                                {subCategoryMap[item.category]?.map((sub, i) => <option key={i} value={sub} />)}
+                                            </datalist>
+                                        </>
+                                    )}
                                 </td>
-                                <td className="py-2 pr-2"><input value={item.description} onChange={e => handleItemChange(item.id, 'description', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded p-1.5 text-white text-xs" /></td>
-                                <td className="py-2 pr-2"><input type="number" value={item.paidAmount} onChange={e => handleItemChange(item.id, 'paidAmount', parseFloat(e.target.value) || 0)} className="w-24 bg-slate-800 border border-slate-700 rounded p-1.5 text-white text-xs text-right" onFocus={e => e.target.select()} /></td>
-                                <td className="py-2 text-center"><button onClick={() => removeItem(item.id)} className="text-red-500 font-bold">×</button></td>
+                                <td className="py-3 pr-2"><input value={item.description} onChange={e => handleItemChange(item.id, 'description', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white text-sm font-bold" placeholder="Additional details..." /></td>
+                                <td className="py-3 pr-2"><input type="number" value={item.paidAmount} onChange={e => handleItemChange(item.id, 'paidAmount', parseFloat(e.target.value) || 0)} className="w-28 bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white text-base font-black text-right outline-none focus:border-emerald-500" onFocus={e => e.target.select()} /></td>
+                                <td className="py-3 text-center"><button onClick={() => removeItem(item.id)} className="text-red-500 font-bold text-2xl hover:text-red-400">×</button></td>
                             </tr>
                         ))}
                     </tbody>
                 </table>
             </div>
-            <div className="mt-6 flex justify-between items-center">
-                <button onClick={addItem} className="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded font-bold text-xs">+ Add Row</button>
-                <div className="flex items-center gap-6">
-                    <div className="text-slate-400 font-bold">Total Paid: <span className="text-emerald-400 text-xl ml-1">{totalPaid.toLocaleString()}</span></div>
-                    <button onClick={() => onSave(selectedDate, items)} className="bg-green-600 hover:bg-green-500 text-white px-8 py-2 rounded-xl font-black shadow-lg uppercase text-xs tracking-widest transition-all">Save Data</button>
+            <div className="mt-8 flex justify-between items-center border-t border-sky-900/50 pt-6">
+                <button onClick={addItem} className="bg-slate-700 hover:bg-slate-600 text-white px-6 py-2.5 rounded-xl font-black text-[11px] uppercase tracking-wider transition-all">+ Add Item Row</button>
+                <div className="flex items-center gap-8">
+                    <div className="text-slate-400 font-black uppercase text-xs tracking-widest">Total Paid: <span className="text-emerald-400 text-3xl font-black ml-2">৳{totalPaid.toLocaleString()}</span></div>
+                    <button onClick={() => onSave(selectedDate, items)} className="bg-green-600 hover:bg-green-500 text-white px-12 py-3 rounded-2xl font-black shadow-2xl uppercase text-[11px] tracking-widest transition-all">Save Daily Ledger</button>
                 </div>
             </div>
         </div>
     );
 };
 
-const DiagnosticAccountsPage: React.FC<any> = ({ 
-    onBack, invoices, dueCollections, employees, detailedExpenses, setDetailedExpenses 
-}) => {
+const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollections, employees, detailedExpenses, setDetailedExpenses }) => {
     const todayStr = new Date().toISOString().split('T')[0];
     const [selectedDate, setSelectedDate] = useState(todayStr);
     const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
     const [activeTab, setActiveTab] = useState<'entry' | 'daily' | 'monthly' | 'yearly' | 'detail' | 'due'>('entry');
-    const [detailViewMode, setDetailViewMode] = useState<'today' | 'historical' | 'monthly_summary' | 'monthly_expense'>('today');
+    
+    // Detailed Collection States
+    const [detailViewMode, setDetailViewMode] = useState<'today' | 'historical'>('today');
     const [detailSearch, setDetailSearch] = useState('');
+    const [detailFilterCategory, setDetailFilterCategory] = useState('All');
+    
     const [dueSearch, setDueSearch] = useState('');
-    const [entrySearch, setEntrySearch] = useState('');
-    const [entryCategoryFilter, setEntryCategoryFilter] = useState('All');
     const [successMessage, setSuccessMessage] = useState('');
 
     useEffect(() => {
@@ -149,67 +164,108 @@ const DiagnosticAccountsPage: React.FC<any> = ({
         setSuccessMessage("Expense data saved successfully!");
     };
 
-    const formatGroupingDate = (dateStr: string) => {
-        const d = new Date(dateStr);
-        return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-');
-    };
+    const detailTableData = useMemo(() => {
+        const filtered = invoices.filter((inv: any) => {
+            if (detailViewMode === 'today') return inv.invoice_date === selectedDate;
+            const d = new Date(inv.invoice_date);
+            return d.getMonth() === selectedMonth && d.getFullYear() === selectedYear;
+        }).filter((inv: any) => {
+            const matchesSearch = inv.patient_name.toLowerCase().includes(detailSearch.toLowerCase()) || inv.invoice_id.toLowerCase().includes(detailSearch.toLowerCase());
+            
+            if (detailFilterCategory === 'All') return matchesSearch;
+            if (detailFilterCategory === 'Due Recovery') return matchesSearch && inv.due_amount > 0;
 
-    const filteredSavedEntries = useMemo(() => {
-        const rawEntries = detailedExpenses[selectedDate] || [];
-        return rawEntries.filter((ex: any) => {
-            const matchesCategory = entryCategoryFilter === 'All' || ex.category === entryCategoryFilter;
-            const searchTermLower = entrySearch.toLowerCase();
-            const matchesSearch = 
-                ex.category.toLowerCase().includes(searchTermLower) || 
-                (ex.subCategory && ex.subCategory.toLowerCase().includes(searchTermLower)) || 
-                ex.description.toLowerCase().includes(searchTermLower);
-            return matchesCategory && matchesSearch;
+            const matchesCat = inv.items.some((it: any) => {
+                const name = (it.test_name || '').toLowerCase();
+                if (detailFilterCategory === 'USG') return name.includes('usg') || name.includes('ultra');
+                if (detailFilterCategory === 'X-Ray') return name.includes('x-ray') || name.includes('xray');
+                if (detailFilterCategory === 'ECG') return name.includes('ecg');
+                if (detailFilterCategory === 'Hormone') return name.includes('hormone');
+                if (detailFilterCategory === 'Pathology') return !name.includes('usg') && !name.includes('ultra') && !name.includes('x-ray') && !name.includes('xray') && !name.includes('ecg') && !name.includes('hormone');
+                return true;
+            });
+            return matchesSearch && matchesCat;
         });
-    }, [detailedExpenses, selectedDate, entrySearch, entryCategoryFilter]);
+
+        return filtered.map((inv: any) => {
+            const isReturned = inv.status === 'Returned';
+            const usgFee = isReturned ? 0 : inv.items.reduce((s: number, i: any) => s + (i.usg_exam_charge || 0), 0);
+            const pcAmt = isReturned ? 0 : (inv.special_commission || 0);
+            const paid = isReturned ? 0 : inv.paid_amount;
+            return { ...inv, usgFee, pcAmt, paidVal: paid, netProfit: paid - (usgFee + pcAmt) };
+        });
+    }, [invoices, detailSearch, selectedMonth, selectedYear, detailViewMode, selectedDate, detailFilterCategory]);
+
+    const reportSummary = useMemo(() => {
+        return detailTableData.reduce((acc, curr) => {
+            if (curr.status !== 'Cancelled' && curr.status !== 'Returned') {
+                acc.totalBill += curr.total_amount;
+                acc.totalDiscount += curr.discount_amount;
+                acc.paidAmount += curr.paid_amount;
+                acc.dueAmount += curr.due_amount;
+                acc.pcAmount += curr.pcAmt;
+                acc.usgFee += curr.usgFee;
+                acc.netInstProfit += curr.netProfit;
+                acc.count++;
+            } else if (curr.status === 'Returned') {
+                acc.returns += curr.paid_amount; 
+            }
+            return acc;
+        }, { totalBill:0, totalDiscount:0, paidAmount:0, dueAmount:0, pcAmount:0, usgFee:0, netInstProfit:0, count: 0, returns: 0 });
+    }, [detailTableData]);
 
     const stats = useMemo(() => {
         const getRangeStats = (rangeType: 'daily' | 'monthly' | 'yearly') => {
-            const isMatch = (dateStr: string) => {
-                const d = new Date(dateStr);
-                if (rangeType === 'daily') return dateStr === selectedDate;
+            const relevantInvoices = invoices.filter((inv: any) => {
+                if (rangeType === 'daily') return inv.invoice_date === selectedDate;
+                const d = new Date(inv.invoice_date);
                 if (rangeType === 'monthly') return d.getMonth() === selectedMonth && d.getFullYear() === selectedYear;
                 return d.getFullYear() === selectedYear;
-            };
+            });
+            const relevantDueColls = dueCollections.filter((dc: any) => {
+                const isDiag = dc.invoice_id.startsWith('INV-');
+                if (rangeType === 'daily') return dc.collection_date === selectedDate && isDiag;
+                const d = new Date(dc.collection_date);
+                if (rangeType === 'monthly') return d.getMonth() === selectedMonth && d.getFullYear() === selectedYear && isDiag;
+                return d.getFullYear() === selectedYear && isDiag;
+            });
 
             const coll = { pathology: 0, hormone: 0, usg: 0, xray: 0, ecg: 0, others: 0, dueRecov: 0 };
-            invoices.forEach((inv: any) => {
-                if (isMatch(inv.invoice_date) && inv.status !== 'Cancelled') {
-                    inv.items.forEach((item: any) => {
-                        const testName = (item.test_name || '').toLowerCase();
-                        const val = item.price * item.quantity;
-                        const ratio = inv.total_amount > 0 ? (inv.paid_amount / inv.total_amount) : 0;
-                        const paidVal = val * ratio;
-                        if (testName.includes('usg') || testName.includes('ultra')) coll.usg += paidVal;
-                        else if (testName.includes('x-ray') || testName.includes('xray')) coll.xray += paidVal;
-                        else if (testName.includes('ecg')) coll.ecg += paidVal;
-                        else if (testName.includes('hormone')) coll.hormone += paidVal;
-                        else coll.pathology += paidVal;
-                    });
-                }
+            relevantInvoices.forEach((inv: any) => {
+                inv.items.forEach((item: any) => {
+                    const testName = (item.test_name || '').toLowerCase();
+                    const val = (item.price * item.quantity);
+                    const ratio = inv.total_amount > 0 ? (inv.paid_amount / inv.total_amount) : 0;
+                    const paidVal = val * ratio;
+                    if (testName.includes('usg') || testName.includes('ultra')) coll.usg += paidVal;
+                    else if (testName.includes('x-ray') || testName.includes('xray')) coll.xray += paidVal;
+                    else if (testName.includes('ecg')) coll.ecg += paidVal;
+                    else if (testName.includes('hormone') || testName.includes('tsh') || testName.includes('t3') || testName.includes('t4')) coll.hormone += paidVal;
+                    else coll.pathology += paidVal;
+                });
             });
-
-            dueCollections.forEach((dc: any) => {
-                const isDiag = dc.invoice_id.startsWith('INV-');
-                if (isMatch(dc.collection_date) && isDiag) coll.dueRecov += dc.amount_collected;
-            });
+            coll.dueRecov = relevantDueColls.reduce((s: any, c: any) => s + c.amount_collected, 0);
 
             const exp = { total: 0 };
             const expenseMap: Record<string, number> = {};
             expenseCategories.forEach(c => expenseMap[c] = 0);
 
-            Object.entries(detailedExpenses).forEach(([date, items]: [string, any]) => {
-                if (isMatch(date)) {
-                    (items as ExpenseItem[]).forEach((it: ExpenseItem) => {
-                        expenseMap[it.category] = (expenseMap[it.category] || 0) + it.paidAmount;
-                        exp.total += it.paidAmount;
-                    });
-                }
-            });
+            if (rangeType === 'daily') {
+                (detailedExpenses[selectedDate] || []).forEach((it: any) => {
+                    expenseMap[it.category] = (expenseMap[it.category] || 0) + it.paidAmount;
+                    exp.total += it.paidAmount;
+                });
+            } else {
+                Object.entries(detailedExpenses).forEach(([date, items]) => {
+                    const d = new Date(date);
+                    if ((rangeType === 'monthly' && d.getMonth() === selectedMonth && d.getFullYear() === selectedYear) || (rangeType === 'yearly' && d.getFullYear() === selectedYear)) {
+                        (items as any[]).forEach((it: any) => {
+                            expenseMap[it.category] = (expenseMap[it.category] || 0) + it.paidAmount;
+                            exp.total += it.paidAmount;
+                        });
+                    }
+                });
+            }
 
             const totalColl = Object.values(coll).reduce((s, v) => s + v, 0);
             return { coll, exp, totalColl, expenseMap, balance: totalColl - exp.total };
@@ -218,312 +274,18 @@ const DiagnosticAccountsPage: React.FC<any> = ({
         return { daily: getRangeStats('daily'), monthly: getRangeStats('monthly'), yearly: getRangeStats('yearly') };
     }, [invoices, dueCollections, detailedExpenses, selectedDate, selectedMonth, selectedYear]);
 
-    const detailTableData = useMemo(() => {
-        const filtered = (invoices as any[]).filter((inv: any) => {
-            if (detailViewMode === 'today') return inv.invoice_date === todayStr;
-            const d = new Date(inv.invoice_date);
-            return d.getMonth() === selectedMonth && d.getFullYear() === selectedYear;
-        }).filter((inv: any) => {
-            const matchesSearch = inv.patient_name.toLowerCase().includes(detailSearch.toLowerCase()) || 
-                                 inv.invoice_id.toLowerCase().includes(detailSearch.toLowerCase());
-            return matchesSearch && inv.status !== 'Cancelled';
-        });
-
-        const results = filtered.map((inv: any) => {
-            const usgAmt = inv.items.reduce((sum: number, item: any) => sum + (item.usg_exam_charge || 0), 0);
-            const pcAmt = inv.special_commission || 0;
-            const cashPaid = inv.paid_amount || 0;
-            const balance = cashPaid - usgAmt - pcAmt; 
-            
-            return {
-                id: inv.invoice_id,
-                date: inv.invoice_date,
-                patientDesc: `${inv.patient_name} (${inv.patient_id})`,
-                refDr: inv.referrar_name || 'Self',
-                tests: inv.items.map((it: any) => it.test_name).join(', '),
-                billAmt: inv.total_amount,
-                paid: cashPaid,
-                usg: usgAmt,
-                pc: pcAmt,
-                balance: balance,
-                due: inv.due_amount
-            };
-        }).sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
-
-        const grouped: Record<string, any[]> = {};
-        results.forEach((row: any) => {
-            if (!grouped[row.date]) grouped[row.date] = [];
-            grouped[row.date].push(row);
-        });
-        return grouped;
-    }, [invoices, detailSearch, selectedMonth, selectedYear, detailViewMode, todayStr]);
-
-    const monthlySummaryData = useMemo(() => {
-        const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
-        const dailyData = [];
-        let runningTotal = 0;
-
-        for (let day = 1; day <= daysInMonth; day++) {
-            const currentDayStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-            
-            const dayInvoices = (invoices as any[]).filter((inv: any) => inv.invoice_date === currentDayStr && inv.status !== 'Cancelled');
-            const dayDueRecov = (dueCollections as any[]).filter((dc: any) => dc.collection_date === currentDayStr && dc.invoice_id.startsWith('INV-'));
-            
-            const dayCollection = dayInvoices.reduce((s, i) => s + i.paid_amount, 0) + dayDueRecov.reduce((s, d) => s + d.amount_collected, 0);
-            runningTotal += dayCollection;
-
-            dailyData.push({
-                date: currentDayStr,
-                collection: dayCollection,
-                runningTotal: runningTotal
-            });
-        }
-        return dailyData;
-    }, [invoices, dueCollections, selectedMonth, selectedYear]);
-
-    const monthlyExpenseData = useMemo(() => {
-        const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
-        const dailyData = [];
-        let runningTotal = 0;
-
-        for (let day = 1; day <= daysInMonth; day++) {
-            const currentDayStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-            
-            const dayExpenses = (detailedExpenses[currentDayStr] || []) as any[];
-            const dayTotal = dayExpenses.reduce((s: number, i: any) => s + (i.paidAmount || 0), 0);
-            runningTotal += dayTotal;
-
-            dailyData.push({
-                date: currentDayStr,
-                expense: dayTotal,
-                runningTotal: runningTotal
-            });
-        }
-        return dailyData;
-    }, [detailedExpenses, selectedMonth, selectedYear]);
-
     const dueList = useMemo(() => {
-        return (invoices as any[]).filter((inv: any) => 
-            inv.due_amount > 1 && inv.status !== 'Cancelled' &&
-            (inv.patient_name.toLowerCase().includes(dueSearch.toLowerCase()) || inv.invoice_id.toLowerCase().includes(dueSearch.toLowerCase()))
-        ).sort((a: any, b: any) => new Date(b.invoice_date).getTime() - new Date(a.invoice_date).getTime());
+        return invoices.filter((inv: any) => inv.due_amount > 1 && (inv.patient_name.toLowerCase().includes(dueSearch.toLowerCase()) || inv.invoice_id.includes(dueSearch))).sort((a,b) => new Date(b.invoice_date).getTime() - new Date(a.invoice_date).getTime());
     }, [invoices, dueSearch]);
 
-    // --- PRINT FUNCTIONS ---
-    const handlePrintSummary = (currentStats: any, rangeLabel: string) => {
-        const win = window.open('', '_blank');
-        if(!win) return;
-        const html = `
-            <html>
-                <head>
-                    <title>Summary Report</title>
-                    <script src="https://cdn.tailwindcss.com"></script>
-                    <style>@page { size: A4; margin: 20mm; } body { background: white; font-family: serif; color: black; }</style>
-                </head>
-                <body class="p-8">
-                    <div class="text-center mb-8 border-b-2 border-black pb-4">
-                        <h1 class="text-2xl font-black uppercase">Niramoy Clinic & Diagnostic</h1>
-                        <p class="text-sm">Enayetpur, Sirajgonj | Mobile: 01730 923007</p>
-                    </div>
-                    <h2 class="text-center font-bold text-lg underline mb-6">Accounts Summary: ${rangeLabel}</h2>
-                    <div class="grid grid-cols-2 gap-10">
-                        <div>
-                            <h3 class="font-bold border-b border-black mb-2 uppercase text-xs">Collection Analysis</h3>
-                            <table class="w-full text-xs border-collapse">
-                                <tr><td class="border border-gray-400 p-2">Pathology</td><td class="border border-gray-400 p-2 text-right">${currentStats.coll.pathology.toLocaleString()}</td></tr>
-                                <tr><td class="border border-gray-400 p-2">Hormone</td><td class="border border-gray-400 p-2 text-right">${currentStats.coll.hormone.toLocaleString()}</td></tr>
-                                <tr><td class="border border-gray-400 p-2">USG</td><td class="border border-gray-400 p-2 text-right">${currentStats.coll.usg.toLocaleString()}</td></tr>
-                                <tr><td class="border border-gray-400 p-2">X-Ray</td><td class="border border-gray-400 p-2 text-right">${currentStats.coll.xray.toLocaleString()}</td></tr>
-                                <tr><td class="border border-gray-400 p-2">ECG</td><td class="border border-gray-400 p-2 text-right">${currentStats.coll.ecg.toLocaleString()}</td></tr>
-                                <tr><td class="border border-gray-400 p-2">Due Recovery</td><td class="border border-gray-400 p-2 text-right">${currentStats.coll.dueRecov.toLocaleString()}</td></tr>
-                                <tr class="font-bold bg-gray-100"><td class="border border-gray-400 p-2">Total Collection</td><td class="border border-gray-400 p-2 text-right">${currentStats.totalColl.toLocaleString()}</td></tr>
-                            </table>
-                        </div>
-                        <div>
-                            <h3 class="font-bold border-b border-black mb-2 uppercase text-xs">Expense Analysis</h3>
-                            <table class="w-full text-xs border-collapse">
-                                ${expenseCategories.map(cat => `<tr><td class="border border-gray-400 p-2">${expenseCategoryBanglaMap[cat] || cat}</td><td class="border border-gray-400 p-2 text-right">${(currentStats.expenseMap?.[cat] || 0).toLocaleString()}</td></tr>`).join('')}
-                                <tr class="font-bold bg-gray-100"><td class="border border-gray-400 p-2">Total Expense</td><td class="border border-gray-400 p-2 text-right">${currentStats.exp.total.toLocaleString()}</td></tr>
-                            </table>
-                        </div>
-                    </div>
-                    <div class="mt-10 p-4 border-2 border-black flex justify-between font-bold text-xl">
-                        <span>Net Balance:</span>
-                        <span>৳ ${currentStats.balance.toLocaleString()}</span>
-                    </div>
-                </body>
-            </html>
-        `;
-        win.document.write(html); win.document.close();
-        setTimeout(() => { win.print(); win.close(); }, 500);
-    };
-
-    const handlePrintDetailedLog = () => {
-        const win = window.open('', '_blank');
-        if(!win) return;
-        const html = `
-            <html>
-                <head>
-                    <title>Detailed Collection Log</title>
-                    <script src="https://cdn.tailwindcss.com"></script>
-                    <style>
-                        @page { size: A4 landscape; margin: 10mm; } 
-                        body { font-family: 'Segoe UI', Tahoma, sans-serif; color: black; }
-                        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 8.5pt; }
-                        th, td { border: 1px solid #000; padding: 4px; text-align: left; }
-                        th { background: #f3f4f6; font-weight: bold; }
-                        .date-header { background: #eee; padding: 6px; font-weight: 900; text-align: center; border: 2px solid #000; border-bottom: none; }
-                    </style>
-                </head>
-                <body class="p-4">
-                    <div class="text-center mb-6 border-b-2 border-black pb-4">
-                        <h1 class="text-2xl font-black uppercase">Niramoy Clinic & Diagnostic</h1>
-                        <p class="text-sm">Diagnostic Collection Detailed Journal - ${monthOptions[selectedMonth].name} ${selectedYear}</p>
-                    </div>
-                    ${Object.entries(detailTableData as Record<string, any[]>).map(([date, rows]) => `
-                        <div class="mb-8">
-                            <div class="date-header">Date- ${formatGroupingDate(date)}</div>
-                            <table>
-                                <thead>
-                                    <tr>
-                                        <th>Id</th>
-                                        <th>Patient Description</th>
-                                        <th>Refd Dr.</th>
-                                        <th>Tests / Parameters</th>
-                                        <th class="text-right">Bill Amt</th>
-                                        <th class="text-right">Cash Paid</th>
-                                        <th class="text-right">USG</th>
-                                        <th class="text-right">PC</th>
-                                        <th class="text-right">Balance</th>
-                                        <th class="text-right">Due</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    ${(rows as any[]).map(r => `
-                                        <tr>
-                                            <td class="font-mono">${r.id.split('-').pop()}</td>
-                                            <td class="font-bold">${r.patientDesc}</td>
-                                            <td>${r.refDr}</td>
-                                            <td class="italic">${r.tests}</td>
-                                            <td class="text-right">${r.billAmt.toLocaleString()}</td>
-                                            <td class="text-right font-bold">${r.paid.toLocaleString()}</td>
-                                            <td class="text-right">${r.usg.toLocaleString()}</td>
-                                            <td class="text-right">${r.pc.toLocaleString()}</td>
-                                            <td class="text-right font-black bg-gray-50">${r.balance.toLocaleString()}</td>
-                                            <td class="text-right text-red-600">${r.due.toLocaleString()}</td>
-                                        </tr>
-                                    `).join('')}
-                                </tbody>
-                            </table>
-                        </div>
-                    `).join('')}
-                </body>
-            </html>
-        `;
-        win.document.write(html); win.document.close();
-        setTimeout(() => { win.print(); win.close(); }, 750);
-    };
-
-    const handlePrintMonthlyTracker = () => {
-        const win = window.open('', '_blank');
-        if(!win) return;
-        const totalCollectionValue = monthlySummaryData.reduce((s, day) => s + day.collection, 0);
-        const html = `
-            <html>
-                <head>
-                    <title>Monthly Performance Tracker</title>
-                    <script src="https://cdn.tailwindcss.com"></script>
-                    <style>
-                        @page { size: A4 portrait; margin: 10mm; }
-                        body { font-family: 'Segoe UI', Tahoma, sans-serif; color: black; background: white; margin: 0; padding: 0; }
-                        .page-container { width: 100%; padding: 5mm; box-sizing: border-box; }
-                        .header-text { text-align: center; margin-bottom: 10px; border-bottom: 2px solid black; padding-bottom: 5px; }
-                        h1 { font-size: 18pt; font-weight: 900; margin: 0; }
-                        table { width: 100%; border-collapse: collapse; margin-top: 5px; font-size: 8.5pt; }
-                        th, td { border: 1px solid #000; padding: 4px 8px; text-align: left; line-height: 1.2; }
-                        th { background: #f3f4f6; font-weight: 900; text-transform: uppercase; font-size: 8pt; }
-                        .text-right { text-align: right; }
-                        .font-black { font-weight: 900; }
-                        .footer-total { background: #f9fafb; font-weight: 900; font-size: 10pt; }
-                    </style>
-                </head>
-                <body>
-                    <div class="page-container">
-                        <div class="header-text">
-                            <h1 class="uppercase">Niramoy Clinic & Diagnostic</h1>
-                            <p class="font-bold">Monthly Collection Tracker - ${monthOptions[selectedMonth].name} ${selectedYear}</p>
-                        </div>
-                        <table>
-                            <thead><tr><th>Date (তারিখ)</th><th class="text-right">Daily Collection</th><th class="text-right">Running Total</th></tr></thead>
-                            <tbody>
-                                ${monthlySummaryData.map(day => `
-                                    <tr><td class="font-mono font-bold">${day.date}</td><td class="text-right">৳ ${day.collection.toLocaleString()}</td><td class="text-right font-black">৳ ${day.runningTotal.toLocaleString()}</td></tr>
-                                `).join('')}
-                            </tbody>
-                            <tfoot><tr class="footer-total"><td class="text-right">GRAND TOTAL:</td><td class="text-right text-emerald-600">৳ ${totalCollectionValue.toLocaleString()}</td><td class="text-right">---</td></tr></tfoot>
-                        </table>
-                    </div>
-                </body>
-            </html>
-        `;
-        win.document.write(html); win.document.close();
-        setTimeout(() => { win.print(); win.close(); }, 750);
-    };
-
-    const handlePrintMonthlyExpenseTracker = () => {
-        const win = window.open('', '_blank');
-        if(!win) return;
-        const totalExpenseValue = monthlyExpenseData.reduce((s, day) => s + day.expense, 0);
-        const html = `
-            <html>
-                <head>
-                    <title>Monthly Expense Tracker</title>
-                    <script src="https://cdn.tailwindcss.com"></script>
-                    <style>
-                        @page { size: A4 portrait; margin: 10mm; }
-                        body { font-family: 'Segoe UI', Tahoma, sans-serif; color: black; background: white; margin: 0; padding: 0; }
-                        .page-container { width: 100%; padding: 5mm; box-sizing: border-box; }
-                        .header-text { text-align: center; margin-bottom: 10px; border-bottom: 2px solid black; padding-bottom: 5px; }
-                        h1 { font-size: 18pt; font-weight: 900; margin: 0; }
-                        table { width: 100%; border-collapse: collapse; margin-top: 5px; font-size: 8.5pt; }
-                        th, td { border: 1px solid #000; padding: 4px 8px; text-align: left; line-height: 1.2; }
-                        th { background: #f3f4f6; font-weight: 900; text-transform: uppercase; font-size: 8pt; }
-                        .text-right { text-align: right; }
-                        .font-black { font-weight: 900; }
-                        .footer-total { background: #fef2f2; font-weight: 900; font-size: 10pt; }
-                    </style>
-                </head>
-                <body>
-                    <div class="page-container">
-                        <div class="header-text">
-                            <h1 class="uppercase">Niramoy Clinic & Diagnostic</h1>
-                            <p class="font-bold">Monthly Expense Tracker - ${monthOptions[selectedMonth].name} ${selectedYear}</p>
-                        </div>
-                        <table>
-                            <thead><tr><th>Date (তারিখ)</th><th class="text-right">Daily Expense</th><th class="text-right">Running Total</th></tr></thead>
-                            <tbody>
-                                ${monthlyExpenseData.map(day => `
-                                    <tr><td class="font-mono font-bold">${day.date}</td><td class="text-right">৳ ${day.expense.toLocaleString()}</td><td class="text-right font-black">৳ ${day.runningTotal.toLocaleString()}</td></tr>
-                                `).join('')}
-                            </tbody>
-                            <tfoot><tr class="footer-total"><td class="text-right">GRAND TOTAL:</td><td class="text-right text-rose-600">৳ ${totalExpenseValue.toLocaleString()}</td><td class="text-right">---</td></tr></tfoot>
-                        </table>
-                    </div>
-                </body>
-            </html>
-        `;
-        win.document.write(html); win.document.close();
-        setTimeout(() => { win.print(); win.close(); }, 750);
-    };
-
     return (
-        <div className="min-h-screen bg-slate-900 flex flex-col font-sans">
-            <header className="bg-slate-800 border-b border-slate-700 p-5 flex flex-col md:flex-row justify-between items-center gap-4 no-print shadow-xl">
+        <div className="min-h-screen bg-slate-950 flex flex-col font-sans">
+            <header className="bg-slate-900 border-b border-slate-800 p-6 flex flex-col md:flex-row justify-between items-center gap-4 shadow-xl no-print">
                 <div className="flex items-center gap-4">
-                    <button onClick={onBack} className="p-2 bg-slate-700 rounded-full hover:bg-slate-600 text-white transition-all"><BackIcon className="w-5 h-5" /></button>
+                    <button onClick={onBack} className="p-3 bg-slate-800 rounded-full hover:bg-slate-700 transition-all"><BackIcon className="w-6 h-6" /></button>
                     <h2 className="text-2xl font-black text-white uppercase tracking-tighter">Diagnostic Accounts Console</h2>
                 </div>
-                <div className="flex bg-slate-900 rounded-2xl p-1 shadow-inner border border-slate-800 overflow-x-auto max-w-full">
+                <div className="flex bg-slate-800 rounded-2xl p-1 shadow-inner border border-slate-700 overflow-x-auto max-w-full">
                     {[
                         { id: 'entry', label: 'Data Entry' }, 
                         { id: 'daily', label: 'Daily Hishab' }, 
@@ -532,126 +294,40 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                         { id: 'detail', label: 'Collection Detail' },
                         { id: 'due', label: 'Due List' }
                     ].map(tab => (
-                        <button key={tab.id} onClick={() => setActiveTab(tab.id as any)} className={`px-6 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === tab.id ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}>{tab.label}</button>
+                        <button key={tab.id} onClick={() => setActiveTab(tab.id as any)} className={`px-6 py-3 rounded-xl font-black text-[11px] uppercase tracking-widest transition-all ${activeTab === tab.id ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}>{tab.label}</button>
                     ))}
                 </div>
             </header>
 
-            <main className="flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar container mx-auto">
+            <main className="flex-1 p-8 space-y-10 container mx-auto overflow-y-auto">
                 {activeTab === 'entry' && (
-                    <div className="animate-fade-in space-y-8">
+                    <div className="animate-fade-in space-y-10">
                         <DailyExpenseForm selectedDate={selectedDate} onDateChange={setSelectedDate} dailyExpenseItems={detailedExpenses[selectedDate] || []} onSave={handleSaveExpense} employees={employees} />
-                        
-                        <div className="bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-2xl">
-                             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 border-b border-slate-700 pb-4">
-                                <h4 className="text-lg font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                                    <Activity className="text-emerald-500" /> Saved Entry List for {selectedDate}
-                                </h4>
-                                
-                                <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-                                    <div className="relative flex-1 min-w-[200px]">
-                                        <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={14} />
-                                        <input 
-                                            type="text" 
-                                            placeholder="Search entries..." 
-                                            value={entrySearch}
-                                            onChange={e => setEntrySearch(e.target.value)}
-                                            className="w-full bg-slate-900 border border-slate-700 rounded-full pl-10 pr-4 py-1.5 text-xs text-white focus:border-blue-500 outline-none"
-                                        />
-                                    </div>
-                                    <select 
-                                        value={entryCategoryFilter} 
-                                        onChange={e => setEntryCategoryFilter(e.target.value)}
-                                        className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white outline-none focus:border-blue-500"
-                                    >
-                                        <option value="All">All Categories</option>
-                                        {expenseCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-                                    </select>
-                                </div>
-                             </div>
-
-                             <div className="overflow-x-auto min-h-[200px]">
-                                <table className="w-full text-left text-sm">
-                                    <thead className="bg-slate-950/50 text-slate-500 text-[10px] uppercase font-black tracking-widest">
-                                        <tr>
-                                            <th className="p-4">Category</th>
-                                            <th className="p-4">Sub-Category</th>
-                                            <th className="p-4">Description</th>
-                                            <th className="p-4 text-right">Amount</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-700/50">
-                                        {filteredSavedEntries.length > 0 ? filteredSavedEntries.map((ex: any) => (
-                                            <tr key={ex.id} className="hover:bg-slate-700/30 transition-colors">
-                                                <td className="p-4">
-                                                    <span className="text-blue-400 font-bold text-xs uppercase">{ex.category}</span>
-                                                    <div className="text-[9px] text-slate-500 font-bold font-bengali">{expenseCategoryBanglaMap[ex.category]}</div>
-                                                </td>
-                                                <td className="p-4 text-slate-300 font-black text-sm">{ex.subCategory || '---'}</td>
-                                                <td className="p-4 text-slate-500 text-xs italic">{ex.description || 'No description'}</td>
-                                                <td className="p-4 text-right text-emerald-400 font-black text-base">৳ {ex.paidAmount.toLocaleString()}</td>
-                                            </tr>
-                                        )) : (
-                                            <tr>
-                                                <td colSpan={4} className="p-20 text-center text-slate-600 italic font-black uppercase opacity-30 text-lg tracking-[0.2em]">
-                                                    No entries found matching filters
-                                                </td>
-                                            </tr>
-                                        )}
-                                    </tbody>
-                                    {filteredSavedEntries.length > 0 && (
-                                        <tfoot className="bg-slate-900 font-black border-t-2 border-slate-700">
-                                            <tr>
-                                                <td colSpan={3} className="p-4 text-right text-slate-500 uppercase tracking-widest text-xs">Filtered Total:</td>
-                                                <td className="p-4 text-right text-white text-lg underline decoration-emerald-500">
-                                                    ৳ {filteredSavedEntries.reduce((s: number, i: any) => s + i.paidAmount, 0).toLocaleString()}
-                                                </td>
-                                            </tr>
-                                        </tfoot>
-                                    )}
-                                </table>
-                             </div>
-                        </div>
                     </div>
                 )}
 
                 {(activeTab === 'daily' || activeTab === 'monthly' || activeTab === 'yearly') && (
-                    <div className="animate-fade-in space-y-8">
-                        <div className="flex justify-between items-center bg-slate-800 p-5 rounded-2xl border border-slate-700 shadow-xl">
+                    <div className="animate-fade-in space-y-10">
+                        <div className="flex justify-between items-center bg-slate-900 p-6 rounded-[2.5rem] border border-slate-800 shadow-xl">
                              <h2 className="text-xl font-black text-white uppercase tracking-tighter">
-                                {activeTab === 'daily' ? `Daily Hishab: ${selectedDate}` : 
-                                 activeTab === 'monthly' ? `Monthly Hishab: ${monthOptions[selectedMonth].name} ${selectedYear}` : 
-                                 `Yearly Hishab: ${selectedYear}`}
+                                {activeTab === 'daily' ? `Daily Summary: ${selectedDate}` : activeTab === 'monthly' ? `Monthly: ${monthOptions[selectedMonth].name} ${selectedYear}` : `Yearly: ${selectedYear}`}
                              </h2>
                              <div className="flex gap-4">
-                                <button 
-                                    onClick={() => handlePrintSummary(
-                                        activeTab === 'daily' ? stats.daily : activeTab === 'monthly' ? stats.monthly : stats.yearly,
-                                        activeTab === 'daily' ? selectedDate : activeTab === 'monthly' ? `${monthOptions[selectedMonth].name} ${selectedYear}` : `${selectedYear}`
-                                    )}
-                                    className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-xl text-[10px] font-black uppercase shadow-lg flex items-center gap-2"
-                                >
-                                    <PrinterIcon size={14}/> Print Summary
-                                </button>
                                 {activeTab === 'daily' ? (
-                                    <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} className="bg-slate-700 border border-slate-600 rounded p-2 text-white font-bold" />
+                                    <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} className="bg-slate-800 border border-slate-700 rounded-xl p-3 text-white font-black text-sm" />
                                 ) : (
                                     <>
                                         {activeTab === 'monthly' && (
-                                            <select value={selectedMonth} onChange={e => setSelectedMonth(parseInt(e.target.value))} className="bg-slate-700 border-none rounded p-2 text-white font-bold">{monthOptions.map(m => <option key={m.value} value={m.value}>{m.name}</option>)}</select>
+                                            <select value={selectedMonth} onChange={e => setSelectedMonth(parseInt(e.target.value))} className="bg-slate-800 border-none rounded-xl p-3 text-white font-black text-sm">{monthOptions.map(m => <option key={m.value} value={m.value}>{m.name}</option>)}</select>
                                         )}
-                                        <select value={selectedYear} onChange={e => setSelectedYear(parseInt(e.target.value))} className="bg-slate-700 border-none rounded p-2 text-white font-bold">{[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}</select>
+                                        <select value={selectedYear} onChange={e => setSelectedYear(parseInt(e.target.value))} className="bg-slate-800 border-none rounded-xl p-3 text-white font-black text-sm">{[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}</select>
                                     </>
                                 )}
                              </div>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                            <SummaryBox 
-                                title="Collection (কালেকশন)" 
-                                colorClass="text-blue-400" 
-                                totalLabel="Total Collection" 
-                                totalValue={activeTab === 'daily' ? stats.daily.totalColl : activeTab === 'monthly' ? stats.monthly.totalColl : stats.yearly.totalColl} 
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                            <SummaryBox title="Collection (কালেকশন)" colorClass="text-blue-400" totalLabel="Total Collection" totalValue={activeTab === 'daily' ? stats.daily.totalColl : activeTab === 'monthly' ? stats.monthly.totalColl : stats.yearly.totalColl} 
                                 items={[
                                     { label: 'Pathology', value: activeTab === 'daily' ? stats.daily.coll.pathology : activeTab === 'monthly' ? stats.monthly.coll.pathology : stats.yearly.coll.pathology }, 
                                     { label: 'Hormone', value: activeTab === 'daily' ? stats.daily.coll.hormone : activeTab === 'monthly' ? stats.monthly.coll.hormone : stats.yearly.coll.hormone }, 
@@ -661,23 +337,19 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                                     { label: 'Due Recovery', value: activeTab === 'daily' ? stats.daily.coll.dueRecov : activeTab === 'monthly' ? stats.monthly.coll.dueRecov : stats.yearly.coll.dueRecov }
                                 ]} 
                             />
-                            <SummaryBox 
-                                title="Expenses (খরচ)" 
-                                colorClass="text-rose-400" 
-                                totalLabel="Total Expense" 
-                                totalValue={activeTab === 'daily' ? stats.daily.exp.total : activeTab === 'monthly' ? stats.monthly.exp.total : stats.yearly.exp.total} 
+                            <SummaryBox title="Expenses (খরচ)" colorClass="text-rose-400" totalLabel="Total Expense" totalValue={activeTab === 'daily' ? stats.daily.exp.total : activeTab === 'monthly' ? stats.monthly.exp.total : stats.yearly.exp.total} 
                                 items={expenseCategories.map(cat => ({ 
                                     label: expenseCategoryBanglaMap[cat], 
-                                    value: activeTab === 'daily' ? (stats.daily.expenseMap?.[cat] || 0) : activeTab === 'monthly' ? (stats.monthly.expenseMap?.[cat] || 0) : (stats.yearly.expenseMap?.[cat] || 0) 
+                                    value: activeTab === 'daily' ? (stats.daily.expenseMap[cat] || 0) : activeTab === 'monthly' ? (stats.monthly.expenseMap[cat] || 0) : (stats.yearly.expenseMap[cat] || 0) 
                                 }))} 
                             />
                         </div>
 
-                        <div className="flex flex-col md:flex-row items-center justify-center gap-10 pt-5 no-print">
-                            <div className="inline-block p-10 bg-gradient-to-br from-indigo-700 to-slate-900 rounded-[3rem] border border-white/10 shadow-2xl text-center transform hover:scale-105 transition-all shrink-0">
-                                <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.3em] mb-2 drop-shadow-md">Net Balance</p>
-                                <h4 className={`text-6xl font-black ${ (activeTab === 'daily' ? stats.daily.balance : activeTab === 'monthly' ? stats.monthly.balance : stats.yearly.balance) >= 0 ? 'text-green-400' : 'text-rose-500' } drop-shadow-xl`}>
-                                    { (activeTab === 'daily' ? stats.daily.balance : activeTab === 'monthly' ? stats.monthly.balance : stats.yearly.balance).toLocaleString() } ৳
+                        <div className="flex justify-center pt-8 no-print">
+                            <div className="bg-slate-900 p-12 rounded-[4rem] border border-slate-800 shadow-2xl text-center">
+                                <p className="text-slate-500 text-xs font-black uppercase tracking-widest mb-3">Net Balance</p>
+                                <h4 className={`text-6xl font-black ${ (activeTab === 'daily' ? stats.daily.balance : activeTab === 'monthly' ? stats.monthly.balance : stats.yearly.balance) >= 0 ? 'text-green-400' : 'text-rose-500' }`}>
+                                    ৳ { (activeTab === 'daily' ? stats.daily.balance : activeTab === 'monthly' ? stats.monthly.balance : stats.yearly.balance).toLocaleString() }
                                 </h4>
                             </div>
                         </div>
@@ -685,168 +357,111 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                 )}
 
                 {activeTab === 'detail' && (
-                    <div className="animate-fade-in space-y-6">
-                        <div className="bg-slate-800 p-6 rounded-3xl border border-slate-700 shadow-2xl flex flex-col gap-6">
-                            <div className="flex flex-wrap justify-between items-center gap-4 border-b border-slate-700 pb-4 no-print">
-                                <div className="flex items-center gap-4">
-                                    <h3 className="text-xl font-black text-white uppercase tracking-tighter">Collection Detailed List</h3>
-                                    <div className="flex bg-slate-900 p-1 rounded-xl shadow-inner border border-slate-700">
-                                        <button onClick={() => setDetailViewMode('today')} className={`px-6 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${detailViewMode === 'today' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500'}`}>Today</button>
-                                        <button onClick={() => setDetailViewMode('historical')} className={`px-6 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${detailViewMode === 'historical' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500'}`}>Historical</button>
-                                        <button onClick={() => setDetailViewMode('monthly_summary')} className={`px-6 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${detailViewMode === 'monthly_summary' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-500'}`}>Monthly Collection</button>
-                                        <button onClick={() => setDetailViewMode('monthly_expense')} className={`px-6 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${detailViewMode === 'monthly_expense' ? 'bg-rose-600 text-white shadow-lg' : 'text-slate-500'}`}>Monthly Expense</button>
+                    <div className="animate-fade-in space-y-8">
+                        <div className="bg-slate-800 p-8 rounded-[2.5rem] border border-slate-700 shadow-2xl flex flex-col gap-8">
+                            <div className="flex flex-wrap justify-between items-center gap-4 border-b border-slate-700 pb-6 no-print">
+                                <div className="flex items-center gap-6">
+                                    <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Journal Details</h3>
+                                    <div className="flex bg-slate-900 p-1.5 rounded-2xl border border-slate-700">
+                                        <button onClick={() => setDetailViewMode('today')} className={`px-8 py-2.5 rounded-xl text-xs font-black uppercase transition-all ${detailViewMode === 'today' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500'}`}>Today</button>
+                                        <button onClick={() => setDetailViewMode('historical')} className={`px-8 py-2.5 rounded-xl text-xs font-black uppercase transition-all ${detailViewMode === 'historical' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500'}`}>Search Historical</button>
                                     </div>
+                                    <input type="date" value={selectedDate} onChange={e=>setSelectedDate(e.target.value)} className="bg-slate-900 border border-slate-700 rounded-xl p-3 text-white text-sm font-bold" />
                                 </div>
-                                <div className="flex items-center gap-3">
-                                    <button 
-                                        onClick={detailViewMode === 'monthly_summary' ? handlePrintMonthlyTracker : detailViewMode === 'monthly_expense' ? handlePrintMonthlyExpenseTracker : handlePrintDetailedLog}
-                                        className="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2 rounded-xl text-xs font-black uppercase flex items-center gap-2 shadow-lg"
-                                    >
-                                        <PrinterIcon size={14}/> {detailViewMode === 'monthly_summary' ? 'Print Tracker' : detailViewMode === 'monthly_expense' ? 'Print Expense' : 'Print Detailed Log'}
-                                    </button>
-                                    <div className="relative w-64">
-                                        <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
-                                        <input type="text" placeholder="Search Patient, ID..." value={detailSearch} onChange={e => setDetailSearch(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-full pl-10 pr-4 py-2 text-xs text-white focus:border-blue-500 outline-none" />
-                                    </div>
+                                <div className="relative w-80">
+                                    <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+                                    <input type="text" placeholder="Search Patient..." value={detailSearch} onChange={e => setDetailSearch(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-full pl-12 pr-6 py-3 text-sm text-white outline-none focus:ring-2 focus:ring-blue-500" />
                                 </div>
                             </div>
+                            
+                            <div className="flex flex-wrap gap-3 no-print border-b border-slate-700 pb-6">
+                                {['All', 'Pathology', 'USG', 'X-Ray', 'ECG', 'Hormone', 'Due Recovery'].map(cat => (
+                                    <button key={cat} onClick={()=>setDetailFilterCategory(cat)} className={`px-6 py-2.5 rounded-2xl text-[11px] font-black uppercase border transition-all ${detailFilterCategory === cat ? 'bg-indigo-600 text-white border-indigo-400 shadow-lg' : 'bg-slate-900 text-slate-500 border-slate-700 hover:text-slate-300'}`}>{cat}</button>
+                                ))}
+                            </div>
 
-                            {detailViewMode === 'monthly_summary' ? (
-                                <div className="animate-fade-in bg-slate-900 border border-slate-700 rounded-2xl overflow-hidden shadow-2xl max-w-4xl mx-auto w-full">
-                                    <div className="p-5 bg-slate-950 border-b border-slate-700 flex justify-between items-center font-black uppercase text-xs tracking-widest text-emerald-400">
-                                        <span>Monthly Performance Tracker: {monthOptions[selectedMonth].name} {selectedYear}</span>
-                                        <div className="flex gap-2">
-                                            <select value={selectedMonth} onChange={e => setSelectedMonth(parseInt(e.target.value))} className="bg-slate-800 p-1 rounded text-[10px] text-white outline-none border border-slate-700">{monthOptions.map(m => <option key={m.value} value={m.value}>{m.name}</option>)}</select>
-                                            <select value={selectedYear} onChange={e => setSelectedYear(parseInt(e.target.value))} className="bg-slate-800 p-1 rounded text-[10px] text-white outline-none border border-slate-700">{[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}</select>
-                                        </div>
-                                    </div>
-                                    <table className="w-full text-left border-collapse text-xs">
-                                        <thead className="bg-slate-950 text-slate-500 font-black uppercase tracking-widest text-[10px]">
-                                            <tr><th className="p-5 border-b border-slate-800">Date (তারিখ)</th><th className="p-5 border-b border-slate-800 text-right">Daily Collection (দিনের আদায়)</th><th className="p-5 border-b border-slate-800 text-right text-emerald-400">Running Total (মোট জমা)</th></tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-slate-800/50">
-                                            {monthlySummaryData.map((day, i) => (
-                                                <tr key={i} className={`hover:bg-slate-800/40 transition-colors ${day.collection > 0 ? 'bg-emerald-950/5' : ''}`}>
-                                                    <td className="p-4 font-bold text-slate-300 font-mono">{day.date}</td>
-                                                    <td className="p-4 text-right font-black text-slate-400">৳ {day.collection.toLocaleString()}</td>
-                                                    <td className="p-4 text-right font-black text-emerald-400 text-lg">৳ {day.runningTotal.toLocaleString()}</td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
+                            <div className="overflow-x-auto rounded-2xl border border-slate-700 bg-slate-900/50">
+                                <table className="w-full text-left text-xs border-collapse">
+                                    <thead className="bg-slate-950 text-slate-500 font-black uppercase tracking-widest border-b border-slate-800">
+                                        <tr><th className="p-5">SL</th><th className="p-5">Invoice ID</th><th className="p-5">Patient Name</th><th className="p-5 text-right">Bill</th><th className="p-5 text-right">Disc</th><th className="p-5 text-right">Paid</th><th className="p-5 text-right">PC</th><th className="p-5 text-right">USG Fee</th><th className="p-5 text-right text-emerald-400">Net Profit</th></tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-800">
+                                        {detailTableData.map((inv, idx) => (
+                                            <tr key={inv.invoice_id} className={`hover:bg-slate-700/30 transition-colors ${inv.status==='Returned'?'opacity-50 grayscale bg-red-900/10':''}`}>
+                                                <td className="p-5 text-slate-500 font-bold">{idx+1}</td>
+                                                <td className="p-5 font-mono text-cyan-400 font-bold">{inv.invoice_id} {inv.status==='Returned' && <span className="text-[9px] bg-red-600 text-white px-2 rounded-full ml-2">RET</span>}</td>
+                                                <td className="p-5 font-black uppercase text-slate-200 text-sm">{inv.patient_name}</td>
+                                                <td className="p-5 text-right font-medium">{inv.total_amount.toLocaleString()}</td>
+                                                <td className="p-5 text-right text-slate-400">{inv.discount_amount.toLocaleString()}</td>
+                                                <td className="p-5 text-right font-black text-white">{inv.paidVal.toLocaleString()}</td>
+                                                <td className="p-5 text-right text-rose-400 font-bold">{inv.pcAmt.toLocaleString()}</td>
+                                                <td className="p-5 text-right text-amber-400 font-bold">{inv.usgFee.toLocaleString()}</td>
+                                                <td className="p-5 text-right font-black text-emerald-400 text-base">৳{inv.netProfit.toLocaleString()}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                    <tfoot className="bg-slate-950 border-t-4 border-slate-700 text-sm font-black text-white">
+                                        <tr className="h-16">
+                                            <td colSpan={3} className="p-5 text-right uppercase tracking-widest text-slate-400">Monthly Calculations Summary ({reportSummary.count} Tests):</td>
+                                            <td className="p-5 text-right">৳{reportSummary.totalBill.toLocaleString()}</td>
+                                            <td className="p-5 text-right text-rose-500">৳{reportSummary.totalDiscount.toLocaleString()}</td>
+                                            <td className="p-5 text-right text-emerald-400">৳{reportSummary.paidAmount.toLocaleString()}</td>
+                                            <td className="p-5 text-right text-rose-400">৳{reportSummary.pcAmount.toLocaleString()}</td>
+                                            <td className="p-5 text-right text-amber-400">৳{reportSummary.usgFee.toLocaleString()}</td>
+                                            <td className="p-5 text-right text-white bg-blue-600 rounded-br-2xl text-lg">৳{reportSummary.netInstProfit.toLocaleString()}</td>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                            </div>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 no-print mt-6">
+                                <div className="bg-slate-900 p-6 rounded-3xl border border-slate-700 shadow-inner">
+                                    <p className="text-slate-500 text-[11px] uppercase font-black tracking-widest">Total Gross Bill</p>
+                                    <h4 className="text-3xl font-black text-white mt-1">৳ {reportSummary.totalBill.toLocaleString()}</h4>
                                 </div>
-                            ) : detailViewMode === 'monthly_expense' ? (
-                                <div className="animate-fade-in bg-slate-900 border border-slate-700 rounded-2xl overflow-hidden shadow-2xl max-w-4xl mx-auto w-full">
-                                    <div className="p-5 bg-slate-950 border-b border-slate-700 flex justify-between items-center font-black uppercase text-xs tracking-widest text-rose-400">
-                                        <span>Monthly Expense Tracker: {monthOptions[selectedMonth].name} {selectedYear}</span>
-                                        <div className="flex gap-2">
-                                            <select value={selectedMonth} onChange={e => setSelectedMonth(parseInt(e.target.value))} className="bg-slate-800 p-1 rounded text-[10px] text-white outline-none border border-slate-700">{monthOptions.map(m => <option key={m.value} value={m.value}>{m.name}</option>)}</select>
-                                            <select value={selectedYear} onChange={e => setSelectedYear(parseInt(e.target.value))} className="bg-slate-800 p-1 rounded text-[10px] text-white outline-none border border-slate-700">{[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}</select>
-                                        </div>
-                                    </div>
-                                    <table className="w-full text-left border-collapse text-xs">
-                                        <thead className="bg-slate-950 text-slate-500 font-black uppercase tracking-widest text-[10px]">
-                                            <tr><th className="p-5 border-b border-slate-800">Date (তারিখ)</th><th className="p-5 border-b border-slate-800 text-right">Daily Expense (দিনের খরচ)</th><th className="p-5 border-b border-slate-800 text-right text-rose-400">Running Total (মোট খরচ)</th></tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-slate-800/50">
-                                            {monthlyExpenseData.map((day, i) => (
-                                                <tr key={i} className={`hover:bg-slate-800/40 transition-colors ${day.expense > 0 ? 'bg-rose-950/5' : ''}`}>
-                                                    <td className="p-4 font-bold text-slate-300 font-mono">{day.date}</td>
-                                                    <td className="p-4 text-right font-black text-slate-400">৳ {day.expense.toLocaleString()}</td>
-                                                    <td className="p-4 text-right font-black text-rose-400 text-lg">৳ {day.runningTotal.toLocaleString()}</td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
+                                <div className="bg-slate-900 p-6 rounded-3xl border border-slate-700 shadow-inner">
+                                    <p className="text-slate-500 text-[11px] uppercase font-black tracking-widest">Net Cash Collection</p>
+                                    <h4 className="text-3xl font-black text-emerald-400 mt-1">৳ {reportSummary.paidAmount.toLocaleString()}</h4>
                                 </div>
-                            ) : (
-                                <div className="space-y-12">
-                                    {Object.entries(detailTableData as Record<string, any[]>).length > 0 ? Object.entries(detailTableData as Record<string, any[]>).map(([date, rows]) => (
-                                        <div key={date} className="animate-fade-in bg-slate-900 border-2 border-slate-800 rounded-[2.5rem] overflow-hidden shadow-2xl">
-                                            <div className="bg-slate-800 p-4 border-b border-slate-700 flex justify-between items-center px-10 shadow-inner">
-                                                <h4 className="text-lg font-black text-sky-400 tracking-widest uppercase">Date- {formatGroupingDate(date)}</h4>
-                                                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{(rows as any[]).length} Patient Records</span>
-                                            </div>
-                                            <div className="overflow-x-auto">
-                                                <table className="w-full text-left text-[11px] border-collapse">
-                                                    <thead className="bg-slate-950 text-[10px] font-black text-slate-500 uppercase tracking-wider border-b border-slate-800">
-                                                        <tr>
-                                                            <th className="p-4">Id</th>
-                                                            <th className="p-4">Patient Description</th>
-                                                            <th className="p-4">Refd Dr.</th>
-                                                            <th className="p-4">Tests / Parameters</th>
-                                                            <th className="p-4 text-right">Bill Amt</th>
-                                                            <th className="p-4 text-right text-emerald-400">Cash Paid</th>
-                                                            <th className="p-4 text-right text-sky-400">USG</th>
-                                                            <th className="p-4 text-right text-amber-400">PC</th>
-                                                            <th className="p-4 text-right text-blue-400">Balance</th>
-                                                            <th className="p-4 text-right text-rose-500">Due</th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody className="divide-y divide-slate-800">
-                                                        {(rows as any[]).map((row, i) => (
-                                                            <tr key={i} className="hover:bg-slate-800/40 transition-colors group">
-                                                                <td className="p-4 font-mono text-[10px] text-slate-500">{row.id.split('-').pop()}</td>
-                                                                <td className="p-4">
-                                                                    <div className="font-black text-slate-100 uppercase group-hover:text-blue-400 transition-colors">{row.patientDesc}</div>
-                                                                    <div className="text-[9px] text-slate-600 font-mono mt-0.5">{row.id}</div>
-                                                                </td>
-                                                                <td className="p-4 text-slate-400 font-medium truncate max-w-[100px]" title={row.refDr}>{row.refDr}</td>
-                                                                <td className="p-4 text-slate-500 italic text-[10px] truncate max-w-[180px]" title={row.tests}>{row.tests}</td>
-                                                                <td className="p-4 text-right font-bold text-slate-300">৳{row.billAmt.toLocaleString()}</td>
-                                                                <td className="p-4 text-right font-black text-emerald-400">৳{row.paid.toLocaleString()}</td>
-                                                                <td className="p-4 text-right text-sky-400 font-bold">৳{row.usg.toLocaleString()}</td>
-                                                                <td className="p-4 text-right text-amber-400 font-bold">৳{row.pc.toLocaleString()}</td>
-                                                                <td className="p-4 text-right font-black text-blue-400 bg-blue-950/10 shadow-inner">৳{row.balance.toLocaleString()}</td>
-                                                                <td className="p-4 text-right font-black text-rose-600">৳{row.due.toLocaleString()}</td>
-                                                            </tr>
-                                                        ))}
-                                                    </tbody>
-                                                </table>
-                                            </div>
-                                        </div>
-                                    )) : (
-                                        <div className="p-20 text-center text-slate-600 italic font-black uppercase opacity-30 text-xl tracking-[0.2em]">
-                                            No Data matching filters found
-                                        </div>
-                                    )}
+                                <div className="bg-slate-900 p-6 rounded-3xl border border-slate-700 shadow-inner">
+                                    <p className="text-slate-500 text-[11px] uppercase font-black tracking-widest">Expenses (PC + USG)</p>
+                                    <h4 className="text-3xl font-black text-amber-400 mt-1">৳ {(reportSummary.pcAmount + reportSummary.usgFee).toLocaleString()}</h4>
                                 </div>
-                            )}
+                                <div className="bg-indigo-600 p-6 rounded-3xl shadow-2xl border border-indigo-400 transform scale-105">
+                                    <p className="text-indigo-100 text-[11px] uppercase font-black tracking-widest">Institution Profit</p>
+                                    <h4 className="text-4xl font-black text-white mt-1">৳ {reportSummary.netInstProfit.toLocaleString()}</h4>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 )}
 
                 {activeTab === 'due' && (
-                    <div className="animate-fade-in space-y-6">
-                        <div className="bg-white rounded-2xl shadow-2xl overflow-hidden border border-slate-300">
-                            <div className="p-6 bg-slate-100 border-b border-slate-200 flex justify-between items-center">
-                                <h3 className="text-xl font-black text-slate-800 uppercase tracking-tighter">Outstanding Dues List</h3>
-                                <input value={dueSearch} onChange={e=>setDueSearch(e.target.value)} placeholder="Search Patient..." className="p-2.5 w-80 bg-white border border-slate-300 rounded-xl text-sm font-bold text-slate-800 outline-none" />
+                    <div className="animate-fade-in space-y-10">
+                        <div className="bg-slate-900 rounded-[2.5rem] shadow-2xl border border-slate-800 overflow-hidden">
+                            <div className="p-8 bg-slate-900 border-b border-slate-800 flex justify-between items-center">
+                                <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Outstanding Patient Dues</h3>
+                                <input value={dueSearch} onChange={e=>setDueSearch(e.target.value)} placeholder="Search Patient..." className="p-3 w-96 bg-slate-950 border border-slate-800 rounded-2xl text-sm font-black text-white outline-none focus:ring-2 focus:ring-blue-500 shadow-inner" />
                             </div>
                             <div className="overflow-x-auto">
-                                <table className="w-full text-left text-[11px] border-collapse">
-                                    <thead className="bg-slate-50 border-b-2 border-slate-300 text-slate-700 uppercase font-black tracking-wider">
-                                        <tr>
-                                            <th className="p-3 border-r border-slate-200">Date</th>
-                                            <th className="p-3 border-r border-slate-200">Patient Name</th>
-                                            <th className="p-3 border-r border-slate-200 text-right">Total Bill</th>
-                                            <th className="p-3 text-right bg-red-50 text-red-700">Due Balance</th>
-                                        </tr>
+                                <table className="w-full text-left text-xs border-collapse">
+                                    <thead className="bg-slate-950 text-slate-500 font-black uppercase tracking-widest border-b border-slate-800">
+                                        <tr><th className="p-5">Date</th><th className="p-5">Patient Name</th><th className="p-5 text-right">Total Bill</th><th className="p-5 text-right text-rose-500">Due Balance</th></tr>
                                     </thead>
-                                    <tbody className="divide-y divide-slate-200">
-                                        {dueList.map((inv: any, idx: number) => (
-                                            <tr key={idx} className="hover:bg-blue-50 transition-colors text-slate-900 font-medium">
-                                                <td className="p-3 border-r border-slate-200 font-mono text-[10px]">{inv.invoice_date}</td>
-                                                <td className="p-3 border-r border-slate-200 font-black uppercase">{inv.patient_name}</td>
-                                                <td className="p-3 border-r border-slate-200 text-right font-bold">৳ {inv.total_amount.toLocaleString()}</td>
-                                                <td className="p-3 text-right font-black text-red-600 bg-red-50/50">৳ {inv.due_amount.toLocaleString()}</td>
+                                    <tbody className="divide-y divide-slate-800/50">
+                                        {dueList.map((inv, idx) => (
+                                            <tr key={idx} className="hover:bg-slate-800/50 transition-colors">
+                                                <td className="p-5 text-slate-400 font-bold">{inv.invoice_date}</td>
+                                                <td className="p-5 font-black text-white uppercase text-sm">{inv.patient_name}</td>
+                                                <td className="p-5 text-right text-slate-300 font-bold">{inv.total_amount.toLocaleString()}</td>
+                                                <td className="p-5 text-right font-black text-rose-500 text-xl">৳{inv.due_amount.toLocaleString()}</td>
                                             </tr>
                                         ))}
                                     </tbody>
-                                    <tfoot className="bg-slate-900 text-white font-black text-sm">
+                                    <tfoot className="bg-slate-950 text-white font-black text-sm border-t-4 border-slate-800">
                                         <tr>
-                                            <td colSpan={3} className="p-4 text-right uppercase tracking-widest text-xs">Total Outstanding Due:</td>
-                                            <td className="p-4 text-right text-yellow-400 text-xl">৳ {dueList.reduce((s: number, i: any) => s + i.due_amount, 0).toLocaleString()}</td>
+                                            <td colSpan={3} className="p-8 text-right uppercase tracking-widest text-slate-500">Total Outstanding Due:</td>
+                                            <td className="p-8 text-right text-yellow-400 text-4xl">৳ {dueList.reduce((s,i)=>s+i.due_amount, 0).toLocaleString()}</td>
                                         </tr>
                                     </tfoot>
                                 </table>
@@ -855,11 +470,6 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                     </div>
                 )}
             </main>
-            {successMessage && (
-                <div className="fixed bottom-10 left-1/2 -translate-x-1/2 bg-emerald-600 text-white px-10 py-3 rounded-full shadow-2xl font-black uppercase tracking-widest animate-fade-in-up z-[500]">
-                    ✓ {successMessage}
-                </div>
-            )}
         </div>
     );
 };

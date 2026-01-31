@@ -1,7 +1,7 @@
 
 import React, { useMemo, useState } from 'react';
-import { PurchaseInvoice, SalesInvoice } from '../DiagnosticData';
-import { IndoorInvoice } from '../ClinicPage';
+/** Added fix: Corrected IndoorInvoice import */
+import { PurchaseInvoice, SalesInvoice, IndoorInvoice } from '../DiagnosticData';
 import { MedicineIcon, BackIcon, MapPinIcon, PhoneIcon } from '../Icons';
 
 interface MedicineAccountsPageProps {

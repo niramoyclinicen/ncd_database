@@ -41,6 +41,11 @@ interface DiagnosticPageProps {
   patients: Patient[];
   setPatients: React.Dispatch<React.SetStateAction<Patient[]>>;
   detailedExpenses?: Record<string, ExpenseItem[]>;
+  // Added fix: Include HR/Payroll states in interface
+  attendanceLog: Record<string, any>;
+  setAttendanceLog: React.Dispatch<React.SetStateAction<Record<string, any>>>;
+  leaveLog: Record<string, any>;
+  setLeaveLog: React.Dispatch<React.SetStateAction<Record<string, any>>>;
 }
 
 const DiagnosticPage: React.FC<DiagnosticPageProps> = ({ 
@@ -55,7 +60,9 @@ const DiagnosticPage: React.FC<DiagnosticPageProps> = ({
   setEmployees,
   patients, 
   setPatients,
-  detailedExpenses
+  detailedExpenses,
+  // Added fix: Destructure HR/Payroll states
+  attendanceLog, setAttendanceLog, leaveLog, setLeaveLog
 }) => {
   const isLabReporter = userRole === 'LAB_REPORTER';
   const isDiagAdmin = userRole === 'DIAGNOSTIC_ADMIN';
@@ -200,6 +207,11 @@ const DiagnosticPage: React.FC<DiagnosticPageProps> = ({
                       employees={employees} 
                       setEmployees={setEmployees} 
                       detailedExpenses={detailedExpenses} 
+                      // Added fix: Pass required states to EmployeeInfoPage
+                      attendanceLog={attendanceLog}
+                      setAttendanceLog={setAttendanceLog}
+                      leaveLog={leaveLog}
+                      setLeaveLog={setLeaveLog}
                     />
                 ) : (
                     <div className="text-center p-8 text-slate-500">Employee management is currently unavailable in this view.</div>

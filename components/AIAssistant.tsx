@@ -1,8 +1,9 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { GoogleGenAI, Type } from "@google/genai";
 import { Search, X, MessageSquare, Send, Sparkles, Loader2 } from 'lucide-react';
-import { ExpenseItem, Employee, Medicine, PurchaseInvoice, SalesInvoice, LabInvoice } from './DiagnosticData';
-import { IndoorInvoice } from './ClinicPage';
+// Importing IndoorInvoice from DiagnosticData.ts correctly
+import { ExpenseItem, Employee, Medicine, PurchaseInvoice, SalesInvoice, LabInvoice, IndoorInvoice } from './DiagnosticData';
 
 interface AIAssistantProps {
     detailedExpenses: Record<string, ExpenseItem[]>;

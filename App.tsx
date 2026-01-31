@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { ViewState, UserRole, DepartmentPasswords } from './types';
 import Dashboard from './components/Dashboard';
@@ -17,7 +16,7 @@ import {
   mockPatients, mockDoctors, mockReferrars, mockTests, mockReagents, 
   mockInvoices, mockDueCollections, mockEmployees, mockMedicines,
   mockPurchaseInvoices, mockSalesInvoices, mockAdmissions, mockIndoorInvoices,
-  initialAppointments, initialClinicalDrugs, PrescriptionRecord, LabReport
+  initialAppointments, initialClinicalDrugs, PrescriptionRecord, LabReport, ExpenseItem
 } from './components/DiagnosticData';
 
 const App: React.FC = () => {
@@ -56,9 +55,13 @@ const App: React.FC = () => {
   const [salesInvoices, setSalesInvoices] = useState(mockSalesInvoices);
   const [admissions, setAdmissions] = useState(mockAdmissions);
   const [indoorInvoices, setIndoorInvoices] = useState(mockIndoorInvoices);
-  const [detailedExpenses, setDetailedExpenses] = useState<Record<string, any[]>>({});
+  const [detailedExpenses, setDetailedExpenses] = useState<Record<string, ExpenseItem[]>>({});
   const [prescriptions, setPrescriptions] = useState<PrescriptionRecord[]>([]);
   const [appointments, setAppointments] = useState(initialAppointments);
+  
+  // HR/Payroll States (Newly added to global sync)
+  const [attendanceLog, setAttendanceLog] = useState<Record<string, any>>({});
+  const [leaveLog, setLeaveLog] = useState<Record<string, any>>({});
 
   // --- DATA LOADING ---
   useEffect(() => {
@@ -67,7 +70,7 @@ const App: React.FC = () => {
         patients, doctors, referrars, tests, reagents, labInvoices, 
         dueCollections, reports, employees, medicines, clinicalDrugs,
         purchaseInvoices, salesInvoices, admissions, indoorInvoices,
-        detailedExpenses, prescriptions, appointments
+        detailedExpenses, prescriptions, appointments, attendanceLog, leaveLog
       };
       
       const loadedData = await dbService.loadFromCloud(defaultData);
@@ -91,6 +94,8 @@ const App: React.FC = () => {
         setDetailedExpenses(loadedData.detailedExpenses || {});
         setPrescriptions(loadedData.prescriptions || []);
         setAppointments(loadedData.appointments || []);
+        setAttendanceLog(loadedData.attendanceLog || {});
+        setLeaveLog(loadedData.leaveLog || {});
       }
       setIsDataLoaded(true);
     };
@@ -106,7 +111,7 @@ const App: React.FC = () => {
         patients, doctors, referrars, tests, reagents, labInvoices, 
         dueCollections, reports, employees, medicines, clinicalDrugs,
         purchaseInvoices, salesInvoices, admissions, indoorInvoices,
-        detailedExpenses, prescriptions, appointments
+        detailedExpenses, prescriptions, appointments, attendanceLog, leaveLog
       };
       await dbService.saveToCloud(currentState);
     };
@@ -117,7 +122,7 @@ const App: React.FC = () => {
     patients, doctors, referrars, tests, reagents, labInvoices, 
     dueCollections, reports, employees, medicines, clinicalDrugs,
     purchaseInvoices, salesInvoices, admissions, indoorInvoices,
-    detailedExpenses, prescriptions, appointments, isDataLoaded
+    detailedExpenses, prescriptions, appointments, attendanceLog, leaveLog, isDataLoaded
   ]);
 
   // --- HANDLERS ---
@@ -199,6 +204,8 @@ const App: React.FC = () => {
             reports={reports} setReports={setReports}
             employees={employees} setEmployees={setEmployees}
             detailedExpenses={detailedExpenses}
+            attendanceLog={attendanceLog} setAttendanceLog={setAttendanceLog}
+            leaveLog={leaveLog} setLeaveLog={setLeaveLog}
           />
         );
 
@@ -243,6 +250,8 @@ const App: React.FC = () => {
             indoorInvoices={indoorInvoices}
             medicines={medicines}
             setReagents={setReagents}
+            attendanceLog={attendanceLog} setAttendanceLog={setAttendanceLog}
+            leaveLog={leaveLog} setLeaveLog={setLeaveLog}
           />
         );
 

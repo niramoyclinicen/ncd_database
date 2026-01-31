@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { 
   AccountingIcon, 
@@ -9,13 +10,13 @@ import {
   MapPinIcon,
   PhoneIcon
 } from './Icons';
-import { LabInvoice, DueCollection, ExpenseItem, Employee, PurchaseInvoice, SalesInvoice, Medicine, Reagent } from './DiagnosticData';
+/** Added fix: Corrected IndoorInvoice import */
+import { LabInvoice, DueCollection, ExpenseItem, Employee, PurchaseInvoice, SalesInvoice, Medicine, Reagent, IndoorInvoice } from './DiagnosticData';
 import DiagnosticAccountsPage from './diagnostic/DiagnosticAccountsPage';
 import EmployeeInfoPage from './EmployeeInfoPage';
 import MedicineAccountsPage from './medicine/MedicineAccountsPage';
 import ClinicAccountsPage from './clinic/ClinicAccountsPage';
 import ConsolidatedAccountsPage from './ConsolidatedAccountsPage';
-import { IndoorInvoice } from './ClinicPage';
 
 interface AccountingPageProps {
   onBack: () => void;
@@ -30,6 +31,11 @@ interface AccountingPageProps {
   indoorInvoices: IndoorInvoice[];
   medicines: Medicine[];
   setReagents: React.Dispatch<React.SetStateAction<Reagent[]>>;
+  // Added fix: Include HR/Payroll states in interface
+  attendanceLog: Record<string, any>;
+  setAttendanceLog: React.Dispatch<React.SetStateAction<Record<string, any>>>;
+  leaveLog: Record<string, any>;
+  setLeaveLog: React.Dispatch<React.SetStateAction<Record<string, any>>>;
 }
 
 interface AccountingButtonProps {
@@ -110,7 +116,9 @@ const BackgroundGraphic = () => (
 
 const AccountingPage: React.FC<AccountingPageProps> = ({ 
   onBack, invoices, dueCollections, detailedExpenses, setDetailedExpenses, employees, setEmployees,
-  purchaseInvoices, salesInvoices, indoorInvoices, medicines, setReagents
+  purchaseInvoices, salesInvoices, indoorInvoices, medicines, setReagents,
+  // Added fix: Destructure HR/Payroll states
+  attendanceLog, setAttendanceLog, leaveLog, setLeaveLog
 }) => {
   const [activeView, setActiveView] = useState<'main' | 'diagnostic' | 'clinic_accounts' | 'employee_info' | 'medicine_accounts' | 'consolidated'>('main');
 
@@ -148,6 +156,11 @@ const AccountingPage: React.FC<AccountingPageProps> = ({
             setEmployees={setEmployees} 
             detailedExpenses={detailedExpenses}
             onBack={() => setActiveView('main')}
+            // Added fix: Pass required states to EmployeeInfoPage
+            attendanceLog={attendanceLog}
+            setAttendanceLog={setAttendanceLog}
+            leaveLog={leaveLog}
+            setLeaveLog={setLeaveLog}
         />
     );
   }

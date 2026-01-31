@@ -4,8 +4,8 @@ import {
   UsersIcon, SearchIcon, ChartIcon, MapPinIcon, BackIcon, DiagnosticIcon, 
   ClinicIcon, PhoneIcon, Activity, TrendingUpIcon, PieChartIcon, MoneyIcon, SaveIcon, PlusIcon, ClipboardIcon
 } from './Icons';
-import { Referrar, LabInvoice, Patient, Employee, MarketingTarget, CommissionPayment, FieldVisitLog } from './DiagnosticData';
-import { IndoorInvoice } from './ClinicPage';
+// Importing IndoorInvoice from its correct source: DiagnosticData.ts
+import { Referrar, LabInvoice, Patient, Employee, MarketingTarget, CommissionPayment, FieldVisitLog, IndoorInvoice } from './DiagnosticData';
 
 interface MarketingPageProps {
   onBack: () => void;

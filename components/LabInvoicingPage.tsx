@@ -101,7 +101,7 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
     const totalAmount = formData.items.reduce((sum, item) => sum + item.price * item.quantity, 0);
     const netPayable = totalAmount - formData.discount_amount;
     const dueAmount = netPayable - formData.paid_amount;
-    const status: LabInvoice['status'] = dueAmount > 0.005 ? 'Due' : 'Paid';
+    const status: LabInvoice['status'] = formData.status === 'Returned' ? 'Returned' : (dueAmount > 0.005 ? 'Due' : 'Paid');
 
     const tComm100 = applyPC ? formData.items.reduce((sum, item) => sum + (item.test_commission * item.quantity), 0) : 0;
     const commAfterDisc = applyPC ? tComm100 - formData.discount_amount : 0;
@@ -109,7 +109,7 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
     const commDue = applyPC ? payableComm - formData.commission_paid : 0;
 
     return { totalAmount, netPayable, dueAmount, status, tComm100, commAfterDisc, payableComm, commDue };
-  }, [formData.items, formData.paid_amount, formData.discount_amount, formData.special_commission, formData.commission_paid, applyPC]);
+  }, [formData.items, formData.paid_amount, formData.discount_amount, formData.special_commission, formData.commission_paid, applyPC, formData.status]);
   
   // Filter invoices when search term or invoices state changes
   useEffect(() => {
@@ -404,6 +404,18 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
     setErrors({});
   };
 
+  const handleReturnInvoice = () => {
+    if (!selectedInvoiceId) return alert("Please select an invoice.");
+    const invoiceToReturn = invoices.find(inv => inv.invoice_id === selectedInvoiceId);
+    if (invoiceToReturn && invoiceToReturn.status !== 'Returned') {
+      if (window.confirm(`আপনি কি এই ইনভয়েসের (${invoiceToReturn.invoice_id}) টাকা রিফান্ড বা রিটার্ন করতে চান? এটি আজকের হিসাব থেকে মাইনাস হবে।`)) {
+        setInvoices(prevInvoices => prevInvoices.map(inv => inv.invoice_id === selectedInvoiceId ? { ...inv, status: 'Returned', return_date: todayDateString } : inv));
+        resetForm();
+        setSuccessMessage('Invoice marked as Returned/Refunded.');
+      }
+    }
+  };
+
   const handlePrintInvoice = () => {
     if (!selectedInvoiceId) return;
     const inv = invoices.find(i => i.invoice_id === selectedInvoiceId);
@@ -411,9 +423,9 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
     const patient = patients.find(p => p.pt_id === inv.patient_id);
     const doctor = doctors.find(d => d.doctor_id === inv.doctor_id);
 
-    const itemsHtml = inv.items.map(item => `
+    const itemsHtml = inv.items.map((item, idx) => `
       <tr>
-        <td style="border: 1px solid #000; padding: 4px; text-align: left;">${item.test_name}</td>
+        <td style="border: 1px solid #000; padding: 4px; text-align: left;">${idx + 1}. ${item.test_name}</td>
         <td style="border: 1px solid #000; padding: 4px; text-align: right;">${item.price.toFixed(2)}</td>
         <td style="border: 1px solid #000; padding: 4px; text-align: center;">${item.quantity}</td>
         <td style="border: 1px solid #000; padding: 4px; text-align: right; font-weight: bold;">${(item.price * item.quantity).toFixed(2)}</td>
@@ -480,6 +492,7 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
                         <div style="display: flex; justify-content: space-between; line-height: 1.2; font-weight: 900; border-top: 1.2px solid #000; padding-top: 2px; margin-top: 2px;"><span>Net Payable:</span> <span>${inv.net_payable.toFixed(2)}</span></div>
                         <div style="display: flex; justify-content: space-between; line-height: 1.1;"><span>Paid:</span> <span>${inv.paid_amount.toFixed(2)}</span></div>
                         <div style="display: flex; justify-content: space-between; line-height: 1.1;"><span>Due:</span> <span style="font-weight:900; color: #d00;">${inv.due_amount.toFixed(2)}</span></div>
+                        ${inv.status === 'Returned' ? '<div style="color: #d00; text-align: center; border: 1.5px solid #d00; margin-top: 5px; font-weight: 900; padding: 2px;">RETURNED / REFUNDED</div>' : ''}
                     </div>
                 </div>
 
@@ -540,8 +553,10 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
   };
 
   const dailyReport = useMemo(() => {
-    const relevantInvoices = invoices.filter(inv => inv.invoice_date === reportDate && inv.status !== 'Cancelled');
-    return relevantInvoices.reduce((acc, inv) => {
+    const collections = invoices.filter(inv => inv.invoice_date === reportDate && inv.status !== 'Cancelled');
+    const refunds = invoices.filter(inv => inv.return_date === reportDate && inv.status === 'Returned');
+    
+    const summary = collections.reduce((acc, inv) => {
       acc.totalBill += inv.total_amount;
       acc.totalDiscount += inv.discount_amount;
       acc.netPayable += inv.net_payable;
@@ -549,16 +564,29 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
       acc.dueAmount += inv.due_amount;
       return acc;
     }, { totalBill: 0, totalDiscount: 0, netPayable: 0, paidAmount: 0, dueAmount: 0 });
+
+    const totalRefunded = refunds.reduce((sum, inv) => sum + inv.paid_amount, 0);
+    summary.paidAmount -= totalRefunded; // Deduct refunds from today's cash
+
+    return summary;
   }, [invoices, reportDate]);
 
   const monthlyReport = useMemo(() => {
     const currentMonth = today.getMonth();
     const currentYear = today.getFullYear();
-    const relevantInvoices = invoices.filter(inv => {
+
+    const collections = invoices.filter(inv => {
       const invDate = new Date(inv.invoice_date);
       return invDate.getMonth() === currentMonth && invDate.getFullYear() === currentYear && inv.status !== 'Cancelled';
     });
-    return relevantInvoices.reduce((acc, inv) => {
+
+    const refunds = invoices.filter(inv => {
+        if (!inv.return_date) return false;
+        const retDate = new Date(inv.return_date);
+        return retDate.getMonth() === currentMonth && retDate.getFullYear() === currentYear && inv.status === 'Returned';
+    });
+
+    const summary = collections.reduce((acc, inv) => {
       acc.totalBill += inv.total_amount;
       acc.totalDiscount += inv.discount_amount;
       acc.netPayable += inv.net_payable;
@@ -566,6 +594,11 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
       acc.dueAmount += inv.due_amount;
       return acc;
     }, { totalBill: 0, totalDiscount: 0, netPayable: 0, paidAmount: 0, dueAmount: 0 });
+
+    const totalRefunded = refunds.reduce((sum, inv) => sum + inv.paid_amount, 0);
+    summary.paidAmount -= totalRefunded;
+
+    return summary;
   }, [invoices, today]);
 
   return (
@@ -600,6 +633,7 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
                 <button type="button" onClick={resetForm} className="px-3 py-1.5 text-[10px] font-bold text-slate-200 bg-slate-600 rounded-md hover:bg-slate-500 uppercase tracking-tighter shadow-md">Cancel</button>
                 <button type="button" onClick={handleEditInvoice} disabled={!selectedInvoiceId} className="px-3 py-1.5 text-[10px] font-bold text-white bg-yellow-500 rounded-md hover:bg-yellow-400 uppercase tracking-tighter shadow-md disabled:opacity-50">Edit</button>
                 <button type="button" onClick={handleCancelInvoice} disabled={!selectedInvoiceId || invoices.find(inv => inv.invoice_id === selectedInvoiceId)?.status === 'Cancelled'} className="px-3 py-1.5 text-[10px] font-bold text-white bg-red-600 rounded-md hover:bg-red-700 uppercase tracking-tighter shadow-md disabled:opacity-50">Cancel</button>
+                <button type="button" onClick={handleReturnInvoice} disabled={!selectedInvoiceId || invoices.find(inv => inv.invoice_id === selectedInvoiceId)?.status === 'Returned'} className="px-3 py-1.5 text-[10px] font-bold text-white bg-rose-600 rounded-md hover:bg-rose-700 uppercase tracking-tighter shadow-md disabled:opacity-50">Return / Refund</button>
                 <button type="button" onClick={handlePrintInvoice} disabled={!selectedInvoiceId} className="px-3 py-1.5 text-[10px] font-bold text-white bg-indigo-600 rounded-md hover:bg-indigo-500 uppercase tracking-tighter shadow-md disabled:opacity-50">Print</button>
             </div>
         </div>
@@ -760,6 +794,7 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
               <table className="min-w-full divide-y divide-slate-700">
                 <thead className="bg-slate-800">
                   <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase">SL</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase">Test Name</th>
                     <th className="px-6 py-3 text-right text-xs font-medium text-slate-300 uppercase">Service price</th>
                     <th className="px-6 py-3 text-right text-xs font-medium text-slate-300 uppercase">Commission (BDT)</th>
@@ -769,8 +804,9 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
                   </tr>
                 </thead>
                 <tbody className="bg-slate-900 divide-y divide-slate-700">
-                  {formData.items.map(item => (
+                  {formData.items.map((item, idx) => (
                     <tr key={item.test_id}>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-400">{idx + 1}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-200 font-medium">{item.test_name}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300 text-right">{item.price.toFixed(2)}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300 text-right">{applyPC ? item.test_commission.toFixed(2) : '0.00'}</td>
@@ -873,7 +909,7 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300 text-right">{invoice.total_amount.toFixed(2)}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300 text-right">{invoice.paid_amount.toFixed(2)}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300 text-right">{invoice.due_amount.toFixed(2)}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300"><span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${invoice.status === 'Paid' ? 'bg-green-900/50 text-green-300' : invoice.status === 'Due' ? 'bg-orange-900/50 text-orange-300' : 'bg-red-900/50 text-red-300'}`}>{invoice.status}</span></td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300"><span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${invoice.status === 'Paid' ? 'bg-green-900/50 text-green-300' : invoice.status === 'Due' ? 'bg-orange-900/50 text-orange-300' : invoice.status === 'Returned' ? 'bg-blue-900/50 text-blue-300' : 'bg-red-900/50 text-red-300'}`}>{invoice.status}</span></td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300">{invoice.last_modified}</td>
               </tr>
             ))}

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { Reagent, Test, emptyTest, testCategories, SubTest } from './DiagnosticData';
 import { PlusIcon, SaveIcon, SearchIcon } from './Icons';
@@ -16,7 +17,6 @@ const TestInfoPage: React.FC<Props> = ({ reagents, tests, setTests }) => {
   const [selectedFilterCategory, setSelectedFilterCategory] = useState('All');
   const [successMessage, setSuccessMessage] = useState('');
 
-  // Sub-test Management Local State
   const [tempSubTests, setTempSubTests] = useState<SubTest[]>([]);
 
   useEffect(() => {
@@ -35,7 +35,6 @@ const TestInfoPage: React.FC<Props> = ({ reagents, tests, setTests }) => {
     });
   }, [searchTerm, tests, selectedFilterCategory]);
 
-  // Count helper for category buttons
   const getCategoryCount = (cat: string) => {
     if (cat === 'All') return tests.length;
     return tests.filter(t => t.category === cat).length;
@@ -88,9 +87,7 @@ const TestInfoPage: React.FC<Props> = ({ reagents, tests, setTests }) => {
   const handleSaveTest = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.test_id || !formData.test_name || !formData.category) return alert("Missing info");
-
     const finalTest = { ...formData, sub_tests: formData.is_group_test ? tempSubTests : [] };
-
     if (isEditing) {
       setTests(tests.map(t => t.test_id === finalTest.test_id ? finalTest : t));
     } else {
@@ -111,7 +108,6 @@ const TestInfoPage: React.FC<Props> = ({ reagents, tests, setTests }) => {
 
   return (
     <div className="bg-slate-900 text-slate-200 rounded-xl p-4 sm:p-6 space-y-8 relative">
-        {/* Success Message - Moved to top center with high z-index */}
         {successMessage && (
             <div className="fixed top-10 left-1/2 -translate-x-1/2 z-[999] bg-emerald-600 border-2 border-white text-white px-10 py-4 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] animate-fade-in-down font-black flex items-center gap-3">
                 <div className="bg-white text-emerald-600 rounded-full w-8 h-8 flex items-center justify-center text-lg shadow-lg">✓</div>
@@ -119,7 +115,6 @@ const TestInfoPage: React.FC<Props> = ({ reagents, tests, setTests }) => {
             </div>
         )}
         
-        {/* TOP CONFIGURATION FORM */}
         <div className="bg-sky-950 rounded-[2.5rem] p-8 border border-sky-800 shadow-2xl">
             <h2 className="text-3xl font-black text-sky-100 mb-8 border-b border-sky-800 pb-4 uppercase tracking-tighter">Diagnostic Test Configuration</h2>
             
@@ -163,15 +158,15 @@ const TestInfoPage: React.FC<Props> = ({ reagents, tests, setTests }) => {
                         <label className={labelBaseClasses}>Commission (PC)</label>
                         <input type="number" name="test_commission" value={formData.test_commission} onChange={handleInputChange} min="0" className={inputBaseClasses} />
                     </div>
+                    <div>
+                        <label className={labelBaseClasses}>USG Exam Charge (সোনোগ্রাফার ফি)</label>
+                        <input type="number" name="usg_exam_charge" value={formData.usg_exam_charge} onChange={handleInputChange} min="0" className={inputBaseClasses} placeholder="ফি পরিমাণ লিখুন"/>
+                    </div>
                     {!formData.is_group_test && (
                         <>
                             <div>
                                 <label className={labelBaseClasses}>Normal Range</label>
                                 <input type="text" name="normal_range" value={formData.normal_range} onChange={handleInputChange} className={inputBaseClasses} placeholder="e.g. 70 - 110"/>
-                            </div>
-                            <div>
-                                <label className={labelBaseClasses}>Unit</label>
-                                <input type="text" name="unit" value={formData.unit} onChange={handleInputChange} className={inputBaseClasses} placeholder="e.g. mg/dL"/>
                             </div>
                         </>
                     )}
@@ -186,12 +181,7 @@ const TestInfoPage: React.FC<Props> = ({ reagents, tests, setTests }) => {
                         <div className="overflow-hidden rounded-xl border border-sky-900 shadow-inner">
                             <table className="w-full text-left border-collapse">
                                 <thead className="bg-slate-800 text-[10px] uppercase font-black text-sky-500 tracking-widest">
-                                    <tr>
-                                        <th className="p-3">Parameter Name</th>
-                                        <th className="p-3">Unit</th>
-                                        <th className="p-3">Normal Range / Reference</th>
-                                        <th className="p-3 text-center w-20">Remove</th>
-                                    </tr>
+                                    <tr><th className="p-3">Parameter Name</th><th className="p-3">Unit</th><th className="p-3">Normal Range</th><th className="p-3 text-center w-20">Remove</th></tr>
                                 </thead>
                                 <tbody className="divide-y divide-sky-900/30">
                                     {tempSubTests.map((sub) => (
@@ -199,7 +189,7 @@ const TestInfoPage: React.FC<Props> = ({ reagents, tests, setTests }) => {
                                             <td className="p-2"><input value={sub.name} onChange={e=>updateSubTest(sub.id, 'name', e.target.value)} className="w-full bg-slate-900 border border-sky-900 rounded p-2 text-sm text-white focus:border-blue-500 outline-none" placeholder="e.g. S. Cholesterol" /></td>
                                             <td className="p-2"><input value={sub.unit} onChange={e=>updateSubTest(sub.id, 'unit', e.target.value)} className="w-full bg-slate-900 border border-sky-900 rounded p-2 text-sm text-white focus:border-blue-500 outline-none" placeholder="mg/dL" /></td>
                                             <td className="p-2"><input value={sub.normal_range} onChange={e=>updateSubTest(sub.id, 'normal_range', e.target.value)} className="w-full bg-slate-900 border border-sky-900 rounded p-2 text-sm text-white focus:border-blue-500 outline-none" placeholder="< 200" /></td>
-                                            <td className="p-2 text-center"><button type="button" onClick={()=>removeSubTest(sub.id)} className="text-red-500 font-bold hover:text-red-300 transition-colors">×</button></td>
+                                            <td className="p-2 text-center"><button type="button" onClick={()=>removeSubTest(sub.id)} className="text-red-500 font-bold">×</button></td>
                                         </tr>
                                     ))}
                                 </tbody>
@@ -210,107 +200,43 @@ const TestInfoPage: React.FC<Props> = ({ reagents, tests, setTests }) => {
             </form>
         </div>
       
-        {/* FILTERED TEST LIST TABLE */}
         <div className="bg-slate-800 rounded-[2.5rem] border border-slate-700 shadow-2xl overflow-hidden flex flex-col">
             <div className="p-8 bg-slate-900/80 border-b border-slate-700 flex flex-col gap-6">
                 <div className="flex justify-between items-center">
                     <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Test Master Library</h3>
                     <div className="relative w-96">
                         <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
-                        <input 
-                            type="text" 
-                            placeholder="Quick search by name or ID..." 
-                            value={searchTerm} 
-                            onChange={e=>setSearchTerm(e.target.value)} 
-                            className="w-full bg-slate-950 border border-slate-700 rounded-full py-3 pl-12 pr-6 text-sm text-white focus:border-blue-500 outline-none shadow-inner font-medium"
-                        />
+                        <input type="text" placeholder="Quick search..." value={searchTerm} onChange={e=>setSearchTerm(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-full py-3 pl-12 pr-6 text-sm text-white focus:border-blue-500 outline-none shadow-inner font-medium"/>
                     </div>
                 </div>
-
-                {/* CATEGORY FILTER BUTTONS */}
                 <div className="flex flex-wrap gap-2">
-                    {['All', ...testCategories].map(cat => {
-                        const isActive = selectedFilterCategory === cat;
-                        const count = getCategoryCount(cat);
-                        return (
-                            <button
-                                key={cat}
-                                onClick={() => setSelectedFilterCategory(cat)}
-                                className={`px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${
-                                    isActive 
-                                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/50 scale-105 z-10' 
-                                    : 'bg-slate-800 text-slate-500 hover:bg-slate-700 hover:text-slate-300'
-                                }`}
-                            >
-                                {cat}
-                                <span className={`px-2 py-0.5 rounded-full text-[9px] ${isActive ? 'bg-blue-400 text-blue-900' : 'bg-slate-900 text-slate-600'}`}>
-                                    {count}
-                                </span>
-                            </button>
-                        );
-                    })}
+                    {['All', ...testCategories].map(cat => (
+                        <button key={cat} onClick={() => setSelectedFilterCategory(cat)} className={`px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${selectedFilterCategory === cat ? 'bg-blue-600 text-white shadow-lg' : 'bg-slate-800 text-slate-500 hover:bg-slate-700 hover:text-slate-300'}`}>
+                            {cat} <span className={`px-2 py-0.5 rounded-full text-[9px] ${selectedFilterCategory === cat ? 'bg-blue-400 text-blue-900' : 'bg-slate-900 text-slate-600'}`}>{getCategoryCount(cat)}</span>
+                        </button>
+                    ))}
                 </div>
             </div>
 
             <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-slate-700">
                     <thead className="bg-slate-700/50 text-[10px] uppercase font-black text-slate-400 tracking-[0.2em]">
-                        <tr>
-                            <th className="px-8 py-5 text-left">Master ID</th>
-                            <th className="px-8 py-5 text-left">Investigation Description</th>
-                            <th className="px-8 py-5 text-left">Department</th>
-                            <th className="px-8 py-5 text-center">Protocol</th>
-                            <th className="px-8 py-5 text-right">Price (BDT)</th>
-                            <th className="px-8 py-5 text-right">PC Amt</th>
-                        </tr>
+                        <tr><th className="px-8 py-5 text-left">Master ID</th><th className="px-8 py-5 text-left">Investigation</th><th className="px-8 py-5 text-left">Dept</th><th className="px-8 py-5 text-center">Protocol</th><th className="px-8 py-5 text-right">Price</th><th className="px-8 py-5 text-right">PC</th><th className="px-8 py-5 text-right">USG Fee</th></tr>
                     </thead>
                     <tbody className="bg-slate-800 divide-y divide-slate-700/50">
                         {filteredTests.map((test) => (
-                        <tr 
-                            key={test.test_id} 
-                            onClick={() => handleRowClick(test)} 
-                            className={`cursor-pointer hover:bg-blue-900/20 transition-all group ${selectedTestId === test.test_id ? 'bg-blue-900/40' : ''}`}
-                        >
-                            <td className="px-8 py-5 whitespace-nowrap text-xs text-sky-400 font-mono group-hover:text-sky-300">{test.test_id}</td>
-                            <td className="px-8 py-5 whitespace-nowrap">
-                                <div className="text-sm text-slate-200 font-black group-hover:text-white transition-colors">{test.test_name}</div>
-                                {test.normal_range && <div className="text-[10px] text-slate-500 mt-0.5">Ref: {test.normal_range} {test.unit}</div>}
-                            </td>
-                            <td className="px-8 py-5 whitespace-nowrap text-xs text-slate-400 font-bold">{test.category}</td>
-                            <td className="px-8 py-5 whitespace-nowrap text-center">
-                                <span className={`px-4 py-1.5 rounded-xl text-[9px] font-black uppercase border ${
-                                    test.is_group_test 
-                                    ? 'bg-purple-900/30 text-purple-400 border-purple-800' 
-                                    : 'bg-blue-900/30 text-blue-400 border-blue-800'
-                                }`}>
-                                    {test.is_group_test ? 'Group / Panel' : 'Single Test'}
-                                </span>
-                            </td>
-                            <td className="px-8 py-5 whitespace-nowrap text-lg text-white font-black text-right tracking-tight group-hover:text-emerald-400 transition-colors">৳{test.price.toFixed(2)}</td>
-                            <td className="px-8 py-5 whitespace-nowrap text-sm text-slate-400 text-right font-bold">৳{test.test_commission.toFixed(2)}</td>
+                        <tr key={test.test_id} onClick={() => handleRowClick(test)} className={`cursor-pointer hover:bg-blue-900/20 transition-all group ${selectedTestId === test.test_id ? 'bg-blue-900/40' : ''}`}>
+                            <td className="px-8 py-5 text-xs text-sky-400 font-mono">{test.test_id}</td>
+                            <td className="px-8 py-5"><div className="text-sm text-slate-200 font-black">{test.test_name}</div></td>
+                            <td className="px-8 py-5 text-xs text-slate-400 font-bold">{test.category}</td>
+                            <td className="px-8 py-5 text-center"><span className={`px-4 py-1.5 rounded-xl text-[9px] font-black uppercase border ${test.is_group_test ? 'bg-purple-900/30 text-purple-400 border-purple-800' : 'bg-blue-900/30 text-blue-400 border-blue-800'}`}>{test.is_group_test ? 'Group' : 'Single'}</span></td>
+                            <td className="px-8 py-5 text-lg text-white font-black text-right">৳{test.price.toFixed(2)}</td>
+                            <td className="px-8 py-5 text-sm text-slate-400 text-right font-bold">৳{test.test_commission.toFixed(2)}</td>
+                            <td className="px-8 py-5 text-sm text-amber-400 text-right font-bold">৳{test.usg_exam_charge.toFixed(2)}</td>
                         </tr>
                         ))}
-                        {filteredTests.length === 0 && (
-                            <tr>
-                                <td colSpan={6} className="px-8 py-20 text-center">
-                                    <div className="flex flex-col items-center opacity-20">
-                                        <SearchIcon size={64} className="mb-4" />
-                                        <p className="text-2xl font-black uppercase tracking-[0.2em]">No Matches Found</p>
-                                        <p className="text-xs font-bold mt-2 uppercase">Try adjusting your search or category filters</p>
-                                    </div>
-                                </td>
-                            </tr>
-                        )}
                     </tbody>
                 </table>
-            </div>
-            
-            <div className="p-6 bg-slate-900/50 border-t border-slate-700 flex justify-between items-center text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                <span>Showing {filteredTests.length} of {tests.length} tests</span>
-                <div className="flex items-center gap-6">
-                    <span className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-blue-500"></div> Single Test</span>
-                    <span className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-purple-500"></div> Group Test</span>
-                </div>
             </div>
         </div>
     </div>

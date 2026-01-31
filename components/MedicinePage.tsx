@@ -1,9 +1,9 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Medicine, Employee, PurchaseInvoice, InvoiceItem, Doctor, SalesInvoice, SalesItem, DrugMonograph } from './DiagnosticData';
+/** Added fix: Corrected IndoorInvoice import */
+import { Medicine, Employee, PurchaseInvoice, InvoiceItem, Doctor, SalesInvoice, SalesItem, DrugMonograph, IndoorInvoice } from './DiagnosticData';
 import { BackIcon, MapPinIcon, PhoneIcon, MedicineIcon, FileTextIcon, Pill, SearchIcon, Activity, SaveIcon } from './Icons';
 import SearchableSelect from './SearchableSelect';
-import { IndoorInvoice } from './ClinicPage';
 
 interface MedicinePageProps {
   onBack: () => void;
@@ -58,7 +58,6 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
   const [paymentData, setPaymentData] = useState({ invoiceId: '', supplierName: '', currentDue: 0, payAmount: '' });
 
   // Drug Monograph State
-  // Fix: Removed 'contraindications' property from initial state to match DrugMonograph interface
   const [clinicalDrugForm, setClinicalDrugForm] = useState<DrugMonograph>({
       id: '', brandName: '', genericName: '', strength: '', formulation: 'Tab', company: '',
       pregnancyCategory: 'B', indications: [], sideEffects: [], adultDose: ''
@@ -294,7 +293,6 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
     if (!clinicalDrugForm.brandName || !clinicalDrugForm.genericName) return;
     if (isEditingDrug) setClinicalDrugs(prev => prev.map(d => d.id === clinicalDrugForm.id ? clinicalDrugForm : d));
     else setClinicalDrugs(prev => [{ ...clinicalDrugForm, id: Date.now().toString() }, ...prev]);
-    // Fix: Removed 'contraindications' property from state update to match DrugMonograph interface
     setClinicalDrugForm({ id: '', brandName: '', genericName: '', strength: '', formulation: 'Tab', company: '', pregnancyCategory: 'B', indications: [], sideEffects: [], adultDose: '' });
     setIsEditingDrug(false);
     setSuccessMessage("Drug Database updated!");
@@ -442,7 +440,7 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
                         <input type="number" value={currentPurchaseItem.unitPriceSell} onChange={e=>setCurrentPurchaseItem({...currentPurchaseItem, unitPriceSell:parseFloat(e.target.value)})} onFocus={e=>e.target.select()} className="w-full bg-slate-800 border border-slate-600 rounded p-2 text-white text-sm font-black" />
                     </div>
                     <div className="w-16">
-                        <label className="block text-[10px] font-black text-slate-500 mb-1 uppercase">Qnty</label>
+                        <label className="block text-[10px] font-black text-slate-500 mb-1 uppercase text-center">Qnty</label>
                         <input type="number" value={currentPurchaseItem.qtyBuying} onChange={e=>setCurrentPurchaseItem({...currentPurchaseItem, qtyBuying:parseFloat(e.target.value)})} onFocus={e=>e.target.select()} className="w-full bg-slate-800 border border-slate-600 rounded p-2 text-white text-sm font-black text-center" />
                     </div>
                     <button onClick={addPurchaseItem} className="bg-emerald-600 text-white px-4 py-2 rounded hover:bg-emerald-500 font-black shadow-lg text-sm uppercase">Add</button>

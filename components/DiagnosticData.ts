@@ -142,9 +142,9 @@ export interface Reagent {
   quantity: number; 
   unit: string; 
   availability: boolean;
-  expiry_date?: string; // Newly added
-  company?: string;      // Newly added
-  capacity_per_unit?: string; // Newly added (e.g. 500 tests)
+  expiry_date?: string; 
+  company?: string;      
+  capacity_per_unit?: string; 
 }
 
 export const emptyReagent: Reagent = {
@@ -171,7 +171,7 @@ export interface LabInvoice {
   net_payable: number; 
   paid_amount: number; 
   due_amount: number; 
-  status: 'Paid' | 'Due' | 'Cancelled' | 'Pending' | 'Report Ready'; 
+  status: 'Paid' | 'Due' | 'Cancelled' | 'Pending' | 'Report Ready' | 'Returned'; 
   payment_method: string; 
   bill_created_by?: string; 
   bill_paid_by?: string; 
@@ -182,6 +182,7 @@ export interface LabInvoice {
   last_modified: string;
   sample_collection_time?: string;
   expected_delivery_time?: string;
+  return_date?: string; 
 }
 
 export const emptyLabInvoice: LabInvoice = {
@@ -194,16 +195,31 @@ export interface DueCollection {
 }
 
 export interface Employee {
-  emp_id: string; emp_name: string; gender: string; job_position: string; department: string; designation?: string; degree?: string; role?: string; joining_date: string; mobile: string; address: string; salary: number; is_current_month: boolean;
+  emp_id: string; 
+  emp_name: string; 
+  machine_id?: string; // Link to ZKTeco Fingerprint ID
+  gender: string; 
+  job_position: string; 
+  department: string; 
+  designation?: string; 
+  degree?: string; 
+  role?: string; 
+  joining_date: string; 
+  release_date?: string; 
+  status: 'Active' | 'Released'; 
+  mobile: string; 
+  address: string; 
+  salary: number; 
+  is_current_month: boolean;
 }
 
 export const emptyEmployee: Employee = {
-  emp_id: '', emp_name: '', gender: '', job_position: '', department: '', joining_date: '', mobile: '', address: '', salary: 0, is_current_month: false
+  emp_id: '', emp_name: '', machine_id: '', gender: '', job_position: '', department: '', joining_date: '', status: 'Active', mobile: '', address: '', salary: 0, is_current_month: false
 };
 
 export interface ExpenseItem {
   id: number; category: string; subCategory: string; description: string; billAmount: number; paidAmount: number;
-  metadata?: any; // To store reagent items details
+  metadata?: any; 
 }
 
 export interface Medicine {
@@ -248,7 +264,8 @@ export interface SalesInvoice {
 }
 
 export interface Appointment {
-  appointment_id: string; patient_id: string; patient_name: string; doctor_id: string; doctor_name: string; referrar_id?: string; referrar_name?: string; appointment_date: string; appointment_time: string; reason: string; doctor_fee: number; status: 'Scheduled' | 'Completed' | 'Cancelled' | ''; notes: string;
+  appointment_id: string; patient_id: string; patient_name: string; doctor_id: string; doctor_name: string; referrar_id?: string; referrar_name?: string; appointment_date: string; appointment_time: string; reason: string; doctor_fee: number; status: 'Scheduled' | 'Completed' | 'Cancelled' | 'Returned' | ''; notes: string;
+  return_date?: string; 
 }
 
 export interface MedicineItem {
@@ -309,6 +326,62 @@ export interface AdmissionRecord {
     bed_no?: string;
 }
 
+export type Indication = string;
+
+export interface ServiceItem {
+  id: number;
+  service_type: string;
+  service_provider: string;
+  service_charge: number;
+  quantity: number;
+  line_total: number;
+  discount: number;
+  payable_amount: number;
+  note: string;
+}
+
+export type ServiceItemDef = ServiceItem;
+
+export interface IndoorInvoice {
+  daily_id: string;
+  monthly_id: string;
+  yearly_id: string;
+  invoice_date: string;
+  admission_id: string;
+  patient_id: string;
+  patient_name: string;
+  doctor_id: string;
+  doctor_name: string;
+  referrar_id: string;
+  referrar_name: string;
+  indication: string;
+  serviceCategory: string;
+  services: any[]; 
+  contact_bill: string;
+  items: ServiceItem[];
+  total_bill: number;
+  total_discount: number;
+  referrer_commission: number;
+  payable_bill: number;
+  paid_amount: number;
+  due_bill: number;
+  bill_pay_status: boolean;
+  bill_by: string;
+  bill_paid_by: string;
+  notes: string;
+  payment_method: string;
+  bill_created_by: string;
+  special_commission: number;
+  commission_paid: number;
+  special_discount_percent: number;
+  special_discount_amount: number;
+  net_payable: number;
+  admission_date: string;
+  discharge_date: string;
+  status: 'Posted' | 'Returned' | 'Paid' | 'Due' | 'Cancelled' | 'Pending' | 'Report Ready';
+  return_date?: string;
+}
+
 export interface MarketingTarget {
   id: string;
   staff_id: string;
@@ -338,11 +411,8 @@ export interface FieldVisitLog {
 }
 
 export const mockDoctors: Doctor[] = [];
-
 export const mockReferrars: Referrar[] = [];
-
 export const mockReagents: Reagent[] = [];
-
 export const mockInvoices: LabInvoice[] = [];
 export const mockDueCollections: DueCollection[] = [];
 export const mockEmployees: Employee[] = [];
@@ -354,6 +424,7 @@ export const mockAdmissions: any[] = [];
 export const mockIndoorInvoices: any[] = [];
 export const initialAppointments: Appointment[] = [];
 export const initialClinicalDrugs: DrugMonograph[] = [];
+export const mockTests: Test[] = [];
 
 export const defaultPregnancyTemplates: ReportTemplate[] = [
   {
@@ -380,5 +451,3 @@ export const defaultPregnancyTemplates: ReportTemplate[] = [
     impression: 'Single live intrauterine pregnancy of ___ weeks ___ days.'
   }
 ];
-
-export const mockTests: Test[] = [];
