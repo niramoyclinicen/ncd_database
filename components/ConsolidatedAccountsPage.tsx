@@ -213,8 +213,16 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
             const d = new Date(dateStr);
             return d.getFullYear() < selectedYear || (d.getFullYear() === selectedYear && d.getMonth() < selectedMonth);
         };
+        
+        // Internal helper to calculate net diagnostic cash from an invoice
+        const getNetDiagCash = (inv: LabInvoice) => {
+            const usgFee = inv.items.reduce((s, it) => s + (it.usg_exam_charge * it.quantity), 0);
+            const commPaid = inv.commission_paid || 0;
+            return inv.paid_amount - usgFee - commPaid;
+        };
+
         const calcNetPrev = () => {
-            const prevLab = labInvoices.filter(inv => isBeforeSelectedMonth(inv.invoice_date) && inv.status !== 'Cancelled').reduce((s, i) => s + i.paid_amount, 0);
+            const prevLab = labInvoices.filter(inv => isBeforeSelectedMonth(inv.invoice_date) && inv.status !== 'Cancelled').reduce((s, i) => s + getNetDiagCash(i), 0);
             const prevLabDue = dueCollections.filter(dc => isBeforeSelectedMonth(dc.collection_date) && dc.invoice_id.startsWith('INV')).reduce((s, dc) => s + dc.amount_collected, 0);
             const prevClinic = indoorInvoices.filter(inv => isBeforeSelectedMonth(inv.invoice_date)).reduce((s, i) => s + i.paid_amount, 0);
             const prevClinicDue = dueCollections.filter(dc => isBeforeSelectedMonth(dc.collection_date) && !dc.invoice_id.startsWith('INV')).reduce((s, dc) => s + dc.amount_collected, 0);
@@ -229,8 +237,14 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
             const net = (prevLab + prevLabDue + prevClinic + prevClinicDue + prevMedSales + prevCompany) - (prevExp + prevMedPurch);
             return net > 0 ? net : 0;
         };
+
         const prevJer = calcNetPrev();
-        const diagCurrent = labInvoices.filter(inv => isSelectedMonth(inv.invoice_date) && inv.status !== 'Cancelled').reduce((s, i) => s + i.paid_amount, 0);
+        
+        // UPDATE: diagCurrent now subtracts USG Fee and Commission Paid
+        const diagCurrent = labInvoices
+            .filter(inv => isSelectedMonth(inv.invoice_date) && inv.status !== 'Cancelled')
+            .reduce((s, inv) => s + getNetDiagCash(inv), 0);
+
         const diagDue = dueCollections.filter(dc => isSelectedMonth(dc.collection_date) && dc.invoice_id.startsWith('INV')).reduce((s, dc) => s + dc.amount_collected, 0);
         const clinicCurrent = indoorInvoices.filter(inv => isSelectedMonth(inv.invoice_date)).reduce((s, i) => s + i.paid_amount, 0);
         const clinicDue = dueCollections.filter(dc => isSelectedMonth(dc.collection_date) && !dc.invoice_id.startsWith('INV')).reduce((s, dc) => s + dc.amount_collected, 0);
@@ -298,7 +312,6 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                         th, td { border: 0.5pt solid #000 !important; padding: ${isLandscape ? '1px 2px' : '4px 6px'} !important; text-align: center !important; white-space: normal !important; overflow: hidden !important; vertical-align: middle !important; line-height: 1.0 !important; }
                         th { background: #f3f4f6 !important; font-weight: 900 !important; text-transform: uppercase !important; word-wrap: break-word !important; }
                         
-                        /* Restore strict row height for Monthly Expense Sheet to fit 31 days */
                         ${isLandscape ? 'tbody tr { height: 17.0px !important; }' : ''}
 
                         .text-right { text-align: right !important; }
@@ -324,7 +337,6 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                         ${content.innerHTML}
                     </div>
                     <script>
-                        // Force reduce spacing for the specific header div inside the content
                         const headerArea = document.querySelector('.print-wrapper > main > div:first-child');
                         if(headerArea) {
                             headerArea.style.marginBottom = '2px';
@@ -332,7 +344,6 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                         }
                         
                         if("${isLandscape}" === "true") {
-                            // Intelligent header wrapping for landscape to maximize column space
                             document.querySelectorAll('th').forEach(el => {
                                 if(el.textContent.includes('Salary')) el.innerHTML = "Staff<br/>Salary";
                                 if(el.textContent.includes('Generator')) el.innerHTML = "Gen-<br/>erator";
@@ -454,6 +465,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                                 <tr className="bg-gray-100 font-black h-8"><td colSpan={2} className="p-1 text-right text-[10px]">ডায়াগনস্টিক মোট :</td><td className={commonAmtCellClass}>{summary.totalDiag.toLocaleString()}</td></tr>
                                             </tbody>
                                         </table>
+                                        <p className="text-[8px] text-slate-500 italic mt-1"></p>
                                     </div>
                                     <div className="space-y-1">
                                         <div className="text-[11px] font-black font-bengali underline mb-0.5">খ) ক্লিনিক হইতে :</div>
