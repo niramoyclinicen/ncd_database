@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Patient, Doctor, Employee, LabInvoice, LabInvoiceItem, emptyLabInvoice, Referrar, Reagent, Test, testCategories, DiagnosticSubPage } from './DiagnosticData';
 import { formatDateTime } from '../utils/dateUtils';
@@ -78,7 +77,7 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
   
   useEffect(() => {
     if (successMessage) {
-        const timer = setTimeout(() => setSuccessMessage(''), 5000); // Hide after 5 seconds
+        const timer = setTimeout(() => setSuccessMessage(''), 4000); 
         return () => clearTimeout(timer);
     }
   }, [successMessage]);
@@ -370,7 +369,7 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
       }
       setInvoices([invoiceToSave, ...invoices]);
     }
-    setSuccessMessage('Apnar Invoice data Sofol vabe Save hoyese');
+    setSuccessMessage('ইনভয়েস ডাটা সফলভাবে সেভ করা হয়েছে!');
     resetForm();
   };
 
@@ -603,6 +602,17 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
 
   return (
     <div className="bg-slate-800 rounded-xl shadow-md p-4 sm:p-6 text-slate-300">
+        {/* IMPROVED SUCCESS MESSAGE UI */}
+        {successMessage && (
+            <div className="fixed inset-0 z-[9999] flex items-center justify-center pointer-events-none">
+                <div className="bg-emerald-600 border-2 border-white text-white px-10 py-6 rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.5)] animate-fade-in-up flex flex-col items-center gap-4">
+                    <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center text-emerald-600 text-2xl font-black shadow-lg">✓</div>
+                    <span className="text-xl font-black uppercase tracking-widest">{successMessage}</span>
+                    <button onClick={() => setSuccessMessage('')} className="pointer-events-auto mt-2 text-emerald-200 text-xs underline font-bold">dismiss</button>
+                </div>
+            </div>
+        )}
+
         {isConfirmModalOpen && (
             <div className="fixed inset-0 bg-black bg-opacity-70 z-40 flex justify-center items-center" aria-modal="true" role="dialog">
                 <div className="bg-slate-800 border border-slate-700 p-6 rounded-lg shadow-xl z-50 w-full max-w-md">
@@ -613,12 +623,6 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
                         <button onClick={() => { executeSave(); setIsConfirmModalOpen(false); }} className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md">Yes</button>
                     </div>
                 </div>
-            </div>
-        )}
-        {successMessage && (
-            <div className="fixed top-20 right-5 bg-green-900/50 border border-green-700 text-green-300 px-4 py-3 rounded-lg shadow-lg z-50 flex items-center transform animate-fade-in-out">
-                <span>{successMessage}</span>
-                <button onClick={() => setSuccessMessage('')} className="ml-4 text-green-300 font-bold">&times;</button>
             </div>
         )}
         

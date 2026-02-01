@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Patient, Doctor, Referrar, LabInvoice, Appointment } from './DiagnosticData'; 
 import { formatDateTime } from '../utils/dateUtils'; 
@@ -56,8 +55,6 @@ const appointmentReasons = [
   "Dressing / ড্রেসিং"
 ];
 
-const initialAppointments: Appointment[] = [];
-
 interface DoctorAppointmentPageProps {
   patients: Patient[];
   setPatients: React.Dispatch<React.SetStateAction<Patient[]>>;
@@ -66,11 +63,14 @@ interface DoctorAppointmentPageProps {
   referrars: Referrar[];
   setReferrars: React.Dispatch<React.SetStateAction<Referrar[]>>;
   invoices?: LabInvoice[];
+  appointments: Appointment[];
+  setAppointments: React.Dispatch<React.SetStateAction<Appointment[]>>;
 }
 
-const DoctorAppointmentPage: React.FC<DoctorAppointmentPageProps> = ({ patients, setPatients, doctors, setDoctors, referrars, setReferrars, invoices = [] }) => {
-  const [appointments, setAppointments] = useState<Appointment[]>(initialAppointments);
-  const [filteredAppointments, setFilteredAppointments] = useState<Appointment[]>(initialAppointments);
+const DoctorAppointmentPage: React.FC<DoctorAppointmentPageProps> = ({ 
+  patients, setPatients, doctors, setDoctors, referrars, setReferrars, invoices = [], appointments, setAppointments 
+}) => {
+  const [filteredAppointments, setFilteredAppointments] = useState<Appointment[]>(appointments);
   const [formData, setFormData] = useState<Appointment>(emptyAppointment);
   const [selectedAppointmentId, setSelectedAppointmentId] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState<boolean>(false);
@@ -95,7 +95,7 @@ const DoctorAppointmentPage: React.FC<DoctorAppointmentPageProps> = ({ patients,
 
   useEffect(() => {
     if (successMessage) {
-        const timer = setTimeout(() => setSuccessMessage(''), 5000);
+        const timer = setTimeout(() => setSuccessMessage(''), 4000);
         return () => clearTimeout(timer);
     }
   }, [successMessage]);
@@ -122,10 +122,6 @@ const DoctorAppointmentPage: React.FC<DoctorAppointmentPageProps> = ({ patients,
       const selectedDoctorId = formData.doctor_id;
 
       appointments.forEach(appt => {
-        // Correct Accounting Logic: Cash in on original date, Cash out on return date
-        let incomeOnThisDate = 0;
-        let expenseOnThisDate = 0;
-
         // Scheduled/Completed are Income
         if (appt.appointment_date === todayDateString && (appt.status === 'Completed' || appt.status === 'Scheduled' || appt.status === 'Returned')) {
             allDoctorsDailySum += appt.doctor_fee;
@@ -257,14 +253,14 @@ const DoctorAppointmentPage: React.FC<DoctorAppointmentPageProps> = ({ patients,
     }
     if (isEditing) {
       setAppointments(prev => prev.map(a => a.appointment_id === formData.appointment_id ? formData : a));
-      setSuccessMessage('Appointment updated successfully!');
+      setSuccessMessage('অ্যাপয়েন্টমেন্ট ডাটা সফলভাবে আপডেট করা হয়েছে!');
     } else {
       if (appointments.some(a => a.appointment_id === formData.appointment_id)) {
         alert('Error: Appointment ID already exists. Please get a new ID.');
         return;
       }
       setAppointments(prev => [formData, ...prev]);
-      setSuccessMessage('New appointment created successfully!');
+      setSuccessMessage('নতুন অ্যাপয়েন্টমেন্ট সফলভাবে সেভ করা হয়েছে!');
     }
     resetForm();
   };
@@ -285,7 +281,7 @@ const DoctorAppointmentPage: React.FC<DoctorAppointmentPageProps> = ({ patients,
       if (window.confirm(`Are you sure you want to cancel appointment ${appointmentToCancel.appointment_id}?`)) {
         setAppointments(prev => prev.map(a => a.appointment_id === selectedAppointmentId ? { ...a, status: 'Cancelled' } : a));
         resetForm();
-        setSuccessMessage('Appointment cancelled successfully.');
+        setSuccessMessage('অ্যাপয়েন্টমেন্টটি বাতিল করা হয়েছে।');
       }
     }
   };
@@ -351,8 +347,17 @@ const DoctorAppointmentPage: React.FC<DoctorAppointmentPageProps> = ({ patients,
   const canReturn = isAppointmentSelected && selectedAppointmentStatus !== 'Returned' && selectedAppointmentStatus !== 'Cancelled';
 
   return (
-    <div className="bg-slate-900 text-slate-200 rounded-xl p-4 sm:p-6 space-y-8">
-      {successMessage && <div className="fixed bottom-5 right-5 z-[9999] bg-green-900 border border-green-500 text-green-100 px-6 py-3 rounded-lg shadow-2xl flex items-center transition-transform animate-fade-in-up">{successMessage}</div>}
+    <div className="bg-slate-900 text-slate-200 rounded-xl p-4 sm:p-6 space-y-8 relative">
+      {/* IMPROVED SUCCESS MESSAGE UI */}
+      {successMessage && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center pointer-events-none">
+          <div className="bg-emerald-600 border-2 border-white text-white px-10 py-6 rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.5)] animate-fade-in-up flex flex-col items-center gap-4">
+             <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center text-emerald-600 text-2xl font-black shadow-lg">✓</div>
+             <span className="text-xl font-black uppercase tracking-widest">{successMessage}</span>
+          </div>
+        </div>
+      )}
+
       <div className="bg-sky-950 rounded-xl p-4 sm:p-6 border border-sky-800">
         <h2 className="text-2xl font-bold text-sky-100 mb-6 border-b border-sky-800 pb-4">Doctor Appointment</h2>
         <div className="flex flex-wrap items-center justify-start gap-4 border-b border-sky-800 pb-4 mb-4">

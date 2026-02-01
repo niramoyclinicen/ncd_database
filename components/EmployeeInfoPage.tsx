@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Employee, emptyEmployee, ExpenseItem } from './DiagnosticData'; 
-import { MapPinIcon, PhoneIcon, EmployeeInfoIcon, PrinterIcon, RefreshIcon, DatabaseIcon, SettingsIcon, Activity, BackIcon, SearchIcon, SaveIcon } from './Icons';
+import { MapPinIcon, PhoneIcon, EmployeeInfoIcon, PrinterIcon, RefreshIcon, DatabaseIcon, SettingsIcon, Activity, BackIcon, SearchIcon, SaveIcon, UsersIcon } from './Icons';
+import SearchableSelect from './SearchableSelect';
 
 interface EmployeeInfoPageProps {
   employees: Employee[];
@@ -13,7 +14,7 @@ interface EmployeeInfoPageProps {
   setLeaveLog: React.Dispatch<React.SetStateAction<Record<string, any>>>;
 }
 
-const jobPositions = [
+const initialJobPositions = [
     'Manager', 'Assit. Manager', 'Marketing Manager_01', 'Marketing Manager_02',
     'Receptionist_01', 'Receptionist_02', 'Receptionist_03', 'Dipl. lab. Technologist',
     'Asit. Lab Technician', 'X_Ray Technologist', 'X_Ray Technician', 'ECG_Technician',
@@ -21,7 +22,7 @@ const jobPositions = [
     'Cleaner_02', 'Suipar_01', 'Suipar_02'
 ];
 
-type EmployeeTab = 'data_entry' | 'attendance' | 'leave_management' | 'salary_sheet';
+type EmployeeTab = 'data_entry' | 'monthly_roster' | 'attendance' | 'leave_management' | 'salary_sheet';
 
 interface AttendanceRecord {
     status: 'Present' | 'Absent' | 'Late' | 'Leave' | '';
@@ -62,6 +63,35 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
   const [successMessage, setSuccessMessage] = useState('');
   const nameInputRef = useRef<HTMLInputElement>(null);
 
+  // Monthly Roster State: Record<"YYYY-MM", string[]>
+  const [monthlyRoster, setMonthlyRoster] = useState<Record<string, string[]>>(() => {
+    const saved = localStorage.getItem('ncd_monthly_roster');
+    return saved ? JSON.parse(saved) : {};
+  });
+
+  const [dynamicJobPositions, setDynamicJobPositions] = useState<string[]>(() => {
+    const saved = localStorage.getItem('ncd_job_positions');
+    return saved ? JSON.parse(saved) : initialJobPositions;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('ncd_job_positions', JSON.stringify(dynamicJobPositions));
+  }, [dynamicJobPositions]);
+
+  useEffect(() => {
+    localStorage.setItem('ncd_monthly_roster', JSON.stringify(monthlyRoster));
+  }, [monthlyRoster]);
+
+  // Auto-hide success message after 4 seconds
+  useEffect(() => {
+    if (successMessage) {
+      const timer = setTimeout(() => {
+        setSuccessMessage('');
+      }, 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [successMessage]);
+
   const [cloudMachine, setCloudMachine] = useState<CloudMachine>(() => {
     const saved = localStorage.getItem('ncd_machine_cfg');
     return saved ? JSON.parse(saved) : { publicIp: '192.168.1.201', port: '4370', status: 'Offline', lastSeen: 'Never' };
@@ -71,11 +101,17 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
   const [attendanceDate, setAttendanceDate] = useState<string>(new Date().toISOString().split('T')[0]);
 
+  const currentPeriodKey = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}`;
+
   useEffect(() => {
     localStorage.setItem('ncd_machine_cfg', JSON.stringify(cloudMachine));
   }, [cloudMachine]);
 
-  const currentMonthEmployees = useMemo(() => employees.filter(e => e.is_current_month && e.status === 'Active'), [employees]);
+  // Employees filtered by the selected month/year roster
+  const periodEmployees = useMemo(() => {
+    const activeIds = monthlyRoster[currentPeriodKey] || [];
+    return employees.filter(e => activeIds.includes(e.emp_id) && e.status === 'Active');
+  }, [employees, monthlyRoster, currentPeriodKey]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
@@ -87,8 +123,11 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
   };
 
   const handleRowClick = (employee: Employee) => {
-    setFormData(employee);
+    setFormData({ ...employee });
     setSelectedEmployeeId(employee.emp_id);
+    if (nameInputRef.current) {
+        nameInputRef.current.focus();
+    }
   };
 
   const handleCloudSync = () => {
@@ -96,15 +135,57 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
     setTimeout(() => {
         setCloudMachine(prev => ({ ...prev, status: 'Online', lastSeen: new Date().toLocaleString() }));
         const newLog = { ...attendanceLog };
-        currentMonthEmployees.forEach(emp => {
+        periodEmployees.forEach(emp => {
             if(emp.machine_id) {
                 const key = `${attendanceDate}_${emp.emp_id}`;
                 newLog[key] = { status: 'Present', inTime: '09:00', outTime: '17:00', notes: 'Auto-Sync', isMachineRecord: true };
             }
         });
         setAttendanceLog(newLog);
-        setSuccessMessage("Cloud Data Synced!");
+        setSuccessMessage("Cloud Attendance Data Synced Successfully!");
     }, 1500);
+  };
+
+  const handleSaveProfile = () => {
+    if (!formData.emp_name) {
+        alert("দয়া করে নাম প্রদান করুন।");
+        return;
+    }
+    
+    setEmployees(prev => {
+        const exists = prev.some(e => e.emp_id === formData.emp_id);
+        if (exists) {
+            return prev.map(e => e.emp_id === formData.emp_id ? formData : e);
+        }
+        return [formData, ...prev];
+    });
+
+    setSuccessMessage(selectedEmployeeId ? "Profile Updated Successfully!" : "New Employee Added Successfully!");
+    
+    if (!selectedEmployeeId) {
+        setFormData(emptyEmployee);
+        setSelectedEmployeeId(null);
+    }
+  };
+
+  const toggleRosterStatus = (empId: string) => {
+    setMonthlyRoster(prev => {
+        const currentList = prev[currentPeriodKey] || [];
+        const newList = currentList.includes(empId) 
+            ? currentList.filter(id => id !== empId) 
+            : [...currentList, empId];
+        return { ...prev, [currentPeriodKey]: newList };
+    });
+  };
+
+  const resetFormForNew = () => {
+      setFormData({
+          ...emptyEmployee, 
+          emp_id: String(Date.now()).slice(-5), 
+          joining_date: new Date().toISOString().split('T')[0]
+      });
+      setSelectedEmployeeId(null);
+      if (nameInputRef.current) nameInputRef.current.focus();
   };
 
   const handlePrintSalarySheet = () => {
@@ -112,7 +193,7 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
     const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
     const daysArray = Array.from({ length: daysInMonth }, (_, i) => i + 1);
 
-    const finalData = currentMonthEmployees.map(emp => {
+    const finalData = periodEmployees.map(emp => {
         let advanceTakenTotal = 0;
         const dailyAdvancePayments: Record<number, number> = {};
         for (let day = 1; day <= daysInMonth; day++) {
@@ -215,12 +296,17 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
   const renderDataEntryTab = () => (
     <div className="space-y-8 animate-fade-in">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-            <div className="lg:col-span-8 bg-white dark:bg-slate-900 rounded-3xl p-8 border border-slate-200 dark:border-slate-800 shadow-xl relative overflow-hidden">
+            <div className={`lg:col-span-8 bg-white dark:bg-slate-900 rounded-3xl p-8 border ${selectedEmployeeId ? 'border-blue-500 shadow-[0_0_25px_rgba(59,130,246,0.2)]' : 'border-slate-200 dark:border-slate-800 shadow-xl'} relative overflow-hidden transition-all duration-500`}>
                 <div className="flex justify-between items-center mb-8 border-b border-slate-100 dark:border-slate-800 pb-4">
-                    <h2 className="text-xl font-bold text-slate-800 dark:text-sky-100 uppercase tracking-tight">Personnel Profile Master</h2>
+                    <div>
+                        <h2 className="text-xl font-bold text-slate-800 dark:text-sky-100 uppercase tracking-tight">Personnel Profile Master</h2>
+                        {selectedEmployeeId && <p className="text-[10px] font-black text-blue-500 uppercase mt-1 animate-pulse">Edit Mode Active / প্রোফাইল পরিবর্তন করুন</p>}
+                    </div>
                     <div className="flex gap-2">
-                        <button onClick={() => { setFormData({...emptyEmployee, emp_id: String(Date.now()).slice(-5), joining_date: new Date().toISOString().split('T')[0]}); setSelectedEmployeeId(null); }} className="px-5 py-2 bg-blue-600 text-white rounded-xl font-bold text-xs uppercase hover:bg-blue-700 transition-colors">New Profile</button>
-                        <button onClick={() => { setEmployees([formData, ...employees.filter(ex => ex.emp_id !== formData.emp_id)]); setSuccessMessage("Profile Saved!"); }} className="px-8 py-2 bg-emerald-600 text-white rounded-xl font-bold text-xs uppercase hover:bg-emerald-700 shadow-lg">Save Changes</button>
+                        <button onClick={resetFormForNew} className="px-5 py-2 bg-slate-800 text-white rounded-xl font-bold text-xs uppercase hover:bg-slate-700 transition-colors">Add New Member</button>
+                        <button onClick={handleSaveProfile} className={`px-8 py-2 ${selectedEmployeeId ? 'bg-blue-600 hover:bg-blue-500' : 'bg-emerald-600 hover:bg-emerald-500'} text-white rounded-xl font-black text-xs uppercase shadow-lg transition-all transform active:scale-95`}>
+                            {selectedEmployeeId ? 'Update Profile' : 'Save Profile'}
+                        </button>
                     </div>
                 </div>
 
@@ -232,7 +318,23 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
                     <div className="md:col-span-2"><label className="text-[10px] font-bold text-blue-600 uppercase mb-1 block ml-1">Full Name</label><input ref={nameInputRef} type="text" name="emp_name" value={formData.emp_name} onChange={handleInputChange} required className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-slate-800 dark:text-white font-semibold text-lg focus:border-blue-500 outline-none" placeholder="Employee Name" /></div>
                     <div><label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block ml-1">Gender</label><select name="gender" value={formData.gender} onChange={handleInputChange} className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-slate-800 dark:text-white font-bold"><option value="">Select</option><option value="Male">Male</option><option value="Female">Female</option></select></div>
                     
-                    <div><label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block ml-1">Job Position</label><select name="job_position" value={formData.job_position} onChange={handleInputChange} className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-slate-800 dark:text-white font-bold">{jobPositions.map(pos => <option key={pos} value={pos}>{pos}</option>)}</select></div>
+                    <div>
+                        <SearchableSelect 
+                            theme="dark" 
+                            label="Job Position" 
+                            options={dynamicJobPositions.map(pos => ({ id: pos, name: pos }))} 
+                            value={formData.job_position} 
+                            onChange={(id, name) => setFormData(prev => ({ ...prev, job_position: name }))} 
+                            onAddNew={() => {
+                                const newPos = prompt("নতুন পজিশনের নাম লিখুন:");
+                                if (newPos && !dynamicJobPositions.includes(newPos)) {
+                                    setDynamicJobPositions([...dynamicJobPositions, newPos]);
+                                    setFormData(prev => ({ ...prev, job_position: newPos }));
+                                }
+                            }} 
+                            inputHeightClass="h-[46px] bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800" 
+                        />
+                    </div>
                     <div><label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block ml-1">Degree</label><input type="text" name="degree" value={formData.degree || ''} onChange={handleInputChange} className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-slate-800 dark:text-white font-bold" placeholder="FCPS, B.Sc etc"/></div>
                     <div><label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block ml-1">Department</label><select name="department" value={formData.department} onChange={handleInputChange} className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-slate-800 dark:text-white font-bold"><option value="Diagnostic">Diagnostic</option><option value="Clinic">Clinic</option><option value="Medicine">Medicine</option></select></div>
                     
@@ -242,10 +344,6 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
                     
                     <div className="md:col-span-2"><label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block ml-1">Address</label><input type="text" name="address" value={formData.address || ''} onChange={handleInputChange} className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-slate-800 dark:text-white font-bold" placeholder="Vill, Post, Thana, Dist"/></div>
                     <div><label className="text-[10px] font-bold text-emerald-600 uppercase mb-1 block ml-1">Monthly Salary</label><input type="number" name="salary" value={formData.salary} onChange={handleInputChange} className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-emerald-900/20 rounded-xl p-3 text-emerald-600 dark:text-emerald-400 font-bold text-xl" /></div>
-                </div>
-                <div className="flex items-center gap-4 mt-8 p-5 bg-slate-50 dark:bg-slate-950/50 rounded-2xl border border-slate-200 dark:border-slate-800">
-                    <input name="is_current_month" type="checkbox" checked={formData.is_current_month} onChange={handleInputChange} className="w-5 h-5 rounded accent-blue-600 cursor-pointer"/>
-                    <label className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase cursor-pointer">Active in current month payroll / এই মাসের স্যালারি শিটে যুক্ত করুন</label>
                 </div>
             </div>
 
@@ -289,11 +387,69 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
     </div>
   );
 
+  const renderMonthlyRosterTab = () => (
+    <div className="space-y-6 animate-fade-in">
+        <div className="bg-white dark:bg-slate-900 p-8 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xl">
+            <div className="flex flex-col md:flex-row justify-between items-center gap-6 border-b border-slate-100 dark:border-slate-800 pb-6 mb-8">
+                <div>
+                    <h2 className="text-xl font-black text-slate-800 dark:text-sky-100 uppercase tracking-tight flex items-center gap-3">
+                        <UsersIcon size={24} className="text-blue-500" /> মাসিক তালিকা ব্যবস্থাপনা (Monthly Roster)
+                    </h2>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Select employees active for the chosen period</p>
+                </div>
+                <div className="flex gap-4">
+                    <select value={selectedMonth} onChange={(e) => setSelectedMonth(parseInt(e.target.value))} className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2 text-slate-700 dark:text-white font-bold">{monthOptions.map(m => <option key={m.value} value={m.value}>{m.name}</option>)}</select>
+                    <select value={selectedYear} onChange={(e) => setSelectedYear(parseInt(e.target.value))} className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2 text-slate-700 dark:text-white font-bold">{[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}</select>
+                </div>
+            </div>
+
+            <div className="relative w-full mb-6">
+                <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                <input type="text" placeholder="Search staff to add to roster..." value={searchTerm} onChange={e=>setSearchTerm(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl pl-12 pr-6 py-3 text-sm text-slate-800 dark:text-white outline-none focus:border-blue-500 shadow-inner"/>
+            </div>
+
+            <div className="overflow-x-auto rounded-2xl border border-slate-100 dark:border-slate-800 shadow-inner">
+                <table className="w-full text-left text-sm border-collapse">
+                    <thead className="bg-slate-50 dark:bg-slate-950 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                        <tr><th className="p-5 text-center w-20">Active</th><th className="p-5">ID</th><th className="p-5">Staff Member</th><th className="p-5">Job Position</th><th className="p-5 text-right">Basic Salary</th></tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                        {employees.filter(e => e.status === 'Active' && e.emp_name.toLowerCase().includes(searchTerm.toLowerCase())).map((emp) => {
+                            const isSelected = (monthlyRoster[currentPeriodKey] || []).includes(emp.emp_id);
+                            return (
+                                <tr key={emp.emp_id} className={`hover:bg-slate-50 dark:hover:bg-blue-900/10 transition-all ${isSelected ? 'bg-blue-50/50 dark:bg-blue-900/5' : ''}`}>
+                                    <td className="p-5 text-center">
+                                        <input 
+                                            type="checkbox" 
+                                            checked={isSelected} 
+                                            onChange={() => toggleRosterStatus(emp.emp_id)}
+                                            className="w-6 h-6 rounded-lg accent-blue-600 cursor-pointer"
+                                        />
+                                    </td>
+                                    <td className="p-5 font-mono text-xs text-slate-400">#{emp.emp_id}</td>
+                                    <td className="p-5 font-bold text-slate-700 dark:text-slate-200 uppercase">{emp.emp_name}</td>
+                                    <td className="p-5 font-bold text-slate-500 uppercase text-xs">{emp.job_position}</td>
+                                    <td className="p-5 text-right font-black text-slate-400 text-base">৳{emp.salary.toLocaleString()}</td>
+                                </tr>
+                            );
+                        })}
+                    </tbody>
+                </table>
+            </div>
+            <div className="mt-8 p-6 bg-blue-50 dark:bg-blue-900/10 rounded-2xl border border-blue-100 dark:border-blue-800">
+                <p className="text-xs font-bold text-blue-600 dark:text-blue-400 uppercase">* এখানে আপনার সিলেক্ট করা কর্মচারীরাই কেবল মাত্র স্যালারি শিট ও এটেন্ডেন্স এর আওতায় আসবে।</p>
+            </div>
+        </div>
+    </div>
+  );
+
   const renderAttendanceTab = () => (
       <div className="bg-white dark:bg-slate-900 rounded-3xl p-8 border border-slate-200 dark:border-slate-800 shadow-xl animate-fade-in relative overflow-hidden">
-          <div className="flex justify-between items-center mb-10 border-b border-slate-100 dark:border-slate-800 pb-5">
+          <div className="flex flex-col md:flex-row justify-between items-center mb-10 border-b border-slate-100 dark:border-slate-800 pb-5 gap-4">
               <h2 className="text-xl font-bold text-slate-800 dark:text-sky-100 uppercase tracking-tight flex items-center gap-4"><Activity size={24} className="text-blue-500" /> Daily Duty Ledger</h2>
               <div className="flex items-center gap-4">
+                  <select value={selectedMonth} onChange={(e) => setSelectedMonth(parseInt(e.target.value))} className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2 text-slate-700 dark:text-white font-bold">{monthOptions.map(m => <option key={m.value} value={m.value}>{m.name}</option>)}</select>
+                  <select value={selectedYear} onChange={(e) => setSelectedYear(parseInt(e.target.value))} className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2 text-slate-700 dark:text-white font-bold">{[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}</select>
                   <input type="date" value={attendanceDate} onChange={(e) => setAttendanceDate(e.target.value)} className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-slate-800 dark:text-white font-bold outline-none" />
               </div>
           </div>
@@ -303,7 +459,7 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
                       <tr><th className="p-5">Staff Member</th><th className="p-5">HID</th><th className="p-5">Status</th><th className="p-5 text-center">In Time</th><th className="p-5 text-center">Out Time</th><th className="p-5">Remarks</th></tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                      {currentMonthEmployees.map((emp) => {
+                      {periodEmployees.map((emp) => {
                           const key = `${attendanceDate}_${emp.emp_id}`;
                           const record = attendanceLog[key] || { status: '', inTime: '', outTime: '', notes: '' };
                           return (
@@ -320,7 +476,7 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
                   </tbody>
               </table>
           </div>
-          <div className="mt-10 flex justify-end"><button onClick={() => setSuccessMessage('Records Posted!')} className="px-16 py-4 bg-emerald-600 text-white rounded-[2rem] font-bold uppercase text-xs shadow-xl active:scale-95 transition-all">Submit Entry</button></div>
+          <div className="mt-10 flex justify-end"><button onClick={() => setSuccessMessage('Attendance Records Posted Successfully!')} className="px-16 py-4 bg-emerald-600 text-white rounded-[2rem] font-bold uppercase text-xs shadow-xl active:scale-95 transition-all">Submit Entry</button></div>
       </div>
   );
 
@@ -350,7 +506,7 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
                       <tr><th className="p-5">Staff Profile</th><th className="p-5 text-right">Basic Salary</th><th className="p-5 text-center">Absent Days</th><th className="p-5 text-center">Manual Leave</th><th className="p-5 text-right">Fine/Other Ded.</th><th className="p-5 text-right">Net Payable</th></tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                      {currentMonthEmployees.map((emp) => {
+                      {periodEmployees.map((emp) => {
                           const autoAbsent = getAutoAbsentCount(emp.emp_id);
                           const key = `${selectedMonth}_${selectedYear}_${emp.emp_id}`;
                           const record = leaveLog[key] || { leaveDays: 0, deductionAmount: 0 };
@@ -370,7 +526,7 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
                   </tbody>
               </table>
           </div>
-          <div className="mt-12 flex justify-end"><button onClick={() => setSuccessMessage('Adjustments Saved!')} className="bg-emerald-600 text-white px-16 py-4 rounded-3xl font-bold uppercase text-xs shadow-xl hover:bg-emerald-700 transition-all">Update Net Payables</button></div>
+          <div className="mt-12 flex justify-end"><button onClick={() => setSuccessMessage('Payroll Adjustments Saved Successfully!')} className="bg-emerald-600 text-white px-16 py-4 rounded-3xl font-bold uppercase text-xs shadow-xl hover:bg-emerald-700 transition-all">Update Net Payables</button></div>
       </div>
     );
   };
@@ -382,12 +538,13 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
                 <div><h3 className="text-xl font-bold text-slate-800 dark:text-white uppercase tracking-tight leading-none">Net Settlement Sheet</h3><p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-2">Cycle: {monthOptions[selectedMonth].name} {selectedYear}</p></div>
                 <div className="flex gap-4">
                   <select value={selectedMonth} onChange={e => setSelectedMonth(parseInt(e.target.value))} className="bg-slate-100 dark:bg-slate-800 border-none rounded-xl px-4 py-2 text-white font-black text-xs">{monthOptions.map(m => <option key={m.value} value={m.value}>{m.name}</option>)}</select>
+                  <select value={selectedYear} onChange={(e) => setSelectedYear(parseInt(e.target.value))} className="bg-slate-100 dark:bg-slate-800 border-none rounded-xl px-4 py-2 text-white font-black text-xs">{[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}</select>
                   <button onClick={handlePrintSalarySheet} className="bg-blue-600 text-white px-8 py-3 rounded-xl font-bold text-xs uppercase shadow-lg hover:bg-blue-700 transition-all flex items-center gap-3"><PrinterIcon size={16}/> Print Official Sheet</button>
                 </div>
             </div>
             
             <div className="bg-white dark:bg-slate-900/60 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xl overflow-hidden">
-                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mb-4">* স্যালারি শিটে বর্তমান মাসের স্টাফদের নামের তালিকা ও অগ্রিম গ্রহণের বিবরণ নিচে দেওয়া হলো।</p>
+                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mb-4">* স্যালারি শিটে নির্বাচিত মাসের স্টাফদের নামের তালিকা ও অগ্রিম গ্রহণের বিবরণ নিচে দেওয়া হলো।</p>
                 <div className="overflow-x-auto rounded-2xl border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/40">
                     <table className="w-full text-[10px] text-left border-collapse">
                         <thead className="bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-slate-100 uppercase font-bold border-b border-slate-200 dark:border-slate-800">
@@ -401,7 +558,7 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                            {currentMonthEmployees.map((emp, index) => {
+                            {periodEmployees.map((emp, index) => {
                                 let advanceTakenTotal = 0;
                                 const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
                                 for (let day = 1; day <= daysInMonth; day++) {
@@ -438,7 +595,7 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
                 </div>
             </div>
             <div className="bg-slate-50 dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 text-slate-500 text-[10px] italic">
-                * Note: Net Bill স্বয়ংক্রিয়ভাবে হাজিরা এবং ছুটির কর্তন অনুযায়ী হিসাব করা হয়েছে। অ্যাডভান্স কলামটি প্রতিদিনের একাউন্টিং লেজার থেকে সংগৃহীত।
+                * Note: Net Bill স্বয়ংক্রিয়ভাবে নির্বাচিত মাসের হাজিরা এবং ছুটির কর্তন অনুযায়ী হিসাব করা হয়েছে। অ্যাডভান্স কলামটি প্রতিদিনের একাউন্টিং লেজার থেকে সংগৃহীত।
             </div>
         </div>
     );
@@ -446,7 +603,7 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
 
   return (
     <div className="bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200 min-h-screen flex flex-col font-sans relative overflow-hidden">
-      {successMessage && <div className="fixed bottom-12 right-12 z-[500] bg-emerald-600 border border-white text-white px-10 py-4 rounded-2xl shadow-2xl font-bold animate-fade-in-up flex items-center gap-4 text-base">✅ {successMessage}</div>}
+      {successMessage && <div className="fixed bottom-12 right-12 z-[500] bg-emerald-600 border border-white text-white px-10 py-4 rounded-2xl shadow-2xl font-black animate-fade-in-up flex items-center gap-4 text-base">✅ {successMessage}</div>}
       
       <header className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 p-8 shrink-0 shadow-sm z-20 relative no-print">
         <div className="container mx-auto flex flex-col md:flex-row items-center justify-between">
@@ -461,25 +618,27 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
                 <EmployeeInfoIcon className="w-8 h-8 text-blue-600 dark:text-blue-400 mr-4 group-hover:scale-110 transition-transform" />
                 <div className="flex flex-col items-end">
                     <h2 className="text-xl font-bold text-slate-800 dark:text-blue-400 font-bengali leading-none uppercase">কর্মচারী ব্যবস্থাপনা</h2>
-                    <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mt-1">Version 9.0 Verified</p>
+                    <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mt-1">Version 10.0 Period-Aware</p>
                 </div>
             </div>
         </div>
       </header>
 
       <div className="container mx-auto px-6 py-10 space-y-12 flex-1 relative z-10">
-        <div className="bg-white dark:bg-slate-900/60 backdrop-blur-xl p-2 rounded-[2rem] border border-slate-200 dark:border-slate-800 no-print shadow-xl max-w-5xl mx-auto flex gap-2">
+        <div className="bg-white dark:bg-slate-900/60 backdrop-blur-xl p-2 rounded-[2rem] border border-slate-200 dark:border-slate-800 no-print shadow-xl max-w-6xl mx-auto flex gap-2 overflow-x-auto">
             {[ 
-                { id: 'data_entry', label: 'Profiles' }, 
+                { id: 'data_entry', label: 'Global Profiles' }, 
+                { id: 'monthly_roster', label: 'Monthly Roster' },
                 { id: 'attendance', label: 'Attendance' }, 
                 { id: 'leave_management', label: 'Payroll Adjust' }, 
                 { id: 'salary_sheet', label: 'Salary Sheet' } 
             ].map(item => (
-                <button key={item.id} onClick={() => setActiveTab(item.id as EmployeeTab)} className={`flex-1 py-4 rounded-2xl font-bold text-[10px] uppercase tracking-wider transition-all duration-300 ${activeTab === item.id ? 'bg-blue-600 text-white shadow-lg transform scale-[1.02]' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800/50 hover:text-slate-700 dark:hover:text-slate-300'}`}>{item.label}</button>
+                <button key={item.id} onClick={() => setActiveTab(item.id as EmployeeTab)} className={`flex-1 py-4 px-6 rounded-2xl font-bold text-[10px] uppercase tracking-wider transition-all duration-300 whitespace-nowrap ${activeTab === item.id ? 'bg-blue-600 text-white shadow-lg transform scale-[1.02]' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800/50 hover:text-slate-700 dark:hover:text-slate-300'}`}>{item.label}</button>
             ))}
         </div>
         <div className="flex-1 transition-all duration-500">
             {activeTab === 'data_entry' && renderDataEntryTab()}
+            {activeTab === 'monthly_roster' && renderMonthlyRosterTab()}
             {activeTab === 'attendance' && renderAttendanceTab()}
             {activeTab === 'leave_management' && renderLeaveManagementTab()}
             {activeTab === 'salary_sheet' && renderSalarySheetTab()}

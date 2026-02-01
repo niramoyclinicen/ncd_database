@@ -206,6 +206,7 @@ const App: React.FC = () => {
             detailedExpenses={detailedExpenses}
             attendanceLog={attendanceLog} setAttendanceLog={setAttendanceLog}
             leaveLog={leaveLog} setLeaveLog={setLeaveLog}
+            appointments={appointments} setAppointments={setAppointments}
           />
         );
 

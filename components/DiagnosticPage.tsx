@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { 
   BackIcon, UsersIcon, ClipboardIcon, BeakerIcon, StethoscopeIcon, UserPlusIcon,
@@ -16,7 +15,7 @@ import PrevDueCollectionPage from './PrevDueCollectionPage';
 import LabReportingPage from './LabReportingPage';
 import ContributionReportPage from './ContributionReportPage';
 import EmployeeInfoPage from './EmployeeInfoPage';
-import { Patient, Doctor, Referrar, Reagent, Test, LabInvoice, Employee, DueCollection, DiagnosticSubPage, ExpenseItem, LabReport } from './DiagnosticData';
+import { Patient, Doctor, Referrar, Reagent, Test, LabInvoice, Employee, DueCollection, DiagnosticSubPage, ExpenseItem, LabReport, Appointment } from './DiagnosticData';
 import { UserRole } from '../types';
 
 interface DiagnosticPageProps {
@@ -41,11 +40,12 @@ interface DiagnosticPageProps {
   patients: Patient[];
   setPatients: React.Dispatch<React.SetStateAction<Patient[]>>;
   detailedExpenses?: Record<string, ExpenseItem[]>;
-  // Added fix: Include HR/Payroll states in interface
   attendanceLog: Record<string, any>;
   setAttendanceLog: React.Dispatch<React.SetStateAction<Record<string, any>>>;
   leaveLog: Record<string, any>;
   setLeaveLog: React.Dispatch<React.SetStateAction<Record<string, any>>>;
+  appointments: Appointment[];
+  setAppointments: React.Dispatch<React.SetStateAction<Appointment[]>>;
 }
 
 const DiagnosticPage: React.FC<DiagnosticPageProps> = ({ 
@@ -61,8 +61,8 @@ const DiagnosticPage: React.FC<DiagnosticPageProps> = ({
   patients, 
   setPatients,
   detailedExpenses,
-  // Added fix: Destructure HR/Payroll states
-  attendanceLog, setAttendanceLog, leaveLog, setLeaveLog
+  attendanceLog, setAttendanceLog, leaveLog, setLeaveLog,
+  appointments, setAppointments
 }) => {
   const isLabReporter = userRole === 'LAB_REPORTER';
   const isDiagAdmin = userRole === 'DIAGNOSTIC_ADMIN';
@@ -96,6 +96,8 @@ const DiagnosticPage: React.FC<DiagnosticPageProps> = ({
                 referrars={referrars}
                 setReferrars={setReferrars}
                 invoices={labInvoices}
+                appointments={appointments}
+                setAppointments={setAppointments}
             />
           </div>
         );
@@ -207,7 +209,6 @@ const DiagnosticPage: React.FC<DiagnosticPageProps> = ({
                       employees={employees} 
                       setEmployees={setEmployees} 
                       detailedExpenses={detailedExpenses} 
-                      // Added fix: Pass required states to EmployeeInfoPage
                       attendanceLog={attendanceLog}
                       setAttendanceLog={setAttendanceLog}
                       leaveLog={leaveLog}
