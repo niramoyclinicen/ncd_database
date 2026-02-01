@@ -59,9 +59,13 @@ const App: React.FC = () => {
   const [prescriptions, setPrescriptions] = useState<PrescriptionRecord[]>([]);
   const [appointments, setAppointments] = useState(initialAppointments);
   
-  // HR/Payroll States (Newly added to global sync)
+  // HR/Payroll States
   const [attendanceLog, setAttendanceLog] = useState<Record<string, any>>({});
   const [leaveLog, setLeaveLog] = useState<Record<string, any>>({});
+  const [monthlyRoster, setMonthlyRoster] = useState<Record<string, string[]>>(() => {
+    const saved = localStorage.getItem('ncd_monthly_roster');
+    return saved ? JSON.parse(saved) : {};
+  });
 
   // --- DATA LOADING ---
   useEffect(() => {
@@ -70,7 +74,7 @@ const App: React.FC = () => {
         patients, doctors, referrars, tests, reagents, labInvoices, 
         dueCollections, reports, employees, medicines, clinicalDrugs,
         purchaseInvoices, salesInvoices, admissions, indoorInvoices,
-        detailedExpenses, prescriptions, appointments, attendanceLog, leaveLog
+        detailedExpenses, prescriptions, appointments, attendanceLog, leaveLog, monthlyRoster
       };
       
       const loadedData = await dbService.loadFromCloud(defaultData);
@@ -96,6 +100,7 @@ const App: React.FC = () => {
         setAppointments(loadedData.appointments || []);
         setAttendanceLog(loadedData.attendanceLog || {});
         setLeaveLog(loadedData.leaveLog || {});
+        setMonthlyRoster(loadedData.monthlyRoster || {});
       }
       setIsDataLoaded(true);
     };
@@ -111,9 +116,10 @@ const App: React.FC = () => {
         patients, doctors, referrars, tests, reagents, labInvoices, 
         dueCollections, reports, employees, medicines, clinicalDrugs,
         purchaseInvoices, salesInvoices, admissions, indoorInvoices,
-        detailedExpenses, prescriptions, appointments, attendanceLog, leaveLog
+        detailedExpenses, prescriptions, appointments, attendanceLog, leaveLog, monthlyRoster
       };
       await dbService.saveToCloud(currentState);
+      localStorage.setItem('ncd_monthly_roster', JSON.stringify(monthlyRoster));
     };
 
     const debounceTimer = setTimeout(syncData, 2000);
@@ -122,7 +128,7 @@ const App: React.FC = () => {
     patients, doctors, referrars, tests, reagents, labInvoices, 
     dueCollections, reports, employees, medicines, clinicalDrugs,
     purchaseInvoices, salesInvoices, admissions, indoorInvoices,
-    detailedExpenses, prescriptions, appointments, attendanceLog, leaveLog, isDataLoaded
+    detailedExpenses, prescriptions, appointments, attendanceLog, leaveLog, monthlyRoster, isDataLoaded
   ]);
 
   // --- HANDLERS ---
@@ -147,7 +153,6 @@ const App: React.FC = () => {
       return;
     }
     
-    // Set up department login requirements
     switch (view) {
       case ViewState.DIAGNOSTIC:
         setPendingDeptLogin({ dept: 'DIAGNOSTIC', role: 'DIAGNOSTIC_ADMIN', view });
@@ -171,8 +176,6 @@ const App: React.FC = () => {
         setViewState(view);
     }
   };
-
-  // --- RENDER LOGIC ---
 
   if (pendingDeptLogin) {
     return (
@@ -207,6 +210,7 @@ const App: React.FC = () => {
             attendanceLog={attendanceLog} setAttendanceLog={setAttendanceLog}
             leaveLog={leaveLog} setLeaveLog={setLeaveLog}
             appointments={appointments} setAppointments={setAppointments}
+            monthlyRoster={monthlyRoster} setMonthlyRoster={setMonthlyRoster}
           />
         );
 
@@ -253,6 +257,7 @@ const App: React.FC = () => {
             setReagents={setReagents}
             attendanceLog={attendanceLog} setAttendanceLog={setAttendanceLog}
             leaveLog={leaveLog} setLeaveLog={setLeaveLog}
+            monthlyRoster={monthlyRoster} setMonthlyRoster={setMonthlyRoster}
           />
         );
 

@@ -46,6 +46,8 @@ interface DiagnosticPageProps {
   setLeaveLog: React.Dispatch<React.SetStateAction<Record<string, any>>>;
   appointments: Appointment[];
   setAppointments: React.Dispatch<React.SetStateAction<Appointment[]>>;
+  monthlyRoster: Record<string, string[]>;
+  setMonthlyRoster: React.Dispatch<React.SetStateAction<Record<string, string[]>>>;
 }
 
 const DiagnosticPage: React.FC<DiagnosticPageProps> = ({ 
@@ -62,7 +64,8 @@ const DiagnosticPage: React.FC<DiagnosticPageProps> = ({
   setPatients,
   detailedExpenses,
   attendanceLog, setAttendanceLog, leaveLog, setLeaveLog,
-  appointments, setAppointments
+  appointments, setAppointments,
+  monthlyRoster, setMonthlyRoster
 }) => {
   const isLabReporter = userRole === 'LAB_REPORTER';
   const isDiagAdmin = userRole === 'DIAGNOSTIC_ADMIN';
@@ -125,6 +128,7 @@ const DiagnosticPage: React.FC<DiagnosticPageProps> = ({
                 onNavigateSubPage={setActiveTab}
                 invoices={labInvoices}
                 setInvoices={setLabInvoices}
+                monthlyRoster={monthlyRoster}
             />
           </div>
         );
@@ -213,6 +217,8 @@ const DiagnosticPage: React.FC<DiagnosticPageProps> = ({
                       setAttendanceLog={setAttendanceLog}
                       leaveLog={leaveLog}
                       setLeaveLog={setLeaveLog}
+                      monthlyRoster={monthlyRoster}
+                      setMonthlyRoster={setMonthlyRoster}
                     />
                 ) : (
                     <div className="text-center p-8 text-slate-500">Employee management is currently unavailable in this view.</div>

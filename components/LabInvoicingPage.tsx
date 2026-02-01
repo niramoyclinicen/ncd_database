@@ -21,6 +21,7 @@ interface LabInvoicingPageProps {
   onNavigateSubPage: (page: DiagnosticSubPage) => void;
   invoices: LabInvoice[];
   setInvoices: React.Dispatch<React.SetStateAction<LabInvoice[]>>;
+  monthlyRoster: Record<string, string[]>;
 }
 
 const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
@@ -37,6 +38,7 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
   onNavigateSubPage,
   invoices,
   setInvoices,
+  monthlyRoster
 }) => {
   const [filteredInvoices, setFilteredInvoices] = useState<LabInvoice[]>(invoices);
   const [formData, setFormData] = useState<LabInvoice>(emptyLabInvoice);
@@ -70,10 +72,15 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
   const commonLabelClasses = "block text-sm font-semibold text-sky-300";
   const totalsInputClasses = "w-28 bg-slate-700 border border-slate-600 rounded p-1 text-right text-white font-bold focus:ring-1 focus:ring-blue-500 outline-none";
 
-  const activeEmployees = useMemo(() => 
-    employees.filter(emp => emp.is_current_month), 
-    [employees]
-  );
+  // Derive currentPeriodKey from the invoice date dynamically
+  const currentPeriodKey = useMemo(() => {
+    return formData.invoice_date.substring(0, 7); // "YYYY-MM" format
+  }, [formData.invoice_date]);
+
+  const activeEmployees = useMemo(() => {
+    const activeIds = monthlyRoster[currentPeriodKey] || [];
+    return employees.filter(emp => activeIds.includes(emp.emp_id) && emp.status === 'Active');
+  }, [employees, monthlyRoster, currentPeriodKey]);
   
   useEffect(() => {
     if (successMessage) {

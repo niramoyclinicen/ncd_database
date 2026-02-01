@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { 
   AccountingIcon, 
@@ -10,7 +9,6 @@ import {
   MapPinIcon,
   PhoneIcon
 } from './Icons';
-/** Added fix: Corrected IndoorInvoice import */
 import { LabInvoice, DueCollection, ExpenseItem, Employee, PurchaseInvoice, SalesInvoice, Medicine, Reagent, IndoorInvoice } from './DiagnosticData';
 import DiagnosticAccountsPage from './diagnostic/DiagnosticAccountsPage';
 import EmployeeInfoPage from './EmployeeInfoPage';
@@ -31,11 +29,12 @@ interface AccountingPageProps {
   indoorInvoices: IndoorInvoice[];
   medicines: Medicine[];
   setReagents: React.Dispatch<React.SetStateAction<Reagent[]>>;
-  // Added fix: Include HR/Payroll states in interface
   attendanceLog: Record<string, any>;
   setAttendanceLog: React.Dispatch<React.SetStateAction<Record<string, any>>>;
   leaveLog: Record<string, any>;
   setLeaveLog: React.Dispatch<React.SetStateAction<Record<string, any>>>;
+  monthlyRoster: Record<string, string[]>;
+  setMonthlyRoster: React.Dispatch<React.SetStateAction<Record<string, string[]>>>;
 }
 
 interface AccountingButtonProps {
@@ -71,7 +70,6 @@ const AccountingButton: React.FC<AccountingButtonProps> = ({ label, icon, onClic
 
 const BackgroundGraphic = () => (
   <div className="absolute inset-0 overflow-hidden pointer-events-none flex items-center justify-center opacity-[0.07]">
-    {/* Large Outer Mandala */}
     <svg viewBox="0 0 500 500" className="absolute w-[120%] h-[120%] text-amber-500 animate-spin-slow" style={{ animationDuration: '80s' }}>
       <defs>
         <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -94,8 +92,6 @@ const BackgroundGraphic = () => (
         <circle cx="0" cy="0" r="100" fill="none" stroke="currentColor" strokeWidth="1" opacity="0.5" />
       </g>
     </svg>
-
-    {/* Inner Counter-Rotating Mandala */}
     <svg viewBox="0 0 500 500" className="absolute w-[80%] h-[80%] text-cyan-500 animate-spin-slow-reverse" style={{ animationDuration: '60s' }}>
       <g transform="translate(250,250)">
         {[15, 45, 75, 105, 135, 165, 195, 225, 255, 285, 315, 345].map((angle) => (
@@ -117,8 +113,8 @@ const BackgroundGraphic = () => (
 const AccountingPage: React.FC<AccountingPageProps> = ({ 
   onBack, invoices, dueCollections, detailedExpenses, setDetailedExpenses, employees, setEmployees,
   purchaseInvoices, salesInvoices, indoorInvoices, medicines, setReagents,
-  // Added fix: Destructure HR/Payroll states
-  attendanceLog, setAttendanceLog, leaveLog, setLeaveLog
+  attendanceLog, setAttendanceLog, leaveLog, setLeaveLog,
+  monthlyRoster, setMonthlyRoster
 }) => {
   const [activeView, setActiveView] = useState<'main' | 'diagnostic' | 'clinic_accounts' | 'employee_info' | 'medicine_accounts' | 'consolidated'>('main');
 
@@ -156,11 +152,12 @@ const AccountingPage: React.FC<AccountingPageProps> = ({
             setEmployees={setEmployees} 
             detailedExpenses={detailedExpenses}
             onBack={() => setActiveView('main')}
-            // Added fix: Pass required states to EmployeeInfoPage
             attendanceLog={attendanceLog}
             setAttendanceLog={setAttendanceLog}
             leaveLog={leaveLog}
             setLeaveLog={setLeaveLog}
+            monthlyRoster={monthlyRoster}
+            setMonthlyRoster={setMonthlyRoster}
         />
     );
   }
@@ -194,10 +191,7 @@ const AccountingPage: React.FC<AccountingPageProps> = ({
 
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col relative overflow-hidden">
-        {/* New Graphic Background Animation */}
         <BackgroundGraphic />
-
-        {/* Header */}
         <header className="bg-slate-800 shadow-xl border-b border-slate-700 z-20 relative">
           <div className="max-w-7xl mx-auto py-6 px-6">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 md:gap-4">
@@ -227,7 +221,6 @@ const AccountingPage: React.FC<AccountingPageProps> = ({
           </div>
         </header>
 
-       {/* Back Button */}
        <div className="container mx-auto px-4 sm:px-6 pt-6 pb-2 z-10">
          <button onClick={onBack} className="flex items-center text-slate-400 hover:text-white transition-colors group">
            <div className="p-2 rounded-full group-hover:bg-slate-800 transition-colors">
@@ -237,7 +230,6 @@ const AccountingPage: React.FC<AccountingPageProps> = ({
          </button>
        </div>
 
-       {/* Title Section */}
        <div className="flex justify-center items-center z-10 relative mt-4 mb-4">
            <div className="flex items-center bg-slate-800 px-10 py-3 rounded-full border border-amber-500/30 shadow-[0_4px_20px_rgba(0,0,0,0.3)]">
               <AccountingIcon className="w-6 h-6 md:w-8 md:h-8 text-amber-400 mr-3 drop-shadow-[0_0_5px_rgba(251,191,36,0.5)]" />
@@ -247,10 +239,8 @@ const AccountingPage: React.FC<AccountingPageProps> = ({
            </div>
        </div>
 
-       {/* Content Grid */}
        <div className="flex-1 flex items-center justify-center relative w-full px-4 sm:px-8 pb-16 z-10">
           <div className="relative w-full max-w-5xl flex items-center justify-center">
-              {/* Central Oval Box */}
               <div className="hidden md:flex absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-30">
                  <AccountingButton 
                     label={
@@ -266,7 +256,6 @@ const AccountingPage: React.FC<AccountingPageProps> = ({
                  />
               </div>
 
-              {/* Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-32 w-full">
                  <div className="flex justify-center md:justify-end">
                      <AccountingButton 
