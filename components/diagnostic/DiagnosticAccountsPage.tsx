@@ -196,9 +196,10 @@ const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollection
 
         return filtered.map((inv: any) => {
             const isReturned = inv.status === 'Returned' || inv.status === 'Cancelled';
-            const fixedPC = isReturned ? 0 : inv.items.reduce((s: number, i: any) => s + ((i.test_commission || 0) * (i.quantity || 1)), 0);
-            const specialPC = isReturned ? 0 : (inv.special_commission || 0);
-            const totalPC = fixedPC + specialPC;
+            
+            // Logic Change: Only show what was written in the 'Commission Paid' box
+            const totalPC = isReturned ? 0 : (inv.commission_paid || 0);
+            
             const usgFee = isReturned ? 0 : inv.items.reduce((s: number, i: any) => s + ((i.usg_exam_charge || 0) * (i.quantity || 1)), 0);
             const paid = isReturned ? 0 : inv.paid_amount;
             const bill = isReturned ? 0 : inv.total_amount;
@@ -206,8 +207,8 @@ const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollection
             
             return { 
                 ...inv, 
-                fixedPC, 
-                specialPC, 
+                fixedPC: 0, // No longer used as primary source
+                specialPC: totalPC, 
                 totalPC, 
                 usgFee, 
                 paidVal: paid, 
@@ -256,16 +257,18 @@ const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollection
             
             relevantInvoices.forEach((inv: any) => {
                 const ratio = inv.total_amount > 0 ? (inv.paid_amount / inv.total_amount) : 0;
-                const specialCommFactor = inv.total_amount > 0 ? (inv.special_commission / inv.total_amount) : 0;
+                
+                // Logic Change: Calculate actual commission factor based on "Commission Paid" box
+                const actualCommPaid = inv.commission_paid || 0;
+                const commFactor = inv.paid_amount > 0 ? (actualCommPaid / inv.paid_amount) : 0;
 
                 inv.items.forEach((item: any) => {
                     const testName = (item.test_name || '').toLowerCase();
                     const itemGross = (item.price * item.quantity);
                     
-                    const itemNetPaid = (itemGross * ratio) 
-                                      - (item.test_commission * item.quantity) 
-                                      - (item.usg_exam_charge * item.quantity)
-                                      - (itemGross * specialCommFactor);
+                    // Subtract USG Fee and the actual commission paid (distributed proportionally)
+                    const itemNetPaid = (itemGross * ratio) * (1 - commFactor)
+                                      - (item.usg_exam_charge * item.quantity);
 
                     if (testName.includes('usg') || testName.includes('ultra')) coll.usg += itemNetPaid;
                     else if (testName.includes('x-ray') || testName.includes('xray')) coll.xray += itemNetPaid;
@@ -382,7 +385,7 @@ const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollection
                                 <h4 className={`text-6xl font-black ${ (activeTab === 'daily' ? stats.daily.balance : activeTab === 'monthly' ? stats.monthly.balance : stats.yearly.balance) >= 0 ? 'text-green-400' : 'text-rose-500' }`}>
                                     ৳ { (activeTab === 'daily' ? stats.daily.balance : activeTab === 'monthly' ? stats.monthly.balance : stats.yearly.balance).toLocaleString() }
                                 </h4>
-                                <p className="text-slate-600 text-[10px] mt-4 font-bold uppercase tracking-widest italic">* সকল কমিশন ও ইউএসজি ফি কালেকশন থেকে বিয়োগ করা হয়েছে</p>
+                                <p className="text-slate-600 text-[10px] mt-4 font-bold uppercase tracking-widest italic">* সকল পেমেন্টকৃত কমিশন ও ইউএসজি ফি কালেকশন থেকে বিয়োগ করা হয়েছে</p>
                             </div>
                         </div>
                     </div>
@@ -435,9 +438,7 @@ const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollection
                                             <th className="p-4 text-right">Bill</th>
                                             <th className="p-4 text-right text-rose-300">Disc</th>
                                             <th className="p-4 text-right text-emerald-400">Paid</th>
-                                            <th className="p-4 text-right">PC</th>
-                                            <th className="p-4 text-right">Spl PC</th>
-                                            <th className="p-4 text-right text-amber-500">Total PC</th>
+                                            <th className="p-4 text-right text-amber-500">Paid PC</th>
                                             <th className="p-4 text-right text-sky-400">USG Fee</th>
                                             <th className="p-4 text-right bg-blue-900/20 text-white">Net Profit</th>
                                         </tr>
@@ -452,9 +453,7 @@ const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollection
                                                 <td className="p-4 text-right font-medium text-slate-300">{inv.billVal.toLocaleString()}</td>
                                                 <td className="p-4 text-right text-rose-400/70">{inv.discVal.toLocaleString()}</td>
                                                 <td className="p-4 text-right font-black text-emerald-400">{inv.paidVal.toLocaleString()}</td>
-                                                <td className="p-4 text-right text-slate-400">{inv.fixedPC.toLocaleString()}</td>
-                                                <td className="p-4 text-right text-slate-400">{inv.specialPC.toLocaleString()}</td>
-                                                <td className="p-4 text-right text-amber-500 font-bold">{inv.totalPC.toLocaleString()}</td>
+                                                <td className="p-4 text-right text-amber-500 font-bold">৳ {inv.totalPC.toLocaleString()}</td>
                                                 <td className="p-4 text-right text-sky-400 font-bold">{inv.usgFee.toLocaleString()}</td>
                                                 <td className="p-4 text-right font-black text-white bg-blue-900/10 text-base">৳{inv.netProfit.toLocaleString()}</td>
                                             </tr>
@@ -466,10 +465,8 @@ const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollection
                                             <td className="p-4 text-right">৳{reportSummary.totalBill.toLocaleString()}</td>
                                             <td className="p-4 text-right text-rose-500">৳{reportSummary.totalDiscount.toLocaleString()}</td>
                                             <td className="p-4 text-right text-emerald-400">৳{reportSummary.paidAmount.toLocaleString()}</td>
-                                            <td className="p-4 text-right">৳{reportSummary.fixedPC.toLocaleString()}</td>
-                                            <td className="p-4 text-right">৳{reportSummary.specialPC.toLocaleString()}</td>
                                             <td className="p-4 text-right text-amber-500">৳{reportSummary.totalPC.toLocaleString()}</td>
-                                            <td className="p-4 text-right text-sky-400">৳{reportSummary.usgFee.toLocaleString()}</td>
+                                            <td className="p-3 text-right text-sky-400">৳{reportSummary.usgFee.toLocaleString()}</td>
                                             <td className="p-4 text-right text-white bg-blue-600 rounded-br-2xl text-lg">৳{reportSummary.netInstProfit.toLocaleString()}</td>
                                         </tr>
                                     </tfoot>
