@@ -63,9 +63,9 @@ const initialShareholders: Shareholder[] = [
     { id: 6, name: 'মোঃ আব্দুল্লাহ্ সরকার', shares: 2, description: '২টি' },
     { id: 7, name: 'মোঃ আয়নুল হক', shares: 1, description: '১টি' },
     { id: 8, name: 'মোঃ সোলাইমান সরকার (লিমন)', shares: 1, description: '১টি' },
-    { id: 9, name: 'মোঃ বাবুল আক্তার (চরকেজুরী)', shares: 1, description: '১টি' },
+    { id: 9, name: 'মোঃ ফজলুর রহমান (ফজলু)', shares: 1, description: '১টি' },
     { id: 10, name: 'মোঃ কমলা খাতুন', shares: 1.5, description: '১ ১/২ (দেড়)টি' },
-    { id: 11, name: 'মোঃ বাবুল সরকার (গোপরেখী)', shares: 0.5, description: '১/২ (অর্ধেক)টি' },
+    { id: 11, name: 'মোঃ আব্দুল হাই (বিএসসি)', shares: 0.5, description: '১/২ (অর্ধেক)টি' },
     { id: 12, name: 'মোঃ মোফাজ্জল হোসেন', shares: 1, description: '১টি' },
     { id: 13, name: 'মোঃ শহিদুল ইসলাম', shares: 1, description: '১টি' },
     { id: 14, name: 'হাজী মোঃ বাবুল আহমেদ বাবু', shares: 1, description: '১টি' },
@@ -166,17 +166,9 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
         setNewCompanyEntry({ companyName: '', amount: 0, date: new Date().toISOString().split('T')[0] });
     };
 
-    const deletePlan = (id: string) => {
-        if(confirm("পরিকল্পনাটি মুছে ফেলতে চান?")) setFuturePlans(futurePlans.filter(p => p.id !== id));
-    };
-
-    const updatePlan = (id: string, field: keyof FuturePlan, val: any) => {
-        setFuturePlans(prev => prev.map(p => p.id === id ? { ...p, [field]: val } : p));
-    };
-
-    const updateShareholder = (id: number, field: keyof Shareholder, val: any) => {
-        setDynamicShareholders(dynamicShareholders.map(s => s.id === id ? { ...s, [field]: val } : s));
-    };
+    const deletePlan = (id: string) => { if(confirm("পরিকল্পনাটি মুছে ফেলতে চান?")) setFuturePlans(futurePlans.filter(p => p.id !== id)); };
+    const updatePlan = (id: string, field: keyof FuturePlan, val: any) => { setFuturePlans(prev => prev.map(p => p.id === id ? { ...p, [field]: val } : p)); };
+    const updateShareholder = (id: number, field: keyof Shareholder, val: any) => { setDynamicShareholders(dynamicShareholders.map(s => s.id === id ? { ...s, [field]: val } : s)); };
 
     const expenseSheetData = useMemo(() => {
         const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
@@ -195,9 +187,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
             rows.push({ date: dateStr, categories: categorySums, total: totalDay });
         }
         const columnTotals: Record<string, number> = {};
-        clinicExpenseCategories.forEach(cat => {
-            columnTotals[cat] = rows.reduce((sum, row) => sum + row.categories[cat], 0);
-        });
+        clinicExpenseCategories.forEach(cat => { columnTotals[cat] = rows.reduce((sum, row) => sum + row.categories[cat], 0); });
         const grandTotal = rows.reduce((sum, row) => sum + row.total, 0);
         return { rows, columnTotals, grandTotal };
     }, [detailedExpenses, selectedMonth, selectedYear]);
@@ -214,7 +204,6 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
             return d.getFullYear() < selectedYear || (d.getFullYear() === selectedYear && d.getMonth() < selectedMonth);
         };
         
-        // Internal helper to calculate net diagnostic cash from an invoice
         const getNetDiagCash = (inv: LabInvoice) => {
             const usgFee = inv.items.reduce((s, it) => s + (it.usg_exam_charge * it.quantity), 0);
             const commPaid = inv.commission_paid || 0;
@@ -227,7 +216,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
             const prevClinic = indoorInvoices.filter(inv => isBeforeSelectedMonth(inv.invoice_date)).reduce((s, i) => s + i.paid_amount, 0);
             const prevClinicDue = dueCollections.filter(dc => isBeforeSelectedMonth(dc.collection_date) && !dc.invoice_id.startsWith('INV')).reduce((s, dc) => s + dc.amount_collected, 0);
             const prevMedSales = salesInvoices.filter(inv => isBeforeSelectedMonth(inv.invoiceDate)).reduce((s, i) => s + i.netPayable, 0);
-            const prevMedPurch = purchaseInvoices.filter(inv => isBeforeSelectedMonth(inv.invoiceDate)).reduce((s, i) => s + i.paidAmount, 0);
+            const prevMedPurch = purchaseInvoices.filter(inv => isBeforeSelectedMonth(inv.invoiceDate) && inv.status !== 'Initial' && inv.status !== 'Cancelled').reduce((s, i) => s + i.paidAmount, 0);
             const prevCompany = companyCollections.filter(c => isBeforeSelectedMonth(c.date)).reduce((s, c) => s + c.amount, 0);
             
             let prevExp = 0;
@@ -239,24 +228,21 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
         };
 
         const prevJer = calcNetPrev();
-        
-        // UPDATE: diagCurrent now subtracts USG Fee and Commission Paid
-        const diagCurrent = labInvoices
-            .filter(inv => isSelectedMonth(inv.invoice_date) && inv.status !== 'Cancelled')
-            .reduce((s, inv) => s + getNetDiagCash(inv), 0);
-
+        const diagCurrent = labInvoices.filter(inv => isSelectedMonth(inv.invoice_date) && inv.status !== 'Cancelled').reduce((s, inv) => s + getNetDiagCash(inv), 0);
         const diagDue = dueCollections.filter(dc => isSelectedMonth(dc.collection_date) && dc.invoice_id.startsWith('INV')).reduce((s, dc) => s + dc.amount_collected, 0);
         const clinicCurrent = indoorInvoices.filter(inv => isSelectedMonth(inv.invoice_date)).reduce((s, i) => s + i.paid_amount, 0);
         const clinicDue = dueCollections.filter(dc => isSelectedMonth(dc.collection_date) && !dc.invoice_id.startsWith('INV')).reduce((s, dc) => s + dc.amount_collected, 0);
-        const medSalesCurrent = salesInvoices.filter(inv => isBeforeSelectedMonth(inv.invoiceDate)).reduce((s, i) => s + i.netPayable, 0);
-        const medPurchCurrent = purchaseInvoices.filter(inv => isSelectedMonth(inv.invoiceDate)).reduce((s, i) => s + i.paidAmount, 0);
+        const medSalesCurrent = salesInvoices.filter(inv => isSelectedMonth(inv.invoiceDate)).reduce((s, i) => s + i.netPayable, 0);
+        
+        // Logical Fix: Ignore 'Initial' (Opening) stock purchase from current month expense ledger sums
+        const medPurchCurrent = purchaseInvoices.filter(inv => isSelectedMonth(inv.invoiceDate) && inv.status !== 'Initial' && inv.status !== 'Cancelled').reduce((s, i) => s + i.paidAmount, 0);
+        
         const companyCurrent = companyCollections.filter(c => isSelectedMonth(c.date)).reduce((s, c) => s + c.amount, 0);
 
         const totalDiag = diagCurrent + diagDue;
         const totalClinic = clinicCurrent + clinicDue;
         const totalMedNet = medSalesCurrent - medPurchCurrent;
-        
-        const grandTotalCollection = totalDiag + totalClinic + medSalesCurrent + companyCurrent + prevJer - houseRentDeduction;
+        const grandTotalCollection = totalDiag + totalClinic + totalMedNet + companyCurrent + prevJer - houseRentDeduction;
         
         const groupedExp: Record<string, number> = {};
         expenseMapSequence.forEach(e => groupedExp[e.key] = 0);
@@ -274,10 +260,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
         const finalClosingJer = netProfit - profitDistAmount;
         const totalShares = dynamicShareholders.reduce((s, h) => s + h.shares, 0);
         const profitPerShare = totalShares > 0 ? profitDistAmount / totalShares : 0;
-        return {
-            prevJer, diagCurrent, diagDue, totalDiag, clinicCurrent, clinicDue, totalClinic,
-            medSalesCurrent, medPurchCurrent, totalMedNet, companyCurrent, grandTotalCollection, groupedExp, totalExpense, netProfit, finalClosingJer, profitPerShare, totalShares
-        };
+        return { prevJer, diagCurrent, diagDue, totalDiag, clinicCurrent, clinicDue, totalClinic, medSalesCurrent, medPurchCurrent, totalMedNet, companyCurrent, grandTotalCollection, groupedExp, totalExpense, netProfit, finalClosingJer, profitPerShare, totalShares };
     }, [labInvoices, dueCollections, indoorInvoices, salesInvoices, purchaseInvoices, companyCollections, detailedExpenses, selectedMonth, selectedYear, houseRentDeduction, profitDistAmount, manualLoanInstallment, dynamicShareholders, repayments]);
 
     const loanStats = useMemo(() => {
@@ -292,77 +275,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
         const win = window.open('', '', 'width=1200,height=800');
         if(!win) return;
         const isLandscape = elementId === 'section-monthly-expense';
-        const html = `
-            <html>
-                <head>
-                    <title>NcD Report Print</title>
-                    <script src="https://cdn.tailwindcss.com"></script>
-                    <style>
-                        @page { size: A4 ${isLandscape ? 'landscape' : 'portrait'}; margin: 5mm; } 
-                        body { background: white; font-family: 'Segoe UI', Tahoma, sans-serif; color: black; -webkit-print-color-adjust: exact; margin: 0; padding: 0; }
-                        
-                        .print-wrapper {
-                            width: 100%;
-                            display: flex;
-                            flex-direction: column;
-                            ${!isLandscape ? 'min-height: 287mm;' : ''}
-                        }
-
-                        table { width: 100% !important; border-collapse: collapse !important; font-size: ${isLandscape ? '7pt' : '9.5pt'} !important; table-layout: fixed !important; margin: 0 auto; }
-                        th, td { border: 0.5pt solid #000 !important; padding: ${isLandscape ? '1px 2px' : '4px 6px'} !important; text-align: center !important; white-space: normal !important; overflow: hidden !important; vertical-align: middle !important; line-height: 1.0 !important; }
-                        th { background: #f3f4f6 !important; font-weight: 900 !important; text-transform: uppercase !important; word-wrap: break-word !important; }
-                        
-                        ${isLandscape ? 'tbody tr { height: 17.0px !important; }' : ''}
-
-                        .text-right { text-align: right !important; }
-                        .font-bold { font-weight: bold !important; }
-                        .no-print { display: none !important; }
-                        
-                        .sig-container {
-                            margin-top: ${isLandscape ? '5px' : 'auto'} !important;
-                            padding-top: 10px !important;
-                            border-top: 1.5px solid black !important;
-                            page-break-inside: avoid !important;
-                            display: flex;
-                            justify-content: space-between;
-                        }
-
-                        h1.print-title { font-size: ${isLandscape ? '15pt' : '22pt'} !important; font-weight: 900 !important; color: #1e3a8a !important; text-transform: uppercase; margin-bottom: 0px !important; line-height: 1.0; }
-                        p.print-subtitle { font-size: ${isLandscape ? '7.5pt' : '10pt'} !important; font-weight: bold !important; margin-top: 0px !important; margin-bottom: 2px !important; }
-                        .font-bengali { font-family: 'Arial', sans-serif !important; }
-                    </style>
-                </head>
-                <body class="${isLandscape ? 'p-1' : 'p-4'}">
-                    <div class="print-wrapper">
-                        ${content.innerHTML}
-                    </div>
-                    <script>
-                        const headerArea = document.querySelector('.print-wrapper > main > div:first-child');
-                        if(headerArea) {
-                            headerArea.style.marginBottom = '2px';
-                            headerArea.style.paddingBottom = '2px';
-                        }
-                        
-                        if("${isLandscape}" === "true") {
-                            document.querySelectorAll('th').forEach(el => {
-                                if(el.textContent.includes('Salary')) el.innerHTML = "Staff<br/>Salary";
-                                if(el.textContent.includes('Generator')) el.innerHTML = "Gen-<br/>erator";
-                                if(el.textContent.includes('Motorcycle')) el.innerHTML = "Moto-<br/>cycle";
-                                if(el.textContent.includes('Marketing')) el.innerHTML = "Mark-<br/>eting";
-                                if(el.textContent.includes('Clinic Dev')) el.innerHTML = "Clinic<br/>Dev";
-                                if(el.textContent.includes('Stationery')) el.innerHTML = "Stat-<br/>ionery";
-                                if(el.textContent.includes('Instruments')) el.innerHTML = "Inst-<br/>rumts";
-                                if(el.textContent.includes('Installment')) el.innerHTML = "Inst-<br/>allmt";
-                                if(el.textContent.includes('Old Loan')) el.innerHTML = "Loan<br/>Repay";
-                                if(el.textContent.includes('Donation')) el.innerHTML = "Doc<br/>Donat";
-                            });
-                        }
-
-                        setTimeout(() => { window.print(); window.close(); }, 850);
-                    </script>
-                </body>
-            </html>
-        `;
+        const html = `<html><head><title>NcD Report Print</title><script src="https://cdn.tailwindcss.com"></script><style>@page { size: A4 ${isLandscape ? 'landscape' : 'portrait'}; margin: 5mm; } body { background: white; font-family: 'Segoe UI', Tahoma, sans-serif; color: black; -webkit-print-color-adjust: exact; margin: 0; padding: 0; } .print-wrapper { width: 100%; display: flex; flex-direction: column; ${!isLandscape ? 'min-height: 287mm;' : ''} } table { width: 100% !important; border-collapse: collapse !important; font-size: ${isLandscape ? '7pt' : '9.5pt'} !important; table-layout: fixed !important; margin: 0 auto; } th, td { border: 0.5pt solid #000 !important; padding: ${isLandscape ? '1px 2px' : '4px 6px'} !important; text-align: center !important; white-space: normal !important; overflow: hidden !important; vertical-align: middle !important; line-height: 1.0 !important; } th { background: #f3f4f6 !important; font-weight: 900 !important; text-transform: uppercase !important; word-wrap: break-word !important; } ${isLandscape ? 'tbody tr { height: 17.0px !important; }' : ''} .text-right { text-align: right !important; } .font-bold { font-weight: bold !important; } .no-print { display: none !important; } .sig-container { margin-top: ${isLandscape ? '5px' : 'auto'} !important; padding-top: 10px !important; border-top: 1.5px solid black !important; page-break-inside: avoid !important; display: flex; justify-content: space-between; } h1.print-title { font-size: ${isLandscape ? '15pt' : '22pt'} !important; font-weight: 900 !important; color: #1e3a8a !important; text-transform: uppercase; margin-bottom: 0px !important; line-height: 1.0; } p.print-subtitle { font-size: ${isLandscape ? '7.5pt' : '10pt'} !important; font-weight: bold !important; margin-top: 0px !important; margin-bottom: 2px !important; } .font-bengali { font-family: 'Arial', sans-serif !important; } </style></head><body class="${isLandscape ? 'p-1' : 'p-4'}"><div class="print-wrapper">${content.innerHTML}</div><script>setTimeout(() => { window.print(); window.close(); }, 850);</script></body></html>`;
         win.document.write(html); win.document.close();
     };
 
@@ -465,7 +378,6 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                                 <tr className="bg-gray-100 font-black h-8"><td colSpan={2} className="p-1 text-right text-[10px]">ডায়াগনস্টিক মোট :</td><td className={commonAmtCellClass}>{summary.totalDiag.toLocaleString()}</td></tr>
                                             </tbody>
                                         </table>
-                                        <p className="text-[8px] text-slate-500 italic mt-1"></p>
                                     </div>
                                     <div className="space-y-1">
                                         <div className="text-[11px] font-black font-bengali underline mb-0.5">খ) ক্লিনিক হইতে :</div>
@@ -588,195 +500,6 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                 </tbody>
                             </table>
                         </div>
-                    </div>
-                )}
-
-                {activeView === 'shareholders' && (
-                    <div id="section-shareholders" className="relative animate-fade-in">
-                        <button onClick={() => handlePrintSpecific('section-shareholders')} className="no-print absolute top-2 right-2 p-2 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-500 z-50"><PrinterIcon size={18} /></button>
-                        <main className="p-10 max-w-[210mm] mx-auto w-full bg-white text-black shadow-2xl h-auto flex flex-col border border-gray-300 font-serif">
-                            <div className="text-center mb-8 border-b-2 border-black pb-3">
-                                <h1 className="text-3xl font-black uppercase text-blue-900 leading-none print-title">নিরাময় ক্লিনিক এন্ড ডায়াগনস্টিক</h1>
-                                <p className="text-sm font-bold mt-2">এনায়েতপুর সিরাজগঞ্জ। ফোন: ০১৭৩০ ৯২৩০০৭</p>
-                                <h2 className="mt-6 font-black text-xl font-bengali bg-gray-100 py-2 border-y-2 border-black uppercase tracking-tight">লভ্যাংশ বিবরণ : {monthOptions[selectedMonth].name}, {selectedYear}</h2>
-                            </div>
-                            <table className="w-full border-collapse border-2 border-black text-[10.5pt] font-bengali">
-                                <thead><tr className="bg-gray-200"><th className="p-3 border border-black w-14">ক্রম</th><th className="p-3 border border-black text-left">নাম</th><th className="p-3 border border-black w-24">শেয়ার</th><th className="p-3 border border-black text-right w-44">মোট লাভ (টাকা)</th><th className="p-3 border border-black">স্বাক্ষর</th></tr></thead>
-                                <tbody>
-                                    {dynamicShareholders.map((sh, idx) => (
-                                        <tr key={sh.id} className="h-9">
-                                            <td className="p-2 border border-black text-center">{idx + 1}/</td>
-                                            <td className="p-2 border border-black font-bold">{sh.name}</td>
-                                            <td className="p-2 border border-black text-center">{sh.shares}টি</td>
-                                            <td className="p-2 border border-black text-right font-black text-blue-900">{ (sh.shares * summary.profitPerShare).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) } ৳</td>
-                                            <td className="p-2 border border-black"></td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                                <tfoot>
-                                    <tr className="bg-slate-900 text-white font-black h-14">
-                                        <td colSpan={2} className="text-right px-6 italic text-base uppercase tracking-tighter">মোট লভ্যাংশ বণ্টন =</td>
-                                        <td className="text-center text-base">{summary.totalShares}টি</td>
-                                        <td className="text-right px-3 text-xl text-yellow-400 drop-shadow-md">{profitDistAmount.toLocaleString()} ৳</td>
-                                        <td></td>
-                                    </tr>
-                                </tfoot>
-                            </table>
-                            <div className="sig-container mt-12 flex justify-between px-6 font-bengali font-black text-sm pt-6 uppercase tracking-tighter border-t-4 border-black">
-                                <div className="text-center w-40 border-t-2 border-black pt-1">ম্যানেজার</div>
-                                <div className="text-center w-40 border-t-2 border-black pt-1">হিসাবরক্ষক</div>
-                                <div className="text-center w-40 border-t-2 border-black pt-1">পরিচালক</div>
-                            </div>
-                        </main>
-                        <div className="no-print mt-10 p-6 bg-white rounded-xl shadow-lg border border-slate-300">
-                             <label className="block text-sm font-bold text-slate-500 mb-2 uppercase">লভ্যাংশ বণ্টনের পরিমাণ নির্ধারণ করুন (৳)</label>
-                             <input type="number" value={profitDistAmount || ''} onChange={e=>setProfitDistAmount(parseFloat(e.target.value)||0)} className="w-full p-4 text-3xl font-black border-2 border-blue-500 rounded-2xl text-blue-600 focus:ring-4 focus:ring-blue-100 outline-none" placeholder="টাকার পরিমাণ লিখুন..."/>
-                        </div>
-                    </div>
-                )}
-
-                {activeView === 'final_status' && (
-                    <div id="section-status" className="relative animate-fade-in">
-                        <button onClick={() => handlePrintSpecific('section-status')} className="no-print absolute top-2 right-2 p-2 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-500 z-50"><PrinterIcon size={18} /></button>
-                        <main className="max-w-[210mm] mx-auto w-full bg-white p-12 text-black shadow-2xl h-auto flex flex-col font-serif border border-gray-300">
-                            <div className="text-center mb-10 border-b-4 border-slate-900 pb-4">
-                                <h1 className="text-3xl font-black uppercase text-slate-900 leading-none print-title">Institution Final Status Report</h1>
-                                <p className="text-lg font-bengali font-bold mt-2">নিরাময় ক্লিনিক এন্ড ডায়াগনস্টিক - সর্বশেষ আর্থিক অবস্থা</p>
-                            </div>
-                            <div className="grid grid-cols-2 gap-8 mb-12">
-                                <div className="bg-emerald-50 border-4 border-emerald-600 p-6 rounded-3xl shadow-xl">
-                                    <div className="flex items-center gap-3 mb-2"><WalletIcon className="w-8 h-8 text-emerald-600" /><h4 className="text-xs font-black uppercase tracking-widest text-emerald-800">Available Cash in Hand</h4></div>
-                                    <h3 className="text-4xl font-black text-emerald-900 drop-shadow-sm">৳ {summary.finalClosingJer.toLocaleString()}</h3>
-                                </div>
-                                <div className="bg-rose-50 border-4 border-rose-600 p-6 rounded-3xl shadow-xl">
-                                    <div className="flex items-center gap-3 mb-2"><TrendingDownIcon className="w-8 h-8 text-rose-600" /><h4 className="text-xs font-black uppercase tracking-widest text-rose-800">Total Liabilities / Debt</h4></div>
-                                    <h3 className="text-4xl font-black text-rose-900 drop-shadow-sm">৳ {loanStats.outstanding.toLocaleString()}</h3>
-                                </div>
-                            </div>
-                            <div className="space-y-6">
-                                <h3 className="text-xl font-black font-bengali border-b-4 border-slate-800 pb-2 flex items-center gap-3"><ChartIcon className="w-6 h-6"/> Breakdown of Assets & Debts</h3>
-                                <table className="w-full border-collapse border-4 border-slate-900 text-lg font-bengali">
-                                    <tbody>
-                                        <tr className="h-12"><td className="p-4 border-4 border-slate-900 font-bold">১/ ক্যাশ একাউন্ট ব্যালেন্স (জের)</td><td className="p-4 border-4 border-slate-900 text-right font-black text-slate-900">৳ {summary.finalClosingJer.toLocaleString()}</td></tr>
-                                        <tr className="h-12"><td className="p-4 border-4 border-slate-900 font-bold">২/ মেডিসিন স্টকের আনুমানিক মূল্য (Asset)</td><td className="p-4 border-4 border-slate-900 text-right font-black text-blue-800">৳ {medicines.reduce((s,m)=>s+(m.stock*m.unitPriceBuy),0).toLocaleString()}</td></tr>
-                                        <tr className="h-12 bg-red-50"><td className="p-4 border-4 border-slate-900 font-bold text-red-700">৩/ মোট ধার ও ঋণ (Total Liability)</td><td className="p-4 border-4 border-slate-900 text-right font-black text-red-600">(-) ৳ {loanStats.outstanding.toLocaleString()}</td></tr>
-                                        <tr className="bg-slate-900 text-white h-16">
-                                            <td className="p-4 border-4 border-slate-900 text-xl font-black italic uppercase tracking-tighter">প্রকৃত নিট মূলধন (Net Worth) =</td>
-                                            <td className="p-4 border-4 border-slate-900 text-right text-3xl font-black text-yellow-400 drop-shadow-lg">
-                                                ৳ {(summary.finalClosingJer + (medicines || []).reduce((s,m)=>s+(m.stock*m.unitPriceBuy),0) - loanStats.outstanding).toLocaleString()}
-                                            </td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
-                            <div className="sig-container mt-auto flex justify-between px-6 font-bengali font-black text-sm pt-6 uppercase tracking-tighter border-t-4 border-black">
-                                <div className="text-center w-40 border-t-2 border-black pt-1">ম্যানেজার</div>
-                                <div className="text-center w-40 border-t-2 border-black pt-1">হিসাবরক্ষক</div>
-                                <div className="text-center w-40 border-t-2 border-black pt-1">পরিচালক</div>
-                            </div>
-                        </main>
-                    </div>
-                )}
-
-                {activeView === 'money_mgmt' && (
-                    <div className="max-w-6xl mx-auto space-y-8 animate-fade-in no-print">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                            <div className="bg-white rounded-3xl p-8 border border-slate-300 shadow-2xl">
-                                <h3 className="text-xl font-black text-slate-800 mb-6 font-bengali border-b border-slate-100 pb-3">লোন গ্রহণ ফরম (New Loan)</h3>
-                                <form onSubmit={(e) => { e.preventDefault(); const f = new FormData(e.target as any); const nl: LoanRecord = { id: `L-${Date.now()}`, source: f.get('src') as string, amount: parseFloat(f.get('amt') as any), date: f.get('dt') as string, type: f.get('tp') as string }; setLoans([...loans, nl]); (e.target as any).reset(); }} className="space-y-4 bg-slate-50 p-6 rounded-2xl border border-slate-200">
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div><label className="text-[10px] font-black text-slate-400 uppercase mb-1 block ml-1">উৎস</label><input name="src" required className="w-full bg-white border border-slate-300 rounded-lg p-2 text-sm font-bold" /></div>
-                                        <div><label className="text-[10px] font-black text-slate-400 uppercase mb-1 block ml-1">টাকার পরিমাণ</label><input name="amt" type="number" required className="w-full bg-white border border-slate-300 rounded-lg p-2 text-sm font-bold" /></div>
-                                        <div><label className="text-[10px] font-black text-slate-400 uppercase mb-1 block ml-1">তারিখ</label><input name="dt" type="date" required defaultValue={new Date().toISOString().split('T')[0]} className="w-full bg-white border border-slate-300 rounded-lg p-2 text-sm font-bold" /></div>
-                                        <div><label className="text-[10px] font-black text-slate-400 uppercase mb-1 block ml-1">ধরণ</label><select name="tp" className="w-full bg-white border border-slate-300 rounded-lg p-2 text-sm font-bold"><option>Bank</option><option>NGO</option><option>Person</option></select></div>
-                                    </div>
-                                    <button className="w-full py-4 bg-slate-900 text-white rounded-xl font-black uppercase text-xs tracking-widest shadow-xl">লোন রেকর্ড করুন</button>
-                                </form>
-                                <div className="mt-8 overflow-x-auto"><table className="w-full text-xs text-left"><thead><tr className="bg-slate-100 font-bold"><th className="p-2">উৎস</th><th className="p-2 text-right">টাকা</th><th className="p-2 text-center">X</th></tr></thead><tbody>{loans.map(l=>(<tr key={l.id} className="border-b border-slate-100"><td className="p-2 font-bold">{l.source}</td><td className="p-2 text-right font-black">৳{l.amount.toLocaleString()}</td><td className="p-2 text-center"><button onClick={()=>setLoans(loans.filter(x=>x.id!==l.id))} className="text-red-400 font-bold">×</button></td></tr>))}</tbody></table></div>
-                            </div>
-                            <div className="bg-white rounded-3xl p-8 border border-slate-300 shadow-2xl">
-                                <h3 className="text-xl font-black text-emerald-600 mb-6 font-bengali border-b border-slate-100 pb-3">কিস্তি পরিশোধ (Installment Pay)</h3>
-                                <form onSubmit={(e) => { e.preventDefault(); const f = new FormData(e.target as any); const nr: RepaymentRecord = { id: `R-${Date.now()}`, loanId: f.get('lid') as string, amount: parseFloat(f.get('amt') as any), date: f.get('dt') as string, type: 'Installment' }; setRepayments([...repayments, nr]); (e.target as any).reset(); }} className="space-y-4 bg-emerald-50 p-6 rounded-2xl border border-emerald-100">
-                                    <label className="text-[10px] font-black text-slate-400 uppercase mb-1 block">লোন সিলেক্ট করুন</label>
-                                    <select name="lid" required className="w-full bg-white border border-slate-300 rounded-lg p-3 text-sm font-bold"><option value="">-- নির্বাচন করুন --</option>{loans.map(l => <option key={l.id} value={l.id}>{l.source} (৳{l.amount})</option>)}</select>
-                                    <div className="grid grid-cols-2 gap-4 mt-4">
-                                        <div><label className="text-[10px] font-black text-slate-400 uppercase mb-1 block">কিস্তির পরিমাণ</label><input name="amt" type="number" required className="w-full bg-white border border-slate-300 rounded-lg p-2 text-sm font-bold" /></div>
-                                        <div><label className="text-[10px] font-black text-slate-400 uppercase mb-1 block">তারিখ</label><input name="dt" type="date" required defaultValue={new Date().toISOString().split('T')[0]} className="w-full bg-white border border-slate-300 rounded-lg p-2 text-sm font-bold" /></div>
-                                    </div>
-                                    <button className="w-full py-4 bg-emerald-600 text-white rounded-xl font-black uppercase text-xs tracking-widest shadow-xl mt-4">কিস্তি জমা করুন</button>
-                                </form>
-                                <div className="mt-8 overflow-x-auto h-48 scrollbar-hide"><table className="w-full text-[10px] text-left"><thead><tr className="bg-emerald-100 font-bold"><th className="p-2">লোন</th><th className="p-2 text-right">টাকা</th><th className="p-2">তারিখ</th></tr></thead><tbody>{repayments.map(r=>(<tr key={r.id} className="border-b border-slate-100"><td className="p-2 font-bold">{loans.find(x=>x.id===r.loanId)?.source}</td><td className="p-2 text-right font-black">৳{r.amount.toLocaleString()}</td><td className="p-2">{r.date}</td></tr>))}</tbody></table></div>
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {activeView === 'future_plans' && (
-                    <div className="max-w-4xl mx-auto space-y-8 animate-fade-in no-print">
-                        <div className="bg-white p-8 rounded-[2.5rem] shadow-2xl border border-slate-200">
-                             <h3 className="text-xl font-black text-indigo-600 mb-6 font-bengali border-b pb-4 flex items-center gap-3"><PlusIcon /> নতুন পরিকল্পনা যুক্ত করুন</h3>
-                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                 <div><label className="text-[10px] font-black text-slate-500 uppercase ml-2 mb-1 block">পরিকল্পনার শিরোনাম</label><input value={newPlan.title} onChange={e=>setNewPlan({...newPlan, title: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl font-bold" placeholder="যেমন: নতুন আল্ট্রাসনো মেশিন ক্রয়"/></div>
-                                 <div><label className="text-[10px] font-black text-slate-500 uppercase ml-2 mb-1 block">আনুমানিক বাজেট (৳)</label><input type="number" value={newPlan.estimatedCost} onChange={e=>setNewPlan({...newPlan, estimatedCost: parseFloat(e.target.value)})} className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl font-black" /></div>
-                             </div>
-                             <button onClick={addFuturePlan} className="mt-6 w-full py-4 bg-indigo-600 text-white rounded-2xl font-black uppercase text-xs shadow-xl active:scale-95 transition-all">সেভ করুন</button>
-                        </div>
-                        <div className="space-y-4">
-                            {futurePlans.map(plan => (
-                                <div key={plan.id} className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-xl flex justify-between items-center group hover:border-indigo-500 transition-all">
-                                    <div className="flex-1">
-                                        <h4 className="text-xl font-black text-slate-800 uppercase">{plan.title}</h4>
-                                        <p className="text-sm font-black text-indigo-600 mt-1">বাজেট: ৳ {plan.estimatedCost.toLocaleString()}</p>
-                                    </div>
-                                    <div className="flex items-center gap-4">
-                                        <select value={plan.status} onChange={e=>updatePlan(plan.id, 'status', e.target.value as any)} className="bg-slate-100 border-none rounded-lg p-2 text-xs font-bold uppercase"><option value="Pending">Pending</option><option value="In Progress">In Progress</option><option value="Completed">Completed</option></select>
-                                        <button onClick={()=>deletePlan(plan.id)} className="text-rose-400 hover:text-rose-600 p-2"><TrashIcon size={18}/></button>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                )}
-
-                {activeView === 'shareholder_mgmt' && (
-                    <div className="max-w-4xl mx-auto bg-white p-8 rounded-[2rem] shadow-2xl animate-fade-in no-print">
-                        <h3 className="text-2xl font-black text-slate-800 mb-8 font-bengali border-b pb-4 flex items-center gap-3"><UsersIcon className="text-blue-500" /> শেয়ারহোল্ডার ম্যানেজমেন্ট</h3>
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left border-collapse">
-                                <thead className="bg-slate-100 text-slate-600 text-xs font-black uppercase">
-                                    <tr><th className="p-4">ক্রম</th><th className="p-4">নাম</th><th className="p-4">শেয়ার সংখ্যা</th><th className="p-4 text-center">X</th></tr>
-                                </thead>
-                                <tbody>
-                                    {dynamicShareholders.map((sh, idx) => (
-                                        <tr key={sh.id} className="border-b border-slate-100 hover:bg-blue-50 transition-colors">
-                                            <td className="p-4 font-bold text-slate-400">{idx + 1}/</td>
-                                            <td className="p-4">
-                                                {editingPartner === sh.id ? (
-                                                    <input value={sh.name} onChange={e => updateShareholder(sh.id, 'name', e.target.value)} className="w-full bg-white border border-blue-500 rounded p-1 font-bold" autoFocus />
-                                                ) : (
-                                                    <span onClick={() => setEditingPartner(sh.id)} className="font-bold text-slate-800 cursor-pointer hover:text-blue-600">{sh.name}</span>
-                                                )}
-                                            </td>
-                                            <td className="p-4">
-                                                {editingPartner === sh.id ? (
-                                                    <input type="number" step="0.5" value={sh.shares} onChange={e => updateShareholder(sh.id, 'shares', parseFloat(e.target.value) || 0)} className="w-20 bg-white border border-blue-500 rounded p-1 font-bold text-center" />
-                                                ) : (
-                                                    <span onClick={() => setEditingPartner(sh.id)} className="font-black text-blue-600 cursor-pointer">{sh.shares} টি</span>
-                                                )}
-                                            </td>
-                                            <td className="p-4 text-center">
-                                                {editingPartner === sh.id ? (
-                                                    <button onClick={() => setEditingPartner(null)} className="p-1 bg-green-500 text-white rounded"><SaveIcon size={16}/></button>
-                                                ) : (
-                                                    <button onClick={() => setDynamicShareholders(dynamicShareholders.filter(s => s.id !== sh.id))} className="text-rose-400 hover:text-rose-600"><TrashIcon size={16}/></button>
-                                                )}
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                        <button onClick={() => setDynamicShareholders([...dynamicShareholders, { id: Date.now(), name: 'নতুন পার্টনার', shares: 1, description: '১টি' }])} className="mt-8 w-full py-3 bg-slate-800 text-white rounded-xl font-black uppercase text-xs tracking-widest hover:bg-slate-700">+ নতুন পার্টনার যুক্ত করুন</button>
                     </div>
                 )}
             </div>

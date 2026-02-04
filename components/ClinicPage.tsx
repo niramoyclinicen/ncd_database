@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Patient, Doctor, Employee, Medicine, Referrar, MedicineItem } from './DiagnosticData';
 import SearchableSelect from './SearchableSelect';
@@ -252,17 +251,19 @@ const drugFrequencies = [
 ];
 const dietOptions = ['NPO TFO', 'Liquid', 'Liquid and semisolid', 'Regular'];
 const serviceCategoriesList = ["Conservative treatment", "Operation", "NVD and D&C", "O2 and nebulizer", "Plaster and Bandage", "Others"];
+
+// Added 'Maintenance fee' to the serviceTypesList
 const serviceTypesList = [
     'Admission Fee', 'Doctor round fee', 'Doctor prescription fee', 'Bed rent', 'Service Charge',
     'Obstetrician/ Midwife', 'Anaesthetist', 'Assistant_1', 'Assistant_2', 'Medicine', 'Stuff_cost', 'Surgeon', 'Discharge writing fee',
-    'OT Charge', '02(Oxygen)', 'Nebulization', 'Doctor food', 'Doctor donation', 'Vehicle rent', 'Dressing', 'Other'
+    'OT Charge', '02(Oxygen)', 'Nebulization', 'Doctor food', 'Doctor donation', 'Vehicle rent', 'Dressing', 'Maintenance fee', 'Other'
 ];
 const doctorServiceTypes = [
     "Doctor round fee", "Doctor prescription fee", "Obstetrician/ Midwife", "Surgeon", "Anaesthetist", "Assistant_1", "Assistant_2"
 ];
 
-// Logic helpers for Clinic Fund Inclusion
-const clinicFundServiceTypes = ['Admission Fee', 'OT Charge', '02(Oxygen)', 'Nebulization', 'Dressing', 'Bed rent', 'Service Charge'];
+// Added 'Maintenance fee' to clinicFundServiceTypes to ensure it flows to the accounting report
+const clinicFundServiceTypes = ['Admission Fee', 'OT Charge', '02(Oxygen)', 'Nebulization', 'Dressing', 'Bed rent', 'Service Charge', 'Maintenance fee'];
 
 const getFrequencyText = (freq: number) => {
     switch(freq) {
@@ -1229,9 +1230,9 @@ const AdmissionAndTreatmentPage: React.FC<{
 
                                                         return (
                                                             <tr key={`${med.id}-${idx}`} className="border-b border-gray-700 hover:bg-gray-700/50">
-                                                                <td className="p-3 border border-gray-700 font-medium text-gray-100 text-base">{med.type}. {med.name} ({med.dosage})</td>
-                                                                <td className="p-3 border border-gray-700">{getFrequencyText(med.frequency)}</td>
-                                                                <td className="p-3 border border-gray-700">{med.category}</td>
+                                                                <td className="p-3 border border-gray-600 font-medium text-gray-100 text-base">{med.type}. {med.name} ({med.dosage})</td>
+                                                                <td className="p-3 border border-gray-600">{getFrequencyText(med.frequency)}</td>
+                                                                <td className="p-3 border border-gray-600">{med.category}</td>
                                                                 <td className={`p-3 border border-gray-700 ${lastColorClass}`}>{statusText} ({lastGivenText}) <span className="text-xs text-yellow-500">{lastGivenSrc}</span></td>
                                                                 <td className={`p-3 border border-gray-700 ${nextColorClass} text-base`}>{nextTimeText}</td>
                                                                 <td className="p-3 border border-gray-700 text-right">
@@ -2013,30 +2014,29 @@ const ClinicPage: React.FC<ClinicPageProps> = ({
                     </div>
 
                     <div className={activeTab === 'patient_info' ? 'block' : 'hidden'}>
-                        <div className="bg-[#1f2937] p-6 rounded border border-[#374151]">
-                            <PatientInfoPage patients={patients} setPatients={setPatients} />
+                        <div className="bg-[#1f2937] p-6 rounded-lg border border-[#374151]">
+                            <PatientInfoPage patients={patients} setPatients={setPatients} isEmbedded={false} />
                         </div>
                     </div>
 
-                    {activeTab === 'bed_status' && <BedManagementPage admissions={admissions} />}
+                    <div className={activeTab === 'bed_status' ? 'block' : 'hidden'}>
+                        <BedManagementPage admissions={admissions} />
+                    </div>
 
                     <div className={activeTab === 'invoice' ? 'block' : 'hidden'}>
                         <IndoorInvoicePage admissions={admissions} doctors={doctors} referrars={referrars} employees={employees} indoorInvoices={indoorInvoices} setIndoorInvoices={setIndoorInvoices} setSuccessMessage={setSuccessMessage} medicines={medicines} setAdmissions={setAdmissions} />
                     </div>
 
-                    {activeTab === 'due_collection' && <ClinicDueCollectionPage indoorInvoices={indoorInvoices} setIndoorInvoices={setIndoorInvoices} clinicDueCollections={clinicDueCollections} setClinicDueCollections={setClinicDueCollections} employees={employees} setSuccessMessage={setSuccessMessage} />}
-                    {activeTab === 'report_summary' && <ReportSummaryPage admissions={admissions} doctors={doctors} patients={patients} onOpenRxMaster={() => setShowRxMaster(true)} />}
+                    <div className={activeTab === 'due_collection' ? 'block' : 'hidden'}>
+                        <ClinicDueCollectionPage indoorInvoices={indoorInvoices} setIndoorInvoices={setIndoorInvoices} clinicDueCollections={clinicDueCollections} setClinicDueCollections={setClinicDueCollections} employees={employees} setSuccessMessage={setSuccessMessage} />
+                    </div>
+
+                    <div className={activeTab === 'report_summary' ? 'block' : 'hidden'}>
+                        <ReportSummaryPage admissions={admissions} doctors={doctors} patients={patients} onOpenRxMaster={() => setShowRxMaster(true)} />
+                    </div>
                 </div>
             </div>
-            
-            {showRxMaster && (
-                <DischargeRxMasterModal 
-                    admissions={admissions} 
-                    patients={patients} 
-                    doctors={doctors} 
-                    onClose={() => setShowRxMaster(false)} 
-                />
-            )}
+            {showRxMaster && <DischargeRxMasterModal admissions={admissions} patients={patients} doctors={doctors} onClose={() => setShowRxMaster(false)} />}
         </div>
     );
 };

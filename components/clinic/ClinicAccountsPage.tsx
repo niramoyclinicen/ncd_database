@@ -81,7 +81,6 @@ const ClinicAccountsPage: React.FC<any> = ({
     };
 
     // --- Core logic to categorize an invoice (Mapping Category Breakdown) ---
-    // Refined Logic based on user refined list and "Clinic Fund" checkbox
     const categorizeInvoiceData = (inv: any) => {
         const incomeItems = inv.items.filter((it: any) => it.isClinicFund === true);
 
@@ -124,7 +123,6 @@ const ClinicAccountsPage: React.FC<any> = ({
                     others_ot += it.payable_amount;
                 }
             } else if (!matchesKeyword(it.service_type, ['Admission Fee', 'Oxygen', 'O2', 'Nebulizer', 'Dressing'])) {
-                // If not matched in specific categories but is checked for Clinic Fund
                 others += it.payable_amount;
             }
         });
@@ -291,7 +289,6 @@ const ClinicAccountsPage: React.FC<any> = ({
                                 <th>Adm. ID</th>
                                 <th>Date</th>
                                 <th>Patient Name</th>
-                                <th class="text-right">Adm. Fee</th>
                                 <th>Indication</th>
                                 <th>Doctor</th>
                                 <th>Discharge</th>
@@ -315,7 +312,6 @@ const ClinicAccountsPage: React.FC<any> = ({
                                     <td>${inv.admission_id}</td>
                                     <td>${inv.admission_date || inv.invoice_date}</td>
                                     <td class="font-bold">${inv.patient_name}</td>
-                                    <td class="text-right">৳${inv.admFeeCol.toLocaleString()}</td>
                                     <td>${inv.indication || '-'}</td>
                                     <td>${inv.doctor_name || '-'}</td>
                                     <td>${inv.discharge_date || '-'}</td>
@@ -336,7 +332,7 @@ const ClinicAccountsPage: React.FC<any> = ({
                         </tbody>
                         <tfoot class="bg-gray-100 font-black">
                             <tr>
-                                <td colspan="8" class="text-right">Grand Totals:</td>
+                                <td colspan="7" class="text-right">Grand Totals:</td>
                                 <td class="text-right">৳${reportTotals.admFee.toLocaleString()}</td>
                                 <td class="text-right">৳${reportTotals.lscs.toLocaleString()}</td>
                                 <td class="text-right">৳${reportTotals.gb.toLocaleString()}</td>
@@ -615,7 +611,6 @@ const ClinicAccountsPage: React.FC<any> = ({
                                             <th className="p-2">Adm. ID</th>
                                             <th className="p-2">Adm. Date</th>
                                             <th className="p-2">Patient Name</th>
-                                            <th className="p-2 text-right">Adm. Fee</th>
                                             <th className="p-2">Indication</th>
                                             <th className="p-2">Doctor</th>
                                             <th className="p-2">Discharge</th>
@@ -639,41 +634,40 @@ const ClinicAccountsPage: React.FC<any> = ({
                                                 <td className="p-2 font-mono text-[8pt] text-sky-500 border-r border-slate-800">{inv.admission_id}</td>
                                                 <td className="p-2 border-r border-slate-800">{inv.admission_date || inv.invoice_date}</td>
                                                 <td className="p-2 font-black text-slate-200 border-r border-slate-800 uppercase">{inv.patient_name}</td>
-                                                <td className="p-2 text-right border-r border-slate-800 font-bold">৳{inv.admFeeCol.toLocaleString()}</td>
                                                 <td className="p-2 text-slate-400 border-r border-slate-800 italic">{inv.indication || '-'}</td>
                                                 <td className="p-2 text-slate-300 border-r border-slate-800">{inv.doctor_name || 'Self'}</td>
                                                 <td className="p-2 border-r border-slate-800 text-center">{inv.discharge_date || '-'}</td>
                                                 <td className="p-2 text-sky-400 font-bold border-r border-slate-800 truncate max-w-[100px]" title={inv.subCategory}>{inv.subCategory || '-'}</td>
-                                                <td className="p-2 text-right border-r border-slate-800">৳{inv.admFeeCol.toLocaleString()}</td>
-                                                <td className="p-2 text-right border-r border-slate-800">৳{inv.lscsCol.toLocaleString()}</td>
-                                                <td className="p-2 text-right border-r border-slate-800">৳{inv.gbCol.toLocaleString()}</td>
-                                                <td className="p-2 text-right border-r border-slate-800">৳{inv.othersOtCol.toLocaleString()}</td>
-                                                <td className="p-2 text-right border-r border-slate-800">৳{inv.nvdCol.toLocaleString()}</td>
-                                                <td className="p-2 text-right border-r border-slate-800">৳{inv.dcCol.toLocaleString()}</td>
-                                                <td className="p-2 text-right border-r border-slate-800">৳{inv.consCol.toLocaleString()}</td>
-                                                <td className="p-2 text-right border-r border-slate-800">৳{inv.o2NebCol.toLocaleString()}</td>
-                                                <td className="p-2 text-right border-r border-slate-800">৳{inv.dressCol.toLocaleString()}</td>
-                                                <td className="p-2 text-right border-r border-slate-800">৳{inv.othersCol.toLocaleString()}</td>
+                                                <td className="p-2 text-right border-r border-slate-800">৳${inv.admFeeCol.toLocaleString()}</td>
+                                                <td className="p-2 text-right border-r border-slate-800">৳${inv.lscsCol.toLocaleString()}</td>
+                                                <td className="p-2 text-right border-r border-slate-800">৳${inv.gbCol.toLocaleString()}</td>
+                                                <td className="p-2 text-right border-r border-slate-800">৳${inv.othersOtCol.toLocaleString()}</td>
+                                                <td className="p-2 text-right border-r border-slate-800">৳${inv.nvdCol.toLocaleString()}</td>
+                                                <td className="p-2 text-right border-r border-slate-800">৳${inv.dcCol.toLocaleString()}</td>
+                                                <td className="p-2 text-right border-r border-slate-800">৳${inv.consCol.toLocaleString()}</td>
+                                                <td className="p-2 text-right border-r border-slate-800">৳${inv.o2NebCol.toLocaleString()}</td>
+                                                <td className="p-2 text-right border-r border-slate-800">৳${inv.dressCol.toLocaleString()}</td>
+                                                <td className="p-2 text-right border-r border-slate-800">৳${inv.othersCol.toLocaleString()}</td>
                                                 <td className="p-2 text-right font-black text-emerald-400 bg-emerald-900/10">৳ {inv.paid_amount.toLocaleString()}</td>
                                             </tr>
                                         )) : (
-                                            <tr><td colSpan={19} className="p-20 text-center text-slate-600 italic font-black uppercase opacity-30 text-xl tracking-[0.2em]">No Collection Records Found</td></tr>
+                                            <tr><td colSpan={18} className="p-20 text-center text-slate-600 italic font-black uppercase opacity-30 text-xl tracking-[0.2em]">No Collection Records Found</td></tr>
                                         )}
                                     </tbody>
                                     {collectionReportData.length > 0 && (
                                         <tfoot className="bg-slate-900 text-slate-200 font-black border-t-2 border-slate-700">
                                             <tr>
-                                                <td colSpan={8} className="p-3 text-right uppercase tracking-widest text-[9pt]">Grand Totals:</td>
-                                                <td className="p-3 text-right">৳{reportTotals.admFee.toLocaleString()}</td>
-                                                <td className="p-3 text-right">৳{reportTotals.lscs.toLocaleString()}</td>
-                                                <td className="p-3 text-right">৳{reportTotals.gb.toLocaleString()}</td>
-                                                <td className="p-3 text-right">৳{reportTotals.others_ot.toLocaleString()}</td>
-                                                <td className="p-3 text-right">৳{reportTotals.nvd.toLocaleString()}</td>
-                                                <td className="p-3 text-right">৳{reportTotals.dc.toLocaleString()}</td>
-                                                <td className="p-3 text-right">৳{reportTotals.cons.toLocaleString()}</td>
-                                                <td className="p-3 text-right">৳{reportTotals.o2neb.toLocaleString()}</td>
-                                                <td className="p-3 text-right">৳{reportTotals.dress.toLocaleString()}</td>
-                                                <td className="p-3 text-right">৳{reportTotals.others.toLocaleString()}</td>
+                                                <td colSpan={7} className="p-3 text-right uppercase tracking-widest text-[9pt]">Grand Totals:</td>
+                                                <td className="p-3 text-right">৳${reportTotals.admFee.toLocaleString()}</td>
+                                                <td className="p-3 text-right">৳${reportTotals.lscs.toLocaleString()}</td>
+                                                <td className="p-3 text-right">৳${reportTotals.gb.toLocaleString()}</td>
+                                                <td className="p-3 text-right">৳${reportTotals.others_ot.toLocaleString()}</td>
+                                                <td className="p-3 text-right">৳${reportTotals.nvd.toLocaleString()}</td>
+                                                <td className="p-3 text-right">৳${reportTotals.dc.toLocaleString()}</td>
+                                                <td className="p-3 text-right">৳${reportTotals.cons.toLocaleString()}</td>
+                                                <td className="p-3 text-right">৳${reportTotals.o2neb.toLocaleString()}</td>
+                                                <td className="p-3 text-right">৳${reportTotals.dress.toLocaleString()}</td>
+                                                <td className="p-3 text-right">৳${reportTotals.others.toLocaleString()}</td>
                                                 <td className="p-3 text-right text-emerald-400 text-[11pt] underline decoration-double">৳ {reportTotals.paidTotal.toLocaleString()}</td>
                                             </tr>
                                         </tfoot>
@@ -699,34 +693,34 @@ const ClinicAccountsPage: React.FC<any> = ({
                             <div className="bg-slate-800 p-6 rounded-3xl border border-slate-700 shadow-xl">
                                 <h3 className="text-emerald-400 font-black uppercase text-sm mb-4 border-b border-slate-700 pb-2">Daily Income (Clinic Fund Only)</h3>
                                 <div className="space-y-2 text-xs">
-                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>Admission Fee:</span> <span className="font-black">৳{dailySummaryData.collectionByCategory.admFee.toLocaleString()}</span></div>
-                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>Oxygen / Nebulization:</span> <span className="font-black">৳{dailySummaryData.collectionByCategory.oxygen.toLocaleString()}</span></div>
-                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>Conservative Treatment:</span> <span className="font-black">৳{dailySummaryData.collectionByCategory.conservative.toLocaleString()}</span></div>
-                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>Normal Delivery (NVD):</span> <span className="font-black">৳{dailySummaryData.collectionByCategory.nvd.toLocaleString()}</span></div>
-                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>D&C / Minor Surgery:</span> <span className="font-black">৳{dailySummaryData.collectionByCategory.dc.toLocaleString()}</span></div>
-                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>LSCS / Major Surgery:</span> <span className="font-black">৳{dailySummaryData.collectionByCategory.lscs.toLocaleString()}</span></div>
-                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>GB (Gallbladder) OT:</span> <span className="font-black">৳{dailySummaryData.collectionByCategory.gb_ot.toLocaleString()}</span></div>
-                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>Others OT / Services:</span> <span className="font-black">৳{dailySummaryData.collectionByCategory.others_ot.toLocaleString()}</span></div>
-                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>Dressing:</span> <span className="font-black">৳{dailySummaryData.collectionByCategory.dressing.toLocaleString()}</span></div>
-                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>Miscellaneous (Others):</span> <span className="font-black">৳{dailySummaryData.collectionByCategory.others.toLocaleString()}</span></div>
-                                    <div className="flex justify-between italic text-slate-400 pb-1"><span>Due Recovery (বকেয়া আদায়):</span> <span className="font-black">৳{dailySummaryData.dayDueRecov.toLocaleString()}</span></div>
-                                    <div className="flex justify-between text-xl border-t-2 border-emerald-500/50 pt-3 text-white font-black"><span>Total Clinic Revenue:</span> <span>৳{dailySummaryData.totalCollection.toLocaleString()}</span></div>
+                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>Admission Fee:</span> <span className="font-black">৳${dailySummaryData.collectionByCategory.admFee.toLocaleString()}</span></div>
+                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>Oxygen / Nebulization:</span> <span className="font-black">৳${dailySummaryData.collectionByCategory.oxygen.toLocaleString()}</span></div>
+                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>Conservative Treatment:</span> <span className="font-black">৳${dailySummaryData.collectionByCategory.conservative.toLocaleString()}</span></div>
+                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>Normal Delivery (NVD):</span> <span className="font-black">৳${dailySummaryData.collectionByCategory.nvd.toLocaleString()}</span></div>
+                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>D&C / Minor Surgery:</span> <span className="font-black">৳${dailySummaryData.collectionByCategory.dc.toLocaleString()}</span></div>
+                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>LSCS / Major Surgery:</span> <span className="font-black">৳${dailySummaryData.collectionByCategory.lscs.toLocaleString()}</span></div>
+                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>GB (Gallbladder) OT:</span> <span className="font-black">৳${dailySummaryData.collectionByCategory.gb_ot.toLocaleString()}</span></div>
+                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>Others OT / Services:</span> <span className="font-black">৳${dailySummaryData.collectionByCategory.others_ot.toLocaleString()}</span></div>
+                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>Dressing:</span> <span className="font-black">৳${dailySummaryData.collectionByCategory.dressing.toLocaleString()}</span></div>
+                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>Miscellaneous (Others):</span> <span className="font-black">৳${dailySummaryData.collectionByCategory.others.toLocaleString()}</span></div>
+                                    <div className="flex justify-between italic text-slate-400 pb-1"><span>Due Recovery (বকেয়া আদায়):</span> <span className="font-black">৳${dailySummaryData.dayDueRecov.toLocaleString()}</span></div>
+                                    <div className="flex justify-between text-xl border-t-2 border-emerald-500/50 pt-3 text-white font-black"><span>Total Clinic Revenue:</span> <span>৳${dailySummaryData.totalCollection.toLocaleString()}</span></div>
                                 </div>
                             </div>
                             <div className="bg-slate-800 p-6 rounded-3xl border border-slate-700 shadow-xl">
                                 <h3 className="text-rose-400 font-black uppercase text-sm mb-4 border-b border-slate-700 pb-2">Daily Operating Cost (B)</h3>
                                 <div className="space-y-2 text-xs overflow-y-auto max-h-[300px] custom-scrollbar pr-2">
                                     {clinicExpenseCategories.map(cat => (
-                                        <div key={cat} className="flex justify-between border-b border-slate-700/30 pb-1"><span>{expenseCategoryBanglaMap[cat] || cat}:</span> <span className="font-black">৳{(dailySummaryData.expensesByCategory[cat] || 0).toLocaleString()}</span></div>
+                                        <div key={cat} className="flex justify-between border-b border-slate-700/30 pb-1"><span>{expenseCategoryBanglaMap[cat] || cat}:</span> <span className="font-black">৳${(dailySummaryData.expensesByCategory[cat] || 0).toLocaleString()}</span></div>
                                     ))}
                                 </div>
-                                <div className="flex justify-between text-lg border-t-2 border-rose-500/50 pt-3 text-white font-black mt-2"><span>Total Expense:</span> <span>৳{dailySummaryData.totalExpense.toLocaleString()}</span></div>
+                                <div className="flex justify-between text-lg border-t-2 border-rose-500/50 pt-3 text-white font-black mt-2"><span>Total Expense:</span> <span>৳${dailySummaryData.totalExpense.toLocaleString()}</span></div>
                             </div>
                         </div>
                         <div className="flex justify-center mt-10 no-print">
                             <div className="bg-gradient-to-br from-slate-900 to-indigo-900 p-10 rounded-[3rem] text-center shadow-2xl border-2 border-amber-500/20 scale-110">
                                 <p className="text-slate-400 text-xs font-black uppercase mb-2">Daily Net Profit/Loss (A - B)</p>
-                                <h4 className={`text-5xl font-black ${dailySummaryData.balance >= 0 ? 'text-green-400' : 'text-rose-500'}`}>৳{dailySummaryData.balance.toLocaleString()}</h4>
+                                <h4 className={`text-5xl font-black ${dailySummaryData.balance >= 0 ? 'text-green-400' : 'text-rose-500'}`}>৳${dailySummaryData.balance.toLocaleString()}</h4>
                             </div>
                         </div>
                     </div>
@@ -746,34 +740,34 @@ const ClinicAccountsPage: React.FC<any> = ({
                             <div className="bg-slate-800 p-6 rounded-3xl border border-slate-700 shadow-xl">
                                 <h3 className="text-blue-400 font-black uppercase text-sm mb-4 border-b border-slate-700 pb-2">Monthly Income (Clinic Fund Only)</h3>
                                 <div className="space-y-2 text-xs">
-                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>Admission Fee:</span> <span className="font-black">৳{summaryData.collectionByCategory.admFee.toLocaleString()}</span></div>
-                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>Oxygen / Nebulization:</span> <span className="font-black">৳{summaryData.collectionByCategory.oxygen.toLocaleString()}</span></div>
-                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>Conservative Treatment:</span> <span className="font-black">৳{summaryData.collectionByCategory.conservative.toLocaleString()}</span></div>
-                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>Normal Delivery (NVD):</span> <span className="font-black">৳{summaryData.collectionByCategory.nvd.toLocaleString()}</span></div>
-                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>D&C / Minor Surgery:</span> <span className="font-black">৳{summaryData.collectionByCategory.dc.toLocaleString()}</span></div>
-                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>LSCS / Major Surgery:</span> <span className="font-black">৳{summaryData.collectionByCategory.lscs.toLocaleString()}</span></div>
-                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>GB (Gallbladder) OT:</span> <span className="font-black">৳{summaryData.collectionByCategory.gb_ot.toLocaleString()}</span></div>
-                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>Others OT / Services:</span> <span className="font-black">৳{summaryData.collectionByCategory.others_ot.toLocaleString()}</span></div>
-                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>Dressing:</span> <span className="font-black">৳{summaryData.collectionByCategory.dressing.toLocaleString()}</span></div>
-                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>Miscellaneous (Others):</span> <span className="font-black">৳{summaryData.collectionByCategory.others.toLocaleString()}</span></div>
-                                    <div className="flex justify-between italic text-slate-400 pb-1"><span>Due Recovery (বকেয়া আদায়):</span> <span className="font-black">৳{summaryData.monthDueRecov.toLocaleString()}</span></div>
-                                    <div className="flex justify-between text-xl border-t-2 border-blue-500/50 pt-3 text-white font-black"><span>Total Clinic Revenue:</span> <span>৳{summaryData.totalCollection.toLocaleString()}</span></div>
+                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>Admission Fee:</span> <span className="font-black">৳${summaryData.collectionByCategory.admFee.toLocaleString()}</span></div>
+                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>Oxygen / Nebulization:</span> <span className="font-black">৳${summaryData.collectionByCategory.oxygen.toLocaleString()}</span></div>
+                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>Conservative Treatment:</span> <span className="font-black">৳${summaryData.collectionByCategory.conservative.toLocaleString()}</span></div>
+                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>Normal Delivery (NVD):</span> <span className="font-black">৳${summaryData.collectionByCategory.nvd.toLocaleString()}</span></div>
+                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>D&C / Minor Surgery:</span> <span className="font-black">৳${summaryData.collectionByCategory.dc.toLocaleString()}</span></div>
+                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>LSCS / Major Surgery:</span> <span className="font-black">৳${summaryData.collectionByCategory.lscs.toLocaleString()}</span></div>
+                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>GB (Gallbladder) OT:</span> <span className="font-black">৳${summaryData.collectionByCategory.gb_ot.toLocaleString()}</span></div>
+                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>Others OT / Services:</span> <span className="font-black">৳${summaryData.collectionByCategory.others_ot.toLocaleString()}</span></div>
+                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>Dressing:</span> <span className="font-black">৳${summaryData.collectionByCategory.dressing.toLocaleString()}</span></div>
+                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>Miscellaneous (Others):</span> <span className="font-black">৳${summaryData.collectionByCategory.others.toLocaleString()}</span></div>
+                                    <div className="flex justify-between italic text-slate-400 pb-1"><span>Due Recovery (বকেয়া আদায়):</span> <span className="font-black">৳${summaryData.monthDueRecov.toLocaleString()}</span></div>
+                                    <div className="flex justify-between text-xl border-t-2 border-blue-500/50 pt-3 text-white font-black"><span>Total Clinic Revenue:</span> <span>৳${summaryData.totalCollection.toLocaleString()}</span></div>
                                 </div>
                             </div>
                             <div className="bg-slate-800 p-6 rounded-3xl border border-slate-700 shadow-xl">
                                 <h3 className="text-rose-400 font-black uppercase text-sm mb-4 border-b border-slate-700 pb-2">Monthly Operating Cost (B)</h3>
                                 <div className="space-y-2 text-xs overflow-y-auto max-h-[300px] custom-scrollbar pr-2">
                                     {clinicExpenseCategories.map(cat => (
-                                        <div key={cat} className="flex justify-between border-b border-slate-700/30 pb-1"><span>{expenseCategoryBanglaMap[cat] || cat}:</span> <span className="font-black">৳{(summaryData.expensesByCategory[cat] || 0).toLocaleString()}</span></div>
+                                        <div key={cat} className="flex justify-between border-b border-slate-700/30 pb-1"><span>{expenseCategoryBanglaMap[cat] || cat}:</span> <span className="font-black">৳${(summaryData.expensesByCategory[cat] || 0).toLocaleString()}</span></div>
                                     ))}
                                 </div>
-                                <div className="flex justify-between text-lg border-t-2 border-rose-500/50 pt-3 text-white font-black mt-2"><span>Total Expense:</span> <span>৳{summaryData.totalExpense.toLocaleString()}</span></div>
+                                <div className="flex justify-between text-lg border-t-2 border-rose-500/50 pt-3 text-white font-black mt-2"><span>Total Expense:</span> <span>৳${summaryData.totalExpense.toLocaleString()}</span></div>
                             </div>
                         </div>
                         <div className="flex justify-center mt-10 no-print">
                             <div className="bg-gradient-to-br from-indigo-700 to-slate-900 p-10 rounded-[3rem] text-center shadow-2xl border-2 border-white/10 scale-110">
                                 <p className="text-slate-400 text-xs font-black uppercase mb-2">Monthly Net Profit (A - B)</p>
-                                <h4 className={`text-5xl font-black ${summaryData.balance >= 0 ? 'text-green-400' : 'text-rose-500'}`}>৳{summaryData.balance.toLocaleString()}</h4>
+                                <h4 className={`text-5xl font-black ${summaryData.balance >= 0 ? 'text-green-400' : 'text-rose-500'}`}>৳${summaryData.balance.toLocaleString()}</h4>
                             </div>
                         </div>
                     </div>

@@ -1,6 +1,4 @@
-
 import React, { useMemo, useState } from 'react';
-/** Added fix: Corrected IndoorInvoice import */
 import { PurchaseInvoice, SalesInvoice, IndoorInvoice } from '../DiagnosticData';
 import { MedicineIcon, BackIcon, MapPinIcon, PhoneIcon } from '../Icons';
 
@@ -23,11 +21,13 @@ const MedicineAccountsPage: React.FC<MedicineAccountsPageProps> = ({
 }) => {
     const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth());
     const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
-    const [profitDistributionPercent, setProfitDistributionPercent] = useState<number>(50); // Default 50% for sample
+    const [profitDistributionPercent, setProfitDistributionPercent] = useState<number>(50); // Now manually adjustable
 
     const stats = useMemo(() => {
         // Calculate Current Month Stats
+        // Exclude 'Initial' status from current expenses (Opening stock fix)
         const currentInvoices = purchaseInvoices.filter(inv => {
+            if (inv.status === 'Initial' || inv.status === 'Cancelled') return false;
             const d = new Date(inv.invoiceDate);
             return d.getMonth() === selectedMonth && d.getFullYear() === selectedYear;
         });
@@ -56,6 +56,7 @@ const MedicineAccountsPage: React.FC<MedicineAccountsPageProps> = ({
 
         // Cumulative Stats (Previous Months)
         const prevPurchaseTotal = purchaseInvoices.filter(inv => {
+            if (inv.status === 'Cancelled' || inv.status === 'Initial') return false;
             const d = new Date(inv.invoiceDate);
             return d.getFullYear() < selectedYear || (d.getFullYear() === selectedYear && d.getMonth() < selectedMonth);
         }).reduce((sum, inv) => sum + inv.netPayable, 0);
@@ -77,13 +78,14 @@ const MedicineAccountsPage: React.FC<MedicineAccountsPageProps> = ({
 
         const totalSellPrev = prevOutdoorTotal + prevIndoorTotal;
 
-        // Current Account Logic (Cash Deposits etc - Mocked based on structure)
-        const cashDepositThisMonth = totalSellCurrent; // Assuming sales are cash for now
+        // Balance logic
+        const cashDepositThisMonth = totalSellCurrent; 
         const prevAccumulation = totalSellPrev - prevPurchaseTotal;
 
-        // Monthly List Generation
+        // Monthly List Generation for Chart
         const monthlyData: Record<string, { buy: number, sell: number }> = {};
         [...purchaseInvoices, ...salesInvoices].forEach(inv => {
+            if (inv.status === 'Cancelled' || inv.status === 'Initial') return;
             const d = new Date(inv.invoiceDate);
             if (d.getFullYear() === selectedYear) {
                 const monthName = monthOptions[d.getMonth()].name;
@@ -118,9 +120,7 @@ const MedicineAccountsPage: React.FC<MedicineAccountsPageProps> = ({
     const profitDistValue = (currentBalance * profitDistributionPercent) / 100;
     const remainingBalance = currentBalance - profitDistValue;
 
-    const handlePrint = () => {
-        window.print();
-    };
+    const handlePrint = () => { window.print(); };
 
     const headerCell = "p-3 border border-slate-600 bg-slate-700 text-slate-100 font-bold text-center font-bengali";
     const cell = "p-3 border border-slate-600 text-slate-300 font-bold text-center";
@@ -150,21 +150,36 @@ const MedicineAccountsPage: React.FC<MedicineAccountsPageProps> = ({
             </header>
 
             <main className="flex-1 p-6 md:p-10 max-w-6xl mx-auto w-full">
-                {/* Header Information (For Print) */}
                 <div className="text-center mb-10 hidden print:block">
                     <h2 className="text-3xl font-bold font-bengali">নিরাময় ক্লিনিক এন্ড ডায়াগনস্টিক</h2>
                     <p className="text-lg font-bengali">এনায়েতপুর মন্ডলপাড়া, এনায়েতপুর সিরাজগঞ্জ।</p>
                 </div>
 
-                <div className="flex justify-between items-center mb-8 no-print">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 no-print gap-4">
                     <h2 className="text-3xl font-extrabold font-bengali text-amber-400 border-b-2 border-amber-500/30 pb-2">মেডিসিন ক্রয়-বিক্রয় ব্যালেন্স</h2>
-                    <div className="flex gap-4">
-                        <select value={selectedMonth} onChange={e => setSelectedMonth(parseInt(e.target.value))} className="bg-slate-800 border border-slate-700 p-2 rounded text-white font-bold outline-none focus:ring-2 focus:ring-blue-500">
-                            {monthOptions.map(m => <option key={m.value} value={m.value}>{m.name}</option>)}
-                        </select>
-                        <select value={selectedYear} onChange={e => setSelectedYear(parseInt(e.target.value))} className="bg-slate-800 border border-slate-700 p-2 rounded text-white font-bold outline-none focus:ring-2 focus:ring-blue-500">
-                            {[2023, 2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}
-                        </select>
+                    <div className="flex flex-wrap gap-4 items-center bg-slate-800/50 p-4 rounded-2xl border border-slate-700">
+                        <div className="flex flex-col gap-1">
+                            <label className="text-[10px] font-black text-slate-500 uppercase ml-1">Distribution %</label>
+                            <input 
+                                type="number" 
+                                value={profitDistributionPercent} 
+                                onChange={e => setProfitDistributionPercent(parseFloat(e.target.value) || 0)}
+                                className="w-24 bg-slate-900 border border-slate-600 rounded-lg p-2 text-white font-black text-center focus:ring-2 focus:ring-amber-500 outline-none"
+                                onFocus={e => e.target.select()}
+                            />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                            <label className="text-[10px] font-black text-slate-500 uppercase ml-1">Select Month</label>
+                            <select value={selectedMonth} onChange={e => setSelectedMonth(parseInt(e.target.value))} className="bg-slate-800 border border-slate-600 p-2 rounded-lg text-white font-bold outline-none focus:ring-2 focus:ring-blue-500">
+                                {monthOptions.map(m => <option key={m.value} value={m.value}>{m.name}</option>)}
+                            </select>
+                        </div>
+                        <div className="flex flex-col gap-1">
+                            <label className="text-[10px] font-black text-slate-500 uppercase ml-1">Select Year</label>
+                            <select value={selectedYear} onChange={e => setSelectedYear(parseInt(e.target.value))} className="bg-slate-800 border border-slate-600 p-2 rounded-lg text-white font-bold outline-none focus:ring-2 focus:ring-blue-500">
+                                {[2023, 2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}
+                            </select>
+                        </div>
                     </div>
                 </div>
 
@@ -210,7 +225,6 @@ const MedicineAccountsPage: React.FC<MedicineAccountsPageProps> = ({
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-10 mt-16">
-                    {/* Left Section: Current Summary */}
                     <div className="space-y-4">
                         <h4 className="text-2xl font-bold font-bengali text-cyan-400 mb-4 underline decoration-cyan-500/30">বর্তমান হিসাব:</h4>
                         <div className="bg-slate-800/50 border border-slate-700 rounded-xl overflow-hidden max-w-sm">
@@ -231,17 +245,8 @@ const MedicineAccountsPage: React.FC<MedicineAccountsPageProps> = ({
                                 </tbody>
                             </table>
                         </div>
-                        <div className="mt-6">
-                            <p className="text-xl font-bold font-bengali text-slate-400 flex items-center gap-4">
-                                টাকা যে অবস্থায় আছে = 
-                                <span className="bg-slate-800 border-b-2 border-slate-600 px-10 py-2 text-white font-mono min-w-[200px] text-center inline-block">
-                                    {(stats.prevAccumulation + stats.cashDepositThisMonth).toLocaleString()}
-                                </span>
-                            </p>
-                        </div>
                     </div>
 
-                    {/* Right Section: Monthly Breakdown */}
                     <div className="bg-slate-800/40 p-6 rounded-2xl border border-slate-700/50 shadow-inner">
                         <h4 className="text-xl font-bold text-slate-400 mb-4 uppercase tracking-widest flex items-center gap-2">
                              <MedicineIcon className="w-5 h-5 text-rose-400" />
@@ -268,8 +273,6 @@ const MedicineAccountsPage: React.FC<MedicineAccountsPageProps> = ({
                         </div>
                     </div>
                 </div>
-
-                {/* Footer Notes */}
                 <div className="mt-20 text-center text-slate-500 text-sm italic border-t border-slate-800 pt-6">
                     &copy; 2024 Niramoy Clinic Accounts Management System. All financial data calculated based on system invoices.
                 </div>

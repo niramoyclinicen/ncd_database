@@ -1,8 +1,6 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
-/** Added fix: Corrected IndoorInvoice import */
 import { Medicine, Employee, PurchaseInvoice, InvoiceItem, Doctor, SalesInvoice, SalesItem, DrugMonograph, IndoorInvoice } from './DiagnosticData';
-import { BackIcon, MapPinIcon, PhoneIcon, MedicineIcon, FileTextIcon, Pill, SearchIcon, Activity, SaveIcon } from './Icons';
+import { BackIcon, MapPinIcon, PhoneIcon, MedicineIcon, FileTextIcon, Pill, SearchIcon, Activity, SaveIcon, TrashIcon } from './Icons';
 import SearchableSelect from './SearchableSelect';
 
 interface MedicinePageProps {
@@ -23,7 +21,8 @@ interface MedicinePageProps {
 type MedicineTab = 'buy' | 'due_paid' | 'sell' | 'store' | 'chart' | 'hishab';
 type ViewMode = 'list' | 'add' | 'edit' | 'print';
 
-const formulations = ['Tab', 'Cap', 'Syr', 'Inj', 'Susp', 'Cream', 'Oint', 'Drops', 'Inhaler', 'Supp', 'Sachet', 'Other'];
+// Added Soln and Inf to the formulations list
+const formulations = ['Tab', 'Cap', 'Syr', 'Inj', 'Susp', 'Soln', 'Inf', 'Cream', 'Oint', 'Drops', 'Inhaler', 'Supp', 'Sachet', 'Other'];
 
 const monthOptions = [
     { value: 0, name: 'January' }, { value: 1, name: 'February' }, { value: 2, name: 'March' },
@@ -49,6 +48,9 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
   const [successMessage, setSuccessMessage] = useState('');
   const [errors, setErrors] = useState<Record<string, boolean>>({});
+
+  const [editingPurchaseId, setEditingPurchaseId] = useState<string | null>(null);
+  const [isOpeningStock, setIsOpeningStock] = useState(false);
 
   // Sales State Extras
   const [editingInvoiceId, setEditingInvoiceId] = useState<string | null>(null);
@@ -89,7 +91,7 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
   useEffect(() => {
     const sub = purchaseFormData.items.reduce((sum, item) => sum + item.lineTotalBuy, 0);
     const net = sub - purchaseFormData.discount;
-    const due = net - purchaseFormData.paidAmount;
+    const due = net - (purchaseFormData.paidAmount || 0);
     setPurchaseFormData(prev => ({ ...prev, totalAmount: sub, netPayable: net, dueAmount: due }));
   }, [purchaseFormData.items, purchaseFormData.discount, purchaseFormData.paidAmount]);
 
@@ -203,38 +205,82 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
   const handleSavePurchase = () => {
       if (!purchaseFormData.source) { setErrors({ source: true }); return; }
       if (purchaseFormData.items.length === 0) return;
-      const updatedMedicines = [...medicines];
-      purchaseFormData.items.forEach(item => {
-          const idx = updatedMedicines.findIndex(m => m.id === item.id);
-          if (idx >= 0) { 
-              updatedMedicines[idx].stock += Number(item.qtyBuying); 
-              updatedMedicines[idx].unitPriceBuy = Number(item.unitPriceBuy); 
-              updatedMedicines[idx].unitPriceSell = Number(item.unitPriceSell); 
-              updatedMedicines[idx].genericName = item.genericName;
-              updatedMedicines[idx].strength = item.strength;
-              updatedMedicines[idx].formulation = item.formulation;
-              updatedMedicines[idx].expiryDate = item.expiryDate;
+      
+      const finalStatus = isOpeningStock ? 'Initial' : 'Posted';
+      
+      setMedicines(prevMeds => {
+          const newMeds = [...prevMeds];
+          // If editing, reverse the previous invoice items quantities first
+          if(buyViewMode === 'edit' && editingPurchaseId) {
+              const oldInv = invoices.find(x => x.invoiceId === editingPurchaseId);
+              if(oldInv) {
+                  oldInv.items.forEach(oldItem => {
+                      const mIdx = newMeds.findIndex(m => m.id === oldItem.id);
+                      if (mIdx >= 0) newMeds[mIdx] = { ...newMeds[mIdx], stock: Math.max(0, newMeds[mIdx].stock - oldItem.qtyBuying) };
+                  });
+              }
           }
-          else { 
-              updatedMedicines.push({ id: item.id, tradeName: item.tradeName, genericName: item.genericName, formulation: item.formulation, strength: item.strength, stock: Number(item.qtyBuying), unitPriceBuy: item.unitPriceBuy, unitPriceSell: item.unitPriceSell, expiryDate: item.expiryDate }); 
-          }
+
+          // Apply current form quantities
+          purchaseFormData.items.forEach(item => {
+              const mIdx = newMeds.findIndex(m => m.id === item.id);
+              if (mIdx >= 0) { 
+                  newMeds[mIdx] = { 
+                      ...newMeds[mIdx], 
+                      stock: newMeds[mIdx].stock + Number(item.qtyBuying),
+                      unitPriceBuy: Number(item.unitPriceBuy),
+                      unitPriceSell: Number(item.unitPriceSell),
+                      genericName: item.genericName,
+                      strength: item.strength,
+                      formulation: item.formulation,
+                      expiryDate: item.expiryDate
+                  };
+              } else { 
+                  newMeds.push({ 
+                      id: item.id, tradeName: item.tradeName, genericName: item.genericName, 
+                      formulation: item.formulation, strength: item.strength, 
+                      stock: Number(item.qtyBuying), unitPriceBuy: item.unitPriceBuy, 
+                      unitPriceSell: item.unitPriceSell, expiryDate: item.expiryDate 
+                  }); 
+              }
+          });
+          return newMeds;
       });
-      setMedicines(updatedMedicines);
-      setInvoices([ { ...purchaseFormData, status: 'Posted', createdDate: new Date().toISOString() }, ...invoices ]);
-      setSuccessMessage("Purchase invoice saved!");
+
+      if (buyViewMode === 'edit') {
+          setInvoices(prev => prev.map(inv => inv.invoiceId === editingPurchaseId ? { ...purchaseFormData, status: finalStatus as any } : inv));
+          setSuccessMessage("Purchase invoice updated!");
+      } else {
+          setInvoices([ { ...purchaseFormData, status: finalStatus as any, createdDate: new Date().toISOString() }, ...invoices ]);
+          setSuccessMessage("Purchase invoice saved!");
+      }
+      
       setBuyViewMode('list');
-      setPurchaseFormData({ invoiceId: '', invoiceDate: new Date().toISOString().split('T')[0], source: '', items: [], totalAmount: 0, discount: 0, netPayable: 0, paidAmount: 0, dueAmount: 0, billCreatedBy: 'Admin', billPaidBy: '', receivedBy: '', status: 'Saved', createdDate: '' });
+      setEditingPurchaseId(null);
+      setIsOpeningStock(false);
+  };
+
+  const handleReturnPurchase = (inv: PurchaseInvoice) => {
+    if(!confirm(`সাপ্লায়ার "${inv.source}" এর সকল ঔষধ ফেরত পাঠাতে চান? স্টক থেকে ঔষধ বিয়োগ হয়ে যাবে।`)) return;
+    
+    setMedicines(prevMeds => prevMeds.map(m => {
+        const returnedItem = inv.items.find(it => it.id === m.id);
+        if (returnedItem) {
+            return { ...m, stock: Math.max(0, m.stock - returnedItem.qtyBuying) };
+        }
+        return m;
+    }));
+
+    setInvoices(prev => prev.filter(x => x.invoiceId !== inv.invoiceId));
+    setSuccessMessage("Purchase Invoice Returned & Stock Adjusted!");
   };
 
   const handleSaveSales = () => {
       if (!salesFormData.customerName) { setErrors({ customerName: true }); return; }
       if (salesFormData.items.length === 0) return;
       
-      // We use functional updates to ensure consistency
       setMedicines(prevMeds => {
           const newMeds = [...prevMeds];
-          
-          // Revert old if editing
           if (sellViewMode === 'edit' && editingInvoiceId) {
               const oldInv = salesInvoices.find(x => x.invoiceId === editingInvoiceId);
               if (oldInv) {
@@ -244,11 +290,9 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
                   });
               }
           }
-
-          // Apply current form quantities
           salesFormData.items.forEach(newItem => {
               const mIdx = newMeds.findIndex(m => m.id === newItem.id);
-              if (mIdx >= 0) newMeds[mIdx] = { ...newMeds[mIdx], stock: newMeds[mIdx].stock - newItem.qtySelling };
+              if (mIdx >= 0) newMeds[mIdx] = { ...newMeds[mIdx], stock: Math.max(0, newMeds[mIdx].stock - newItem.qtySelling) };
           });
           return newMeds;
       });
@@ -260,24 +304,17 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
           setSalesInvoices([ { ...salesFormData, status: 'Posted', createdDate: new Date().toISOString() }, ...salesInvoices ]);
           setSuccessMessage("Sale Completed Successfully!");
       }
-      
       setSellViewMode('list');
       setEditingInvoiceId(null);
   };
 
   const handleReturnSale = (inv: SalesInvoice) => {
     if(!confirm(`পেশেন্ট "${inv.customerName}" এর সকল ঔষধ ফেরত নিতে চান? স্টকে ঔষধ যোগ হয়ে যাবে।`)) return;
-    
-    // 1. Update Medicines Stock correctly using immutable updates
     setMedicines(prevMeds => prevMeds.map(m => {
         const returnedItem = inv.items.find(it => it.id === m.id);
-        if (returnedItem) {
-            return { ...m, stock: m.stock + returnedItem.qtySelling };
-        }
+        if (returnedItem) return { ...m, stock: m.stock + returnedItem.qtySelling };
         return m;
     }));
-
-    // 2. Remove the Invoice
     setSalesInvoices(prev => prev.filter(x => x.invoiceId !== inv.invoiceId));
     setSuccessMessage("Return Processed! Stock Restored.");
   };
@@ -299,7 +336,6 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
   };
 
   // --- PRINT FUNCTIONS ---
-
   const handlePrintPurchase = (inv: PurchaseInvoice) => {
     const printContent = `<html><head><title>Purchase ${inv.invoiceId}</title><style>@page{size:A4;margin:15mm}body{font-family:sans-serif;padding:0;color:#333}table{width:100%;border-collapse:collapse;margin-top:20px}th,td{border:1px solid #ccc;padding:8px;text-align:left;font-size:12px}th{background:#f4f4f4}.header{text-align:center;border-bottom:2px solid #333;padding-bottom:10px;margin-bottom:20px}.header h1{margin:0;font-size:20px}.total-area{margin-top:20px;text-align:right;font-weight:bold;font-size:13px}</style></head><body><div class="header"><h1>Niramoy Clinic & Diagnostic</h1><p>Enayetpur, Sirajgonj | 01730 923007</p><p><b>Purchase Voucher</b></p></div><p>Invoice: ${inv.invoiceId} | Date: ${inv.invoiceDate}<br>Supplier: <b>${inv.source}</b></p><table><thead><tr><th>Item Name</th><th>Generic</th><th>Qty</th><th>Buy Price</th><th>Total</th></tr></thead><tbody>${inv.items.map(i=>`<tr><td>${i.tradeName} ${i.strength}</td><td>${i.genericName}</td><td>${i.qtyBuying}</td><td>${i.unitPriceBuy.toFixed(2)}</td><td>${i.lineTotalBuy.toFixed(2)}</td></tr>`).join('')}</tbody></table><div class="total-area"><p>Net Payable: ৳${inv.netPayable.toFixed(2)}</p><p>Paid: ৳${inv.paidAmount.toFixed(2)}</p><p>Due: ৳${inv.dueAmount.toFixed(2)}</p></div><div style="margin-top:50px;display:flex;justify-content:space-between"><div style="border-top:1px solid #000;width:150px;text-align:center;font-size:10px">Supplier Signature</div><div style="border-top:1px solid #000;width:150px;text-align:center;font-size:10px">Received By</div></div></body></html>`;
     const win = window.open('', '_blank'); win?.document.write(printContent); win?.document.close(); win?.print();
@@ -311,14 +347,58 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
   };
 
   const handlePrintStore = () => {
-    const printContent = `<html><head><title>Stock Report</title><style>@page{size:A4;margin:15mm}body{font-family:sans-serif;padding:0;color:#333}table{width:100%;border-collapse:collapse;margin-top:20px}th,td{border:1px solid #000;padding:5px;text-align:left;font-size:10px}th{background:#f4f4f4;text-transform:uppercase}.header{text-align:center;border-bottom:2px solid #333;padding-bottom:10px;margin-bottom:10px}.header h1{margin:0;font-size:18px}</style></head><body><div class="header"><h1>Niramoy Clinic & Diagnostic</h1><p>Stock Status Report - ${new Date().toLocaleDateString()}</p></div><table><thead><tr><th>Brand Name</th><th>Generic</th><th>Strength</th><th>Exp</th><th>Buy P.</th><th>Sell P.</th><th>Stock</th><th>Value</th></tr></thead><tbody>${medicines.map(m=>`<tr><td>${m.tradeName}</td><td>${m.genericName}</td><td>${m.strength}</td><td>${m.expiryDate||'N/A'}</td><td>${m.unitPriceBuy.toFixed(2)}</td><td>${m.unitPriceSell.toFixed(2)}</td><td style="font-weight:bold">${m.stock}</td><td>${(m.stock*m.unitPriceBuy).toFixed(2)}</td></tr>`).join('')}</tbody></table><div style="margin-top:20px;text-align:right;font-weight:bold;font-size:12px">Total Inventory Value: ৳${medicines.reduce((s,m)=>s+(m.stock*m.unitPriceBuy),0).toFixed(2)}</div></body></html>`;
-    const win = window.open('', '_blank'); win?.document.write(printContent); win?.document.close(); win?.print();
+    const win = window.open('', '_blank');
+    if (!win) return;
+    const html = `
+      <html>
+        <head>
+          <title>Medicine Stock Inventory</title>
+          <script src="https://cdn.tailwindcss.com"></script>
+        </head>
+        <body class="p-10">
+          <div class="text-center mb-8">
+            <h1 class="text-2xl font-bold uppercase">Niramoy Clinic & Diagnostic</h1>
+            <p>Medicine Stock Inventory - ${new Date().toLocaleDateString()}</p>
+          </div>
+          <table class="w-full border-collapse border border-slate-400 text-sm">
+            <thead>
+              <tr class="bg-slate-100">
+                <th class="border border-slate-400 p-2">Medicine Name</th>
+                <th class="border border-slate-400 p-2">Generic Name</th>
+                <th class="border border-slate-400 p-2 text-center">Stock</th>
+                <th class="border border-slate-400 p-2 text-right">Buy Price</th>
+                <th class="border border-slate-400 p-2 text-right">Asset Value</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${medicines.map(m => `
+                <tr>
+                  <td class="border border-slate-400 p-2 font-bold">${m.tradeName} ${m.strength}</td>
+                  <td class="border border-slate-400 p-2 italic text-slate-600">${m.genericName}</td>
+                  <td class="border border-slate-400 p-2 text-center">${m.stock}</td>
+                  <td class="border border-slate-400 p-2 text-right">${m.unitPriceBuy.toFixed(2)}</td>
+                  <td class="border border-slate-400 p-2 text-right font-bold">${(m.stock * m.unitPriceBuy).toFixed(2)}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+            <tfoot>
+              <tr class="bg-slate-50 font-bold">
+                <td colspan="4" class="border border-slate-400 p-2 text-right">Total Asset Value:</td>
+                <td class="border border-slate-400 p-2 text-right">৳${medicines.reduce((sum, m) => sum + (m.stock * m.unitPriceBuy), 0).toFixed(2)}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </body>
+      </html>
+    `;
+    win.document.write(html); win.document.close();
+    setTimeout(() => { win.print(); win.close(); }, 500);
   };
 
   const handlePrintHishab = () => {
-    const monthName = monthOptions.find(m => m.value === selectedMonth)?.name || '';
+    const monthName = monthOptions[selectedMonth].name;
     const filteredPurchases = invoices.filter(inv => {
-        if (!inv.invoiceDate) return false;
+        if (!inv.invoiceDate || inv.status === 'Cancelled' || inv.status === 'Initial') return false;
         const [y, m] = inv.invoiceDate.split('-').map(Number);
         return (m - 1) === selectedMonth && y === selectedYear;
     });
@@ -327,80 +407,71 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
         const [y, m] = inv.invoiceDate.split('-').map(Number);
         return (m - 1) === selectedMonth && y === selectedYear;
     });
-    const buyTotals = filteredPurchases.reduce((acc, inv) => { acc.val += inv.netPayable; acc.paid += inv.paidAmount; return acc; }, { val: 0, paid: 0 });
-    const saleTotals = filteredSales.reduce((sum, inv) => sum + inv.netPayable, 0);
+    const buyTotal = filteredPurchases.reduce((sum, inv) => sum + inv.netPayable, 0);
+    const saleTotal = filteredSales.reduce((sum, inv) => sum + inv.netPayable, 0);
 
-    const printContent = `
-    <html>
-    <head>
-        <title>Medicine Account Summary - ${monthName} ${selectedYear}</title>
-        <style>
-            @page { size: A4; margin: 20mm; }
-            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #333; line-height: 1.5; }
-            .header { text-align: center; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 20px; }
-            .header h1 { margin: 0; font-size: 24px; text-transform: uppercase; color: #1e40af; }
-            .header p { margin: 2px 0; font-size: 12px; font-weight: bold; }
-            .report-title { text-align: center; font-size: 18px; font-weight: bold; text-decoration: underline; margin-bottom: 20px; text-transform: uppercase; }
-            .summary-box { display: flex; gap: 10px; margin-bottom: 30px; }
-            .stat-card { flex: 1; border: 1px solid #ddd; padding: 15px; border-radius: 8px; text-align: center; background: #f9fafb; }
-            .stat-card span { display: block; font-size: 10px; font-weight: bold; color: #666; text-transform: uppercase; margin-bottom: 5px; }
-            .stat-card b { font-size: 18px; color: #000; }
-            .stat-card.balance { border: 2px solid #3b82f6; background: #eff6ff; }
-            .tables-container { display: flex; flex-direction: column; gap: 30px; }
-            table { width: 100%; border-collapse: collapse; font-size: 11px; }
-            th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
-            th { background: #f3f4f6; font-weight: bold; text-transform: uppercase; }
-            .text-right { text-align: right; }
-            .tfoot { background: #eee; font-weight: bold; }
-            .ledger-title { font-size: 14px; font-weight: bold; margin-bottom: 8px; border-left: 4px solid #3b82f6; padding-left: 10px; }
-        </style>
-    </head>
-    <body>
-        <div class="header">
-            <h1>Niramoy Clinic & Diagnostic</h1>
-            <p>Enayetpur, Sirajgonj | Mobile: 01730 923007</p>
-        </div>
-        <div class="report-title">Medicine Ledger Analysis: ${monthName} - ${selectedYear}</div>
-        <div class="summary-box">
-            <div class="stat-card"><span>Total Purchase (Buy)</span><b>৳ ${buyTotals.val.toLocaleString()}</b></div>
-            <div class="stat-card"><span>Total Sales (Sell)</span><b>৳ ${saleTotals.toLocaleString()}</b></div>
-            <div class="stat-card balance"><span>Net Balance</span><b>৳ ${(saleTotals - buyTotals.val).toLocaleString()}</b></div>
-        </div>
-        <div class="tables-container">
+    const win = window.open('', '_blank');
+    if (!win) return;
+    const html = `
+      <html>
+        <head>
+          <title>Medicine Hishab - ${monthName} ${selectedYear}</title>
+          <script src="https://cdn.tailwindcss.com"></script>
+        </head>
+        <body class="p-10">
+          <div class="text-center mb-8">
+            <h1 class="text-2xl font-bold uppercase">Niramoy Clinic & Diagnostic</h1>
+            <p>Medicine Ledger Summary: ${monthName} ${selectedYear}</p>
+          </div>
+          <div class="grid grid-cols-2 gap-8">
             <div>
-                <div class="ledger-title">Stock Purchase Ledger</div>
-                <table>
-                    <thead><tr><th>Date</th><th>Supplier</th><th class="text-right">Bill Amount</th><th className="text-right">Paid</th></tr></thead>
-                    <tbody>${filteredPurchases.map(inv => `<tr><td>${inv.invoiceDate}</td><td>${inv.source}</td><td class="text-right">৳${inv.netPayable.toLocaleString()}</td><td class="text-right">৳${inv.paidAmount.toLocaleString()}</td></tr>`).join('')}</tbody>
-                    <tfoot class="tfoot"><tr><td colspan="2" class="text-right">TOTAL:</td><td class="text-right">৳${buyTotals.val.toLocaleString()}</td><td class="text-right">৳${buyTotals.paid.toLocaleString()}</td></tr></tfoot>
-                </table>
+              <h2 class="font-bold border-b mb-2 uppercase text-sm">Purchase Ledger</h2>
+              <table class="w-full border-collapse border border-slate-400 text-[10px]">
+                <thead><tr class="bg-slate-100"><th>Date</th><th>Supplier</th><th class="text-right">Amount</th></tr></thead>
+                <tbody>
+                  ${filteredPurchases.map(inv => `<tr><td class="border border-slate-400 p-1">${inv.invoiceDate}</td><td class="border border-slate-400 p-1">${inv.source}</td><td class="border border-slate-400 p-1 text-right">${inv.netPayable.toFixed(2)}</td></tr>`).join('')}
+                </tbody>
+                <tfoot><tr class="font-bold"><td>Total</td><td></td><td class="text-right">৳${buyTotal.toFixed(2)}</td></tr></tfoot>
+              </table>
             </div>
             <div>
-                <div class="ledger-title">Outdoor Sales Journal</div>
-                <table>
-                    <thead><tr><th>Date</th><th>Category</th><th class="text-right">Sales Amount</th></tr></thead>
-                    <tbody>${filteredSales.map(inv => `<tr><td>${inv.invoiceDate}</td><td>Outdoor Sale</td><td class="text-right">৳${inv.netPayable.toLocaleString()}</td></tr>`).join('')}</tbody>
-                    <tfoot class="tfoot"><tr><td colspan="2" class="text-right">GRAND REVENUE:</td><td class="text-right">৳${saleTotals.toLocaleString()}</td></tr></tfoot>
-                </table>
+              <h2 class="font-bold border-b mb-2 uppercase text-sm">Sales Journal</h2>
+              <table class="w-full border-collapse border border-slate-400 text-[10px]">
+                <thead><tr class="bg-slate-100"><th>Date</th><th>Category</th><th class="text-right">Amount</th></tr></thead>
+                <tbody>
+                  ${filteredSales.map(inv => `<tr><td class="border border-slate-400 p-1">${inv.invoiceDate}</td><td class="border border-slate-400 p-1">Outdoor Sale</td><td class="border border-slate-400 p-1 text-right">${inv.netPayable.toFixed(2)}</td></tr>`).join('')}
+                </tbody>
+                <tfoot><tr class="font-bold"><td>Total</td><td></td><td class="text-right">৳${saleTotal.toFixed(2)}</td></tr></tfoot>
+              </table>
             </div>
-        </div>
-    </body>
-    </html>`;
-    const win = window.open('', '_blank'); win?.document.write(printContent); win?.document.close(); setTimeout(() => win?.print(), 500);
+          </div>
+          <div class="mt-8 p-4 border-2 border-black bg-gray-50 flex justify-between font-bold text-lg">
+            <span>Net Profit/Loss:</span>
+            <span>৳${(saleTotal - buyTotal).toFixed(2)}</span>
+          </div>
+        </body>
+      </html>
+    `;
+    win.document.write(html); win.document.close();
+    setTimeout(() => { win.print(); win.close(); }, 750);
   };
-
-  // --- RENDER SECTIONS ---
 
   const renderBuyTab = () => {
     if(buyViewMode === 'list') return (
         <div className="space-y-4">
-            <div className="flex justify-between items-center"><h2 className="text-2xl font-bold text-blue-400">Purchase Invoices</h2><button onClick={() => {const newId = `PUR-${Date.now()}`; setPurchaseFormData({invoiceId: newId, invoiceDate: new Date().toISOString().split('T')[0], source: '', items: [], totalAmount: 0, discount: 0, netPayable: 0, paidAmount: 0, dueAmount: 0, billCreatedBy: 'Admin', billPaidBy: '', receivedBy: '', status: 'Saved', createdDate: ''}); setBuyViewMode('add'); setErrors({});}} className="bg-blue-600 text-white px-6 py-2.5 rounded-lg hover:bg-blue-500 font-bold shadow-lg transition-all">+ Add New Purchase</button></div>
-            <div className="overflow-x-auto rounded-xl border border-slate-700 shadow-2xl"><table className="w-full text-left border-collapse"><thead className="bg-slate-700 text-slate-100"><tr><th className="p-4 uppercase text-xs font-black">ID</th><th className="p-4 uppercase text-xs font-black">Date</th><th className="p-4 uppercase text-xs font-black">Supplier</th><th className="p-4 text-right uppercase text-xs font-black">Net Amount</th><th className="p-4 text-right uppercase text-xs font-black">Due</th><th className="p-4 text-center uppercase text-xs font-black">Actions</th></tr></thead><tbody>{invoices.map(inv => (<tr key={inv.invoiceId} className="bg-slate-800 border-b border-slate-700 hover:bg-slate-750 transition-colors"><td className="p-4 text-slate-300 font-mono text-sm">{inv.invoiceId}</td><td className="p-4 text-slate-100 font-bold">{inv.invoiceDate}</td><td className="p-4 text-white font-black text-base">{inv.source}</td><td className="p-4 text-sky-400 text-right font-black">৳{inv.netPayable.toFixed(2)}</td><td className="p-4 text-red-500 text-right font-black">৳{inv.dueAmount.toFixed(2)}</td><td className="p-4 text-center space-x-4"><button onClick={() => { setPurchaseFormData(inv); setBuyViewMode('edit'); setErrors({}); }} className="text-sky-400 hover:text-white text-sm font-bold underline">Edit</button><button onClick={() => handlePrintPurchase(inv)} className="text-emerald-400 hover:text-white text-sm font-bold underline">Print</button></td></tr>))}</tbody></table></div>
+            <div className="flex justify-between items-center"><h2 className="text-2xl font-bold text-blue-400">Purchase Invoices</h2><button onClick={() => {const newId = `PUR-${Date.now()}`; setPurchaseFormData({invoiceId: newId, invoiceDate: new Date().toISOString().split('T')[0], source: '', items: [], totalAmount: 0, discount: 0, netPayable: 0, paidAmount: 0, dueAmount: 0, billCreatedBy: 'Admin', billPaidBy: '', receivedBy: '', status: 'Saved', createdDate: ''}); setBuyViewMode('add'); setErrors({}); setIsOpeningStock(false);}} className="bg-blue-600 text-white px-6 py-2.5 rounded-lg hover:bg-blue-500 font-bold shadow-lg transition-all">+ Add New Purchase</button></div>
+            <div className="overflow-x-auto rounded-xl border border-slate-700 shadow-2xl"><table className="w-full text-left border-collapse"><thead className="bg-slate-700 text-slate-100"><tr><th className="p-4 uppercase text-xs font-black">ID</th><th className="p-4 uppercase text-xs font-black">Date</th><th className="p-4 uppercase text-xs font-black">Supplier</th><th className="p-4 text-right uppercase text-xs font-black">Net Amount</th><th className="p-4 text-right uppercase text-xs font-black">Due</th><th className="p-4 text-center uppercase text-xs font-black">Status</th><th className="p-4 text-center uppercase text-xs font-black">Actions</th></tr></thead><tbody>{invoices.map(inv => (<tr key={inv.invoiceId} className={`bg-slate-800 border-b border-slate-700 hover:bg-slate-750 transition-colors ${inv.status==='Initial'?'opacity-70':''}`}><td className="p-4 text-slate-300 font-mono text-sm">{inv.invoiceId}</td><td className="p-4 text-slate-100 font-bold">{inv.invoiceDate}</td><td className="p-4 text-white font-black text-base">{inv.source}</td><td className="p-4 text-sky-400 text-right font-black">৳{inv.netPayable.toFixed(2)}</td><td className="p-4 text-red-500 text-right font-black">৳{inv.dueAmount.toFixed(2)}</td><td className="p-4 text-center"><span className={`text-[10px] font-black px-2 py-1 rounded ${inv.status==='Initial'?'bg-amber-600/20 text-amber-500':'bg-blue-600/20 text-blue-500'}`}>{inv.status || 'Posted'}</span></td><td className="p-4 text-center space-x-4"><button onClick={() => { setPurchaseFormData(inv); setBuyViewMode('edit'); setEditingPurchaseId(inv.invoiceId); setIsOpeningStock(inv.status === 'Initial'); setErrors({}); }} className="text-sky-400 hover:text-white text-sm font-bold underline">Edit</button><button onClick={() => handleReturnPurchase(inv)} className="text-rose-400 hover:text-rose-600 text-sm font-bold underline">Return/Del</button><button onClick={() => handlePrintPurchase(inv)} className="text-emerald-400 hover:text-white text-sm font-bold underline">Print</button></td></tr>))}</tbody></table></div>
         </div>
     );
     return (
         <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-2xl animate-fade-in">
-            <h2 className="text-2xl font-black text-white mb-6 border-b border-slate-700 pb-2">{buyViewMode === 'add' ? 'New Purchase Entry' : 'Edit Purchase Entry'}</h2>
+            <div className="flex justify-between items-center mb-6 border-b border-slate-700 pb-2">
+                <h2 className="text-2xl font-black text-white">{buyViewMode === 'add' ? 'New Purchase Entry' : 'Edit Purchase Entry'}</h2>
+                <div className="flex items-center gap-3 bg-slate-900 px-4 py-2 rounded-xl border border-amber-900/30">
+                    <input type="checkbox" id="opening_stock" checked={isOpeningStock} onChange={e=>setIsOpeningStock(e.target.checked)} className="w-5 h-5 accent-amber-500"/>
+                    <label htmlFor="opening_stock" className="text-xs font-black text-amber-500 uppercase tracking-widest cursor-pointer">Initial Opening Stock (No Expense)</label>
+                </div>
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
                 <div><label className="block text-xs font-black text-slate-400 mb-1 uppercase">Invoice ID</label><input type="text" value={purchaseFormData.invoiceId} disabled className="w-full bg-slate-900 border border-slate-600 rounded p-2.5 text-slate-500 font-bold" /></div>
                 <div><label className="block text-xs font-black text-slate-400 mb-1 uppercase">Date</label><input type="date" value={purchaseFormData.invoiceDate} onChange={e=>setPurchaseFormData({...purchaseFormData, invoiceDate:e.target.value})} className="w-full bg-slate-900 border border-slate-600 rounded p-2.5 text-white font-black" /></div>
@@ -408,7 +479,6 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
             </div>
             <div className="bg-slate-900/80 p-5 rounded-lg border border-slate-700 mb-6 shadow-inner">
                 <h3 className="text-xs font-black text-blue-300 mb-4 uppercase tracking-[0.2em]">Add Medicine Items (Trade + Generic)</h3>
-                
                 <div className="flex flex-wrap gap-2 items-end">
                     <div className="flex-[2] min-w-[200px] relative">
                         <label className="block text-[10px] font-black text-slate-500 mb-1 uppercase ml-1">Trade_Name</label>
@@ -453,11 +523,11 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
                     <div className="flex justify-between items-center text-slate-400 font-black text-xs uppercase"><span>Sub Total:</span> <span className="text-white text-xl">৳{purchaseFormData.totalAmount.toFixed(2)}</span></div>
                     <div className="flex justify-between items-center text-slate-400 font-black text-xs uppercase"><span>Discount:</span> <input type="number" value={purchaseFormData.discount} onChange={e=>setPurchaseFormData({...purchaseFormData, discount:parseFloat(e.target.value)||0})} className="w-28 bg-slate-800 border-2 border-slate-700 rounded-xl p-3 text-right text-white font-black focus:border-blue-500 outline-none"/></div>
                     <div className="flex justify-between items-center text-sky-400 font-black border-t-2 border-slate-800 pt-3 text-2xl uppercase"><span>Net Bill:</span> <span>৳{purchaseFormData.netPayable.toFixed(2)}</span></div>
-                    <div className="flex justify-between items-center text-emerald-400 font-black text-xs uppercase"><span>Paid Amount:</span> <input type="number" value={purchaseFormData.paidAmount} onChange={e=>setPurchaseFormData({...purchaseFormData, paidAmount:parseFloat(e.target.value)||0})} className="w-28 bg-slate-800 border border-slate-600 rounded p-2 text-right text-white font-black text-xl"/></div>
+                    <div className="flex justify-between items-center text-emerald-400 font-black text-xs uppercase"><span>Paid Amount:</span> <input type="number" value={purchaseFormData.paidAmount || 0} onChange={e=>setPurchaseFormData({...purchaseFormData, paidAmount:parseFloat(e.target.value)||0})} className="w-28 bg-slate-800 border border-slate-600 rounded p-2 text-right text-white font-black text-xl" onFocus={e=>e.target.select()}/></div>
                     <div className="flex justify-between items-center text-red-500 font-black text-2xl uppercase"><span>Due Amount:</span> <span>৳{purchaseFormData.dueAmount.toFixed(2)}</span></div>
                 </div>
             </div>
-            <div className="mt-8 flex justify-end gap-4"><button onClick={()=>{setBuyViewMode('list'); setErrors({});}} className="px-8 py-3 bg-slate-700 text-white rounded-lg font-black hover:bg-slate-600 transition-all">Discard</button><button onClick={handleSavePurchase} className="px-16 py-3 bg-blue-600 text-white rounded-lg font-black shadow-2xl hover:bg-blue-500 transform active:scale-95 transition-all uppercase tracking-widest">Post Invoice</button></div>
+            <div className="mt-8 flex justify-end gap-4"><button onClick={()=>{setBuyViewMode('list'); setEditingPurchaseId(null); setIsOpeningStock(false); setErrors({});}} className="px-8 py-3 bg-slate-700 text-white rounded-lg font-black hover:bg-slate-600 transition-all">Discard</button><button onClick={handleSavePurchase} className="px-16 py-3 bg-blue-600 text-white rounded-lg font-black shadow-2xl hover:bg-blue-500 transform active:scale-95 transition-all uppercase tracking-widest">Post Invoice</button></div>
         </div>
     );
   };
@@ -519,7 +589,7 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
                     <button onClick={addSalesItem} className="bg-emerald-600 text-white px-10 py-4 rounded-xl hover:bg-emerald-500 font-black shadow-2xl transform active:scale-95 transition-all">Add Item</button>
                 </div>
             </div>
-            <div className="overflow-x-auto border-2 border-slate-700 rounded-2xl mb-8 shadow-2xl"><table className="w-full text-left border-collapse text-sm"><thead className="bg-slate-700 text-white"><tr><th className="p-4 uppercase text-xs font-black">X</th><th className="p-4 uppercase text-xs font-black">Medicine Info</th><th className="p-4 text-right uppercase text-xs font-black">Price</th><th className="p-4 text-center uppercase text-xs font-black">Qty</th><th className="p-4 text-right uppercase text-xs font-black">Line Total</th></tr></thead><tbody>{salesFormData.items.map((item, i) => (<tr key={i} className="border-b border-slate-700 bg-slate-800/50 hover:bg-slate-700 transition-colors"><td className="p-4 text-center"><button onClick={()=>removeSalesItem(i)} className="text-red-500 font-black bg-slate-900 w-10 h-10 rounded-full flex items-center justify-center border border-red-900">×</button></td><td className="p-4"><div className="font-black text-white text-lg">{item.tradeName} <span className="text-sm font-bold text-sky-400">({item.strength})</span></div><div className="text-xs text-slate-400 italic font-bold">{item.genericName}</div></td><td className="p-4 text-right text-slate-300 font-bold">{item.unitPriceSell.toFixed(2)}</td><td className="p-4 text-center font-black text-white text-2xl">{item.qtySelling}</td><td className="p-4 text-right font-black text-emerald-400 text-2xl">৳{item.lineTotalSell.toFixed(2)}</td></tr>))}</tbody></table>{salesFormData.items.length === 0 && <div className="p-16 text-center text-slate-800 font-black italic uppercase">No items added to bill.</div>}</div>
+            <div className="overflow-x-auto border-2 border-slate-700 rounded-2xl mb-8 shadow-2xl"><table className="w-full text-left border-collapse text-sm"><thead className="bg-slate-700 text-white"><tr><th className="p-4 uppercase text-xs font-black">X</th><th className="p-4 uppercase text-xs font-black">Medicine Info</th><th className="p-4 text-right uppercase text-xs font-black">Price</th><th className="p-4 text-center uppercase text-xs font-black">Qty</th><th className="p-4 text-right uppercase text-xs font-black">Line Total</th></tr></thead><tbody>{salesFormData.items.map((item, i) => (<tr key={i} className="border-b border-slate-700 bg-slate-800/50 hover:bg-slate-700 transition-colors"><td className="p-4 text-center"><button onClick={()=>removeSalesItem(i)} className="text-red-500 font-black bg-slate-900 w-10 h-10 rounded-full flex items-center justify-center border border-red-900">×</button></td><td className="p-4"><div className="font-black text-white text-lg">{item.tradeName} <span className="text-sm font-bold text-sky-400">({item.strength})</span></div><div className="text-xs text-slate-400 italic font-bold">{item.genericName}</div></td><td className="p-4 text-right text-slate-300 font-bold">{item.unitPriceSell.toFixed(2)}</td><td className="p-4 text-center font-black text-white text-2xl">{item.qtySelling}</td><td className="p-4 text-right font-black text-emerald-400 text-2xl">৳{item.lineTotalSell.toFixed(2)}</td></tr>))}</tbody></table></div>
             <div className="flex flex-col md:flex-row justify-end gap-6">
                 <div className="bg-slate-900 p-8 rounded-3xl border-2 border-slate-700 space-y-5 w-full md:w-[450px] shadow-2xl">
                     <div className="flex justify-between items-center text-slate-500 font-black uppercase text-xs tracking-widest"><span>Sub-Total Gross:</span> <span className="text-white text-2xl">৳{salesFormData.totalAmount.toFixed(2)}</span></div>
@@ -553,13 +623,13 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
                       <div><label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-1 block">Trade Name</label><input className="w-full bg-slate-900 border-2 border-slate-700 rounded-xl p-3 text-white font-black focus:border-blue-500 outline-none" value={clinicalDrugForm.brandName} onChange={e=>setClinicalDrugForm({...clinicalDrugForm, brandName:e.target.value})}/></div>
                       <div><label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-1 block">Generic Name</label><input className="w-full bg-slate-900 border-2 border-slate-700 rounded-xl p-3 text-white font-black focus:border-blue-500 outline-none" value={clinicalDrugForm.genericName} onChange={e=>setClinicalDrugForm({...clinicalDrugForm, genericName:e.target.value})}/></div>
                       <div><label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-1 block">Preg. Category</label><select className="w-full bg-slate-900 border-2 border-slate-700 rounded-xl p-3 text-white font-black focus:border-blue-500 outline-none" value={clinicalDrugForm.pregnancyCategory} onChange={e=>setClinicalDrugForm({...clinicalDrugForm, pregnancyCategory:e.target.value as any})}><option>A</option><option>B</option><option>C</option><option>D</option><option>X</option><option>N/A</option></select></div>
-                      <div><label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-1 block">Strength</label><input className="w-full bg-slate-900 border-2 border-slate-700 rounded-xl p-3 text-white font-black focus:border-blue-500 outline-none" value={clinicalDrugForm.strength} onChange={e=>setClinicalDrugForm({...clinicalDrugForm, strength:e.target.value})}/></div>
+                      <div><label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-1 block">Strength</label><input className="w-full bg-slate-900 border-2 border-slate-700 rounded-xl p-3 text-white font-black focus:border-blue-500 outline-none" value={clinicalDrugForm.strength} onChange={e=>setClinicalDrugForm({...clinicalDrugForm, strength: e.target.value})}/></div>
                   </div>
                   <div className="flex justify-end gap-4"><button onClick={() => { setIsEditingDrug(false); setClinicalDrugForm({ id: '', brandName: '', genericName: '', strength: '', formulation: 'Tab', company: '', pregnancyCategory: 'B', indications: [], sideEffects: [], adultDose: '' }); }} className="px-8 py-3 bg-slate-700 text-white rounded-xl font-bold transition-all">Reset</button><button onClick={handleSaveClinicalDrug} className="px-16 py-3 bg-blue-600 text-white rounded-xl font-black hover:bg-blue-500 shadow-xl transition-all uppercase tracking-widest">{isEditingDrug ? 'Update' : 'Save Drug'}</button></div>
               </div>
               <div className="bg-slate-800 p-8 rounded-3xl border border-slate-700 shadow-2xl">
                 <div className="mb-6 flex justify-between items-center border-b border-slate-700 pb-3"><h3 className="text-xl font-black text-white uppercase tracking-tighter">Pharmacy Database</h3><div className="relative w-72"><input type="text" placeholder="Filter Brands..." value={drugSearch} onChange={e=>setDrugSearch(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-full px-5 py-2 text-sm text-white focus:border-blue-500 outline-none"/></div></div>
-                <div className="overflow-x-auto"><table className="w-full text-left text-sm text-slate-300 border-collapse"><thead className="bg-slate-700 text-slate-100"><tr><th className="p-4 uppercase text-xs font-black tracking-widest">Brand Name</th><th className="p-4 uppercase text-xs font-black tracking-widest">Generic</th><th className="p-4 uppercase text-xs font-black text-center tracking-widest">Preg Cat</th><th className="p-4 uppercase text-xs font-black text-center tracking-widest">Action</th></tr></thead><tbody>{filteredDrugs.map(d => (<tr key={d.id} className="border-b border-slate-700 hover:bg-slate-700/50 transition-colors"><td className="p-4 font-black text-white text-base">{d.brandName} <span className="text-xs font-bold text-slate-500">{d.strength}</span></td><td className="p-4 italic text-sky-400 font-bold">{d.genericName}</td><td className="p-4 text-center"><span className={`px-3 py-1 rounded-full text-[10px] font-black shadow-inner ${d.pregnancyCategory==='X'||d.pregnancyCategory==='D'?'bg-red-600 text-white':'bg-emerald-600 text-white'}`}>{d.pregnancyCategory}</span></td><td className="p-4 text-center space-x-3"><button onClick={()=>{setClinicalDrugForm(d); setIsEditingDrug(true); window.scrollTo({top:0, behavior:'smooth'});}} className="text-blue-400 hover:text-white font-bold underline">Edit</button><button onClick={()=>{if(confirm("Delete?")) setClinicalDrugs(prev=>prev.filter(x=>x.id!==d.id))}} className="text-red-500 hover:text-white font-bold underline">Del</button></td></tr>))}</tbody></table></div>
+                <div className="overflow-x-auto"><table className="w-full text-left text-sm text-slate-300 border-collapse"><thead className="bg-slate-700 text-slate-100"><tr><th className="p-4 uppercase text-xs font-black tracking-widest">Brand Name</th><th className="p-4 uppercase text-xs font-black tracking-widest">Generic</th><th className="p-4 uppercase text-xs font-black text-center tracking-widest">Preg Cat</th><th className="p-4 uppercase text-xs font-black text-center tracking-widest">Action</th></tr></thead><tbody>{filteredDrugs.map(d => (<tr key={d.id} className="border-b border-slate-700 hover:bg-slate-700/50 transition-colors"><td className="p-4 font-black text-white text-base">{d.brandName} <span className="text-xs font-bold text-slate-500">{d.strength}</span></td><td className="p-4 italic text-sky-400 font-bold">{d.genericName}</td><td className="p-4 text-center"><span className="px-3 py-1 rounded-full text-[10px] font-black shadow-inner bg-emerald-600 text-white">{d.pregnancyCategory}</span></td><td className="p-4 text-center space-x-3"><button onClick={()=>{setClinicalDrugForm(d); setIsEditingDrug(true); window.scrollTo({top:0, behavior:'smooth'});}} className="text-blue-400 hover:text-white font-bold underline">Edit</button><button onClick={()=>{if(confirm("Delete?")) setClinicalDrugs(prev=>prev.filter(x=>x.id!==d.id))}} className="text-red-500 hover:text-white font-bold underline">Del</button></td></tr>))}</tbody></table></div>
               </div>
           </div>
       );
@@ -567,7 +637,7 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
 
   const renderHishabTab = () => {
     const filteredPurchases = invoices.filter(inv => {
-        if (!inv.invoiceDate) return false;
+        if (!inv.invoiceDate || inv.status === 'Cancelled' || inv.status === 'Initial') return false;
         const [y, m] = inv.invoiceDate.split('-').map(Number);
         return (m - 1) === selectedMonth && y === selectedYear;
     });
@@ -610,7 +680,7 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-10">
                 <div className="space-y-4">
                     <h4 className="text-xl font-black text-blue-400 border-b-2 border-blue-900/50 pb-2 uppercase tracking-widest">Stock Purchase Ledger</h4>
-                    <div className="overflow-x-auto rounded-2xl border-2 border-slate-700 shadow-2xl"><table className="w-full text-left border-collapse text-xs"><thead className="bg-slate-700 text-slate-100"><tr><th className="p-4 border-r border-slate-600">Date</th><th className="p-4 border-r border-slate-600">Supplier</th><th className="p-4 text-right">Bill</th><th className="p-4 text-right">Paid</th></tr></thead><tbody className="bg-slate-800 divide-y divide-slate-700">{filteredPurchases.map((inv) => (<tr key={inv.invoiceId}><td className="p-4 border-r border-slate-700 text-slate-400 font-mono">{inv.invoiceDate}</td><td className="p-4 border-r border-slate-700 font-black text-white">{inv.source}</td><td className="p-4 text-right font-black text-slate-300">৳{inv.netPayable.toLocaleString()}</td><td className="p-4 text-right text-emerald-400 font-black">৳{inv.paidAmount.toLocaleString()}</td></tr>))}</tbody><tfoot className="bg-slate-900 text-white font-black"><tr><td colSpan={2} className="p-4 text-right text-xs">MONTH TOTAL:</td><td className="p-4 text-right">৳{buyTotals.val.toLocaleString()}</td><td className="p-4 text-right text-emerald-400">৳{buyTotals.paid.toLocaleString()}</td></tr></tfoot></table></div>
+                    <div className="overflow-x-auto rounded-2xl border-2 border-slate-700 shadow-2xl"><table className="w-full text-left border-collapse text-xs"><thead className="bg-slate-700 text-slate-100"><tr><th className="p-4 border-r border-slate-600">Date</th><th className="p-4 border-r border-slate-600">Supplier</th><th className="p-4 text-right">Bill</th><th className="p-4 text-right">Paid</th></tr></thead><tbody className="bg-slate-800 divide-y divide-slate-700">{filteredPurchases.map((inv) => (<tr key={inv.invoiceId}><td className="p-4 border-r border-slate-700 text-slate-400 font-mono">{inv.invoiceDate}</td><td className="p-4 border-r border-slate-700 font-black text-white">{inv.source}</td><td className="p-4 text-right font-black text-slate-300">৳{inv.netPayable.toLocaleString()}</td><td className="p-4 text-emerald-400 font-black text-right">৳{inv.paidAmount.toLocaleString()}</td></tr>))}</tbody><tfoot className="bg-slate-900 text-white font-black"><tr><td colSpan={2} className="p-4 text-right text-xs">MONTH TOTAL:</td><td className="p-4 text-right">৳{buyTotals.val.toLocaleString()}</td><td className="p-4 text-right text-emerald-400">৳{buyTotals.paid.toLocaleString()}</td></tr></tfoot></table></div>
                 </div>
                 <div className="space-y-4">
                     <h4 className="text-xl font-black text-emerald-400 border-b-2 border-emerald-900/50 pb-2 uppercase tracking-widest">Outdoor Sales Journal</h4>

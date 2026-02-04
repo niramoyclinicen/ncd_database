@@ -256,7 +256,20 @@ export interface SalesItem {
 }
 
 export interface PurchaseInvoice {
-  invoiceId: string; invoiceDate: string; source: string; items: InvoiceItem[]; totalAmount: number; discount: number; netPayable: number; paidAmount: number; dueAmount: number; billCreatedBy: string; billPaidBy?: string; receivedBy?: string; status: 'Saved' | 'Posted' | 'Cancelled'; createdDate: string;
+  invoiceId: string; 
+  invoiceDate: string; 
+  source: string; 
+  items: InvoiceItem[]; 
+  totalAmount: number; 
+  discount: number; 
+  netPayable: number; 
+  paidAmount: number; 
+  dueAmount: number; 
+  billCreatedBy: string; 
+  billPaidBy?: string; 
+  receivedBy?: string; 
+  status: 'Saved' | 'Posted' | 'Cancelled' | 'Initial'; 
+  createdDate: string;
 }
 
 export interface SalesInvoice {
