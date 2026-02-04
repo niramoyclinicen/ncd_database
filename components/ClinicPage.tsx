@@ -5,7 +5,7 @@ import SearchableSelect from './SearchableSelect';
 import PatientInfoPage from './PatientInfoPage';
 import DoctorInfoPage from './DoctorInfoPage';
 import ReferrerInfoPage from './ReferrerInfoPage';
-import { BackIcon, ClinicIcon, StethoscopeIcon, ClipboardIcon, FileTextIcon, SettingsIcon, UserPlusIcon, Armchair, Activity, SaveIcon, MoneyIcon, TrashIcon, PrinterIcon, EyeIcon, SearchIcon } from './Icons';
+import { BackIcon, ClinicIcon, StethoscopeIcon, ClipboardIcon, FileTextIcon, SettingsIcon, UserPlusIcon, Armchair, Activity, SaveIcon, MoneyIcon, TrashIcon, PrinterIcon, EyeIcon, SearchIcon, PlusIcon } from './Icons';
 
 // Fixed Clinic Config
 const CLINIC_REGISTRATION = 'HSM76710';
@@ -128,6 +128,7 @@ interface ServiceItem {
   discount: number;
   payable_amount: number;
   note: string;
+  isClinicFund?: boolean; // New checkbox field
 }
 
 export interface IndoorInvoice {
@@ -144,6 +145,7 @@ export interface IndoorInvoice {
   referrar_name?: string;
   indication: string;
   serviceCategory: string;
+  subCategory?: string; // Mandatory for Service Taken
   services: string[]; 
   contact_bill: string;
   items: ServiceItem[];
@@ -185,6 +187,7 @@ const emptyIndoorInvoice: IndoorInvoice = {
   referrar_name: '',
   indication: '',
   serviceCategory: 'Conservative treatment',
+  subCategory: '',
   services: [],
   contact_bill: '',
   items: [],
@@ -251,11 +254,15 @@ const dietOptions = ['NPO TFO', 'Liquid', 'Liquid and semisolid', 'Regular'];
 const serviceCategoriesList = ["Conservative treatment", "Operation", "NVD and D&C", "O2 and nebulizer", "Plaster and Bandage", "Others"];
 const serviceTypesList = [
     'Admission Fee', 'Doctor round fee', 'Doctor prescription fee', 'Bed rent', 'Service Charge',
-    'Obstetrician/ Midwife', 'Anaesthetist', 'Assistant_1', 'Assistant_2', 'Medicine', 'Stuff_cost', 'Surgeon', 'Other'
+    'Obstetrician/ Midwife', 'Anaesthetist', 'Assistant_1', 'Assistant_2', 'Medicine', 'Stuff_cost', 'Surgeon', 'Discharge writing fee',
+    'OT Charge', '02(Oxygen)', 'Nebulization', 'Doctor food', 'Doctor donation', 'Vehicle rent', 'Dressing', 'Other'
 ];
 const doctorServiceTypes = [
     "Doctor round fee", "Doctor prescription fee", "Obstetrician/ Midwife", "Surgeon", "Anaesthetist", "Assistant_1", "Assistant_2"
 ];
+
+// Logic helpers for Clinic Fund Inclusion
+const clinicFundServiceTypes = ['Admission Fee', 'OT Charge', '02(Oxygen)', 'Nebulization', 'Dressing', 'Bed rent', 'Service Charge'];
 
 const getFrequencyText = (freq: number) => {
     switch(freq) {
@@ -994,7 +1001,7 @@ const AdmissionAndTreatmentPage: React.FC<{
         setNewDrugEntry({ name: '', generic: '', type: 'Tab', strength: '' });
     };
 
-    const activeNurses = useMemo(() => employees.filter(e => e.is_current_month), [employees]);
+    const activeNurses = useMemo(() => employees.filter(e => e.status === 'Active'), [employees]);
     const filteredAdmissions = useMemo(() => admissions.filter(a => a.admission_id.toLowerCase().includes(searchTerm.toLowerCase()) || a.patient_name.toLowerCase().includes(searchTerm.toLowerCase())), [admissions, searchTerm]);
     const commonInputClass = "w-full p-2 bg-[#2d3748] border border-gray-600 rounded text-gray-200 text-sm focus:ring-1 focus:ring-blue-500";
 
@@ -1307,7 +1314,41 @@ const AdmissionAndTreatmentPage: React.FC<{
                                 </div>
                             )}
                             {activeSubTab === 'demands' && (
-                                <div className="bg-[#172554] p-6 rounded border border-[#374151]"><h4 className="text-xl font-bold text-yellow-400 mb-4">Drug Demand List</h4><div className="overflow-x-auto"><table className="w-full text-sm text-left text-gray-300"><thead className="bg-[#111827] text-xs uppercase text-gray-400"><tr><th className="p-3">Drug</th><th className="p-3">Generic</th><th className="p-3">Req By</th><th className="p-3">Status</th></tr></thead><tbody className="bg-[#1f2937]">{drugDemands.map(req => (<tr key={req.id}><td className="p-3">{req.name} <span className="text-xs text-gray-400">({req.type})</span></td><td className="p-3">{req.genericName}</td><td className="p-3">{req.requestedBy}</td><td className="p-3">{req.status}</td></tr>))}</tbody></table></div></div>
+                                <div className="bg-[#172554] p-6 rounded border border-[#374151]">
+                                    <div className="flex justify-between items-center mb-4">
+                                        <h4 className="text-xl font-bold text-yellow-400">Drug Demand List</h4>
+                                        <button onClick={() => setShowDrugDemandModal(true)} className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded font-bold text-sm shadow-lg flex items-center gap-2 transition-all">
+                                            <PlusIcon size={16}/> Add New Demand
+                                        </button>
+                                    </div>
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-sm text-left text-gray-300">
+                                            <thead className="bg-[#111827] text-xs uppercase text-gray-400">
+                                                <tr>
+                                                    <th className="p-3">Drug</th>
+                                                    <th className="p-3">Generic</th>
+                                                    <th className="p-3">Req By</th>
+                                                    <th className="p-3">Status</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="bg-[#1f2937]">
+                                                {drugDemands.map(req => (
+                                                    <tr key={req.id} className="border-b border-gray-700">
+                                                        <td className="p-3">{req.name} <span className="text-xs text-gray-400">({req.type} {req.strength})</span></td>
+                                                        <td className="p-3">{req.genericName}</td>
+                                                        <td className="p-3">{req.requestedBy}</td>
+                                                        <td className="p-3">
+                                                            <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase ${req.status === 'Pending' ? 'bg-amber-900/50 text-amber-400' : 'bg-emerald-900/50 text-emerald-400'}`}>
+                                                                {req.status}
+                                                            </span>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                                {drugDemands.length === 0 && <tr><td colSpan={4} className="p-8 text-center text-gray-500 italic">No drugs in demand list.</td></tr>}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
                             )}
                         </div>
                     )}
@@ -1320,7 +1361,7 @@ const AdmissionAndTreatmentPage: React.FC<{
             {showNewPatientForm && <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4"><div className="bg-[#1f2937] rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto border border-gray-600"><div className="p-4"><PatientInfoPage patients={patients} setPatients={setPatients} isEmbedded={true} onClose={()=>setShowNewPatientForm(false)} onSaveAndSelect={(id,name)=>{setAdmissionData((prev: AdmissionRecord)=>({...prev, patient_id:id, patient_name:name})); setShowNewPatientForm(false);}}/></div></div></div>}
             {showNewDoctorForm && <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4"><div className="bg-[#1f2937] rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto border border-gray-600"><div className="p-4"><DoctorInfoPage doctors={doctors} setDoctors={setDoctors} isEmbedded={true} onClose={()=>setShowNewDoctorForm(false)} onSaveAndSelect={(id,name)=>{setAdmissionData((prev: AdmissionRecord)=>({...prev, doctor_id:id, doctor_name:name})); setShowNewDoctorForm(false);}}/></div></div></div>}
             {showNewReferrarForm && <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4"><div className="bg-[#1f2937] rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto border border-gray-600"><div className="p-4"><ReferrerInfoPage referrars={referrars} setReferrars={setReferrars} isEmbedded={true} onClose={()=>setShowNewReferrarForm(false)} onSaveAndSelect={(id,name)=>{setAdmissionData((prev: AdmissionRecord)=>({...prev, referrer_id:id, referrer_name:name})); setShowNewReferrarForm(false);}}/></div></div></div>}
-            {showDrugDemandModal && <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4"><div className="bg-[#1f2937] rounded-lg w-full max-w-md border border-gray-600 shadow-2xl p-6"><h3 className="text-xl font-bold text-white mb-4">New Drug</h3><input value={newDrugEntry.name} onChange={e=>setNewDrugEntry({...newDrugEntry, name:e.target.value})} className="w-full p-2 bg-[#2d3748] border border-gray-600 rounded text-white mb-2" placeholder="Trade Name"/><input value={newDrugEntry.generic} onChange={e=>setNewDrugEntry({...newDrugEntry, generic:e.target.value})} className="w-full p-2 bg-[#2d3748] border border-gray-600 rounded text-white mb-4" placeholder="Generic Name (e.g. Paracetamol)"/><button onClick={handleSaveNewDrugEntry} className="px-4 py-2 bg-blue-600 text-white rounded">Add</button><button onClick={()=>setShowDrugDemandModal(false)} className="px-4 py-2 bg-gray-600 text-white rounded ml-2">Cancel</button></div></div>}
+            {showDrugDemandModal && <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4"><div className="bg-[#1f2937] rounded-lg w-full max-w-md border border-gray-600 shadow-2xl p-6"><h3 className="text-xl font-bold text-white mb-4">New Drug</h3><input value={newDrugEntry.name} onChange={e=>setNewDrugEntry({...newDrugEntry, name:e.target.value})} className="w-full p-2 bg-[#2d3748] border border-gray-600 rounded text-white mb-2" placeholder="Trade Name"/><input value={newDrugEntry.generic} onChange={e=>setNewDrugEntry({...newDrugEntry, generic:e.target.value})} className="w-full p-2 bg-[#2d3748] border border-gray-600 rounded text-white mb-2" placeholder="Generic Name (e.g. Paracetamol)"/><div className="grid grid-cols-2 gap-2 mb-4"><div><label className="text-[10px] text-gray-500 uppercase font-black mb-1">Type</label><select value={newDrugEntry.type} onChange={e=>setNewDrugEntry({...newDrugEntry, type: e.target.value})} className="w-full p-2 bg-[#2d3748] border border-gray-600 rounded text-white text-sm">{drugTypes.map(t=><option key={t} value={t}>{t}</option>)}</select></div><div><label className="text-[10px] text-gray-500 uppercase font-black mb-1">Strength</label><input value={newDrugEntry.strength} onChange={e=>setNewDrugEntry({...newDrugEntry, strength: e.target.value})} className="w-full p-2 bg-[#2d3748] border border-gray-600 rounded text-white text-sm" placeholder="500mg"/></div></div><button onClick={handleSaveNewDrugEntry} className="px-4 py-2 bg-blue-600 text-white rounded">Add</button><button onClick={()=>setShowDrugDemandModal(false)} className="px-4 py-2 bg-gray-600 text-white rounded ml-2">Cancel</button></div></div>}
             
             {showTemplateModal && (
                 <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
@@ -1367,8 +1408,14 @@ const IndoorInvoicePage: React.FC<{
     const [selectedAdmission, setSelectedAdmission] = useState<AdmissionRecord | null>(null);
     const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
     const [applyPC, setApplyPC] = useState(false); 
+    const [subCategories, setSubCategories] = useState<{id: string, name: string}[]>(() => JSON.parse(localStorage.getItem('ncd_clinic_subcategories') || '[]'));
+    const [showSubCategoryManager, setShowSubCategoryManager] = useState(false);
 
-    const activeEmployees = useMemo(() => employees.filter(e => e.is_current_month), [employees]);
+    useEffect(() => {
+        localStorage.setItem('ncd_clinic_subcategories', JSON.stringify(subCategories));
+    }, [subCategories]);
+
+    const activeEmployees = useMemo(() => employees.filter(e => e.status === 'Active'), [employees]);
 
     // Calculate Stats - Updated with Return logic
     const stats = useMemo(() => {
@@ -1477,12 +1524,19 @@ const IndoorInvoicePage: React.FC<{
             }
         }
 
+        // AUTO CHECK ACCOUNTING BOX LOGIC
+        if (field === 'service_type') {
+            const isClinicFund = clinicFundServiceTypes.some(type => value.toLowerCase().includes(type.toLowerCase()));
+            const rowIdx = updatedItems.findIndex(it => it.id === id);
+            if (rowIdx !== -1) updatedItems[rowIdx].isClinicFund = isClinicFund;
+        }
+
         const totals = calculateTotals(updatedItems, 0, formData.paid_amount, formData.special_discount_amount || 0);
         setFormData(prev => ({ ...prev, ...totals }));
     };
 
     const handleAddServiceItem = () => {
-        const newItem: ServiceItem = { id: Date.now(), service_type: '', service_provider: '', service_charge: 0, quantity: 1, line_total: 0, discount: 0, payable_amount: 0, note: '' };
+        const newItem: ServiceItem = { id: Date.now(), service_type: '', service_provider: '', service_charge: 0, quantity: 1, line_total: 0, discount: 0, payable_amount: 0, note: '', isClinicFund: false };
         const updatedItems = [...formData.items, newItem];
         const totals = calculateTotals(updatedItems, 0, formData.paid_amount, formData.special_discount_amount || 0);
         setFormData(prev => ({ ...prev, ...totals }));
@@ -1498,6 +1552,12 @@ const IndoorInvoicePage: React.FC<{
         e.preventDefault();
         if (!formData.daily_id) return alert("Generate ID first");
         
+        // Mandatory SubCategory Check
+        if (!formData.subCategory) {
+            alert("সাব-ক্যাটাগরি লিস্ট (Sub_Category) এন্ট্রি করা বাধ্যতামূলক।");
+            return;
+        }
+
         if (formData.admission_id) {
             setAdmissions((prev: AdmissionRecord[]) => prev.map((adm: AdmissionRecord) => {
                 if (adm.admission_id === formData.admission_id) {
@@ -1640,6 +1700,18 @@ const IndoorInvoicePage: React.FC<{
                                 </div>
                             </div>
                             <div><label className="block text-xs text-gray-400">Category</label><select name="serviceCategory" value={formData.serviceCategory} onChange={handleInputChange} className={commonInputClasses}>{serviceCategoriesList.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
+                            <div>
+                                <SearchableSelect 
+                                    theme="dark" 
+                                    label="Sub_Category" 
+                                    options={subCategories.map(s => ({id: s.id, name: s.name}))} 
+                                    value={subCategories.find(s => s.name === formData.subCategory)?.id || ''} 
+                                    onChange={(_id, name) => setFormData(prev => ({...prev, subCategory: name}))} 
+                                    onAddNew={() => setShowSubCategoryManager(true)}
+                                    required={true}
+                                    inputHeightClass="h-[38px] bg-[#374151] border-gray-600"
+                                />
+                            </div>
                             <div className="col-span-2"><label className="block text-xs text-gray-400">Referrer</label><select name="referrar_id" value={formData.referrar_id} onChange={(e) => { const ref = referrars.find(r => r.ref_id === e.target.value); setFormData({...formData, referrar_id: ref?.ref_id, referrar_name: ref?.ref_name}); }} className={commonInputClasses}><option value="">Select...</option>{referrars.map(r => <option key={r.ref_id} value={r.ref_id}>{r.ref_name}</option>)}</select></div>
                         </div>
                         <div className="bg-[#1f2937] p-4 rounded border border-gray-600">
@@ -1648,7 +1720,7 @@ const IndoorInvoicePage: React.FC<{
                                 <button type="button" onClick={handleAddServiceItem} className="text-xs bg-blue-600 text-white px-3 py-2 rounded hover:bg-blue-500 font-bold shadow">+ Add Service Row</button>
                             </div>
                             <table className="w-full text-sm text-left text-gray-300 mb-2">
-                                <thead className="bg-[#111827]"><tr><th className="p-2">Type</th><th className="p-2">Provider</th><th className="p-2">Charge</th><th className="p-2">Qty</th><th className="p-2">Disc</th><th className="p-2">Payable</th><th className="p-2">Note</th><th className="p-2">X</th></tr></thead>
+                                <thead className="bg-[#111827]"><tr><th className="p-2">Type</th><th className="p-2">Provider</th><th className="p-2">Charge</th><th className="p-2">Qty</th><th className="p-2">Disc</th><th className="p-2">Payable</th><th className="p-2 text-center">A/C</th><th className="p-2">Note</th><th className="p-2">X</th></tr></thead>
                                 <tbody>{formData.items.map(item => (
                                     <tr key={item.id}>
                                         <td className="p-1">
@@ -1658,9 +1730,11 @@ const IndoorInvoicePage: React.FC<{
                                         <td className="p-1">
                                             <input list={`service_provider_${item.id}`} value={item.service_provider} onChange={e=>handleServiceChange(item.id,'service_provider',e.target.value)} className="w-full bg-[#374151] text-white p-1 rounded h-8 text-xs" />
                                             <datalist id={`service_provider_${item.id}`}>
-                                                {doctorServiceTypes.includes(item.service_type) 
-                                                    ? doctors.map(d=><option key={d.doctor_id} value={d.doctor_name}/>) 
-                                                    : activeEmployees.map(e=><option key={e.emp_id} value={e.emp_name}/>)
+                                                {item.service_type === 'Assistant_2' 
+                                                    ? [...doctors.map(d => ({id: d.doctor_id, name: d.doctor_name})), ...activeEmployees.map(e => ({id: e.emp_id, name: e.emp_name}))].map(obj => <option key={obj.id} value={obj.name}/>)
+                                                    : doctorServiceTypes.includes(item.service_type) 
+                                                        ? doctors.map(d=><option key={d.doctor_id} value={d.doctor_name}/>) 
+                                                        : activeEmployees.map(e=><option key={e.emp_id} value={e.emp_name}/>)
                                                 }
                                             </datalist>
                                         </td>
@@ -1668,6 +1742,17 @@ const IndoorInvoicePage: React.FC<{
                                         <td className="p-1"><input type="number" value={item.quantity} onChange={e=>handleServiceChange(item.id,'quantity',parseFloat(e.target.value))} onFocus={e=>e.target.select()} className="w-full bg-[#374151] text-white p-1 rounded text-right h-8"/></td>
                                         <td className="p-1"><input type="number" value={item.discount} onChange={e=>handleServiceChange(item.id,'discount',parseFloat(e.target.value))} onFocus={e=>e.target.select()} className="w-full bg-[#374151] text-white p-1 rounded text-right h-8"/></td>
                                         <td className="p-1 font-bold text-sky-300 text-right">{item.payable_amount.toFixed(2)}</td>
+                                        <td className="p-1 text-center">
+                                            <input 
+                                                type="checkbox" 
+                                                checked={item.isClinicFund} 
+                                                onChange={e => {
+                                                    const updated = formData.items.map(it => it.id === item.id ? { ...it, isClinicFund: e.target.checked } : it);
+                                                    setFormData(prev => ({ ...prev, items: updated }));
+                                                }}
+                                                className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-blue-600"
+                                            />
+                                        </td>
                                         <td className="p-1"><input type="text" value={item.note} onChange={e=>handleServiceChange(item.id,'note',e.target.value)} className="w-full bg-[#374151] text-white p-1 rounded h-8 text-xs"/></td>
                                         <td className="p-1 text-center"><button type="button" onClick={()=>handleRemoveServiceItem(item.id)} className="text-red-500 font-bold hover:text-red-400">x</button></td>
                                     </tr>
@@ -1690,6 +1775,20 @@ const IndoorInvoicePage: React.FC<{
                         </div>
                         <button type="submit" className="px-6 py-2 bg-green-600 text-white rounded font-bold hover:bg-green-700">Save Invoice</button>
                     </form>
+                )}
+
+                {showSubCategoryManager && (
+                    <GenericManagerPage 
+                        title="Manage Sub_Categories" 
+                        placeholder="Enter Sub_Category Name" 
+                        items={subCategories} 
+                        setItems={setSubCategories} 
+                        onClose={() => setShowSubCategoryManager(false)} 
+                        onSaveAndSelect={(_id, name) => {
+                            setFormData(prev => ({...prev, subCategory: name}));
+                            setShowSubCategoryManager(false);
+                        }} 
+                    />
                 )}
                 
                 <div className="mt-8">
@@ -1829,7 +1928,7 @@ const BedManagementPage: React.FC<{ admissions: AdmissionRecord[]; }> = ({ admis
 
     return (
         <div className="bg-[#1f2937] p-6 rounded border border-[#374151]">
-            <div className="flex justify-between items-center mb-6 border-b border-gray-700 pb-2">
+            <div className="flex justify-between items-center mb-6 border-gray-700 pb-2 border-b">
                 <h3 className="text-xl font-bold text-white">Bed Management Status</h3>
                 <button onClick={handlePrintBedMap} className="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded text-xs font-bold transition-all flex items-center gap-2"><FileTextIcon className="w-4 h-4"/> Print Bed Map</button>
             </div>

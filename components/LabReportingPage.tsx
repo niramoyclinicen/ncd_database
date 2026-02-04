@@ -6,7 +6,7 @@ import CBCInputPage from './CBCInputPage';
 import SemenAnalysisInputPage from './SemenAnalysisInputPage';
 import LipidProfileInputPage from './LipidProfileInputPage';
 import TemplateManagementPage from './TemplateManagementPage';
-import { FileTextIcon, SettingsIcon, StethoscopeIcon, Activity, SearchIcon, SaveIcon, UsersIcon, PrinterIcon, ShareIcon } from './Icons';
+import { FileTextIcon, SettingsIcon, Activity, SaveIcon, PrinterIcon } from './Icons';
 
 // Use fixed license constant
 const DIAGNOSTIC_LICENSE = 'HSM41671';
@@ -36,18 +36,34 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
     const [selectedTechnologistId, setSelectedTechnologistId] = useState<string>('');
     const [selectedConsultantId, setSelectedConsultantId] = useState<string>('');
     const [currentReportData, setCurrentReportData] = useState<any>(null);
-    const [selectedReportsForDelivery, setSelectedReportsForDelivery] = useState<string[]>([]);
     
-    // Default to Full Pad logic but fixed license
-    const [printFullPad, setPrintFullPad] = useState<boolean>(true); 
+    // Manual Signature Overrides
+    const [customTechName, setCustomTechName] = useState('');
+    const [customTechDegree, setCustomTechDegree] = useState('');
+    const [customDocName, setCustomDocName] = useState('');
+    const [customDocDegree, setCustomDocDegree] = useState('');
 
-    const [masterTemplates, setMasterTemplates] = useState<ReportTemplate[]>(() => {
-        const saved = localStorage.getItem('ncd_report_templates_v4');
-        return saved ? JSON.parse(saved) : defaultPregnancyTemplates;
-    });
+    const [printFullPad, setPrintFullPad] = useState<boolean>(true); 
 
     const currentInvoice = useMemo(() => invoices.find((inv: Invoice) => inv.invoice_id === selectedInvoiceId), [selectedInvoiceId, invoices]);
     const patient = useMemo(() => patients.find((p: Patient) => p.pt_id === currentInvoice?.patient_id), [currentInvoice, patients]);
+
+    // Update manual signature states when dropdowns change
+    useEffect(() => {
+        const tech = employees.find((e: any) => e.emp_id === selectedTechnologistId);
+        if (tech) {
+            setCustomTechName(tech.emp_name);
+            setCustomTechDegree(tech.degree || 'Medical Technologist');
+        }
+    }, [selectedTechnologistId, employees]);
+
+    useEffect(() => {
+        const doc = doctors.find((d: any) => d.doctor_id === selectedConsultantId);
+        if (doc) {
+            setCustomDocName(doc.doctor_name);
+            setCustomDocDegree(doc.degree);
+        }
+    }, [selectedConsultantId, doctors]);
 
     const activeTestGroup = useMemo(() => {
         if (!currentInvoice || !activeTestName) return [];
@@ -67,6 +83,7 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
             setCurrentReportData(saved.data);
             setSelectedTechnologistId(saved.technologistId || '');
             setSelectedConsultantId(saved.consultantId || '');
+            // Try to load custom values if they were saved (optional improvement, using current logic for now)
         } else {
             setCurrentReportData(null);
         }
@@ -108,8 +125,6 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
     const handlePrintReport = () => {
         const content = document.getElementById('printable-report-content');
         if (!content) return;
-        const technologist = employees.find((e: any) => e.emp_id === selectedTechnologistId);
-        const consultant = doctors.find((d: any) => d.doctor_id === selectedConsultantId);
 
         const win = window.open('', '_blank');
         if (!win) return;
@@ -158,12 +173,16 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
 
                         <div class="footer p-12 mt-auto flex justify-between items-end shrink-0">
                             <div class="text-center w-64">
-                                <p class="text-[14px] font-black text-slate-950 uppercase border-t-2 border-black pt-1">${technologist?.emp_name || 'Technologist'}</p>
-                                <p class="text-[9px] font-black uppercase text-slate-400 tracking-widest">Medical Technologist</p>
+                                <p class="text-[11px] font-black uppercase text-slate-500 mb-1">Lab Technologist</p>
+                                <div class="h-10 w-full"></div>
+                                <p class="text-[14px] font-black text-slate-950 uppercase border-t-2 border-black pt-1">${customTechName || '...........................................'}</p>
+                                <p class="text-[9px] font-bold uppercase text-slate-500 tracking-widest">${customTechDegree || ''}</p>
                             </div>
                             <div class="text-center w-72">
-                                <p class="text-[14px] font-black text-slate-950 uppercase border-t-2 border-black pt-1">${consultant?.doctor_name || 'Consultant Pathologist'}</p>
-                                <p class="text-[10px] font-bold text-slate-600 italic whitespace-pre-wrap leading-tight">${consultant?.degree || 'Specialist'}</p>
+                                <p class="text-[11px] font-black uppercase text-slate-500 mb-1">Reported By</p>
+                                <div class="h-10 w-full"></div>
+                                <p class="text-[14px] font-black text-slate-950 uppercase border-t-2 border-black pt-1">${customDocName || '...........................................'}</p>
+                                <p class="text-[10px] font-bold text-slate-600 italic whitespace-pre-wrap leading-tight">${customDocDegree || ''}</p>
                             </div>
                         </div>
                     </div>
@@ -224,11 +243,12 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
                         {invoices.filter((i: any) => i.patient_name.toLowerCase().includes(searchTerm.toLowerCase()) || i.invoice_id.includes(searchTerm)).map((r: any) => {
                             const completedCount = reports.filter((rep: any) => rep.invoice_id === r.invoice_id).length;
                             const isAllDone = completedCount >= r.items.length;
+                            const isActive = selectedInvoiceId === r.invoice_id;
                             return (
-                                <div key={r.invoice_id} onClick={() => { setSelectedInvoiceId(r.invoice_id); setActiveTestName(null); setSelectedReportsForDelivery([]); }} className={`p-4 border-2 rounded-[2rem] cursor-pointer transition-all ${selectedInvoiceId === r.invoice_id ? 'bg-blue-600 border-blue-400 text-white shadow-xl scale-105' : 'bg-white hover:border-blue-200'}`}>
-                                    <div className="font-black text-sm uppercase tracking-tight">{r.patient_name}</div>
+                                <div key={r.invoice_id} onClick={() => { setSelectedInvoiceId(r.invoice_id); setActiveTestName(null); }} className={`p-4 border-2 rounded-[2rem] cursor-pointer transition-all ${isActive ? 'bg-blue-600 border-blue-400 text-white shadow-xl scale-105' : 'bg-white hover:border-blue-200'}`}>
+                                    <div className={`font-black text-sm uppercase tracking-tight ${isActive ? 'text-white' : 'text-slate-900'}`}>{r.patient_name}</div>
                                     <div className="flex justify-between items-center mt-2">
-                                        <span className="text-[10px] opacity-60 font-mono">{r.invoice_id}</span>
+                                        <span className={`text-[10px] font-mono ${isActive ? 'text-white/70' : 'text-slate-500'}`}>{r.invoice_id}</span>
                                         <span className={`text-[8px] px-2 py-1 rounded-full font-black uppercase ${isAllDone ? 'bg-emerald-500 text-white' : 'bg-orange-500 text-white'}`}>{isAllDone ? 'Ready' : 'Pending'}</span>
                                     </div>
                                 </div>
@@ -268,10 +288,9 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
                                             <span className="text-[10px] font-black uppercase text-slate-500">Professional A4 Design</span>
                                         </label>
                                     </div>
-                                    {printFullPad && (
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-[9px] font-black uppercase text-slate-400">Govt. Reg No:</span>
-                                            <span className="bg-slate-100 border border-slate-200 rounded px-2 py-0.5 text-[10px] font-black text-slate-900">{DIAGNOSTIC_LICENSE}</span>
+                                    {!printFullPad && (
+                                        <div className="bg-amber-50 border border-amber-200 text-amber-800 text-[10px] px-3 py-1 rounded-lg font-bold">
+                                            ⚠️ ২.১ ইঞ্চি টপ মার্জিন অটো-সেট করা হয়েছে।
                                         </div>
                                     )}
                                 </div>
@@ -319,9 +338,19 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
                                             </div>
                                         )}
                                     </div>
-                                    <div className="mt-20 flex justify-between px-10 text-black no-print">
-                                        <div className="text-center w-64 border-t-2 border-black pt-1 uppercase text-[10px] font-black">Technologist</div>
-                                        <div className="text-center w-64 border-t-2 border-black pt-1 uppercase text-[10px] font-black">Reporting Doctor</div>
+                                    
+                                    {/* Manual Signature Section for Real-time Editing */}
+                                    <div className="mt-20 flex justify-between px-10 text-black no-print border-t-2 border-slate-100 pt-10">
+                                        <div className="text-center w-64 space-y-2">
+                                            <p className="text-[10px] font-black uppercase text-slate-400 mb-1 leading-none">Lab Technologist Override</p>
+                                            <input value={customTechName} onChange={e=>setCustomTechName(e.target.value)} placeholder="Name" className="w-full bg-slate-50 border border-slate-200 rounded p-1 text-[11px] font-black uppercase text-center"/>
+                                            <input value={customTechDegree} onChange={e=>setCustomTechDegree(e.target.value)} placeholder="Degree" className="w-full bg-slate-50 border border-slate-200 rounded p-1 text-[9px] font-bold text-center"/>
+                                        </div>
+                                        <div className="text-center w-72 space-y-2">
+                                            <p className="text-[10px] font-black uppercase text-slate-400 mb-1 leading-none">Reporting Doctor Override</p>
+                                            <input value={customDocName} onChange={e=>setCustomDocName(e.target.value)} placeholder="Name" className="w-full bg-slate-50 border border-slate-200 rounded p-1 text-[11px] font-black uppercase text-center"/>
+                                            <textarea value={customDocDegree} onChange={e=>setCustomDocDegree(e.target.value)} placeholder="Degree" className="w-full bg-slate-50 border border-slate-200 rounded p-1 text-[9px] font-bold text-center h-12 resize-none"/>
+                                        </div>
                                     </div>
                                 </div>
                             </div>

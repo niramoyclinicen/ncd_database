@@ -338,6 +338,7 @@ export interface ServiceItem {
   discount: number;
   payable_amount: number;
   note: string;
+  isClinicFund?: boolean; // New: tracking if this item goes to clinic fund
 }
 
 export type ServiceItemDef = ServiceItem;
@@ -356,6 +357,7 @@ export interface IndoorInvoice {
   referrar_name: string;
   indication: string;
   serviceCategory: string;
+  subCategory?: string; // New: Sub Category tracking
   services: any[]; 
   contact_bill: string;
   items: ServiceItem[];
