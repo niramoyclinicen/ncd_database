@@ -6,7 +6,7 @@ import PatientInfoPage from './PatientInfoPage';
 import DoctorInfoPage from './DoctorInfoPage';
 import ReferrerInfoPage from './ReferrerInfoPage';
 // Added imports for missing icons
-import { Activity, MoneyIcon, UsersIcon, ChartIcon } from './Icons';
+import { Activity, MoneyIcon, UsersIcon, ChartIcon, SearchIcon, CalendarIcon, TrashIcon, RefreshIcon } from './Icons';
 
 const emptyAppointment: Appointment = {
   appointment_id: '',
@@ -44,7 +44,7 @@ const appointmentReasons = [
   "Burn / পুড়ে যাওয়া",
   "High Blood Pressure / উচ্চ রক্তচাপ",
   "Diabetes Checkup / ডায়াবেটিস চেকআপ",
-  "Pregnancy Checkup / গর্ভকালীন সেবা",
+  "Pregnancy Checkup / গর্বকালীন সেবা",
   "Gynecology Problem / গাইনি সমস্যা",
   "Eye Problem / চোখের সমস্যা",
   "Ear Pain / কানে ব্যথা",
@@ -77,6 +77,12 @@ const DoctorAppointmentPage: React.FC<DoctorAppointmentPageProps> = ({
   const [selectedAppointmentId, setSelectedAppointmentId] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState<boolean>(false);
   const [searchTerm, setSearchTerm] = useState('');
+  
+  // New list filters
+  const [listSearchDoctor, setListSearchDoctor] = useState('');
+  const [listFilterDate, setListFilterDate] = useState('');
+  const [listFilterMonth, setListFilterMonth] = useState('');
+
   const [barcodeInput, setBarcodeInput] = useState('');
   const [showNewPatientForm, setShowNewPatientForm] = useState(false);
   const [showNewDoctorForm, setShowNewDoctorForm] = useState(false);
@@ -102,15 +108,30 @@ const DoctorAppointmentPage: React.FC<DoctorAppointmentPageProps> = ({
     }
   }, [successMessage]);
 
+  // Updated List Filtering Logic
   useEffect(() => {
-    const results = appointments.filter(appt =>
-      appt.patient_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      appt.doctor_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (appt.referrar_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      appt.appointment_id.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const results = appointments.filter(appt => {
+      // 1. General Search Term (matches Pt Name, Doc Name, Ref Name, ID)
+      const matchesSearch = searchTerm === '' || 
+        appt.patient_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        appt.doctor_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (appt.referrar_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        appt.appointment_id.toLowerCase().includes(searchTerm.toLowerCase());
+
+      // 2. Specific Doctor Search
+      const matchesDoctor = listSearchDoctor === '' || 
+        appt.doctor_name.toLowerCase().includes(listSearchDoctor.toLowerCase());
+
+      // 3. Specific Date Filter
+      const matchesDate = listFilterDate === '' || appt.appointment_date === listFilterDate;
+
+      // 4. Specific Month Filter
+      const matchesMonth = listFilterMonth === '' || appt.appointment_date.startsWith(listFilterMonth);
+
+      return matchesSearch && matchesDoctor && matchesDate && matchesMonth;
+    });
     setFilteredAppointments(results);
-  }, [searchTerm, appointments]);
+  }, [searchTerm, listSearchDoctor, listFilterDate, listFilterMonth, appointments]);
 
   useEffect(() => {
     const calculateTotals = () => {
@@ -119,7 +140,6 @@ const DoctorAppointmentPage: React.FC<DoctorAppointmentPageProps> = ({
       let allDoctorsDailySum = 0;
       let allDoctorsMonthlySum = 0;
 
-      // Extract month and year from the selected date for monthly reports
       const selDateObj = new Date(selectedDateForDailyReport);
       const selectedMonth = selDateObj.getMonth();
       const selectedYear = selDateObj.getFullYear();
@@ -130,17 +150,13 @@ const DoctorAppointmentPage: React.FC<DoctorAppointmentPageProps> = ({
         const apptDateStr = appt.appointment_date;
         const apptDateObj = new Date(apptDateStr);
 
-        // --- ALL DOCTORS DAILY ---
-        // Include Scheduled/Completed on the SELECTED date
         if (apptDateStr === selectedDateForDailyReport && (appt.status === 'Completed' || appt.status === 'Scheduled')) {
             allDoctorsDailySum += appt.doctor_fee;
         }
-        // Subtract Returned on the SELECTED date
         if (appt.return_date === selectedDateForDailyReport && appt.status === 'Returned') {
             allDoctorsDailySum -= appt.doctor_fee;
         }
 
-        // --- ALL DOCTORS MONTHLY ---
         if (apptDateObj.getMonth() === selectedMonth && apptDateObj.getFullYear() === selectedYear && (appt.status === 'Completed' || appt.status === 'Scheduled')) {
             allDoctorsMonthlySum += appt.doctor_fee;
         }
@@ -151,7 +167,6 @@ const DoctorAppointmentPage: React.FC<DoctorAppointmentPageProps> = ({
             }
         }
         
-        // --- SELECTED DOCTOR TOTALS ---
         if (selectedDoctorId && appt.doctor_id === selectedDoctorId) {
             if (apptDateStr === selectedDateForDailyReport && (appt.status === 'Completed' || appt.status === 'Scheduled')) {
                 currentDoctorDailySum += appt.doctor_fee;
@@ -466,9 +481,53 @@ const DoctorAppointmentPage: React.FC<DoctorAppointmentPageProps> = ({
 
       {/* APPOINTMENT LIST TABLE SECTION */}
       <div className="mt-8 border-t border-slate-700 pt-6">
-        <h3 className="text-xl font-bold text-slate-100 mb-4 flex items-center gap-3">
-            <UsersIcon className="text-indigo-400" /> Appointment Journal
-        </h3>
+        <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+            <h3 className="text-xl font-bold text-slate-100 flex items-center gap-3">
+                <UsersIcon className="text-indigo-400" /> Appointment Journal
+            </h3>
+            
+            {/* NEW LIST FILTER CONTROLS */}
+            <div className="flex flex-wrap items-center gap-3 bg-slate-800/40 p-3 rounded-2xl border border-slate-700 shadow-inner no-print">
+                <div className="flex items-center gap-2">
+                    <SearchIcon size={16} className="text-slate-500" />
+                    <input 
+                        type="text" 
+                        placeholder="Filter by Doctor..." 
+                        value={listSearchDoctor} 
+                        onChange={(e) => setListSearchDoctor(e.target.value)}
+                        className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white font-bold outline-none focus:border-blue-500 w-40"
+                    />
+                </div>
+                <div className="flex items-center gap-2">
+                    <CalendarIcon size={16} className="text-slate-500" />
+                    <input 
+                        type="date" 
+                        value={listFilterDate} 
+                        onChange={(e) => { setListFilterDate(e.target.value); setListFilterMonth(''); }}
+                        className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white font-bold outline-none focus:border-blue-500"
+                        title="Filter by Specific Date"
+                    />
+                </div>
+                <div className="flex items-center gap-2">
+                    <CalendarIcon size={16} className="text-slate-500" />
+                    <input 
+                        type="month" 
+                        value={listFilterMonth} 
+                        onChange={(e) => { setListFilterMonth(e.target.value); setListFilterDate(''); }}
+                        className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white font-bold outline-none focus:border-blue-500"
+                        title="Filter by Entire Month"
+                    />
+                </div>
+                <button 
+                    onClick={() => { setListSearchDoctor(''); setListFilterDate(''); setListFilterMonth(''); }}
+                    className="p-1.5 bg-slate-700 hover:bg-rose-600 text-white rounded-lg transition-colors"
+                    title="Clear List Filters"
+                >
+                    <TrashIcon size={16} />
+                </button>
+            </div>
+        </div>
+
         <div className="overflow-x-auto border border-slate-700 rounded-2xl shadow-inner bg-slate-950/20">
             <table className="min-w-full divide-y divide-slate-800">
                 <thead className="bg-slate-900/50">
@@ -500,7 +559,7 @@ const DoctorAppointmentPage: React.FC<DoctorAppointmentPageProps> = ({
                             <td className="px-6 py-4 text-sm font-medium text-slate-300">Dr. {appt.doctor_name}</td>
                             <td className="px-6 py-4 text-right font-black text-slate-100">৳ {appt.doctor_fee.toFixed(2)}</td>
                             <td className="px-6 py-4 whitespace-nowrap text-center">
-                                <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase shadow-inner ${appt.status === 'Completed' ? 'bg-emerald-900/40 text-emerald-400' : appt.status === 'Scheduled' ? 'bg-blue-900/40 text-blue-400' : appt.status === 'Returned' ? 'bg-amber-900/40 text-amber-500' : 'bg-rose-900/40 text-rose-400'}`}>
+                                <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase shadow-inner ${appt.status === 'Completed' ? 'bg-emerald-900/40 text-emerald-400' : appt.status === 'Scheduled' ? 'bg-blue-900/40 text-blue-400' : appt.status === 'Returned' ? 'bg-amber-900/40 text-amber-500' : appt.status === 'rose-900/40 text-rose-400'}`}>
                                     {appt.status}
                                 </span>
                             </td>
