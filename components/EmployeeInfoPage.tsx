@@ -107,25 +107,85 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
     }
   };
 
+  // Helper: Calculate duration between two time strings (HH:mm)
+  const calculateDuration = (startTime: string, endTime: string) => {
+    const [h1, m1] = startTime.split(':').map(Number);
+    const [h2, m2] = endTime.split(':').map(Number);
+    const mins1 = h1 * 60 + m1;
+    const mins2 = h2 * 60 + m2;
+    return mins2 - mins1; // in minutes
+  };
+
+  // Helper: Format minutes to Hh Mm string
+  const formatMinsToDuration = (totalMins: number) => {
+    const h = Math.floor(totalMins / 60);
+    const m = totalMins % 60;
+    return `${h}h ${m}m`;
+  };
+
+  // --- UPDATED MACHINE SYNC LOGIC (MULTI-SESSION ACCUMULATION) ---
   const handleMachineSync = () => {
+    if (!machineCfg.ipAddress) {
+        alert("মেশিন আইপি সেট করা নেই। কনসোল থেকে আইপি সেট করুন।");
+        return;
+    }
+
     setMachineCfg(prev => ({ ...prev, status: 'Syncing' }));
+    
     setTimeout(() => {
         const now = new Date();
-        const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
         setMachineCfg(prev => ({ ...prev, status: 'Online', lastSync: now.toLocaleString() }));
+        
         const newLog = { ...attendanceLog };
         let matchCount = 0;
+
         periodEmployees.forEach(emp => {
             if (emp.machine_id) {
                 const key = `${attendanceDate}_${emp.emp_id}`;
+                
+                // Simulation: Generating paired punches (In, Out, In, Out)
+                // Session 1: Morning Shift
+                // Session 2: Evening Shift
+                const punches = [
+                    "08:45", "12:00", // Shift 1 (In at 8:45, Out at 12:00)
+                    "17:00", "20:30"  // Shift 2 (In at 5:00, Out at 8:30)
+                ].sort();
+
+                let totalMinutes = 0;
+                let sessionDetails = [];
+
+                // Pair the sorted punches: (1,2), (3,4), etc.
+                for (let i = 0; i < punches.length; i += 2) {
+                    if (punches[i] && punches[i+1]) {
+                        const start = punches[i];
+                        const end = punches[i+1];
+                        const diff = calculateDuration(start, end);
+                        if (diff > 0) {
+                            totalMinutes += diff;
+                            sessionDetails.push(`${start}-${end}`);
+                        }
+                    }
+                }
+
+                const totalDutyStr = formatMinsToDuration(totalMinutes);
+
+                // Only sync if status is empty or already a machine record
                 if (!newLog[key] || newLog[key].status === '' || newLog[key].isMachineRecord) {
-                    newLog[key] = { status: 'Present', inTime: '09:00', outTime: timeStr, notes: `Auto-Sync via IP: ${machineCfg.ipAddress}`, isMachineRecord: true };
+                    newLog[key] = { 
+                        status: 'Present', 
+                        inTime: punches[0], 
+                        outTime: punches[punches.length - 1], 
+                        notes: `Total: ${totalDutyStr} | Sessions: ${sessionDetails.join(', ')}`, 
+                        totalMinutes: totalMinutes,
+                        isMachineRecord: true 
+                    };
                     matchCount++;
                 }
             }
         });
+
         setAttendanceLog(newLog);
-        setSuccessMessage(`Sync Complete! ${matchCount} records updated from machine logs.`);
+        setSuccessMessage(`সফলভাবে ${matchCount} জন এমপ্লয়ীর উপস্থিতির "মোট কর্মঘণ্টা" সিঙ্ক করা হয়েছে।`);
     }, 2000);
   };
 
@@ -141,7 +201,7 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
         }
         return [formData, ...prev];
     });
-    setSuccessMessage(selectedEmployeeId ? "Profile Updated Successfully!" : "New Employee Added Successfully!");
+    setSuccessMessage(selectedEmployeeId ? "প্রোফাইল আপডেট করা হয়েছে!" : "নতুন এমপ্লয়ী যুক্ত করা হয়েছে!");
     if (!selectedEmployeeId) { setFormData(emptyEmployee); setSelectedEmployeeId(null); }
   };
 
@@ -436,7 +496,7 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
           <div className="overflow-x-auto rounded-2xl border border-slate-100 dark:border-slate-800 shadow-inner">
               <table className="w-full text-left text-sm border-collapse">
                   <thead className="bg-slate-50 dark:bg-slate-950 text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 dark:border-slate-800">
-                      <tr><th className="p-5">Staff Member</th><th className="p-5">HID</th><th className="p-5">Status</th><th className="p-5 text-center">In Time</th><th className="p-5 text-center">Out Time</th><th className="p-5">Remarks</th></tr>
+                      <tr><th className="p-5">Staff Member</th><th className="p-5">HID</th><th className="p-5">Status</th><th className="p-5 text-center">In Time</th><th className="p-5 text-center">Out Time</th><th className="p-5">Session Details & Total Hours</th></tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                       {periodEmployees.map((emp) => {
@@ -449,7 +509,7 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
                                   <td className="p-5"><select value={record.status} onChange={(e) => setAttendanceLog({...attendanceLog, [key]: {...record, status: e.target.value as any, isMachineRecord: false}})} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-4 py-2 text-slate-800 dark:text-white text-xs font-bold shadow-sm w-full"><option value="">-- Select --</option><option value="Present">Present</option><option value="Absent">Absent</option><option value="Late">Late</option><option value="Leave">Leave</option></select></td>
                                   <td className="p-5 text-center"><input type="time" value={record.inTime} onChange={(e) => setAttendanceLog({...attendanceLog, [key]: {...record, inTime: e.target.value, isMachineRecord: false}})} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-2 text-slate-800 dark:text-white text-xs font-bold" /></td>
                                   <td className="p-5 text-center"><input type="time" value={record.outTime} onChange={(e) => setAttendanceLog({...attendanceLog, [key]: {...record, outTime: e.target.value, isMachineRecord: false}})} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-2 text-slate-800 dark:text-white text-xs font-bold" /></td>
-                                  <td className="p-5"><input type="text" value={record.notes} onChange={(e) => setAttendanceLog({...attendanceLog, [key]: {...record, notes: e.target.value, isMachineRecord: false}})} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-2 text-slate-800 dark:text-white text-xs font-medium w-full" placeholder="..." /></td>
+                                  <td className="p-5"><div className="bg-slate-50 dark:bg-slate-950 p-2 rounded-lg border border-slate-100 dark:border-slate-800 text-xs font-medium text-slate-600 dark:text-slate-400 min-h-[36px] flex items-center">{record.notes || 'No data sync yet.'}</div></td>
                               </tr>
                           );
                       })}
