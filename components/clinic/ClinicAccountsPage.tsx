@@ -127,7 +127,12 @@ const ClinicAccountsPage: React.FC<any> = ({
             }
         });
 
-        return { admFee, oxygen, conservative, nvd, dc, lscs, gb_ot, others_ot, dressing, others };
+        // PC and Clinic Net Calculation
+        const totalClinicRevenue = admFee + oxygen + conservative + nvd + dc + lscs + gb_ot + others_ot + dressing + others;
+        const pcAmount = inv.commission_paid || 0;
+        const clinicNet = totalClinicRevenue - pcAmount;
+
+        return { admFee, oxygen, conservative, nvd, dc, lscs, gb_ot, others_ot, dressing, others, pcAmount, clinicNet };
     };
 
     const summaryData = useMemo(() => {
@@ -154,13 +159,16 @@ const ClinicAccountsPage: React.FC<any> = ({
             acc.others_ot += catData.others_ot;
             acc.dressing += catData.dressing;
             acc.others += catData.others;
+            acc.totalPC += catData.pcAmount;
             return acc;
-        }, { admFee: 0, oxygen: 0, conservative: 0, nvd: 0, dc: 0, lscs: 0, gb_ot: 0, others_ot: 0, dressing: 0, others: 0 });
+        }, { admFee: 0, oxygen: 0, conservative: 0, nvd: 0, dc: 0, lscs: 0, gb_ot: 0, others_ot: 0, dressing: 0, others: 0, totalPC: 0 });
 
-        const totalCollection = monthInvoices.reduce((sum:any, inv:any) => {
+        const totalClinicRevenueOnly = monthInvoices.reduce((sum:any, inv:any) => {
             const netIncomeForInv = inv.items.filter((it:any) => it.isClinicFund).reduce((s:number, i:any) => s + i.payable_amount, 0);
             return sum + netIncomeForInv;
-        }, 0) + monthDueRecov;
+        }, 0);
+
+        const totalCollectionIncludingDue = totalClinicRevenueOnly + monthDueRecov;
 
         const expensesByCategory: Record<string, number> = {};
         clinicExpenseCategories.forEach(cat => expensesByCategory[cat] = 0);
@@ -171,7 +179,7 @@ const ClinicAccountsPage: React.FC<any> = ({
             }
         });
         const totalExpense = Object.values(expensesByCategory).reduce((s, v) => s + v, 0);
-        return { totalCollection, collectionByCategory, monthDueRecov, expensesByCategory, totalExpense, balance: totalCollection - totalExpense };
+        return { totalCollection: totalCollectionIncludingDue, collectionByCategory, monthDueRecov, expensesByCategory, totalExpense, balance: totalCollectionIncludingDue - totalExpense };
     }, [selectedMonth, selectedYear, invoices, dueCollections, detailedExpenses]);
 
     const dailySummaryData = useMemo(() => {
@@ -194,13 +202,16 @@ const ClinicAccountsPage: React.FC<any> = ({
             acc.others_ot += catData.others_ot;
             acc.dressing += catData.dressing;
             acc.others += catData.others;
+            acc.totalPC += catData.pcAmount;
             return acc;
-        }, { admFee: 0, oxygen: 0, conservative: 0, nvd: 0, dc: 0, lscs: 0, gb_ot: 0, others_ot: 0, dressing: 0, others: 0 });
+        }, { admFee: 0, oxygen: 0, conservative: 0, nvd: 0, dc: 0, lscs: 0, gb_ot: 0, others_ot: 0, dressing: 0, others: 0, totalPC: 0 });
 
-        const totalCollection = dayInvoices.reduce((sum: any, inv: any) => {
+        const totalClinicRevenueOnly = dayInvoices.reduce((sum: any, inv: any) => {
              const netIncomeForInv = inv.items.filter((it:any) => it.isClinicFund).reduce((s:number, i:any) => s + i.payable_amount, 0);
              return sum + netIncomeForInv;
-        }, 0) + dayDueRecov;
+        }, 0);
+
+        const totalCollection = totalClinicRevenueOnly + dayDueRecov;
         const dayExpenses = detailedExpenses[selectedDate] || [];
         const totalExpense = dayExpenses.reduce((s: number, it: any) => s + it.paidAmount, 0);
         
@@ -236,7 +247,9 @@ const ClinicAccountsPage: React.FC<any> = ({
                 consCol: catData.conservative,
                 o2NebCol: catData.oxygen,
                 dressCol: catData.dressing,
-                othersCol: catData.others
+                othersCol: catData.others,
+                pcCol: catData.pcAmount,
+                netClinicCol: catData.clinicNet
             };
         });
     }, [invoices, isTodayFilter, selectedDate, selectedMonth, selectedYear, invoiceSearch]);
@@ -253,9 +266,11 @@ const ClinicAccountsPage: React.FC<any> = ({
             acc.o2neb += curr.o2NebCol;
             acc.dress += curr.dressCol;
             acc.others += curr.othersCol;
+            acc.pc += curr.pcCol;
+            acc.netClinic += curr.netClinicCol;
             acc.paidTotal += curr.paid_amount;
             return acc;
-        }, { admFee: 0, lscs: 0, gb: 0, others_ot: 0, nvd: 0, dc: 0, cons: 0, o2neb: 0, dress: 0, others: 0, paidTotal: 0 });
+        }, { admFee: 0, lscs: 0, gb: 0, others_ot: 0, nvd: 0, dc: 0, cons: 0, o2neb: 0, dress: 0, others: 0, pc: 0, netClinic: 0, paidTotal: 0 });
     }, [collectionReportData]);
 
     const handlePrintCollectionReport = () => {
@@ -270,10 +285,10 @@ const ClinicAccountsPage: React.FC<any> = ({
                     <script src="https://cdn.tailwindcss.com"></script>
                     <style>
                         @page { size: A4 landscape; margin: 8mm; } 
-                        body { background: white; font-family: 'Segoe UI', serif; color: black; font-size: 8pt; }
+                        body { background: white; font-family: 'Segoe UI', serif; color: black; font-size: 7.5pt; }
                         table { width: 100%; border-collapse: collapse; }
                         th, td { border: 1px solid #000; padding: 2px 4px; text-align: left; }
-                        th { background: #f3f4f6; font-weight: bold; text-transform: uppercase; font-size: 7.5pt; }
+                        th { background: #f3f4f6; font-weight: bold; text-transform: uppercase; font-size: 7pt; }
                         .text-right { text-align: right; }
                         .font-black { font-weight: 900; }
                     </style>
@@ -289,21 +304,20 @@ const ClinicAccountsPage: React.FC<any> = ({
                                 <th>Adm. ID</th>
                                 <th>Date</th>
                                 <th>Patient Name</th>
-                                <th>Indication</th>
-                                <th>Doctor</th>
-                                <th>Discharge</th>
                                 <th>Service Taken</th>
-                                <th class="text-right">Admission_fee</th>
-                                <th class="text-right">LSCS_OT</th>
+                                <th class="text-right">Admission</th>
+                                <th class="text-right">LSCS</th>
                                 <th class="text-right">GB_OT</th>
                                 <th class="text-right">Others_OT</th>
                                 <th class="text-right">NVD</th>
                                 <th class="text-right">D&C</th>
-                                <th class="text-right">Conservative</th>
-                                <th class="text-right">O2 & Nebulization</th>
-                                <th class="text-right">Dressing</th>
-                                <th class="text-right">Others</th>
+                                <th class="text-right">Cons.</th>
+                                <th class="text-right">O2/Neb</th>
+                                <th class="text-right">Dress</th>
+                                <th class="text-right">Misc</th>
                                 <th class="text-right">Paid Total</th>
+                                <th class="text-right bg-rose-50">PC (Comm)</th>
+                                <th class="text-right bg-emerald-50">Clinic Net</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -312,9 +326,6 @@ const ClinicAccountsPage: React.FC<any> = ({
                                     <td>${inv.admission_id}</td>
                                     <td>${inv.admission_date || inv.invoice_date}</td>
                                     <td class="font-bold">${inv.patient_name}</td>
-                                    <td>${inv.indication || '-'}</td>
-                                    <td>${inv.doctor_name || '-'}</td>
-                                    <td>${inv.discharge_date || '-'}</td>
                                     <td>${inv.subCategory || '-'}</td>
                                     <td class="text-right">৳${inv.admFeeCol.toLocaleString()}</td>
                                     <td class="text-right">৳${inv.lscsCol.toLocaleString()}</td>
@@ -326,13 +337,15 @@ const ClinicAccountsPage: React.FC<any> = ({
                                     <td class="text-right">৳${inv.o2NebCol.toLocaleString()}</td>
                                     <td class="text-right">৳${inv.dressCol.toLocaleString()}</td>
                                     <td class="text-right">৳${inv.othersCol.toLocaleString()}</td>
-                                    <td class="text-right font-black">৳${inv.paid_amount.toLocaleString()}</td>
+                                    <td class="text-right font-bold">৳${inv.paid_amount.toLocaleString()}</td>
+                                    <td class="text-right bg-rose-50 text-rose-800">৳${inv.pcCol.toLocaleString()}</td>
+                                    <td class="text-right font-black bg-emerald-50 text-emerald-800">৳${inv.netClinicCol.toLocaleString()}</td>
                                 </tr>
                             `).join('')}
                         </tbody>
                         <tfoot class="bg-gray-100 font-black">
                             <tr>
-                                <td colspan="7" class="text-right">Grand Totals:</td>
+                                <td colspan="4" class="text-right">Grand Totals:</td>
                                 <td class="text-right">৳${reportTotals.admFee.toLocaleString()}</td>
                                 <td class="text-right">৳${reportTotals.lscs.toLocaleString()}</td>
                                 <td class="text-right">৳${reportTotals.gb.toLocaleString()}</td>
@@ -344,6 +357,8 @@ const ClinicAccountsPage: React.FC<any> = ({
                                 <td class="text-right">৳${reportTotals.dress.toLocaleString()}</td>
                                 <td class="text-right">৳${reportTotals.others.toLocaleString()}</td>
                                 <td class="text-right">৳${reportTotals.paidTotal.toLocaleString()}</td>
+                                <td class="text-right text-rose-700">৳${reportTotals.pc.toLocaleString()}</td>
+                                <td class="text-right text-emerald-700">৳${reportTotals.netClinic.toLocaleString()}</td>
                             </tr>
                         </tfoot>
                     </table>
@@ -549,9 +564,9 @@ const ClinicAccountsPage: React.FC<any> = ({
                 </div>
             </header>
 
-            <main className="flex-1 container mx-auto p-6 space-y-8">
+            <main className="flex-1 w-full px-4 sm:px-6 py-8 space-y-8">
                 {viewMode === 'detailed' && (
-                    <div className="space-y-8 animate-fade-in">
+                    <div className="max-w-7xl mx-auto space-y-8 animate-fade-in">
                         <DailyExpenseForm 
                             selectedDate={selectedDate} 
                             onDateChange={setSelectedDate} 
@@ -574,8 +589,8 @@ const ClinicAccountsPage: React.FC<any> = ({
                 )}
 
                 {viewMode === 'collection' && (
-                    <div className="animate-fade-in space-y-6">
-                        <div className="bg-slate-800 p-6 rounded-3xl border border-slate-700 shadow-2xl flex flex-col gap-6">
+                    <div className="animate-fade-in space-y-6 w-full">
+                        <div className="bg-slate-800 p-4 sm:p-8 rounded-3xl border border-slate-700 shadow-2xl flex flex-col gap-6 w-full">
                             <div className="flex flex-wrap justify-between items-center gap-4 border-b border-slate-700 pb-4 no-print">
                                 <div className="flex items-center gap-4">
                                     <h3 className="text-xl font-black text-white uppercase tracking-tighter">Patient Collection Report</h3>
@@ -604,71 +619,72 @@ const ClinicAccountsPage: React.FC<any> = ({
                                 </div>
                             </div>
 
-                            <div className="overflow-x-auto min-h-[400px] border border-slate-700 rounded-xl bg-slate-950/20 shadow-inner">
-                                <table className="w-full text-left text-[9pt] border-collapse">
-                                    <thead className="bg-slate-900/80 text-[8pt] font-black text-slate-500 uppercase tracking-widest border-b border-slate-700">
+                            {/* TABLE: Occupational width is now full for screen */}
+                            <div className="overflow-x-auto min-h-[500px] border border-slate-700 rounded-xl bg-slate-950/20 shadow-inner w-full">
+                                <table className="w-full text-left text-[11px] border-collapse min-w-[1500px]">
+                                    <thead className="bg-slate-900/80 text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-700">
                                         <tr>
-                                            <th className="p-2">Adm. ID</th>
-                                            <th className="p-2">Adm. Date</th>
-                                            <th className="p-2">Patient Name</th>
-                                            <th className="p-2">Indication</th>
-                                            <th className="p-2">Doctor</th>
-                                            <th className="p-2">Discharge</th>
-                                            <th className="p-2">Service Taken</th>
-                                            <th className="p-2 text-right">Admission_fee</th>
-                                            <th className="p-2 text-right">LSCS_OT</th>
-                                            <th className="p-2 text-right">GB_OT</th>
-                                            <th className="p-2 text-right">Others_OT</th>
-                                            <th className="p-2 text-right">NVD</th>
-                                            <th className="p-2 text-right">D&C</th>
-                                            <th className="p-2 text-right">Conservative</th>
-                                            <th className="p-2 text-right">O2 & Nebulization</th>
-                                            <th className="p-2 text-right">Dressing</th>
-                                            <th className="p-2 text-right">Others</th>
-                                            <th className="p-2 text-right bg-emerald-900/20 text-white font-black">Paid Total</th>
+                                            <th className="p-3 whitespace-nowrap">Adm. ID</th>
+                                            <th className="p-3 whitespace-nowrap">Date</th>
+                                            <th className="p-3 whitespace-nowrap">Patient Name</th>
+                                            <th className="p-3 whitespace-nowrap">Service Taken</th>
+                                            <th className="p-3 text-right">Admission</th>
+                                            <th className="p-3 text-right">LSCS</th>
+                                            <th className="p-3 text-right">GB_OT</th>
+                                            <th className="p-3 text-right">Others_OT</th>
+                                            <th className="p-3 text-right">NVD</th>
+                                            <th className="p-3 text-right">D&C</th>
+                                            <th className="p-3 text-right">Cons.</th>
+                                            <th className="p-3 text-right">O2/Neb</th>
+                                            <th className="p-3 text-right">Dress</th>
+                                            <th className="p-3 text-right">Misc</th>
+                                            <th className="p-3 text-right bg-emerald-900/10 text-emerald-100 font-black">Paid Total</th>
+                                            <th className="p-3 text-right bg-rose-900/10 text-rose-300 font-black border-l-2 border-rose-800/30">PC (Comm)</th>
+                                            <th className="p-3 text-right bg-blue-900/10 text-sky-200 font-black border-l-2 border-blue-800/30">Clinic Net</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-800">
                                         {collectionReportData.length > 0 ? collectionReportData.map((inv: any) => (
                                             <tr key={inv.daily_id} className="hover:bg-slate-700/30 transition-colors">
-                                                <td className="p-2 font-mono text-[8pt] text-sky-500 border-r border-slate-800">{inv.admission_id}</td>
-                                                <td className="p-2 border-r border-slate-800">{inv.admission_date || inv.invoice_date}</td>
-                                                <td className="p-2 font-black text-slate-200 border-r border-slate-800 uppercase">{inv.patient_name}</td>
-                                                <td className="p-2 text-slate-400 border-r border-slate-800 italic">{inv.indication || '-'}</td>
-                                                <td className="p-2 text-slate-300 border-r border-slate-800">{inv.doctor_name || 'Self'}</td>
-                                                <td className="p-2 border-r border-slate-800 text-center">{inv.discharge_date || '-'}</td>
-                                                <td className="p-2 text-sky-400 font-bold border-r border-slate-800 truncate max-w-[100px]" title={inv.subCategory}>{inv.subCategory || '-'}</td>
-                                                <td className="p-2 text-right border-r border-slate-800">৳${inv.admFeeCol.toLocaleString()}</td>
-                                                <td className="p-2 text-right border-r border-slate-800">৳${inv.lscsCol.toLocaleString()}</td>
-                                                <td className="p-2 text-right border-r border-slate-800">৳${inv.gbCol.toLocaleString()}</td>
-                                                <td className="p-2 text-right border-r border-slate-800">৳${inv.othersOtCol.toLocaleString()}</td>
-                                                <td className="p-2 text-right border-r border-slate-800">৳${inv.nvdCol.toLocaleString()}</td>
-                                                <td className="p-2 text-right border-r border-slate-800">৳${inv.dcCol.toLocaleString()}</td>
-                                                <td className="p-2 text-right border-r border-slate-800">৳${inv.consCol.toLocaleString()}</td>
-                                                <td className="p-2 text-right border-r border-slate-800">৳${inv.o2NebCol.toLocaleString()}</td>
-                                                <td className="p-2 text-right border-r border-slate-800">৳${inv.dressCol.toLocaleString()}</td>
-                                                <td className="p-2 text-right border-r border-slate-800">৳${inv.othersCol.toLocaleString()}</td>
-                                                <td className="p-2 text-right font-black text-emerald-400 bg-emerald-900/10">৳ {inv.paid_amount.toLocaleString()}</td>
+                                                <td className="p-3 font-mono text-sky-500 border-r border-slate-800/50">{inv.admission_id}</td>
+                                                <td className="p-3 border-r border-slate-800/50 whitespace-nowrap">{inv.admission_date || inv.invoice_date}</td>
+                                                <td className="p-3 font-black text-slate-200 border-r border-slate-800/50 uppercase whitespace-nowrap">{inv.patient_name}</td>
+                                                <td className="p-3 text-sky-400 font-bold border-r border-slate-800/50 truncate max-w-[120px]" title={inv.subCategory}>{inv.subCategory || '-'}</td>
+                                                <td className="p-3 text-right border-r border-slate-800/50">৳${inv.admFeeCol.toLocaleString()}</td>
+                                                <td className="p-3 text-right border-r border-slate-800/50">৳${inv.lscsCol.toLocaleString()}</td>
+                                                <td className="p-3 text-right border-r border-slate-800/50">৳${inv.gbCol.toLocaleString()}</td>
+                                                <td className="p-3 text-right border-r border-slate-800/50">৳${inv.othersOtCol.toLocaleString()}</td>
+                                                <td className="p-3 text-right border-r border-slate-800/50">৳${inv.nvdCol.toLocaleString()}</td>
+                                                <td className="p-3 text-right border-r border-slate-800/50">৳${inv.dcCol.toLocaleString()}</td>
+                                                <td className="p-3 text-right border-r border-slate-800/50">৳${inv.consCol.toLocaleString()}</td>
+                                                <td className="p-3 text-right border-r border-slate-800/50">৳${inv.o2NebCol.toLocaleString()}</td>
+                                                <td className="p-3 text-right border-r border-slate-800/50">৳${inv.dressCol.toLocaleString()}</td>
+                                                <td className="p-3 text-right border-r border-slate-800/50">৳${inv.othersCol.toLocaleString()}</td>
+                                                <td className="p-3 text-right font-black text-emerald-400 bg-emerald-900/10">৳ {inv.paid_amount.toLocaleString()}</td>
+                                                <td className="p-3 text-right font-black text-rose-400 bg-rose-900/10 border-l-2 border-rose-800/30">৳ {inv.pcCol.toLocaleString()}</td>
+                                                <td className="p-3 text-right font-black text-sky-300 bg-blue-900/10 border-l-2 border-blue-800/30">৳ {inv.netClinicCol.toLocaleString()}</td>
                                             </tr>
                                         )) : (
-                                            <tr><td colSpan={18} className="p-20 text-center text-slate-600 italic font-black uppercase opacity-30 text-xl tracking-[0.2em]">No Collection Records Found</td></tr>
+                                            <tr><td colSpan={17} className="p-20 text-center text-slate-600 italic font-black uppercase opacity-30 text-xl tracking-[0.2em]">No Collection Records Found</td></tr>
                                         )}
                                     </tbody>
                                     {collectionReportData.length > 0 && (
-                                        <tfoot className="bg-slate-900 text-slate-200 font-black border-t-2 border-slate-700">
+                                        <tfoot className="bg-slate-900 text-slate-200 font-black border-t-2 border-slate-700 sticky bottom-0">
                                             <tr>
-                                                <td colSpan={7} className="p-3 text-right uppercase tracking-widest text-[9pt]">Grand Totals:</td>
-                                                <td className="p-3 text-right">৳${reportTotals.admFee.toLocaleString()}</td>
-                                                <td className="p-3 text-right">৳${reportTotals.lscs.toLocaleString()}</td>
-                                                <td className="p-3 text-right">৳${reportTotals.gb.toLocaleString()}</td>
-                                                <td className="p-3 text-right">৳${reportTotals.others_ot.toLocaleString()}</td>
-                                                <td className="p-3 text-right">৳${reportTotals.nvd.toLocaleString()}</td>
-                                                <td className="p-3 text-right">৳${reportTotals.dc.toLocaleString()}</td>
-                                                <td className="p-3 text-right">৳${reportTotals.cons.toLocaleString()}</td>
-                                                <td className="p-3 text-right">৳${reportTotals.o2neb.toLocaleString()}</td>
-                                                <td className="p-3 text-right">৳${reportTotals.dress.toLocaleString()}</td>
-                                                <td className="p-3 text-right">৳${reportTotals.others.toLocaleString()}</td>
-                                                <td className="p-3 text-right text-emerald-400 text-[11pt] underline decoration-double">৳ {reportTotals.paidTotal.toLocaleString()}</td>
+                                                <td colSpan={4} className="p-4 text-right uppercase tracking-widest text-[11px]">Grand Summary Totals:</td>
+                                                <td className="p-4 text-right">৳${reportTotals.admFee.toLocaleString()}</td>
+                                                <td className="p-4 text-right">৳${reportTotals.lscs.toLocaleString()}</td>
+                                                <td className="p-4 text-right">৳${reportTotals.gb.toLocaleString()}</td>
+                                                <td className="p-4 text-right">৳${reportTotals.others_ot.toLocaleString()}</td>
+                                                <td className="p-4 text-right">৳${reportTotals.nvd.toLocaleString()}</td>
+                                                <td className="p-4 text-right">৳${reportTotals.dc.toLocaleString()}</td>
+                                                <td className="p-4 text-right">৳${reportTotals.cons.toLocaleString()}</td>
+                                                <td className="p-4 text-right">৳${reportTotals.o2neb.toLocaleString()}</td>
+                                                <td className="p-4 text-right">৳${reportTotals.dress.toLocaleString()}</td>
+                                                <td className="p-4 text-right">৳${reportTotals.others.toLocaleString()}</td>
+                                                <td className="p-4 text-right text-emerald-400 text-lg">৳ {reportTotals.paidTotal.toLocaleString()}</td>
+                                                <td className="p-4 text-right text-rose-400 text-lg">৳ {reportTotals.pc.toLocaleString()}</td>
+                                                <td className="p-4 text-right text-sky-400 text-2xl underline decoration-double">৳ {reportTotals.netClinic.toLocaleString()}</td>
                                             </tr>
                                         </tfoot>
                                     )}
@@ -679,7 +695,7 @@ const ClinicAccountsPage: React.FC<any> = ({
                 )}
 
                 {viewMode === 'daily_summary' && (
-                    <div className="animate-fade-in space-y-8">
+                    <div className="max-w-7xl mx-auto space-y-8 animate-fade-in">
                         <div className="flex justify-between items-center bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-xl no-print">
                             <h2 className="text-xl font-black text-white uppercase flex items-center gap-3">
                                 <Activity className="text-amber-500" /> Daily Summary: {selectedDate}
@@ -727,7 +743,7 @@ const ClinicAccountsPage: React.FC<any> = ({
                 )}
 
                 {viewMode === 'summary' && (
-                    <div className="animate-fade-in space-y-8">
+                    <div className="max-w-7xl mx-auto space-y-8 animate-fade-in">
                         <div className="flex justify-between items-center bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-xl no-print">
                             <h2 className="text-xl font-black text-white uppercase">Monthly Summary: {monthOptions[selectedMonth].name} {selectedYear}</h2>
                             <div className="flex gap-4">

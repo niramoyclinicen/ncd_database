@@ -559,7 +559,8 @@ const DoctorAppointmentPage: React.FC<DoctorAppointmentPageProps> = ({
                             <td className="px-6 py-4 text-sm font-medium text-slate-300">Dr. {appt.doctor_name}</td>
                             <td className="px-6 py-4 text-right font-black text-slate-100">৳ {appt.doctor_fee.toFixed(2)}</td>
                             <td className="px-6 py-4 whitespace-nowrap text-center">
-                                <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase shadow-inner ${appt.status === 'Completed' ? 'bg-emerald-900/40 text-emerald-400' : appt.status === 'Scheduled' ? 'bg-blue-900/40 text-blue-400' : appt.status === 'Returned' ? 'bg-amber-900/40 text-amber-500' : appt.status === 'rose-900/40 text-rose-400'}`}>
+                                {/* Fix: Line 562 - Fixed the unintentional comparison by removing 'appt.status ===' prefix for the fallback class string */}
+                                <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase shadow-inner ${appt.status === 'Completed' ? 'bg-emerald-900/40 text-emerald-400' : appt.status === 'Scheduled' ? 'bg-blue-900/40 text-blue-400' : appt.status === 'Returned' ? 'bg-amber-900/40 text-amber-500' : 'bg-rose-900/40 text-rose-400'}`}>
                                     {appt.status}
                                 </span>
                             </td>

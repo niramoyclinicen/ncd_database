@@ -1,13 +1,21 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Patient, Doctor, Employee, Medicine, Referrar, MedicineItem } from './DiagnosticData';
+import { Patient, Doctor, Employee, Medicine, Referrar, MedicineItem, ExpenseItem } from './DiagnosticData';
 import SearchableSelect from './SearchableSelect';
 import PatientInfoPage from './PatientInfoPage';
 import DoctorInfoPage from './DoctorInfoPage';
 import ReferrerInfoPage from './ReferrerInfoPage';
-import { BackIcon, ClinicIcon, StethoscopeIcon, ClipboardIcon, FileTextIcon, SettingsIcon, UserPlusIcon, Armchair, Activity, SaveIcon, MoneyIcon, TrashIcon, PrinterIcon, EyeIcon, SearchIcon, PlusIcon } from './Icons';
+import { BackIcon, ClinicIcon, StethoscopeIcon, ClipboardIcon, FileTextIcon, SettingsIcon, UserPlusIcon, Armchair, Activity, SaveIcon, MoneyIcon, TrashIcon, PrinterIcon, EyeIcon, SearchIcon, PlusIcon, RefreshIcon } from './Icons';
 
 // Fixed Clinic Config
 const CLINIC_REGISTRATION = 'HSM76710';
+
+// Clinic Expense Categories for net balance calculation
+const clinicExpenseCategories = [
+    'Stuff salary', 'Generator', 'Motorcycle', 'Marketing', 'Clinic development', 
+    'Medicine buy (Pharmacy)', 'X-Ray', 'House rent', 'Stationery', 'Food/Refreshment', 
+    'Doctor donation', 'Repair/Instruments', 'Press', 'License/Official', 
+    'Bank/NGO Installment', 'Mobile', 'Interest/Loan', 'Others', 'Old Loan Repay'
+];
 
 // --- TYPES ---
 
@@ -145,6 +153,7 @@ export interface IndoorInvoice {
   indication: string;
   serviceCategory: string;
   subCategory?: string; // Mandatory for Service Taken
+  ot_details?: string;   // Persistent OT Details for this invoice
   services: string[]; 
   contact_bill: string;
   items: ServiceItem[];
@@ -187,6 +196,7 @@ const emptyIndoorInvoice: IndoorInvoice = {
   indication: '',
   serviceCategory: 'Conservative treatment',
   subCategory: '',
+  ot_details: '',
   services: [],
   contact_bill: '',
   items: [],
@@ -250,9 +260,9 @@ const drugFrequencies = [
     { label: 'Stat (Once)', value: 0 },
 ];
 const dietOptions = ['NPO TFO', 'Liquid', 'Liquid and semisolid', 'Regular'];
-const serviceCategoriesList = ["Conservative treatment", "Operation", "NVD and D&C", "O2 and nebulizer", "Plaster and Bandage", "Others"];
 
-// Added 'Maintenance fee' to the serviceTypesList
+const serviceCategoriesList = ["Conservative treatment", "Operation", "NVD and D&C", "O2 and nebulizer", "Plaster and Bandage", "Dressing", "Others"];
+
 const serviceTypesList = [
     'Admission Fee', 'Doctor round fee', 'Doctor prescription fee', 'Bed rent', 'Service Charge',
     'Obstetrician/ Midwife', 'Anaesthetist', 'Assistant_1', 'Assistant_2', 'Medicine', 'Stuff_cost', 'Surgeon', 'Discharge writing fee',
@@ -262,7 +272,6 @@ const doctorServiceTypes = [
     "Doctor round fee", "Doctor prescription fee", "Obstetrician/ Midwife", "Surgeon", "Anaesthetist", "Assistant_1", "Assistant_2"
 ];
 
-// Added 'Maintenance fee' to clinicFundServiceTypes to ensure it flows to the accounting report
 const clinicFundServiceTypes = ['Admission Fee', 'OT Charge', '02(Oxygen)', 'Nebulization', 'Dressing', 'Bed rent', 'Service Charge', 'Maintenance fee'];
 
 const getFrequencyText = (freq: number) => {
@@ -723,7 +732,7 @@ const AdmissionAndTreatmentPage: React.FC<{
     const [showTemplateModal, setShowTemplateModal] = useState(false);
     const [newTemplateName, setNewTemplateName] = useState('');
 
-    const [newMedication, setNewMedication] = useState<Medication>({ id: 0, type: 'Tab', name: '', dosage: '', frequency: 8, category: 'Conservative' });
+    const [newMedication, setNewMedication] = useState< Medication>({ id: 0, type: 'Tab', name: '', dosage: '', frequency: 8, category: 'Conservative' });
     const [selectedDrugId, setSelectedDrugId] = useState<string>('');
 
     const [showDrugDemandModal, setShowDrugDemandModal] = useState(false);
@@ -755,10 +764,12 @@ const AdmissionAndTreatmentPage: React.FC<{
 
     const handleGetNewId = () => {
         const today = new Date();
-        const dateStr = today.toISOString().split('T')[0];
-        const count = admissions.filter(a => a.admission_id.startsWith(`ADM-${dateStr}`)).length + 1;
-        const newId = `ADM-${dateStr}-${String(count).padStart(3, '0')}`;
-        setAdmissionData({ ...emptyAdmission, admission_id: newId, admission_date: dateStr });
+        const year = today.getFullYear();
+        const month = String(today.getMonth() + 1).padStart(2, '0');
+        const day = String(today.getDate()).padStart(2, '0');
+        const count = admissions.filter(a => a.admission_id.startsWith(`ADM-${year}-${month}-${day}`)).length + 1;
+        const newId = `ADM-${year}-${month}-${day}-${String(count).padStart(3, '0')}`;
+        setAdmissionData({ ...emptyAdmission, admission_id: newId, admission_date: `${year}-${month}-${day}` });
         setSelectedAdmissionId(null);
     };
 
@@ -1404,21 +1415,29 @@ const IndoorInvoicePage: React.FC<{
     setSuccessMessage: (msg: string) => void;
     medicines: Medicine[];
     setAdmissions: React.Dispatch<React.SetStateAction<AdmissionRecord[]>>;
-}> = ({ admissions, doctors, referrars, employees, indoorInvoices, setIndoorInvoices, setSuccessMessage, medicines, setAdmissions }) => {
+    detailedExpenses: Record<string, ExpenseItem[]>;
+}> = ({ admissions, doctors, referrars, employees, indoorInvoices, setIndoorInvoices, setSuccessMessage, medicines, setAdmissions, detailedExpenses }) => {
     const [formData, setFormData] = useState<IndoorInvoice>(emptyIndoorInvoice);
     const [selectedAdmission, setSelectedAdmission] = useState<AdmissionRecord | null>(null);
     const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
     const [applyPC, setApplyPC] = useState(false); 
     const [subCategories, setSubCategories] = useState<{id: string, name: string}[]>(() => JSON.parse(localStorage.getItem('ncd_clinic_subcategories') || '[]'));
     const [showSubCategoryManager, setShowSubCategoryManager] = useState(false);
+    
+    // Persistent OT Details Library for Suggestions
+    const [otDetailsLibrary, setOtDetailsLibrary] = useState<Record<string, string>>(() => JSON.parse(localStorage.getItem('ncd_ot_details_library') || '{}'));
 
     useEffect(() => {
         localStorage.setItem('ncd_clinic_subcategories', JSON.stringify(subCategories));
     }, [subCategories]);
 
+    useEffect(() => {
+        localStorage.setItem('ncd_ot_details_library', JSON.stringify(otDetailsLibrary));
+    }, [otDetailsLibrary]);
+
     const activeEmployees = useMemo(() => employees.filter(e => e.status === 'Active'), [employees]);
 
-    // Calculate Stats - Updated with Return logic
+    // Calculate Stats - Updated with Return logic and Expense subtraction for "Hospital Balance"
     const stats = useMemo(() => {
         const now = new Date();
         const today = now.toISOString().split('T')[0];
@@ -1426,41 +1445,63 @@ const IndoorInvoicePage: React.FC<{
         const currentYear = now.getFullYear().toString();
 
         let todayColl = 0, todayDue = 0, monthColl = 0, yearColl = 0, totalDue = 0;
+        let todayExp = 0, monthExp = 0, yearExp = 0;
 
+        // Calculate Collections
         indoorInvoices.forEach(inv => {
-            // Collection today (not returned or returned on other day)
-            if (inv.invoice_date === today && inv.status !== 'Cancelled') {
-                todayColl += inv.paid_amount;
-                todayDue += inv.due_bill;
+            if (inv.status !== 'Cancelled') {
+                if (inv.invoice_date === today) todayColl += inv.paid_amount;
+                if (inv.invoice_date.startsWith(currentMonth)) monthColl += inv.paid_amount;
+                if (inv.invoice_date.startsWith(currentYear)) yearColl += inv.paid_amount;
             }
-            // If returned today, subtract from today's collection
-            if (inv.return_date === today && inv.status === 'Returned') {
-                todayColl -= inv.paid_amount;
+            if (inv.status === 'Returned') {
+                if (inv.return_date === today) todayColl -= inv.paid_amount;
+                if (inv.return_date?.startsWith(currentMonth)) monthColl -= inv.paid_amount;
+                if (inv.return_date?.startsWith(currentYear)) yearColl -= inv.paid_amount;
             }
-
-            // Monthly
-            if (inv.invoice_date.startsWith(currentMonth) && inv.status !== 'Cancelled') {
-                monthColl += inv.paid_amount;
-            }
-            if (inv.return_date?.startsWith(currentMonth) && inv.status === 'Returned') {
-                monthColl -= inv.paid_amount;
-            }
-
-            // Yearly
-            if (inv.invoice_date.startsWith(currentYear) && inv.status !== 'Cancelled') {
-                yearColl += inv.paid_amount;
-            }
-            if (inv.return_date?.startsWith(currentYear) && inv.status === 'Returned') {
-                yearColl -= inv.paid_amount;
-            }
-
             if (inv.status !== 'Returned' && inv.status !== 'Cancelled') {
                 totalDue += inv.due_bill;
             }
         });
 
-        return { todayColl, todayDue, monthColl, yearColl, totalDue };
-    }, [indoorInvoices]);
+        // Calculate Clinic Specific Expenses
+        Object.entries(detailedExpenses).forEach(([date, items]) => {
+            const dayExp = (items as ExpenseItem[]).reduce((sum, item) => {
+                if (clinicExpenseCategories.includes(item.category)) return sum + item.paidAmount;
+                return sum;
+            }, 0);
+
+            if (date === today) todayExp += dayExp;
+            if (date.startsWith(currentMonth)) monthExp += dayExp;
+            if (date.startsWith(currentYear)) yearExp += dayExp;
+        });
+
+        return { 
+            todayBalance: todayColl - todayExp, 
+            monthBalance: monthColl - monthExp, 
+            yearBalance: yearColl - yearExp, 
+            totalDue 
+        };
+    }, [indoorInvoices, detailedExpenses]);
+
+    // FILTERED SUB-CATEGORIES BASED ON SELECTED MAIN CATEGORY
+    const filteredSubCategories = useMemo(() => {
+        if (formData.serviceCategory === 'Operation') {
+            return [
+                { id: 'lscs', name: 'LSCS_OT' },
+                { id: 'gb', name: 'GB_OT' },
+                { id: 'others_ot', name: 'Others_OT' }
+            ];
+        }
+        if (formData.serviceCategory === 'NVD and D&C') {
+            return [
+                { id: 'nvd', name: 'NVD' },
+                { id: 'dc', name: 'D&C' }
+            ];
+        }
+        // For other categories, show general list or custom subcats
+        return subCategories;
+    }, [formData.serviceCategory, subCategories]);
 
     const calculateTotals = (items: ServiceItem[], _discountAmt: number, paidAmt: number, specialDiscount: number) => {
         const newItems = items.map(item => ({ 
@@ -1477,7 +1518,7 @@ const IndoorInvoicePage: React.FC<{
         return { items: newItems, total_bill, payable_bill, due_bill, net_payable: netPayable };
     };
 
-    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
         const { name, value, type } = e.target;
         const val = type === 'number' ? parseFloat(value) || 0 : value;
         
@@ -1493,10 +1534,10 @@ const IndoorInvoicePage: React.FC<{
 
     const handleGenerateId = () => {
         if (!selectedAdmission) return alert("Select Patient first.");
-        const today = new Date();
-        const dStr = today.toISOString().split('T')[0].replace(/-/g, '');
-        const newId = `CLIN-${dStr}-${indoorInvoices.length + 1}`;
-        setFormData(prev => ({ ...prev, daily_id: newId, invoice_date: today.toISOString().split('T')[0], admission_id: selectedAdmission.admission_id, patient_name: selectedAdmission.patient_name, status: 'Posted' }));
+        const todayStr = new Date().toISOString().split('T')[0];
+        const count = indoorInvoices.filter(i => i.invoice_date === todayStr).length + 1;
+        const newId = `CLIN-${todayStr}-${String(count).padStart(3, '0')}`;
+        setFormData(prev => ({ ...prev, daily_id: newId, invoice_date: todayStr, admission_id: selectedAdmission.admission_id, patient_id: selectedAdmission.patient_id, patient_name: selectedAdmission.patient_name, status: 'Posted' }));
     };
 
     const handleServiceChange = (id: number, field: keyof ServiceItem, value: any) => {
@@ -1669,14 +1710,27 @@ const IndoorInvoicePage: React.FC<{
         if (adm) setSelectedAdmission(adm);
     };
 
+    const handleSaveAsTemplate = () => {
+        if (!formData.subCategory) return alert("প্রথমে সাব-ক্যাটাগরি সিলেক্ট করুন।");
+        if (!formData.ot_details) return alert("ডিটেইলস টেক্সটবক্সে কিছু লিখুন।");
+        setOtDetailsLibrary(prev => ({ ...prev, [formData.subCategory!]: formData.ot_details || '' }));
+        setSuccessMessage(`"${formData.subCategory}" এর ডিটেইলস লাইব্রেরিতে সেভ করা হয়েছে।`);
+    };
+
+    const handleLoadTemplate = () => {
+        if (formData.subCategory && otDetailsLibrary[formData.subCategory]) {
+            setFormData(prev => ({ ...prev, ot_details: otDetailsLibrary[prev.subCategory!] }));
+        }
+    };
+
     const commonInputClasses = "w-full p-2 bg-[#374151] border border-gray-600 rounded text-white text-sm focus:ring-1 focus:ring-blue-500";
 
     return (
         <div className="space-y-6">
             <div className="grid grid-cols-4 gap-4">
-                <div className="bg-slate-800 p-4 rounded border border-slate-700 text-center"><h4 className="text-gray-400 text-xs uppercase">Today Collection</h4><p className="text-2xl font-bold text-green-400">{stats.todayColl.toFixed(2)}</p></div>
-                <div className="bg-slate-800 p-4 rounded border border-slate-700 text-center"><h4 className="text-gray-400 text-xs uppercase">Monthly Collection</h4><p className="text-2xl font-bold text-blue-400">{stats.monthColl.toFixed(2)}</p></div>
-                <div className="bg-slate-800 p-4 rounded border border-slate-700 text-center"><h4 className="text-gray-400 text-xs uppercase">Yearly Collection</h4><p className="text-2xl font-bold text-purple-400">{stats.yearColl.toFixed(2)}</p></div>
+                <div className="bg-slate-800 p-4 rounded border border-slate-700 text-center"><h4 className="text-gray-400 text-xs uppercase">Today Hospital Balance</h4><p className="text-2xl font-bold text-green-400">{stats.todayBalance.toFixed(2)}</p></div>
+                <div className="bg-slate-800 p-4 rounded border border-slate-700 text-center"><h4 className="text-gray-400 text-xs uppercase">Monthly Hospital Balance</h4><p className="text-2xl font-bold text-blue-400">{stats.monthBalance.toFixed(2)}</p></div>
+                <div className="bg-slate-800 p-4 rounded border border-slate-700 text-center"><h4 className="text-gray-400 text-xs uppercase">Yearly Hospital Balance</h4><p className="text-2xl font-bold text-purple-400">{stats.yearBalance.toFixed(2)}</p></div>
                 <div className="bg-slate-800 p-4 rounded border border-slate-700 text-center"><h4 className="text-gray-400 text-xs uppercase">Total Due</h4><p className="text-2xl font-bold text-red-400">{stats.totalDue.toFixed(2)}</p></div>
             </div>
 
@@ -1684,12 +1738,12 @@ const IndoorInvoicePage: React.FC<{
                 <h3 className="text-xl font-bold text-white mb-4 border-b border-gray-700 pb-2">Indoor Invoice</h3>
                 <div className="flex gap-4 mb-6">
                     <select className="w-1/3 p-2 bg-[#2d2d55] border border-gray-600 rounded text-white" onChange={e => { const adm = admissions.find(a => a.admission_id === e.target.value); setSelectedAdmission(adm || null); if(adm) setFormData({...emptyIndoorInvoice, admission_id: adm.admission_id, patient_id: adm.patient_id, patient_name: adm.patient_name, admission_date: adm.admission_date, status: 'Posted'}); }} value={selectedAdmission?.admission_id || ''}> <option value="">Select Patient...</option>{admissions.map(a => <option key={a.admission_id} value={a.admission_id}>{a.patient_name} ({a.admission_id})</option>)} </select>
-                    <button onClick={handleGenerateId} className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded">Generate ID</button>
+                    <button onClick={handleGenerateId} className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded font-bold shadow transition-all">Generate ID</button>
                 </div>
                 {formData.daily_id && (
                     <form onSubmit={handleSaveInvoice} className="space-y-6">
-                        <div className="grid grid-cols-4 gap-6 bg-[#1f2937] p-4 rounded border border-gray-600">
-                            <div><label className="block text-xs text-gray-400">ID</label><input type="text" value={formData.daily_id} disabled className="w-full p-2 bg-[#1a202c] border border-gray-600 rounded text-gray-300"/></div>
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 bg-[#1f2937] p-4 rounded-xl border border-gray-600">
+                            <div><label className="block text-xs text-gray-400">Invoice ID</label><input type="text" value={formData.daily_id} disabled className="w-full p-2 bg-[#1a202c] border border-gray-600 rounded text-gray-300"/></div>
                             <div><label className="block text-xs text-gray-400">Admission Date</label><input type="date" name="admission_date" value={formData.admission_date} onChange={handleInputChange} className="w-full p-2 bg-[#374151] border border-gray-600 rounded text-white"/></div>
                             <div><label className="block text-xs text-gray-400">Discharge Date</label><input type="date" name="discharge_date" value={formData.discharge_date} onChange={handleInputChange} className="w-full p-2 bg-[#374151] border border-gray-600 rounded text-white"/></div>
                             <div className="flex flex-col justify-center items-center bg-slate-800 rounded border border-slate-600 p-2">
@@ -1705,8 +1759,8 @@ const IndoorInvoicePage: React.FC<{
                                 <SearchableSelect 
                                     theme="dark" 
                                     label="Sub_Category" 
-                                    options={subCategories.map(s => ({id: s.id, name: s.name}))} 
-                                    value={subCategories.find(s => s.name === formData.subCategory)?.id || ''} 
+                                    options={filteredSubCategories.map(s => ({id: s.id, name: s.name}))} 
+                                    value={filteredSubCategories.find(s => s.name === formData.subCategory)?.id || ''} 
                                     onChange={(_id, name) => setFormData(prev => ({...prev, subCategory: name}))} 
                                     onAddNew={() => setShowSubCategoryManager(true)}
                                     required={true}
@@ -1714,7 +1768,46 @@ const IndoorInvoicePage: React.FC<{
                                 />
                             </div>
                             <div className="col-span-2"><label className="block text-xs text-gray-400">Referrer</label><select name="referrar_id" value={formData.referrar_id} onChange={(e) => { const ref = referrars.find(r => r.ref_id === e.target.value); setFormData({...formData, referrar_id: ref?.ref_id, referrar_name: ref?.ref_name}); }} className={commonInputClasses}><option value="">Select...</option>{referrars.map(r => <option key={r.ref_id} value={r.ref_id}>{r.ref_name}</option>)}</select></div>
+                            
+                            {/* Persistent OT Details Field with Suggestions */}
+                            <div className="col-span-4 bg-slate-800/40 p-4 rounded-xl border border-slate-700">
+                                <div className="flex justify-between items-center mb-2">
+                                    <label className="text-xs font-black text-sky-400 uppercase tracking-widest flex items-center gap-2">
+                                        <FileTextIcon size={14} /> OT Details & Clinical Notes
+                                    </label>
+                                    <div className="flex gap-2">
+                                        {formData.subCategory && otDetailsLibrary[formData.subCategory] && (
+                                            <button 
+                                                type="button" 
+                                                onClick={handleLoadTemplate}
+                                                className="bg-amber-600/20 text-amber-400 px-3 py-1 rounded-lg text-[10px] font-black uppercase border border-amber-500/30 hover:bg-amber-600 hover:text-white transition-all animate-pulse"
+                                            >
+                                                Load Saved Template
+                                            </button>
+                                        )}
+                                        <button 
+                                            type="button" 
+                                            onClick={handleSaveAsTemplate}
+                                            className="bg-blue-600 text-white px-3 py-1 rounded-lg text-[10px] font-black uppercase hover:bg-blue-500 transition-all flex items-center gap-2"
+                                            title="Save current details as default for this category"
+                                        >
+                                            <SaveIcon size={12}/> Save as Default
+                                        </button>
+                                    </div>
+                                </div>
+                                <textarea 
+                                    name="ot_details"
+                                    value={formData.ot_details || ''}
+                                    onChange={handleInputChange}
+                                    className="w-full h-32 bg-[#111827] border border-slate-700 rounded-xl p-3 text-white text-sm focus:ring-2 focus:ring-sky-500 outline-none resize-none shadow-inner"
+                                    placeholder="Enter OT report details, operation notes, or specific patient instructions here..."
+                                />
+                                {formData.subCategory && !otDetailsLibrary[formData.subCategory] && (
+                                    <p className="text-[10px] text-slate-500 italic mt-1 ml-1">* Tip: Type details and click 'Save as Default' to reuse them for "{formData.subCategory}" later.</p>
+                                )}
+                            </div>
                         </div>
+
                         <div className="bg-[#1f2937] p-4 rounded border border-gray-600">
                             <div className="flex justify-between items-center mb-2">
                                 <h4 className="text-lg font-bold text-sky-300">Services</h4>
@@ -1954,10 +2047,11 @@ interface ClinicPageProps {
     setAdmissions: React.Dispatch<React.SetStateAction<AdmissionRecord[]>>;
     indoorInvoices: IndoorInvoice[];
     setIndoorInvoices: React.Dispatch<React.SetStateAction<IndoorInvoice[]>>;
+    detailedExpenses: Record<string, ExpenseItem[]>;
 }
 
 const ClinicPage: React.FC<ClinicPageProps> = ({ 
-    onBack, patients, setPatients, doctors, setDoctors, referrars, setReferrars, employees, medicines, setMedicines, admissions, setAdmissions, indoorInvoices, setIndoorInvoices 
+    onBack, patients, setPatients, doctors, setDoctors, referrars, setReferrars, employees, medicines, setMedicines, admissions, setAdmissions, indoorInvoices, setIndoorInvoices, detailedExpenses 
 }) => {
     const [activeTab, setActiveTab] = useState<'admission' | 'invoice' | 'due_collection' | 'report_summary' | 'bed_status' | 'patient_info'>('admission');
     const [clinicDueCollections, setClinicDueCollections] = useState<ClinicDueCollection[]>([]);
@@ -2024,7 +2118,7 @@ const ClinicPage: React.FC<ClinicPageProps> = ({
                     </div>
 
                     <div className={activeTab === 'invoice' ? 'block' : 'hidden'}>
-                        <IndoorInvoicePage admissions={admissions} doctors={doctors} referrars={referrars} employees={employees} indoorInvoices={indoorInvoices} setIndoorInvoices={setIndoorInvoices} setSuccessMessage={setSuccessMessage} medicines={medicines} setAdmissions={setAdmissions} />
+                        <IndoorInvoicePage admissions={admissions} doctors={doctors} referrars={referrars} employees={employees} indoorInvoices={indoorInvoices} setIndoorInvoices={setIndoorInvoices} setSuccessMessage={setSuccessMessage} medicines={medicines} setAdmissions={setAdmissions} detailedExpenses={detailedExpenses} />
                     </div>
 
                     <div className={activeTab === 'due_collection' ? 'block' : 'hidden'}>

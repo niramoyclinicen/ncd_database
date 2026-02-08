@@ -6,6 +6,7 @@ import PatientInfoPage from './PatientInfoPage';
 import DoctorInfoPage from './DoctorInfoPage';
 import ReferrerInfoPage from './ReferrerInfoPage';
 import TestInfoPage from './TestInfoPage';
+import { TrashIcon } from './Icons';
 
 interface LabInvoicingPageProps {
   patients: Patient[];
@@ -23,6 +24,13 @@ interface LabInvoicingPageProps {
   setInvoices: React.Dispatch<React.SetStateAction<LabInvoice[]>>;
   monthlyRoster: Record<string, string[]>;
 }
+
+const monthOptions = [
+    { value: "01", name: 'January' }, { value: "02", name: 'February' }, { value: "03", name: 'March' },
+    { value: "04", name: 'April' }, { value: "05", name: 'May' }, { value: "06", name: 'June' },
+    { value: "07", name: 'July' }, { value: "08", name: 'August' }, { value: "09", name: 'September' },
+    { value: "10", name: 'October' }, { value: "11", name: 'November' }, { value: "12", name: 'December' }
+];
 
 const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
   patients,
@@ -51,6 +59,12 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
   const [successMessage, setSuccessMessage] = useState('');
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false); // New state for confirmation modal
   const [errors, setErrors] = useState<Record<string, boolean>>({}); // State for validation errors
+
+  // Table Filter States
+  const [tableFilterDate, setTableFilterDate] = useState('');
+  const [tableFilterMonth, setTableFilterMonth] = useState('');
+  const [tableFilterYear, setTableFilterYear] = useState('');
+  const [tableFilterDoctorId, setTableFilterDoctorId] = useState('');
 
   // Local state for the "Paid Amount (BDT)" input to allow free typing
   const [displayPaidAmount, setDisplayPaidAmount] = useState<string>('');
@@ -119,14 +133,24 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
   
   // Filter invoices when search term or invoices state changes
   useEffect(() => {
-    const results = invoices.filter(invoice =>
-      invoice.invoice_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      invoice.patient_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (invoice.doctor_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (invoice.referrar_name || '').toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const results = invoices.filter(invoice => {
+      const matchesSearch = invoice.invoice_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        invoice.patient_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (invoice.doctor_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (invoice.referrar_name || '').toLowerCase().includes(searchTerm.toLowerCase());
+
+      const matchesDate = !tableFilterDate || invoice.invoice_date === tableFilterDate;
+      
+      const invDateObj = new Date(invoice.invoice_date);
+      const matchesMonth = !tableFilterMonth || (String(invDateObj.getMonth() + 1).padStart(2, '0')) === tableFilterMonth;
+      const matchesYear = !tableFilterYear || String(invDateObj.getFullYear()) === tableFilterYear;
+      
+      const matchesDoctor = !tableFilterDoctorId || invoice.doctor_id === tableFilterDoctorId;
+
+      return matchesSearch && matchesDate && matchesMonth && matchesYear && matchesDoctor;
+    });
     setFilteredInvoices(results);
-  }, [searchTerm, invoices]);
+  }, [searchTerm, tableFilterDate, tableFilterMonth, tableFilterYear, tableFilterDoctorId, invoices]);
 
 
   const filteredTestsForSelect = useMemo(() => {
@@ -607,6 +631,13 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
     return summary;
   }, [invoices, today]);
 
+  const resetTableFilters = () => {
+    setTableFilterDate('');
+    setTableFilterMonth('');
+    setTableFilterYear('');
+    setTableFilterDoctorId('');
+  };
+
   return (
     <div className="bg-slate-800 rounded-xl shadow-md p-4 sm:p-6 text-slate-300">
         {/* IMPROVED SUCCESS MESSAGE UI */}
@@ -805,13 +836,13 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
               <table className="min-w-full divide-y divide-slate-700">
                 <thead className="bg-slate-800">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase">SL</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase">Test Name</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-slate-300 uppercase">Service price</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-slate-300 uppercase">Commission (BDT)</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-slate-300 uppercase">Quantity</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-slate-300 uppercase">Subtotal (BDT)</th>
-                    <th className="px-6 py-3 text-center text-xs font-medium text-slate-300 uppercase tracking-wider">Actions</th>
+                    <th className="px-6 py-4 text-left text-xs font-medium text-slate-300 uppercase">SL</th>
+                    <th className="px-6 py-4 text-left text-xs font-medium text-slate-300 uppercase">Test Name</th>
+                    <th className="px-6 py-4 text-right text-xs font-medium text-slate-300 uppercase">Service price</th>
+                    <th className="px-6 py-4 text-right text-xs font-medium text-slate-300 uppercase">Commission (BDT)</th>
+                    <th className="px-6 py-4 text-right text-xs font-medium text-slate-300 uppercase">Quantity</th>
+                    <th className="px-6 py-4 text-right text-xs font-medium text-slate-300 uppercase">Subtotal (BDT)</th>
+                    <th className="px-6 py-4 text-center text-xs font-medium text-slate-300 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="bg-slate-900 divide-y divide-slate-700">
@@ -892,40 +923,104 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
         </div>
       </div>
 
-      <div className="overflow-x-auto mt-8 pt-6 border-t border-slate-700">
-        <h3 className="text-xl font-bold text-slate-100 mb-4">All Invoices</h3>
-        <table className="min-w-full divide-y divide-slate-700">
-          <thead className="bg-slate-700">
-            <tr>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Invoice ID</th>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Date</th>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Patient Name</th>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Doctor</th>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Referrar</th>
-              <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-slate-300 uppercase tracking-wider">Total (BDT)</th>
-              <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-slate-300 uppercase tracking-wider">Paid (BDT)</th>
-              <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-slate-300 uppercase tracking-wider">Due (BDT)</th>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Status</th>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Last Modified</th>
-            </tr>
-          </thead>
-          <tbody className="bg-slate-800 divide-y divide-slate-700">
-            {filteredInvoices.map((invoice) => (
-              <tr key={invoice.invoice_id} onClick={() => handleRowClick(invoice)} className={`cursor-pointer hover:bg-slate-700/50 ${selectedInvoiceId === invoice.invoice_id ? 'bg-blue-900/40' : ''}`} aria-selected={selectedInvoiceId === invoice.invoice_id} tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && handleRowClick(invoice)}>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300">{invoice.invoice_id}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300">{invoice.invoice_date}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300">{invoice.patient_name}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300">{invoice.doctor_name || 'N/A'}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300">{invoice.referrar_name || 'N/A'}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300 text-right">{invoice.total_amount.toFixed(2)}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300 text-right">{invoice.paid_amount.toFixed(2)}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300 text-right">{invoice.due_amount.toFixed(2)}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300"><span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${invoice.status === 'Paid' ? 'bg-green-900/50 text-green-300' : invoice.status === 'Due' ? 'bg-orange-900/50 text-orange-300' : invoice.status === 'Returned' ? 'bg-blue-900/50 text-blue-300' : 'bg-red-900/50 text-red-300'}`}>{invoice.status}</span></td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300">{invoice.last_modified}</td>
+      <div className="mt-8 pt-6 border-t border-slate-700">
+        <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+            <h3 className="text-xl font-bold text-slate-100 flex items-center gap-3">
+                All Invoices
+            </h3>
+            
+            {/* TABLE FILTER CONTROLS */}
+            <div className="flex flex-wrap items-center gap-3 bg-slate-700/40 p-3 rounded-2xl border border-slate-600 shadow-inner no-print">
+                <div className="w-48">
+                    <select 
+                        value={tableFilterDoctorId} 
+                        onChange={(e) => setTableFilterDoctorId(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-1.5 text-xs text-white font-bold outline-none focus:border-blue-500"
+                    >
+                        <option value="">Filter by Doctor...</option>
+                        {doctors.map(d => <option key={d.doctor_id} value={d.doctor_id}>{d.doctor_name}</option>)}
+                    </select>
+                </div>
+                <div className="flex items-center gap-2">
+                    <input 
+                        type="date" 
+                        value={tableFilterDate} 
+                        onChange={(e) => { setTableFilterDate(e.target.value); setTableFilterMonth(''); setTableFilterYear(''); }}
+                        className="bg-slate-900 border border-slate-600 rounded-lg px-3 py-1.5 text-xs text-white font-bold outline-none focus:border-blue-500"
+                        title="Filter by Specific Date"
+                    />
+                </div>
+                <div className="flex items-center gap-2">
+                    <select 
+                        value={tableFilterMonth} 
+                        onChange={(e) => { setTableFilterMonth(e.target.value); setTableFilterDate(''); }}
+                        className="bg-slate-900 border border-slate-600 rounded-lg px-3 py-1.5 text-xs text-white font-bold outline-none focus:border-blue-500"
+                    >
+                        <option value="">Select Month...</option>
+                        {monthOptions.map(m => <option key={m.value} value={m.value}>{m.name}</option>)}
+                    </select>
+                </div>
+                <div className="flex items-center gap-2">
+                    <select 
+                        value={tableFilterYear} 
+                        onChange={(e) => { setTableFilterYear(e.target.value); setTableFilterDate(''); }}
+                        className="bg-slate-900 border border-slate-600 rounded-lg px-3 py-1.5 text-xs text-white font-bold outline-none focus:border-blue-500"
+                    >
+                        <option value="">Select Year...</option>
+                        {[2023, 2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
+                    </select>
+                </div>
+                <button 
+                    onClick={resetTableFilters}
+                    className="p-1.5 bg-slate-600 hover:bg-rose-600 text-white rounded-lg transition-colors"
+                    title="Clear All Table Filters"
+                >
+                    <TrashIcon size={14} />
+                </button>
+            </div>
+        </div>
+
+        <div className="overflow-x-auto border border-slate-700 rounded-lg bg-slate-900/20">
+          <table className="min-w-full divide-y divide-slate-700">
+            <thead className="bg-slate-700">
+              <tr>
+                <th scope="col" className="px-6 py-4 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Invoice ID</th>
+                <th scope="col" className="px-6 py-4 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Date</th>
+                <th scope="col" className="px-6 py-4 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Patient Name</th>
+                <th scope="col" className="px-6 py-4 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Doctor</th>
+                <th scope="col" className="px-6 py-4 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Referrar</th>
+                <th scope="col" className="px-6 py-4 text-right text-xs font-medium text-slate-300 uppercase tracking-wider">Total (BDT)</th>
+                <th scope="col" className="px-6 py-4 text-right text-xs font-medium text-slate-300 uppercase tracking-wider">Paid (BDT)</th>
+                <th scope="col" className="px-6 py-4 text-right text-xs font-medium text-slate-300 uppercase tracking-wider">Due (BDT)</th>
+                <th scope="col" className="px-6 py-4 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Status</th>
+                <th scope="col" className="px-6 py-4 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Last Modified</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="bg-slate-800 divide-y divide-slate-700">
+              {filteredInvoices.map((invoice) => (
+                <tr key={invoice.invoice_id} onClick={() => handleRowClick(invoice)} className={`cursor-pointer hover:bg-slate-700/50 ${selectedInvoiceId === invoice.invoice_id ? 'bg-blue-900/40' : ''}`} aria-selected={selectedInvoiceId === invoice.invoice_id} tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && handleRowClick(invoice)}>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300 font-mono text-xs">{invoice.invoice_id}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300">{invoice.invoice_date}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-100 font-black uppercase">{invoice.patient_name}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300 font-medium">{invoice.doctor_name || 'N/A'}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-400 italic">{invoice.referrar_name || 'N/A'}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300 text-right">{invoice.total_amount.toFixed(2)}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300 text-right font-bold text-emerald-400">{invoice.paid_amount.toFixed(2)}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300 text-right font-bold text-rose-400">{invoice.due_amount.toFixed(2)}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300"><span className={`px-2 inline-flex text-xs leading-5 font-black uppercase rounded-full ${invoice.status === 'Paid' ? 'bg-green-900/50 text-green-300' : invoice.status === 'Due' ? 'bg-orange-900/50 text-orange-300' : invoice.status === 'Returned' ? 'bg-blue-900/50 text-blue-300' : 'bg-red-900/50 text-red-300'}`}>{invoice.status}</span></td>
+                  <td className="px-6 py-4 whitespace-nowrap text-xs text-slate-500">{invoice.last_modified}</td>
+                </tr>
+              ))}
+              {filteredInvoices.length === 0 && (
+                <tr>
+                    <td colSpan={10} className="px-6 py-12 text-center text-slate-500 italic uppercase font-black tracking-widest opacity-30">
+                        No Matching Invoices Found
+                    </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

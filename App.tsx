@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { ViewState, UserRole, DepartmentPasswords } from './types';
 import Dashboard from './components/Dashboard';
@@ -122,8 +123,8 @@ const App: React.FC = () => {
       localStorage.setItem('ncd_monthly_roster', JSON.stringify(monthlyRoster));
     };
 
-    const debounceTimer = setTimeout(syncData, 2000);
-    return () => clearTimeout(debounceTimer);
+    const syncInterval = setTimeout(syncData, 2000);
+    return () => clearTimeout(syncInterval);
   }, [
     patients, doctors, referrars, tests, reagents, labInvoices, 
     dueCollections, reports, employees, medicines, clinicalDrugs,
@@ -225,6 +226,7 @@ const App: React.FC = () => {
             medicines={medicines} setMedicines={setMedicines}
             admissions={admissions} setAdmissions={setAdmissions}
             indoorInvoices={indoorInvoices} setIndoorInvoices={setIndoorInvoices}
+            detailedExpenses={detailedExpenses}
           />
         );
 
