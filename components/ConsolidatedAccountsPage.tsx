@@ -95,7 +95,7 @@ const expenseMapSequence = [
     { key: 'Stationery', label: 'স্টেশনারী' },
     { key: 'Food', label: 'খাবার' },
     { key: 'Doctor donation', label: 'ডাঃ ডোনেশন+ যাতায়াত' },
-    { key: 'Instruments', label: 'ইন্সট্রুমেন্ট' },
+    { key: 'Instruments', label: 'イন্সট্রুমেন্ট' },
     { key: 'Press', label: 'প্রেস' },
     { key: 'License', label: 'লাইসেন্স' },
     { key: 'Installment', label: 'কিস্তি' },
@@ -230,18 +230,36 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
         const prevJer = calcNetPrev();
         const diagCurrent = labInvoices.filter(inv => isSelectedMonth(inv.invoice_date) && inv.status !== 'Cancelled').reduce((s, inv) => s + getNetDiagCash(inv), 0);
         const diagDue = dueCollections.filter(dc => isSelectedMonth(dc.collection_date) && dc.invoice_id.startsWith('INV')).reduce((s, dc) => s + dc.amount_collected, 0);
-        const clinicCurrent = indoorInvoices.filter(inv => isSelectedMonth(inv.invoice_date)).reduce((s, i) => s + i.paid_amount, 0);
+        
+        // --- LOGIC CHANGE: CLINIC CURRENT CASH (CLINIC REVENUE - OPERATING EXPENSES) ---
+        // 1. Calculate Monthly Operating Expenses
+        let totalMonthlyOperatingExpenses = 0;
+        Object.entries(detailedExpenses).forEach(([date, items]) => {
+            if (isSelectedMonth(date)) {
+                (items as ExpenseItem[]).forEach(it => totalMonthlyOperatingExpenses += it.paidAmount);
+            }
+        });
+
+        // 2. Calculate Clinic Revenue (Funded Items only)
+        const clinicRevenueCurrent = indoorInvoices.filter(inv => isSelectedMonth(inv.invoice_date)).reduce((acc, inv) => {
+            const netIncomeForInv = inv.items.filter((it: any) => it.isClinicFund).reduce((s: number, i: any) => s + i.payable_amount, 0);
+            return acc + netIncomeForInv;
+        }, 0);
+
+        // 3. Final Clinic Current row = (Funded Revenue) - (Monthly Operating Expenses)
+        const clinicCurrent = clinicRevenueCurrent - totalMonthlyOperatingExpenses;
+        
         const clinicDue = dueCollections.filter(dc => isSelectedMonth(dc.collection_date) && !dc.invoice_id.startsWith('INV')).reduce((s, dc) => s + dc.amount_collected, 0);
         const medSalesCurrent = salesInvoices.filter(inv => isSelectedMonth(inv.invoiceDate)).reduce((s, i) => s + i.netPayable, 0);
-        
-        // Logical Fix: Ignore 'Initial' (Opening) stock purchase from current month expense ledger sums
         const medPurchCurrent = purchaseInvoices.filter(inv => isSelectedMonth(inv.invoiceDate) && inv.status !== 'Initial' && inv.status !== 'Cancelled').reduce((s, i) => s + i.paidAmount, 0);
-        
         const companyCurrent = companyCollections.filter(c => isSelectedMonth(c.date)).reduce((s, c) => s + c.amount, 0);
 
         const totalDiag = diagCurrent + diagDue;
         const totalClinic = clinicCurrent + clinicDue;
         const totalMedNet = medSalesCurrent - medPurchCurrent;
+        
+        // Since clinicCurrent already subtracts totalMonthlyOperatingExpenses, 
+        // the total collection calculation here remains mathematically consistent for the summary.
         const grandTotalCollection = totalDiag + totalClinic + totalMedNet + companyCurrent + prevJer - houseRentDeduction;
         
         const groupedExp: Record<string, number> = {};
@@ -255,12 +273,23 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
             });
         });
         const monthlyLoanRepayments = repayments.filter(r => isSelectedMonth(r.date)).reduce((s, r) => s + r.amount, 0);
-        const totalExpense = Object.values(groupedExp).reduce((s, v) => s + (v as number), 0) + monthlyLoanRepayments + manualLoanInstallment;
-        const netProfit = grandTotalCollection - totalExpense;
+        
+        // To prevent double subtraction in the bottom-line netProfit calculation:
+        // We calculate totalExpense for the right-side table, but the final netProfit
+        // uses the grandTotalCollection which ALREADY has monthly expenses deducted.
+        const totalExpenseTableOnly = Object.values(groupedExp).reduce((s, v) => s + (v as number), 0) + monthlyLoanRepayments + manualLoanInstallment;
+        
+        const netProfit = grandTotalCollection - (monthlyLoanRepayments + manualLoanInstallment);
         const finalClosingJer = netProfit - profitDistAmount;
         const totalShares = dynamicShareholders.reduce((s, h) => s + h.shares, 0);
         const profitPerShare = totalShares > 0 ? profitDistAmount / totalShares : 0;
-        return { prevJer, diagCurrent, diagDue, totalDiag, clinicCurrent, clinicDue, totalClinic, medSalesCurrent, medPurchCurrent, totalMedNet, companyCurrent, grandTotalCollection, groupedExp, totalExpense, netProfit, finalClosingJer, profitPerShare, totalShares };
+        
+        return { 
+            prevJer, diagCurrent, diagDue, totalDiag, clinicCurrent, clinicDue, totalClinic, 
+            medSalesCurrent, medPurchCurrent, totalMedNet, companyCurrent, grandTotalCollection, 
+            groupedExp, totalExpense: totalExpenseTableOnly, netProfit, finalClosingJer, 
+            profitPerShare, totalShares 
+        };
     }, [labInvoices, dueCollections, indoorInvoices, salesInvoices, purchaseInvoices, companyCollections, detailedExpenses, selectedMonth, selectedYear, houseRentDeduction, profitDistAmount, manualLoanInstallment, dynamicShareholders, repayments]);
 
     const loanStats = useMemo(() => {
