@@ -120,7 +120,6 @@ const clinicExpenseCategories = [
 const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
   onBack, labInvoices, dueCollections, detailedExpenses, employees, purchaseInvoices, salesInvoices, indoorInvoices, medicines = []
 }) => {
-    // Renamed from activeView to activeTab to resolve naming mismatch causing build errors
     const [activeTab, setActiveTab] = useState<'monthly_expense_sheet' | 'daily_collection' | 'daily_expense' | 'accounts' | 'shareholders' | 'money_mgmt' | 'final_status' | 'future_plans' | 'shareholder_mgmt' | 'company_collection'>('accounts');
     const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth());
     const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
@@ -184,17 +183,18 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
             const dateStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
             const dailyExps = detailedExpenses[dateStr] || [];
             const categorySums: Record<string, number> = {};
-            clinicExpenseCategories.forEach(cat => categorySums[cat] = 0);
+            // ইউজারের অরিজিনাল ম্যাপ সিকোয়েন্স অনুযায়ী কলাম বানাবে
+            expenseMapSequence.forEach(e => categorySums[e.key] = 0);
             dailyExps.forEach(exp => {
                 const searchCat = exp.category === 'Clinic development' ? 'Clinic_Dev' : exp.category;
-                const matchedCat = clinicExpenseCategories.find(c => c === searchCat);
-                if (matchedCat) categorySums[matchedCat] += exp.paidAmount;
+                const matched = expenseMapSequence.find(e => e.key === searchCat);
+                if (matched) categorySums[matched.key] += exp.paidAmount;
             });
             const totalDay = Object.values(categorySums).reduce((a, b) => a + b, 0);
             rows.push({ date: dateStr, categories: categorySums, total: totalDay });
         }
         const columnTotals: Record<string, number> = {};
-        clinicExpenseCategories.forEach(cat => { columnTotals[cat] = rows.reduce((sum, row) => sum + row.categories[cat], 0); });
+        expenseMapSequence.forEach(e => { columnTotals[e.key] = rows.reduce((sum, row) => sum + row.categories[e.key], 0); });
         const grandTotal = rows.reduce((sum, row) => sum + row.total, 0);
         return { rows, columnTotals, grandTotal };
     }, [detailedExpenses, selectedMonth, selectedYear]);
@@ -202,7 +202,6 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
     const dailyCollectionData = useMemo(() => {
         const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
         const rows = [];
-        
         let diagUpto = 0;
         let clinicUpto = 0;
 
@@ -216,13 +215,11 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
             const dayStr = String(d).padStart(2, '0');
             const dateStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${dayStr}`;
             
-            // Diagnostic Calcs
             const diagToday = labInvoices.filter(inv => inv.invoice_date === dateStr && inv.status !== 'Cancelled' && inv.status !== 'Returned').reduce((s, inv) => s + getNetDiagCash(inv), 0);
             const diagDue = dueCollections.filter(dc => dc.collection_date === dateStr && dc.invoice_id.startsWith('INV')).reduce((s, dc) => s + dc.amount_collected, 0);
             const diagTotal = diagToday + diagDue;
             diagUpto += diagTotal;
 
-            // Clinic Calcs (Funded revenue)
             const clinicToday = indoorInvoices.filter(inv => inv.invoice_date === dateStr && inv.status !== 'Cancelled' && inv.status !== 'Returned').reduce((s, inv) => {
                 const fundedRevenue = inv.items.filter(it => it.isClinicFund).reduce((ss, ii) => ss + ii.payable_amount, 0);
                 const pcAmount = inv.commission_paid || 0;
@@ -233,12 +230,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
             clinicUpto += clinicTotal;
 
             const displayDate = `${dayStr}-${monthOptions[selectedMonth].name.substring(0, 3)}-${String(selectedYear).substring(2)}`;
-
-            rows.push({
-                date: displayDate,
-                diag: { today: diagToday, due: diagDue, total: diagTotal, upto: diagUpto },
-                clinic: { today: clinicToday, due: clinicDue, total: clinicTotal, upto: clinicUpto }
-            });
+            rows.push({ date: displayDate, diag: { today: diagToday, due: diagDue, total: diagTotal, upto: diagUpto }, clinic: { today: clinicToday, due: clinicDue, total: clinicTotal, upto: clinicUpto } });
         }
         return rows;
     }, [labInvoices, indoorInvoices, dueCollections, selectedMonth, selectedYear]);
@@ -246,7 +238,6 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
     const dailyExpenseReportData = useMemo(() => {
         const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
         const rows = [];
-        
         let diagUpto = 0;
         let clinicUpto = 0;
 
@@ -255,26 +246,14 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
             const dateStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${dayStr}`;
             const dailyExps = detailedExpenses[dateStr] || [];
 
-            // Diagnostic Daily Expense Logic
-            const diagToday = dailyExps.filter(ex => 
-                diagExpenseCategories.includes(ex.category)
-            ).reduce((s, ex) => s + ex.paidAmount, 0);
+            const diagToday = dailyExps.filter(ex => diagExpenseCategories.includes(ex.category)).reduce((s, ex) => s + ex.paidAmount, 0);
             diagUpto += diagToday;
 
-            // Clinic Daily Expense Logic
-            const clinicToday = dailyExps.filter(ex => 
-                clinicExpenseCategories.includes(ex.category)
-            ).reduce((s, ex) => s + ex.paidAmount, 0);
+            const clinicToday = dailyExps.filter(ex => clinicExpenseCategories.includes(ex.category)).reduce((s, ex) => s + ex.paidAmount, 0);
             clinicUpto += clinicToday;
 
             const displayDate = `${dayStr}-${monthOptions[selectedMonth].name.substring(0, 3)}-${String(selectedYear).substring(2)}`;
-
-            rows.push({
-                date: displayDate,
-                diag: { today: diagToday, upto: diagUpto },
-                clinic: { today: clinicToday, upto: clinicUpto },
-                total: diagToday + clinicToday
-            });
+            rows.push({ date: displayDate, diag: { today: diagToday, upto: diagUpto }, clinic: { today: clinicToday, upto: clinicUpto }, total: diagToday + clinicToday });
         }
         return rows;
     }, [detailedExpenses, selectedMonth, selectedYear]);
@@ -305,7 +284,6 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
             const prevMedSales = salesInvoices.filter(inv => isBeforeSelectedMonth(inv.invoiceDate)).reduce((s, i) => s + i.netPayable, 0);
             const prevMedPurch = purchaseInvoices.filter(inv => isBeforeSelectedMonth(inv.invoiceDate) && inv.status !== 'Initial' && inv.status !== 'Cancelled').reduce((s, i) => s + i.paidAmount, 0);
             const prevCompany = companyCollections.filter(c => isBeforeSelectedMonth(c.date)).reduce((s, c) => s + c.amount, 0);
-            
             let prevExp = 0;
             Object.entries(detailedExpenses).forEach(([date, items]) => {
                 if (isBeforeSelectedMonth(date)) (items as ExpenseItem[]).forEach(it => prevExp += it.paidAmount);
@@ -320,9 +298,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
         
         let totalMonthlyOperatingExpenses = 0;
         Object.entries(detailedExpenses).forEach(([date, items]) => {
-            if (isSelectedMonth(date)) {
-                (items as ExpenseItem[]).forEach(it => totalMonthlyOperatingExpenses += it.paidAmount);
-            }
+            if (isSelectedMonth(date)) (items as ExpenseItem[]).forEach(it => totalMonthlyOperatingExpenses += it.paidAmount);
         });
 
         const clinicRevenueCurrent = indoorInvoices.filter(inv => isSelectedMonth(inv.invoice_date) && inv.status !== 'Cancelled' && inv.status !== 'Returned').reduce((acc, inv) => {
@@ -332,7 +308,6 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
         }, 0);
 
         const clinicCurrent = clinicRevenueCurrent - totalMonthlyOperatingExpenses;
-        
         const clinicDue = dueCollections.filter(dc => isSelectedMonth(dc.collection_date) && !dc.invoice_id.startsWith('INV')).reduce((s, dc) => s + dc.amount_collected, 0);
         const medSalesCurrent = salesInvoices.filter(inv => isSelectedMonth(inv.invoiceDate)).reduce((s, i) => s + i.netPayable, 0);
         const medPurchCurrent = purchaseInvoices.filter(inv => isSelectedMonth(inv.invoiceDate) && inv.status !== 'Initial' && inv.status !== 'Cancelled').reduce((s, i) => s + i.paidAmount, 0);
@@ -355,20 +330,13 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
             });
         });
         const monthlyLoanRepayments = repayments.filter(r => isSelectedMonth(r.date)).reduce((s, r) => s + r.amount, 0);
-        
         const totalExpenseTableOnly = Object.values(groupedExp).reduce((s, v) => s + (v as number), 0) + monthlyLoanRepayments + manualLoanInstallment;
-        
         const netProfit = grandTotalCollection - (monthlyLoanRepayments + manualLoanInstallment);
         const finalClosingJer = netProfit - profitDistAmount;
         const totalShares = dynamicShareholders.reduce((s, h) => s + h.shares, 0);
         const profitPerShare = totalShares > 0 ? profitDistAmount / totalShares : 0;
         
-        return { 
-            prevJer, diagCurrent, diagDue, totalDiag, clinicCurrent, clinicDue, totalClinic, 
-            medSalesCurrent, medPurchCurrent, totalMedNet, companyCurrent, grandTotalCollection, 
-            groupedExp, totalExpense: totalExpenseTableOnly, netProfit, finalClosingJer, 
-            profitPerShare, totalShares 
-        };
+        return { prevJer, diagCurrent, diagDue, totalDiag, clinicCurrent, clinicDue, totalClinic, medSalesCurrent, medPurchCurrent, totalMedNet, companyCurrent, grandTotalCollection, groupedExp, totalExpense: totalExpenseTableOnly, netProfit, finalClosingJer, profitPerShare, totalShares };
     }, [labInvoices, dueCollections, indoorInvoices, salesInvoices, purchaseInvoices, companyCollections, detailedExpenses, selectedMonth, selectedYear, houseRentDeduction, profitDistAmount, manualLoanInstallment, dynamicShareholders, repayments]);
 
     const handlePrintSpecific = (elementId: string) => {
@@ -376,22 +344,9 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
         if (!content) return;
         const win = window.open('', '', 'width=1200,height=800');
         if(!win) return;
-        
         const isLandscape = elementId === 'section-monthly-expense';
-        const printScale = (elementId === 'section-daily-collection' || elementId === 'section-daily-expense') ? '0.92' : '1.0';
-
-        const html = `<html><head><title>NcD Report Print</title><script src="https://cdn.tailwindcss.com"></script><style>@page { size: A4 ${isLandscape ? 'landscape' : 'portrait'}; margin: 0; } body { background: white; font-family: 'Segoe UI', Tahoma, sans-serif; color: black; -webkit-print-color-adjust: exact; margin: 0; padding: 0; overflow: hidden; } .print-wrapper { width: 100%; display: flex; flex-direction: column; transform: scale(${printScale}); transform-origin: top center; margin: 0 auto; box-sizing: border-box; } table { width: 100% !important; border-collapse: collapse !important; font-size: ${(elementId === 'section-daily-collection' || elementId === 'section-daily-expense') ? '8.5pt' : (isLandscape ? '8.5pt' : '9.5pt')} !important; table-layout: fixed !important; margin: 0 auto; } th, td { border: 0.5pt solid #000 !important; padding: ${(elementId === 'section-daily-collection' || elementId === 'section-daily-expense') ? '2px 4px' : (isLandscape ? '2px' : '4px 6px')} !important; text-align: center !important; white-space: normal !important; overflow: hidden !important; vertical-align: middle !important; line-height: 1.1 !important; } th { background: #f3f4f6 !important; font-weight: 900 !important; text-transform: uppercase !important; word-wrap: break-word !important; } .text-right { text-align: right !important; } .font-bold { font-weight: bold !important; } .no-print { display: none !important; } .sig-container { margin-top: 15px !important; padding-top: 5px !important; border-top: 1.5px solid black !important; page-break-inside: avoid !important; display: flex; justify-content: space-between; } h1.print-title { font-size: ${isLandscape ? '18pt' : '20pt'} !important; font-weight: 900 !important; color: #1e3a8a !important; text-transform: uppercase; margin-bottom: 2px !important; line-height: 1.0; white-space: nowrap !important; } p.print-subtitle { font-size: ${isLandscape ? '9pt' : '10pt'} !important; font-weight: bold !important; margin-top: 0px !important; margin-bottom: 5px !important; white-space: nowrap !important; } .font-bengali { font-family: 'Arial', sans-serif !important; } .header-row { display: flex !important; justify-content: space-between !important; align-items: center !important; width: 100% !important; border-bottom: 1.5pt solid black !important; margin-bottom: 3mm !important; padding: 5mm 5mm 2mm 5mm !important; box-sizing: border-box; flex-wrap: nowrap !important; } </style></head><body><div class="print-wrapper">${content.innerHTML}</div><script>setTimeout(() => { window.print(); window.close(); }, 850);</script></body></html>`;
+        const html = `<html><head><title>Print Report</title><script src="https://cdn.tailwindcss.com"></script><style>@page { size: A4 ${isLandscape ? 'landscape' : 'portrait'}; margin: 0; } body { background: white; font-family: sans-serif; padding: 10mm; } table { width: 100% !important; border-collapse: collapse !important; } th, td { border: 0.5pt solid #000 !important; padding: 4px; text-align: center; } .no-print { display: none !important; }</style></head><body>${content.innerHTML}<script>setTimeout(() => { window.print(); window.close(); }, 850);</script></body></html>`;
         win.document.write(html); win.document.close();
-    };
-
-    const renderHeaderLabel = (cat: string) => {
-        switch(cat) {
-            case 'Stuff salary': return 'Staff Salary';
-            case 'Clinic_Dev': return 'Clinic Dev';
-            case 'Old Loan Repay': return 'Loan Repay';
-            case 'Doctor donation': return 'Doc Donat';
-            default: return cat;
-        }
     };
 
     const commonTableCellClass = "p-1.5 border border-black font-bold text-[10pt] font-bengali h-8 text-center";
@@ -404,7 +359,6 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                     <button onClick={onBack} className="p-2 bg-slate-700 rounded-full hover:bg-slate-600 transition-colors"><BackIcon className="w-5 h-5" /></button>
                     <h1 className="font-bold uppercase tracking-tight text-sm">Accounts Console</h1>
                 </div>
-                {/* Fixed: Replaced activeView/setActiveView with activeTab/setActiveTab to match state definition */}
                 <div className="flex bg-slate-900/50 p-1 rounded-lg border border-slate-700 overflow-x-auto max-w-full">
                     <button onClick={() => setActiveTab('monthly_expense_sheet')} className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all whitespace-nowrap ${activeTab === 'monthly_expense_sheet' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}>Monthly Expense Sheet</button>
                     <button onClick={() => setActiveTab('daily_collection')} className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all whitespace-nowrap ${activeTab === 'daily_collection' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}>Daily Collection</button>
@@ -424,25 +378,90 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
             </header>
 
             <div className="flex-1 overflow-y-auto p-4 md:p-8 bg-slate-200">
-                {/* ... existing code for other views ... */}
+                
+                {/* 1. Monthly Expense Sheet (Grid) */}
+                {activeTab === 'monthly_expense_sheet' && (
+                    <div id="section-monthly-expense" className="relative animate-fade-in">
+                        <button onClick={() => handlePrintSpecific('section-monthly-expense')} className="no-print absolute top-2 right-2 p-2 bg-emerald-600 text-white rounded-full shadow-lg hover:bg-emerald-500 z-50 flex items-center gap-2"><PrinterIcon size={18} /> <span className="text-xs font-bold">Print Landscape</span></button>
+                        <main className="p-4 max-w-[1600px] mx-auto w-full bg-white text-black shadow-2xl flex flex-col border border-gray-300 font-sans overflow-x-auto">
+                            <div className="flex justify-between items-end mb-4 border-b-2 border-black pb-2">
+                                <h1 className="text-2xl font-black uppercase text-blue-900 leading-none">Niramoy Clinic & Diagnostic</h1>
+                                <p className="text-sm font-bold uppercase tracking-widest text-slate-700">Monthly Clinic Expense Ledger - {monthOptions[selectedMonth].name} {selectedYear}</p>
+                            </div>
+                            <table className="w-full text-[11px] border-collapse border border-black">
+                                <thead>
+                                    <tr className="bg-gray-100">
+                                        <th className="border border-black p-2 w-[80px]">Date</th>
+                                        {expenseMapSequence.map(e => <th key={e.key} className="border border-black p-2 font-black text-[10px] uppercase">{e.label}</th>)}
+                                        <th className="border border-black p-2 bg-gray-200 font-black">Monthly Total</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {expenseSheetData.rows.map(row => (
+                                        <tr key={row.date} className="hover:bg-blue-50 transition-colors h-10">
+                                            <td className="border border-black p-1 text-center font-mono font-bold text-xs whitespace-nowrap">{row.date.split('-')[2]} {monthOptions[parseInt(row.date.split('-')[1])-1].name.substring(0,3)}</td>
+                                            {expenseMapSequence.map(e => <td key={e.key} className="border border-black p-1 text-center font-medium text-sm">{row.categories[e.key] > 0 ? row.categories[e.key].toLocaleString() : '-'}</td>)}
+                                            <td className="border border-black p-1 text-center font-black bg-gray-50 text-base">৳{row.total > 0 ? row.total.toLocaleString() : '-'}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                                <tfoot className="bg-gray-100 font-black h-12">
+                                    <tr>
+                                        <td className="border border-black p-1 text-center text-xs uppercase">TOTALS:</td>
+                                        {expenseMapSequence.map(e => <td key={e.key} className="border border-black p-1 text-center text-blue-900 text-sm">{expenseSheetData.columnTotals[e.key] > 0 ? expenseSheetData.columnTotals[e.key].toLocaleString() : '-'}</td>)}
+                                        <td className="border border-black p-1 text-center text-emerald-700 bg-emerald-50 font-black text-lg">৳{expenseSheetData.grandTotal.toLocaleString()}</td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </main>
+                    </div>
+                )}
 
-                {/* Fixed: Replaced activeView with activeTab */}
+                {/* 2. Daily Collection (Diagnostic vs Clinic) */}
+                {activeTab === 'daily_collection' && (
+                    <div id="section-daily-collection" className="relative animate-fade-in">
+                        <button onClick={() => handlePrintSpecific('section-daily-collection')} className="no-print absolute top-2 right-2 p-2 bg-indigo-600 text-white rounded-full shadow-lg flex items-center gap-2"><PrinterIcon size={18} /> <span className="text-xs font-bold">Print</span></button>
+                        <main className="p-6 max-w-[1200px] mx-auto w-full bg-white text-black shadow-2xl flex flex-col border border-gray-300">
+                            <h1 className="text-[16pt] font-black uppercase text-center mb-4">Collection breakdown - {monthOptions[selectedMonth].name} {selectedYear}</h1>
+                            <table className="w-full border-collapse border-2 border-black text-[9pt]">
+                                <thead>
+                                    <tr className="bg-gray-50">
+                                        <th className="border-2 border-black p-2 w-[100px]" rowSpan={2}>Date</th>
+                                        <th className="border-2 border-black p-2" colSpan={4}>Diagnostic</th>
+                                        <th className="border-2 border-black p-2" colSpan={4}>Clinic</th>
+                                    </tr>
+                                    <tr className="bg-gray-50 uppercase text-[8px] font-black">
+                                        <th className="border-2 border-black p-1">Today</th><th className="border-2 border-black p-1">Due</th><th className="border-2 border-black p-1">Total</th><th className="border-2 border-black p-1 bg-blue-50">Upto</th>
+                                        <th className="border-2 border-black p-1">Today</th><th className="border-2 border-black p-1">Due</th><th className="border-2 border-black p-1">Total</th><th className="border-2 border-black p-1 bg-emerald-50">Upto</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {dailyCollectionData.map((row, idx) => (
+                                        <tr key={idx} className="h-7 hover:bg-slate-50 transition-colors">
+                                            <td className="border border-black p-1 font-mono font-bold">{row.date}</td>
+                                            <td className="border border-black p-1 text-right">{row.diag.today > 0 ? row.diag.today.toLocaleString() : ''}</td>
+                                            <td className="border border-black p-1 text-right">{row.diag.due > 0 ? row.diag.due.toLocaleString() : ''}</td>
+                                            <td className="border border-black p-1 text-right font-black">{row.diag.total > 0 ? row.diag.total.toLocaleString() : ''}</td>
+                                            <td className="border border-black p-1 text-right font-black bg-blue-50/50">{row.diag.upto > 0 ? row.diag.upto.toLocaleString() : ''}</td>
+                                            <td className="border border-black p-1 text-right">{row.clinic.today > 0 ? row.clinic.today.toLocaleString() : ''}</td>
+                                            <td className="border border-black p-1 text-right">{row.clinic.due > 0 ? row.clinic.due.toLocaleString() : ''}</td>
+                                            <td className="border border-black p-1 text-right font-black">{row.clinic.total > 0 ? row.clinic.total.toLocaleString() : ''}</td>
+                                            <td className="border border-black p-1 text-right font-black bg-emerald-50/50">{row.clinic.upto > 0 ? row.clinic.upto.toLocaleString() : ''}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </main>
+                    </div>
+                )}
+
+                {/* 3. Daily Expense (New 2-column view) */}
                 {activeTab === 'daily_expense' && (
                     <div id="section-daily-expense" className="relative animate-fade-in">
-                        <button onClick={() => handlePrintSpecific('section-daily-expense')} className="no-print absolute top-2 right-2 p-2 bg-rose-600 text-white rounded-full shadow-lg hover:bg-rose-500 z-50 flex items-center gap-2"><PrinterIcon size={18} /> <span className="text-xs font-bold">Print Portrait</span></button>
-                        <main className="p-6 max-w-[1200px] mx-auto w-full bg-white text-black shadow-2xl flex flex-col border border-gray-300 font-sans overflow-hidden">
-                            <div className="header-row">
-                                <div className="flex-1 text-left">
-                                    <h1 className="text-[12pt] font-black uppercase text-blue-900 leading-tight">Niramoy Clinic & Diagnostic</h1>
-                                </div>
-                                <div className="flex-none px-4 text-center">
-                                    <h1 className="text-[16pt] font-black uppercase print-title" style={{ whiteSpace: 'nowrap' }}>Expense detail</h1>
-                                </div>
-                                <div className="flex-1 text-right">
-                                    <p className="text-[10pt] font-black uppercase tracking-widest text-slate-600 print-subtitle">{monthOptions[selectedMonth].name} {selectedYear}</p>
-                                </div>
-                            </div>
-                            <table className="w-full border-collapse border-2 border-black">
+                        <button onClick={() => handlePrintSpecific('section-daily-expense')} className="no-print absolute top-2 right-2 p-2 bg-rose-600 text-white rounded-full shadow-lg flex items-center gap-2"><PrinterIcon size={18} /> <span className="text-xs font-bold">Print</span></button>
+                        <main className="p-6 max-w-[1200px] mx-auto w-full bg-white text-black shadow-2xl flex flex-col border border-gray-300">
+                            <h1 className="text-[16pt] font-black uppercase text-center mb-4">Expense detail - {monthOptions[selectedMonth].name} {selectedYear}</h1>
+                            <table className="w-full border-collapse border-2 border-black text-[9pt]">
                                 <thead>
                                     <tr className="bg-gray-50">
                                         <th className="border-2 border-black p-2 w-[100px]" rowSpan={2}>Date</th>
@@ -450,46 +469,276 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                         <th className="border-2 border-black p-2" colSpan={2}>Clinic Expense</th>
                                         <th className="border-2 border-black p-2 w-[100px]" rowSpan={2}>Daily Total</th>
                                     </tr>
-                                    <tr className="bg-gray-50 text-[9px] font-black uppercase tracking-tighter">
-                                        <th className="border-2 border-black p-1">Today expense</th>
-                                        <th className="border-2 border-black p-1 bg-blue-50">Upto expense</th>
-                                        <th className="border-2 border-black p-1">Today expense</th>
-                                        <th className="border-2 border-black p-1 bg-emerald-50">Upto expense</th>
+                                    <tr className="bg-gray-50 uppercase text-[8px] font-black">
+                                        <th className="border-2 border-black p-1">Today</th><th className="border-2 border-black p-1 bg-blue-50">Upto</th>
+                                        <th className="border-2 border-black p-1">Today</th><th className="border-2 border-black p-1 bg-emerald-50">Upto</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {dailyExpenseReportData.map((row, idx) => (
                                         <tr key={idx} className="h-7 hover:bg-slate-50 transition-colors">
-                                            <td className="border border-black p-1 font-mono font-bold text-[10px] whitespace-nowrap">{row.date}</td>
-                                            <td className="border border-black p-1 text-right font-medium">{row.diag.today > 0 ? row.diag.today.toLocaleString() : ''}</td>
+                                            <td className="border border-black p-1 font-mono font-bold">{row.date}</td>
+                                            <td className="border border-black p-1 text-right">{row.diag.today > 0 ? row.diag.today.toLocaleString() : ''}</td>
                                             <td className="border border-black p-1 text-right font-black bg-blue-50/50">{row.diag.upto > 0 ? row.diag.upto.toLocaleString() : ''}</td>
-                                            <td className="border border-black p-1 text-right font-medium">{row.clinic.today > 0 ? row.clinic.today.toLocaleString() : ''}</td>
+                                            <td className="border border-black p-1 text-right">{row.clinic.today > 0 ? row.clinic.today.toLocaleString() : ''}</td>
                                             <td className="border border-black p-1 text-right font-black bg-emerald-50/50">{row.clinic.upto > 0 ? row.clinic.upto.toLocaleString() : ''}</td>
                                             <td className="border border-black p-1 text-right font-black bg-slate-100">{row.total > 0 ? row.total.toLocaleString() : ''}</td>
                                         </tr>
                                     ))}
                                 </tbody>
-                                <tfoot className="bg-gray-100 font-black">
-                                    <tr className="h-10">
-                                        <td className="border-2 border-black p-1 text-center text-xs">MONTH TOTAL</td>
-                                        <td className="border-2 border-black p-1 text-right">{dailyExpenseReportData.reduce((s, r) => s + r.diag.today, 0).toLocaleString()}</td>
-                                        <td className="border-2 border-black p-1 text-right bg-blue-100">{dailyExpenseReportData[dailyExpenseReportData.length-1].diag.upto.toLocaleString()}</td>
-                                        <td className="border-2 border-black p-1 text-right">{dailyExpenseReportData.reduce((s, r) => s + r.clinic.today, 0).toLocaleString()}</td>
-                                        <td className="border-2 border-black p-1 text-right bg-emerald-100">{dailyExpenseReportData[dailyExpenseReportData.length-1].clinic.upto.toLocaleString()}</td>
-                                        <td className="border-2 border-black p-1 text-right bg-slate-200">৳{(dailyExpenseReportData.reduce((s, r) => s + r.total, 0)).toLocaleString()}</td>
-                                    </tr>
-                                </tfoot>
                             </table>
-                            <div className="sig-container mt-6 flex justify-between px-6 font-bengali font-black text-[10pt] uppercase tracking-tighter border-t-2 border-black shrink-0">
-                                <div className="text-center w-40 border-t border-black pt-1">ম্যানেজার</div>
-                                <div className="text-center w-40 border-t border-black pt-1">হিসাবরক্ষক</div>
-                                <div className="text-center w-40 border-t border-black pt-1">পরিচালক</div>
+                        </main>
+                    </div>
+                )}
+
+                {/* 4. Accounts Sheet (Summary) */}
+                {activeTab === 'accounts' && (
+                    <div id="section-accounts" className="relative animate-fade-in h-full">
+                        <button onClick={() => handlePrintSpecific('section-accounts')} className="no-print absolute top-2 right-2 p-2 bg-blue-600 text-white rounded-full shadow-lg"><FileTextIcon className="w-5 h-5" /></button>
+                        <main className="p-8 max-w-[210mm] mx-auto w-full bg-white text-black shadow-2xl flex flex-col border border-gray-300 font-serif min-h-full">
+                            <div className="flex justify-between items-end mb-6 border-b-2 border-black pb-3 shrink-0">
+                                <div>
+                                    <h1 className="text-2xl font-black uppercase text-blue-900 leading-none">Niramoy Clinic & Diagnostic</h1>
+                                    <p className="text-sm font-bold mt-2">Enayetpur, Sirajgonj | Mobile: 01730 923007</p>
+                                </div>
+                                <h3 className="text-lg font-bold underline uppercase tracking-widest bg-gray-100 px-4 py-2 border border-black font-bengali">অ্যাকাউন্টস শিট : {monthOptions[selectedMonth].name}, {selectedYear}</h3>
+                            </div>
+                            <div className="grid grid-cols-2 gap-8 flex-1">
+                                <div className="space-y-4">
+                                    <div className="bg-slate-800 text-white border border-black p-1.5 text-center font-bold text-xs font-bengali uppercase shadow-md">কালেকশন এর হিসাব</div>
+                                    <div className="space-y-1">
+                                        <div className="text-[11px] font-black font-bengali underline mb-0.5">ক) ডায়াগনস্টিক হইতে :</div>
+                                        <table className="w-full border border-black">
+                                            <tbody>
+                                                <tr className="h-8"><td className="p-1 border border-black text-center w-8">১</td><td className={commonTableCellClass}>বর্তমান মাসের ক্যাশ</td><td className={commonAmtCellClass}>{summary.diagCurrent.toLocaleString()}</td></tr>
+                                                <tr className="h-8"><td className="p-1 border border-black text-center w-8">২</td><td className={commonTableCellClass}>বকেয়া আদায়</td><td className={commonAmtCellClass}>{summary.diagDue.toLocaleString()}</td></tr>
+                                                <tr className="bg-gray-100 font-black h-8"><td colSpan={2} className="p-1 text-right text-[10px]">ডায়াগনস্টিক মোট :</td><td className={commonAmtCellClass}>{summary.totalDiag.toLocaleString()}</td></tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <div className="text-[11px] font-black font-bengali underline mb-0.5">খ) ক্লিনিক হইতে :</div>
+                                        <table className="w-full border border-black">
+                                            <tbody>
+                                                <tr className="h-8"><td className="p-1 border border-black text-center w-8">১</td><td className={commonTableCellClass}>বর্তমান মাসের ক্যাশ</td><td className={commonAmtCellClass}>{summary.clinicCurrent.toLocaleString()}</td></tr>
+                                                <tr className="h-8"><td className="p-1 border border-black text-center w-8">২</td><td className={commonTableCellClass}>বকেয়া আদায়</td><td className={commonAmtCellClass}>{summary.clinicDue.toLocaleString()}</td></tr>
+                                                <tr className="bg-gray-100 font-black h-8"><td colSpan={2} className="p-1 text-right text-[10px]">ক্লিনিক মোট :</td><td className={commonAmtCellClass}>{summary.totalClinic.toLocaleString()}</td></tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <div className="text-[11px] font-black font-bengali underline mb-0.5">গ) ঔষধ হইতে (নিট মুনাফা) :</div>
+                                        <table className="w-full border border-black">
+                                            <tbody>
+                                                <tr className="h-8"><td className="p-1 border border-black text-center w-8">১</td><td className={commonTableCellClass}>ঔষধ বিক্রয়</td><td className={commonAmtCellClass}>{summary.medSalesCurrent.toLocaleString()}</td></tr>
+                                                <tr className="h-8"><td className="p-1 border border-black text-center w-8">২</td><td className={`${commonTableCellClass} text-black-600`}>ঔষধ ক্রয় (খরচ)</td><td className={`${commonAmtCellClass} text-blackred-600`}>({summary.medPurchCurrent.toLocaleString()})</td></tr>
+                                                <tr className="bg-gray-100 font-black h-8"><td colSpan={2} className="p-1 text-right text-[10px]">নিট ঔষধ মুনাফা :</td><td className={commonAmtCellClass}>{summary.totalMedNet.toLocaleString()}</td></tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <div className="text-[11px] font-black font-bengali underline mb-0.5">ঘ) কোম্পানি হইতে প্রাপ্তি :</div>
+                                        <table className="w-full border border-black">
+                                            <tbody>
+                                                <tr className="bg-gray-50 font-black h-8"><td colSpan={2} className="p-1 text-right text-[10px]">কোম্পানি মোট :</td><td className={commonAmtCellClass}>{summary.companyCurrent.toLocaleString()}</td></tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    <div className="mt-4 border-t-2 border-black pt-2">
+                                        <table className="w-full border-2 border-black">
+                                            <tbody>
+                                                <tr className="bg-gray-50 h-8"><td className={commonTableCellClass}>বাড়ী ভাড়া কর্তন</td><td className="no-print"><input type="number" value={houseRentDeduction || ''} onChange={e=>setHouseRentDeduction(parseFloat(e.target.value)||0)} className="w-16 text-right border border-gray-400 rounded" /></td><td className={commonAmtCellClass}>({houseRentDeduction.toLocaleString()})</td></tr>
+                                                <tr className="bg-blue-50 h-8"><td colSpan={2} className={`${commonTableCellClass} text-blue-900`}>পূর্বের জের (CF)</td><td className={`${commonAmtCellClass} text-blue-900`}>{summary.prevJer.toLocaleString()}</td></tr>
+                                                <tr className="bg-slate-900 text-white font-black h-10"><td colSpan={2} className="p-1 text-right text-[12px]">মোট কালেকশন (A) =</td><td className="p-1 text-right text-lg">{summary.grandTotalCollection.toLocaleString()}</td></tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                                <div className="space-y-4 flex flex-col">
+                                    <div className="bg-slate-800 text-white border border-black p-1.5 text-center font-bold text-xs font-bengali uppercase shadow-md">খরচের হিসাব</div>
+                                    <table className="w-full border-2 border-black flex-1">
+                                        <thead><tr className="bg-gray-100"><th className="p-1 border border-black w-8 text-[10px]">ক্র.</th><th className="p-1 border border-black text-left text-[10px]">বিবরণ</th><th className="p-1 border border-black w-[100px] text-[10px]">টাকা</th></tr></thead>
+                                        <tbody>
+                                            {expenseMapSequence.map((item, idx) => (
+                                                <tr key={item.key} className="h-7"><td className="p-1 border border-black text-center text-[10px]">{idx + 1}</td><td className={`${commonTableCellClass} !text-left text-[10px]`}>{item.label}</td><td className={commonAmtCellClass}>{(summary.groupedExp[item.key] || 0).toLocaleString()}</td></tr>
+                                            ))}
+                                            <tr className="bg-slate-800 text-white font-black h-10"><td colSpan={2} className="p-1 text-right text-[12px]">মোট খরচ (B) =</td><td className="p-1 text-right text-lg">{summary.totalExpense.toLocaleString()}</td></tr>
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
                         </main>
                     </div>
                 )}
 
-                {/* ... other views ... */}
+                {/* 5. Company Collection */}
+                {activeTab === 'company_collection' && (
+                    <div className="max-w-4xl mx-auto space-y-8 animate-fade-in no-print">
+                        <div className="bg-white p-8 rounded-[2.5rem] shadow-2xl border border-slate-200">
+                             <h3 className="text-xl font-black text-cyan-600 mb-6 font-bengali border-b pb-4 flex items-center gap-3"><ClinicIcon className="w-6 h-6" /> কোম্পানি কালেকশন ডাটা এন্ট্রি</h3>
+                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                 <div><label className="text-[10px] font-black text-slate-500 uppercase ml-2 mb-1 block">কোম্পানি</label><input value={newCompanyEntry.companyName} onChange={e=>setNewCompanyEntry({...newCompanyEntry, companyName: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl font-bold" placeholder="কোম্পানির নাম..."/></div>
+                                 <div><label className="text-[10px] font-black text-slate-500 uppercase ml-2 mb-1 block">টাকার পরিমাণ (৳)</label><input type="number" value={newCompanyEntry.amount} onChange={e=>setNewCompanyEntry({...newCompanyEntry, amount: parseFloat(e.target.value) || 0})} className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl font-black" /></div>
+                                 <div><label className="text-[10px] font-black text-slate-500 uppercase ml-2 mb-1 block">তারিখ</label><input type="date" value={newCompanyEntry.date} onChange={e=>setNewCompanyEntry({...newCompanyEntry, date: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl font-black" /></div>
+                             </div>
+                             <button onClick={addCompanyCollection} className="mt-6 w-full py-4 bg-cyan-600 text-white rounded-2xl font-black uppercase text-xs shadow-xl transition-all">কালেকশন সেভ করুন</button>
+                        </div>
+                        <div className="overflow-x-auto rounded-[2rem] border border-slate-200 shadow-xl bg-white"><table className="w-full text-left border-collapse"><thead className="bg-slate-50 text-slate-500 font-black uppercase text-[10px] tracking-widest border-b border-slate-200"><tr><th className="p-5">তারিখ</th><th className="p-5">কোম্পানির নাম</th><th className="p-5 text-right">পরিমাণ (৳)</th><th className="p-5 text-center">X</th></tr></thead><tbody className="divide-y divide-slate-100">{companyCollections.map(c => (<tr key={c.id} className="hover:bg-cyan-50 transition-colors"><td className="p-5 font-bold text-slate-600">{c.date}</td><td className="p-5 font-black text-slate-800 uppercase">{c.companyName}</td><td className="p-5 text-right font-black text-cyan-600 text-lg">৳{c.amount.toLocaleString()}</td><td className="p-5 text-center"><button onClick={() => setCompanyCollections(companyCollections.filter(x=>x.id!==c.id))} className="text-rose-400 hover:text-rose-600 p-2"><TrashIcon size={18}/></button></td></tr>))}</tbody></table></div>
+                    </div>
+                )}
+
+                {/* 6. Profit Share (Shareholders) */}
+                {activeTab === 'shareholders' && (
+                    <div id="section-shareholders" className="relative animate-fade-in">
+                        <button onClick={() => handlePrintSpecific('section-shareholders')} className="no-print absolute top-2 right-2 p-2 bg-blue-600 text-white rounded-full shadow-lg"><PrinterIcon size={18} /></button>
+                        <main className="p-8 max-w-[210mm] mx-auto w-full bg-white text-black shadow-2xl flex flex-col border border-gray-300">
+                            <div className="text-center mb-8 border-b-2 border-black pb-4"><h1 className="text-2xl font-black uppercase text-blue-900 leading-none">Niramoy Clinic & Diagnostic</h1><h3 className="text-lg font-bold underline uppercase tracking-widest bg-gray-50 mt-2 py-1 font-bengali">অংশীদারগণের মুনাফা বন্টন শিট : {monthOptions[selectedMonth].name}, {selectedYear}</h3></div>
+                            <div className="flex justify-between items-center bg-gray-100 p-5 rounded-xl border-2 border-black mb-8">
+                                <div className="no-print"><label className="text-xs font-bold uppercase block mb-1">মোট বন্টনযোগ্য মুনাফা :</label><input type="number" value={profitDistAmount || ''} onChange={e=>setProfitDistAmount(parseFloat(e.target.value)||0)} className="w-48 bg-white border border-black p-2 text-xl font-black text-blue-700" /></div>
+                                <div className="text-right"><div><span className="text-xs font-bold uppercase">মোট শেয়ার :</span> <span className="text-xl font-black ml-2">{summary.totalShares}</span></div><div><span className="text-xs font-bold uppercase">শেয়ার প্রতি মুনাফা :</span> <span className="text-2xl font-black ml-2 text-emerald-700">৳ {summary.profitPerShare.toFixed(2)}</span></div></div>
+                            </div>
+                            <table className="w-full border-collapse border-2 border-black">
+                                <thead className="bg-gray-200"><tr><th className="p-2 border border-black w-10">SL</th><th className="p-2 border border-black text-left">অংশীদারগণের নাম</th><th className="p-2 border border-black">শেয়ার সংখ্যা</th><th className="p-2 border border-black text-right">মুনাফার পরিমাণ (৳)</th><th className="p-2 border border-black">স্বাক্ষর</th></tr></thead>
+                                <tbody>
+                                    {dynamicShareholders.map((s, i) => (
+                                        <tr key={s.id} className="h-10"><td className="p-2 border border-black text-center">{i + 1}</td><td className="p-2 border border-black font-black uppercase font-bengali">{s.name}</td><td className="p-2 border border-black text-center font-bold">{s.shares}</td><td className="p-2 border border-black text-right font-black text-blue-900">৳ {(s.shares * summary.profitPerShare).toLocaleString(undefined, {maximumFractionDigits:2})}</td><td className="p-2 border border-black text-center italic text-[10px] text-gray-300">Signature</td></tr>
+                                    ))}
+                                </tbody>
+                                <tfoot className="bg-gray-100 font-black h-12"><tr><td colSpan={2} className="p-2 text-right">সর্বমোট :</td><td className="p-2 text-center">{summary.totalShares}</td><td className="p-2 text-right text-lg text-emerald-800">৳ {profitDistAmount.toLocaleString()}</td><td></td></tr></tfoot>
+                            </table>
+                        </main>
+                    </div>
+                )}
+
+                {/* 7. Money Management (Loans) */}
+                {activeTab === 'money_mgmt' && (
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-fade-in no-print">
+                        <div className="space-y-6">
+                            <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xl">
+                                <h3 className="text-lg font-black text-emerald-600 uppercase mb-4 flex items-center gap-2"><MoneyIcon size={20}/> Add New Loan Source</h3>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <input placeholder="Source (e.g. Bank Asia)" className="p-3 bg-slate-50 border border-slate-300 rounded-xl font-bold" id="loan_src"/>
+                                    <input type="number" placeholder="Amount" className="p-3 bg-slate-50 border border-slate-300 rounded-xl font-black" id="loan_amt"/>
+                                </div>
+                                <button onClick={() => { 
+                                    const src = (document.getElementById('loan_src') as HTMLInputElement).value;
+                                    const amt = parseFloat((document.getElementById('loan_amt') as HTMLInputElement).value);
+                                    if(src && amt) setLoans([...loans, {id:`L-${Date.now()}`, source:src, amount:amt, date:new Date().toISOString().split('T')[0], type:'Capital'}]);
+                                }} className="w-full mt-4 py-3 bg-emerald-600 text-white rounded-xl font-black uppercase text-xs">Add Loan</button>
+                            </div>
+                            <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xl">
+                                <h3 className="text-lg font-black text-slate-800 uppercase mb-4">Loan Master List</h3>
+                                {loans.map(l => (
+                                    <div key={l.id} className="p-4 bg-slate-50 rounded-2xl border border-slate-200 mb-3 flex justify-between items-center group">
+                                        <div><p className="font-black text-slate-800 uppercase text-sm">{l.source}</p><p className="text-[10px] text-slate-500 font-bold uppercase mt-1">Loan ID: {l.id} | Date: {l.date}</p></div>
+                                        <div className="text-right">
+                                            <p className="text-lg font-black text-rose-600">৳{l.amount.toLocaleString()}</p>
+                                            <button onClick={() => setLoans(loans.filter(x=>x.id!==l.id))} className="opacity-0 group-hover:opacity-100 text-rose-500 p-1"><TrashIcon size={14}/></button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                        <div className="space-y-6">
+                            <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xl">
+                                <h3 className="text-lg font-black text-blue-600 uppercase mb-4 flex items-center gap-2"><TrendingDownIcon size={20}/> Log Monthly Repayments</h3>
+                                <div className="space-y-4">
+                                    <select className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl font-bold" id="rep_loan_id">
+                                        <option value="">Select Loan...</option>
+                                        {loans.map(l => <option key={l.id} value={l.id}>{l.source} (৳{l.amount})</option>)}
+                                    </select>
+                                    <input type="number" placeholder="Repayment Amount" className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl font-black" id="rep_amt"/>
+                                    <button onClick={() => {
+                                        const lid = (document.getElementById('rep_loan_id') as HTMLSelectElement).value;
+                                        const ramt = parseFloat((document.getElementById('rep_amt') as HTMLInputElement).value);
+                                        if(lid && ramt) setRepayments([...repayments, {id:`R-${Date.now()}`, loanId:lid, amount:ramt, date:new Date().toISOString().split('T')[0], type:'Installment'}]);
+                                    }} className="w-full py-3 bg-blue-600 text-white rounded-xl font-black uppercase text-xs">Submit Repayment</button>
+                                </div>
+                            </div>
+                            <div className="bg-slate-900 p-6 rounded-3xl text-white shadow-2xl">
+                                <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-4">Manual Month-end Adjustment</h4>
+                                <div className="flex justify-between items-center"><span className="text-sm font-bold">Manual Installment:</span><input type="number" value={manualLoanInstallment || ''} onChange={e=>setManualLoanInstallment(parseFloat(e.target.value)||0)} className="w-32 bg-slate-800 border-none rounded p-2 text-right font-black text-amber-400" /></div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* 8. Final Status (Monthly Closing) */}
+                {activeTab === 'final_status' && (
+                    <div id="section-status" className="relative animate-fade-in h-full">
+                        <button onClick={() => handlePrintSpecific('section-status')} className="no-print absolute top-2 right-2 p-2 bg-amber-600 text-white rounded-full shadow-lg"><PrinterIcon size={18} /></button>
+                        <main className="p-8 max-w-[210mm] mx-auto w-full bg-white text-black shadow-2xl flex flex-col border border-gray-300 font-serif">
+                            <div className="text-center mb-10 border-b-2 border-black pb-4"><h1 className="text-2xl font-black uppercase text-blue-900 leading-none">Niramoy Clinic & Diagnostic</h1><h3 className="text-lg font-bold underline uppercase tracking-widest bg-gray-50 mt-2 py-1 font-bengali">মাসিক চূড়ান্ত রিপোর্ট (Closing Status) : {monthOptions[selectedMonth].name}, {selectedYear}</h3></div>
+                            <div className="grid grid-cols-2 gap-10">
+                                <div className="space-y-6">
+                                    <div className="p-6 bg-blue-50 border-2 border-blue-900 rounded-3xl">
+                                        <p className="text-xs font-black uppercase text-blue-900 mb-2">সর্বমোট জমা (Total Gross Cash) :</p>
+                                        <h4 className="text-4xl font-black text-blue-950">৳ {summary.grandTotalCollection.toLocaleString()}</h4>
+                                    </div>
+                                    <div className="p-6 bg-rose-50 border-2 border-rose-900 rounded-3xl">
+                                        <p className="text-xs font-black uppercase text-rose-900 mb-2">সর্বমোট খরচ (Total Operating Cost) :</p>
+                                        <h4 className="text-4xl font-black text-rose-950">৳ {summary.totalExpense.toLocaleString()}</h4>
+                                    </div>
+                                </div>
+                                <div className="flex flex-col justify-center items-center bg-gray-900 text-white p-10 rounded-[3rem] border-4 border-amber-500 shadow-2xl text-center">
+                                    <p className="text-xs font-black uppercase tracking-[0.3em] text-amber-500 mb-4">নিট মুনাফা (Net Balance)</p>
+                                    <h2 className="text-5xl font-black">৳ {summary.netProfit.toLocaleString()}</h2>
+                                    <div className="mt-8 pt-8 border-t border-gray-700 w-full">
+                                        <div className="flex justify-between items-center text-sm font-bold mb-2"><span>বন্টিত লভ্যাংশ :</span><span className="text-amber-400">৳ {profitDistAmount.toLocaleString()}</span></div>
+                                        <div className="flex justify-between items-center text-sm font-bold text-emerald-400 pt-2 border-t border-gray-800"><span>পরবর্তী মাসের জের (CF) :</span><span className="text-2xl font-black">৳ {summary.finalClosingJer.toLocaleString()}</span></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </main>
+                    </div>
+                )}
+
+                {/* 9. Future Plans */}
+                {activeTab === 'future_plans' && (
+                    <div className="max-w-4xl mx-auto space-y-8 animate-fade-in no-print">
+                        <div className="bg-white p-8 rounded-[2.5rem] shadow-2xl border border-slate-200">
+                             <h3 className="text-xl font-black text-indigo-600 mb-6 font-bengali border-b pb-4 flex items-center gap-3"><PlusIcon size={24}/> ভবিষ্যৎ পরিকল্পনা ও লক্ষ্যমাত্রা</h3>
+                             <div className="grid grid-cols-2 gap-6">
+                                 <div><label className="text-[10px] font-black text-slate-500 uppercase ml-2 mb-1 block">পরিকল্পনার শিরোনাম</label><input value={newPlan.title} onChange={e=>setNewPlan({...newPlan, title: e.target.value})} className="w-full p-4 bg-slate-50 border border-slate-300 rounded-2xl font-bold" placeholder="যেমন: নতুন USG মেশিন ক্রয়"/></div>
+                                 <div><label className="text-[10px] font-black text-slate-500 uppercase ml-2 mb-1 block">সম্ভাব্য খরচ</label><input type="number" value={newPlan.estimatedCost} onChange={e=>setNewPlan({...newPlan, estimatedCost: parseFloat(e.target.value)})} className="w-full p-4 bg-slate-50 border border-slate-300 rounded-2xl font-black" /></div>
+                             </div>
+                             <button onClick={addFuturePlan} className="mt-6 w-full py-4 bg-indigo-600 text-white rounded-2xl font-black uppercase text-xs shadow-xl active:scale-95 transition-all">নতুন পরিকল্পনা যুক্ত করুন</button>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            {futurePlans.map(p => (
+                                <div key={p.id} className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-xl flex flex-col justify-between group">
+                                    <div className="flex justify-between items-start mb-4">
+                                        <div className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${p.status === 'Completed' ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>{p.status}</div>
+                                        <button onClick={() => deletePlan(p.id)} className="opacity-0 group-hover:opacity-100 text-rose-500 p-2"><TrashIcon size={18}/></button>
+                                    </div>
+                                    <h4 className="text-lg font-black text-slate-800 uppercase leading-tight mb-2">{p.title}</h4>
+                                    <div className="flex justify-between items-center pt-4 border-t border-slate-100"><span className="text-sm font-black text-indigo-600 uppercase">৳{p.estimatedCost.toLocaleString()}</span><select value={p.status} onChange={e=>updatePlan(p.id, 'status', e.target.value as any)} className="bg-slate-50 border-none text-[10px] font-black rounded-lg uppercase tracking-widest outline-none"><option>Pending</option><option>In Progress</option><option>Completed</option></select></div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {/* 10. Partner Mgmt (Shareholder Management) */}
+                {activeTab === 'shareholder_mgmt' && (
+                    <div className="max-w-4xl mx-auto space-y-8 animate-fade-in no-print">
+                        <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-2xl flex items-center justify-between"><h3 className="text-2xl font-black text-slate-800 uppercase tracking-tighter">অংশীদার ব্যবস্থাপনা (Partner List)</h3><button onClick={() => {
+                            const n = prompt("নাম লিখুন:"); const s = parseFloat(prompt("শেয়ার সংখ্যা:") || '0');
+                            if(n && s) setDynamicShareholders([...dynamicShareholders, {id:Date.now(), name:n, shares:s, description: `${s}টি`}]);
+                        }} className="bg-blue-600 text-white px-8 py-3 rounded-2xl font-black uppercase text-xs shadow-lg">+ নতুন অংশীদার</button></div>
+                        <div className="overflow-x-auto rounded-[2rem] border border-slate-200 shadow-xl bg-white"><table className="w-full text-left border-collapse"><thead className="bg-slate-50 text-slate-500 font-black uppercase text-[10px] tracking-widest border-b border-slate-200"><tr><th className="p-5">SL</th><th className="p-5">নাম</th><th className="p-5 text-center">শেয়ার</th><th className="p-5">বিবরণ</th><th className="p-5 text-center">X</th></tr></thead><tbody className="divide-y divide-slate-100">
+                            {dynamicShareholders.map((s, i) => (
+                                <tr key={s.id} className="hover:bg-blue-50 transition-colors">
+                                    <td className="p-5 font-bold text-slate-400">{i+1}</td>
+                                    <td className="p-5 font-black text-slate-800 uppercase font-bengali">{s.name}</td>
+                                    <td className="p-5 text-center font-black text-blue-600">{s.shares}</td>
+                                    <td className="p-5 text-slate-500 text-sm">{s.description}</td>
+                                    <td className="p-5 text-center"><button onClick={() => setDynamicShareholders(dynamicShareholders.filter(x=>x.id!==s.id))} className="text-rose-400 hover:text-rose-600 p-2"><TrashIcon size={18}/></button></td>
+                                </tr>
+                            ))}
+                        </tbody></table></div>
+                    </div>
+                )}
             </div>
         </div>
     );
