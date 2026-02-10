@@ -103,7 +103,7 @@ const ClinicAccountsPage: React.FC<any> = ({
             )
             .reduce((s: number, i: any) => s + i.payable_amount, 0);
 
-        let nvd = 0, dc = 0, lscs = 0, gb_ot = 0, others_ot = 0, others = 0;
+        let nvd = 0, dc = 0, lscs_ot = 0, gb_ot = 0, others_ot = 0, others = 0;
         
         incomeItems.forEach((it: any) => {
             const sName = (it.service_type || '').toUpperCase();
@@ -112,7 +112,7 @@ const ClinicAccountsPage: React.FC<any> = ({
 
             if (sCat.includes('Operation') || sCat.includes('OT') || sCat.includes('NVD')) {
                 if (sName.includes('LSCS') || iName.includes('LSCS') || sName.includes('LUCS') || iName.includes('LUCS')) {
-                    lscs += it.payable_amount;
+                    lscs_ot += it.payable_amount;
                 } else if (sName.includes('GB') || iName.includes('GB') || sName.includes('Gallbladder')) {
                     gb_ot += it.payable_amount;
                 } else if (sName.includes('NVD') || iName.includes('NVD')) {
@@ -128,11 +128,11 @@ const ClinicAccountsPage: React.FC<any> = ({
         });
 
         // PC and Clinic Net Calculation
-        const totalClinicRevenue = admFee + oxygen + conservative + nvd + dc + lscs + gb_ot + others_ot + dressing + others;
+        const totalClinicRevenue = admFee + oxygen + conservative + nvd + dc + lscs_ot + gb_ot + others_ot + dressing + others;
         const pcAmount = inv.commission_paid || 0;
         const clinicNet = totalClinicRevenue - pcAmount;
 
-        return { admFee, oxygen, conservative, nvd, dc, lscs, gb_ot, others_ot, dressing, others, pcAmount, clinicNet };
+        return { admFee, oxygen, conservative, nvd, dc, lscs_ot, gb_ot, others_ot, dressing, others, pcAmount, clinicNet };
     };
 
     const summaryData = useMemo(() => {
@@ -154,14 +154,14 @@ const ClinicAccountsPage: React.FC<any> = ({
             acc.conservative += catData.conservative;
             acc.nvd += catData.nvd;
             acc.dc += catData.dc;
-            acc.lscs += catData.lscs;
+            acc.lscs_ot += catData.lscs_ot;
             acc.gb_ot += catData.gb_ot;
             acc.others_ot += catData.others_ot;
             acc.dressing += catData.dressing;
             acc.others += catData.others;
             acc.totalPC += catData.pcAmount;
             return acc;
-        }, { admFee: 0, oxygen: 0, conservative: 0, nvd: 0, dc: 0, lscs: 0, gb_ot: 0, others_ot: 0, dressing: 0, others: 0, totalPC: 0 });
+        }, { admFee: 0, oxygen: 0, conservative: 0, nvd: 0, dc: 0, lscs_ot: 0, gb_ot: 0, others_ot: 0, dressing: 0, others: 0, totalPC: 0 });
 
         const totalClinicRevenueOnly = monthInvoices.reduce((sum:any, inv:any) => {
             const netIncomeForInv = inv.items.filter((it:any) => it.isClinicFund).reduce((s:number, i:any) => s + i.payable_amount, 0);
@@ -197,14 +197,14 @@ const ClinicAccountsPage: React.FC<any> = ({
             acc.conservative += catData.conservative;
             acc.nvd += catData.nvd;
             acc.dc += catData.dc;
-            acc.lscs += catData.lscs;
+            acc.lscs_ot += catData.lscs_ot;
             acc.gb_ot += catData.gb_ot;
             acc.others_ot += catData.others_ot;
             acc.dressing += catData.dressing;
             acc.others += catData.others;
             acc.totalPC += catData.pcAmount;
             return acc;
-        }, { admFee: 0, oxygen: 0, conservative: 0, nvd: 0, dc: 0, lscs: 0, gb_ot: 0, others_ot: 0, dressing: 0, others: 0, totalPC: 0 });
+        }, { admFee: 0, oxygen: 0, conservative: 0, nvd: 0, dc: 0, lscs_ot: 0, gb_ot: 0, others_ot: 0, dressing: 0, others: 0, totalPC: 0 });
 
         const totalClinicRevenueOnly = dayInvoices.reduce((sum: any, inv: any) => {
              const netIncomeForInv = inv.items.filter((it:any) => it.isClinicFund).reduce((s:number, i:any) => s + i.payable_amount, 0);
@@ -239,7 +239,7 @@ const ClinicAccountsPage: React.FC<any> = ({
             return {
                 ...inv,
                 admFeeCol: catData.admFee,
-                lscsCol: catData.lscs,
+                lscsOtCol: catData.lscs_ot,
                 gbCol: catData.gb_ot,
                 othersOtCol: catData.others_ot,
                 nvdCol: catData.nvd,
@@ -257,7 +257,7 @@ const ClinicAccountsPage: React.FC<any> = ({
     const reportTotals = useMemo(() => {
         return collectionReportData.reduce((acc, curr) => {
             acc.admFee += curr.admFeeCol;
-            acc.lscs += curr.lscsCol;
+            acc.lscs_ot += curr.lscsOtCol;
             acc.gb += curr.gbCol;
             acc.others_ot += curr.othersOtCol;
             acc.nvd += curr.nvdCol;
@@ -270,7 +270,7 @@ const ClinicAccountsPage: React.FC<any> = ({
             acc.netClinic += curr.netClinicCol;
             acc.paidTotal += curr.paid_amount;
             return acc;
-        }, { admFee: 0, lscs: 0, gb: 0, others_ot: 0, nvd: 0, dc: 0, cons: 0, o2neb: 0, dress: 0, others: 0, pc: 0, netClinic: 0, paidTotal: 0 });
+        }, { admFee: 0, lscs_ot: 0, gb: 0, others_ot: 0, nvd: 0, dc: 0, cons: 0, o2neb: 0, dress: 0, others: 0, pc: 0, netClinic: 0, paidTotal: 0 });
     }, [collectionReportData]);
 
     const handlePrintCollectionReport = () => {
@@ -306,7 +306,7 @@ const ClinicAccountsPage: React.FC<any> = ({
                                 <th>Patient Name</th>
                                 <th>Service Taken</th>
                                 <th class="text-right">Admission</th>
-                                <th class="text-right">LSCS</th>
+                                <th class="text-right">LSCS_OT</th>
                                 <th class="text-right">GB_OT</th>
                                 <th class="text-right">Others_OT</th>
                                 <th class="text-right">NVD</th>
@@ -328,7 +328,7 @@ const ClinicAccountsPage: React.FC<any> = ({
                                     <td class="font-bold">${inv.patient_name}</td>
                                     <td>${inv.subCategory || '-'}</td>
                                     <td class="text-right">৳${inv.admFeeCol.toLocaleString()}</td>
-                                    <td class="text-right">৳${inv.lscsCol.toLocaleString()}</td>
+                                    <td class="text-right">৳${inv.lscsOtCol.toLocaleString()}</td>
                                     <td class="text-right">৳${inv.gbCol.toLocaleString()}</td>
                                     <td class="text-right">৳${inv.othersOtCol.toLocaleString()}</td>
                                     <td class="text-right">৳${inv.nvdCol.toLocaleString()}</td>
@@ -347,7 +347,7 @@ const ClinicAccountsPage: React.FC<any> = ({
                             <tr>
                                 <td colspan="4" class="text-right">Grand Totals:</td>
                                 <td class="text-right">৳${reportTotals.admFee.toLocaleString()}</td>
-                                <td class="text-right">৳${reportTotals.lscs.toLocaleString()}</td>
+                                <td class="text-right">৳${reportTotals.lscs_ot.toLocaleString()}</td>
                                 <td class="text-right">৳${reportTotals.gb.toLocaleString()}</td>
                                 <td class="text-right">৳${reportTotals.others_ot.toLocaleString()}</td>
                                 <td class="text-right">৳${reportTotals.nvd.toLocaleString()}</td>
@@ -505,7 +505,7 @@ const ClinicAccountsPage: React.FC<any> = ({
                                     <tr><td>Conservative Treatment</td><td class="text-right">৳${currentData.collectionByCategory.conservative.toLocaleString()}</td></tr>
                                     <tr><td>Normal Delivery (NVD)</td><td class="text-right">৳${currentData.collectionByCategory.nvd.toLocaleString()}</td></tr>
                                     <tr><td>D&C / Minor Surgery</td><td class="text-right">৳${currentData.collectionByCategory.dc.toLocaleString()}</td></tr>
-                                    <tr><td>LSCS / Major Surgery</td><td class="text-right">৳${currentData.collectionByCategory.lscs.toLocaleString()}</td></tr>
+                                    <tr><td>LSCS_OT / Major Surgery</td><td class="text-right">৳${currentData.collectionByCategory.lscs_ot.toLocaleString()}</td></tr>
                                     <tr><td>GB (Gallbladder) OT</td><td class="text-right">৳${currentData.collectionByCategory.gb_ot.toLocaleString()}</td></tr>
                                     <tr><td>Others OT / Services</td><td class="text-right">৳${currentData.collectionByCategory.others_ot.toLocaleString()}</td></tr>
                                     <tr><td>Dressing</td><td class="text-right">৳${currentData.collectionByCategory.dressing.toLocaleString()}</td></tr>
@@ -594,9 +594,21 @@ const ClinicAccountsPage: React.FC<any> = ({
                             <div className="flex flex-wrap justify-between items-center gap-4 border-b border-slate-700 pb-4 no-print">
                                 <div className="flex items-center gap-4">
                                     <h3 className="text-xl font-black text-white uppercase tracking-tighter">Patient Collection Report</h3>
-                                    <div className="flex gap-2">
-                                        <button onClick={() => setIsTodayFilter(true)} className={`px-4 py-2 rounded-xl text-xs font-black uppercase transition-all ${isTodayFilter ? 'bg-emerald-600 text-white shadow-lg' : 'bg-slate-900 border border-slate-700 text-slate-400 hover:text-slate-200'}`}>Today's Collection</button>
-                                        <button onClick={() => setIsTodayFilter(false)} className={`px-4 py-2 rounded-xl text-xs font-black uppercase transition-all ${!isTodayFilter ? 'bg-blue-600 text-white shadow-lg' : 'bg-slate-900 border border-slate-700 text-slate-400 hover:text-slate-200'}`}>Monthly View</button>
+                                    <div className="flex bg-slate-900 p-1 rounded-2xl border border-slate-700">
+                                        <button onClick={() => setIsTodayFilter(true)} className={`px-4 py-2 rounded-xl text-xs font-black uppercase transition-all ${isTodayFilter && selectedDate === new Date().toISOString().split('T')[0] ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-400 hover:text-slate-200'}`}>Today's Collection</button>
+                                        <button onClick={() => setIsTodayFilter(false)} className={`px-4 py-2 rounded-xl text-xs font-black uppercase transition-all ${!isTodayFilter ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:text-slate-200'}`}>Monthly View</button>
+                                    </div>
+                                    <div className="flex items-center gap-2 bg-slate-900/50 p-1 rounded-2xl border border-slate-700">
+                                        <label className="text-[10px] font-black text-slate-500 uppercase ml-2">Custom Date:</label>
+                                        <input 
+                                            type="date" 
+                                            value={selectedDate} 
+                                            onChange={(e) => {
+                                                setSelectedDate(e.target.value);
+                                                setIsTodayFilter(true);
+                                            }} 
+                                            className="bg-slate-800 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white font-bold focus:ring-1 focus:ring-blue-500 outline-none"
+                                        />
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-3">
@@ -629,7 +641,7 @@ const ClinicAccountsPage: React.FC<any> = ({
                                             <th className="p-3 whitespace-nowrap">Patient Name</th>
                                             <th className="p-3 whitespace-nowrap">Service Taken</th>
                                             <th className="p-3 text-right">Admission</th>
-                                            <th className="p-3 text-right">LSCS</th>
+                                            <th className="p-3 text-right">LSCS_OT</th>
                                             <th className="p-3 text-right">GB_OT</th>
                                             <th className="p-3 text-right">Others_OT</th>
                                             <th className="p-3 text-right">NVD</th>
@@ -651,7 +663,7 @@ const ClinicAccountsPage: React.FC<any> = ({
                                                 <td className="p-3 font-black text-slate-200 border-r border-slate-800/50 uppercase whitespace-nowrap">{inv.patient_name}</td>
                                                 <td className="p-3 text-sky-400 font-bold border-r border-slate-800/50 truncate max-w-[120px]" title={inv.subCategory}>{inv.subCategory || '-'}</td>
                                                 <td className="p-3 text-right border-r border-slate-800/50">৳${inv.admFeeCol.toLocaleString()}</td>
-                                                <td className="p-3 text-right border-r border-slate-800/50">৳${inv.lscsCol.toLocaleString()}</td>
+                                                <td className="p-3 text-right border-r border-slate-800/50">৳${inv.lscsOtCol.toLocaleString()}</td>
                                                 <td className="p-3 text-right border-r border-slate-800/50">৳${inv.gbCol.toLocaleString()}</td>
                                                 <td className="p-3 text-right border-r border-slate-800/50">৳${inv.othersOtCol.toLocaleString()}</td>
                                                 <td className="p-3 text-right border-r border-slate-800/50">৳${inv.nvdCol.toLocaleString()}</td>
@@ -673,7 +685,7 @@ const ClinicAccountsPage: React.FC<any> = ({
                                             <tr>
                                                 <td colSpan={4} className="p-4 text-right uppercase tracking-widest text-[11px]">Grand Summary Totals:</td>
                                                 <td className="p-4 text-right">৳${reportTotals.admFee.toLocaleString()}</td>
-                                                <td className="p-4 text-right">৳${reportTotals.lscs.toLocaleString()}</td>
+                                                <td className="p-4 text-right">৳${reportTotals.lscs_ot.toLocaleString()}</td>
                                                 <td className="p-4 text-right">৳${reportTotals.gb.toLocaleString()}</td>
                                                 <td className="p-4 text-right">৳${reportTotals.others_ot.toLocaleString()}</td>
                                                 <td className="p-4 text-right">৳${reportTotals.nvd.toLocaleString()}</td>
@@ -714,7 +726,7 @@ const ClinicAccountsPage: React.FC<any> = ({
                                     <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>Conservative Treatment:</span> <span className="font-black">৳${dailySummaryData.collectionByCategory.conservative.toLocaleString()}</span></div>
                                     <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>Normal Delivery (NVD):</span> <span className="font-black">৳${dailySummaryData.collectionByCategory.nvd.toLocaleString()}</span></div>
                                     <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>D&C / Minor Surgery:</span> <span className="font-black">৳${dailySummaryData.collectionByCategory.dc.toLocaleString()}</span></div>
-                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>LSCS / Major Surgery:</span> <span className="font-black">৳${dailySummaryData.collectionByCategory.lscs.toLocaleString()}</span></div>
+                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>LSCS_OT / Major Surgery:</span> <span className="font-black">৳${dailySummaryData.collectionByCategory.lscs_ot.toLocaleString()}</span></div>
                                     <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>GB (Gallbladder) OT:</span> <span className="font-black">৳${dailySummaryData.collectionByCategory.gb_ot.toLocaleString()}</span></div>
                                     <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>Others OT / Services:</span> <span className="font-black">৳${dailySummaryData.collectionByCategory.others_ot.toLocaleString()}</span></div>
                                     <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>Dressing:</span> <span className="font-black">৳${dailySummaryData.collectionByCategory.dressing.toLocaleString()}</span></div>
@@ -761,7 +773,7 @@ const ClinicAccountsPage: React.FC<any> = ({
                                     <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>Conservative Treatment:</span> <span className="font-black">৳${summaryData.collectionByCategory.conservative.toLocaleString()}</span></div>
                                     <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>Normal Delivery (NVD):</span> <span className="font-black">৳${summaryData.collectionByCategory.nvd.toLocaleString()}</span></div>
                                     <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>D&C / Minor Surgery:</span> <span className="font-black">৳${summaryData.collectionByCategory.dc.toLocaleString()}</span></div>
-                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>LSCS / Major Surgery:</span> <span className="font-black">৳${summaryData.collectionByCategory.lscs.toLocaleString()}</span></div>
+                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>LSCS_OT / Major Surgery:</span> <span className="font-black">৳${summaryData.collectionByCategory.lscs_ot.toLocaleString()}</span></div>
                                     <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>GB (Gallbladder) OT:</span> <span className="font-black">৳${summaryData.collectionByCategory.gb_ot.toLocaleString()}</span></div>
                                     <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>Others OT / Services:</span> <span className="font-black">৳${summaryData.collectionByCategory.others_ot.toLocaleString()}</span></div>
                                     <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>Dressing:</span> <span className="font-black">৳${summaryData.collectionByCategory.dressing.toLocaleString()}</span></div>
