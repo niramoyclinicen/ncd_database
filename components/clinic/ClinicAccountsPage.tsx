@@ -1,3 +1,4 @@
+
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { ExpenseItem, Employee, DueCollection } from '../DiagnosticData';
 import { IndoorInvoice } from '../ClinicPage';
@@ -82,6 +83,11 @@ const ClinicAccountsPage: React.FC<any> = ({
 
     // --- Core logic to categorize an invoice (Mapping Category Breakdown) ---
     const categorizeInvoiceData = (inv: any) => {
+        // লজিক ১: যদি ইনভয়েস Cancelled বা Returned হয়, তবে তার সব ভ্যালু ০ ধরবে যাতে সামারিতে ইফেক্ট না পড়ে
+        if (inv.status === 'Cancelled' || inv.status === 'Returned') {
+            return { admFee: 0, oxygen: 0, conservative: 0, nvd: 0, dc: 0, lscs_ot: 0, gb_ot: 0, others_ot: 0, dressing: 0, others: 0, pcAmount: 0, clinicNet: 0 };
+        }
+
         const incomeItems = inv.items.filter((it: any) => it.isClinicFund === true);
 
         const admFee = incomeItems
@@ -127,7 +133,6 @@ const ClinicAccountsPage: React.FC<any> = ({
             }
         });
 
-        // PC and Clinic Net Calculation
         const totalClinicRevenue = admFee + oxygen + conservative + nvd + dc + lscs_ot + gb_ot + others_ot + dressing + others;
         const pcAmount = inv.commission_paid || 0;
         const clinicNet = totalClinicRevenue - pcAmount;
@@ -148,6 +153,7 @@ const ClinicAccountsPage: React.FC<any> = ({
         }).reduce((sum:any, dc:any) => sum + dc.amount_collected, 0);
 
         const collectionByCategory = monthInvoices.reduce((acc, inv) => {
+            // স্ট্যাটাস ফিল্টার এখন categorizeInvoiceData এর ভিতরেই হ্যান্ডেল করা হয়েছে
             const catData = categorizeInvoiceData(inv);
             acc.admFee += catData.admFee;
             acc.oxygen += catData.oxygen;
@@ -164,11 +170,12 @@ const ClinicAccountsPage: React.FC<any> = ({
         }, { admFee: 0, oxygen: 0, conservative: 0, nvd: 0, dc: 0, lscs_ot: 0, gb_ot: 0, others_ot: 0, dressing: 0, others: 0, totalPC: 0 });
 
         const totalClinicRevenueOnly = monthInvoices.reduce((sum:any, inv:any) => {
+            if (inv.status === 'Cancelled' || inv.status === 'Returned') return sum;
             const netIncomeForInv = inv.items.filter((it:any) => it.isClinicFund).reduce((s:number, i:any) => s + i.payable_amount, 0);
             return sum + netIncomeForInv;
         }, 0);
 
-        const totalCollectionIncludingDue = totalClinicRevenueOnly + monthDueRecov;
+        const totalCollectionIncludingDue = totalClinicRevenueOnly + monthDueRecov - collectionByCategory.totalPC;
 
         const expensesByCategory: Record<string, number> = {};
         clinicExpenseCategories.forEach(cat => expensesByCategory[cat] = 0);
@@ -207,11 +214,12 @@ const ClinicAccountsPage: React.FC<any> = ({
         }, { admFee: 0, oxygen: 0, conservative: 0, nvd: 0, dc: 0, lscs_ot: 0, gb_ot: 0, others_ot: 0, dressing: 0, others: 0, totalPC: 0 });
 
         const totalClinicRevenueOnly = dayInvoices.reduce((sum: any, inv: any) => {
+             if (inv.status === 'Cancelled' || inv.status === 'Returned') return sum;
              const netIncomeForInv = inv.items.filter((it:any) => it.isClinicFund).reduce((s:number, i:any) => s + i.payable_amount, 0);
              return sum + netIncomeForInv;
         }, 0);
 
-        const totalCollection = totalClinicRevenueOnly + dayDueRecov;
+        const totalCollection = totalClinicRevenueOnly + dayDueRecov - collectionByCategory.totalPC;
         const dayExpenses = detailedExpenses[selectedDate] || [];
         const totalExpense = dayExpenses.reduce((s: number, it: any) => s + it.paidAmount, 0);
         
@@ -256,19 +264,22 @@ const ClinicAccountsPage: React.FC<any> = ({
 
     const reportTotals = useMemo(() => {
         return collectionReportData.reduce((acc, curr) => {
-            acc.admFee += curr.admFeeCol;
-            acc.lscs_ot += curr.lscsOtCol;
-            acc.gb += curr.gbCol;
-            acc.others_ot += curr.othersOtCol;
-            acc.nvd += curr.nvdCol;
-            acc.dc += curr.dcCol;
-            acc.cons += curr.consCol;
-            acc.o2neb += curr.o2NebCol;
-            acc.dress += curr.dressCol;
-            acc.others += curr.othersCol;
-            acc.pc += curr.pcCol;
-            acc.netClinic += curr.netClinicCol;
-            acc.paidTotal += curr.paid_amount;
+            // শুধুমাত্র অ্যাক্টিভ ইনভয়েসগুলোর টোটাল দেখাবে
+            if (curr.status !== 'Cancelled' && curr.status !== 'Returned') {
+                acc.admFee += curr.admFeeCol;
+                acc.lscs_ot += curr.lscsOtCol;
+                acc.gb += curr.gbCol;
+                acc.others_ot += curr.othersOtCol;
+                acc.nvd += curr.nvdCol;
+                acc.dc += curr.dcCol;
+                acc.cons += curr.consCol;
+                acc.o2neb += curr.o2NebCol;
+                acc.dress += curr.dressCol;
+                acc.others += curr.othersCol;
+                acc.pc += curr.pcCol;
+                acc.netClinic += curr.netClinicCol;
+                acc.paidTotal += curr.paid_amount;
+            }
             return acc;
         }, { admFee: 0, lscs_ot: 0, gb: 0, others_ot: 0, nvd: 0, dc: 0, cons: 0, o2neb: 0, dress: 0, others: 0, pc: 0, netClinic: 0, paidTotal: 0 });
     }, [collectionReportData]);
@@ -318,11 +329,12 @@ const ClinicAccountsPage: React.FC<any> = ({
                                 <th class="text-right">Paid Total</th>
                                 <th class="text-right bg-rose-50">PC (Comm)</th>
                                 <th class="text-right bg-emerald-50">Clinic Net</th>
+                                <th class="text-center">Status</th>
                             </tr>
                         </thead>
                         <tbody>
                             ${collectionReportData.map(inv => `
-                                <tr>
+                                <tr class="${inv.status === 'Cancelled' ? 'opacity-30 line-through' : inv.status === 'Returned' ? 'bg-red-50' : ''}">
                                     <td>${inv.admission_id}</td>
                                     <td>${inv.admission_date || inv.invoice_date}</td>
                                     <td class="font-bold">${inv.patient_name}</td>
@@ -337,15 +349,16 @@ const ClinicAccountsPage: React.FC<any> = ({
                                     <td class="text-right">৳${inv.o2NebCol.toLocaleString()}</td>
                                     <td class="text-right">৳${inv.dressCol.toLocaleString()}</td>
                                     <td class="text-right">৳${inv.othersCol.toLocaleString()}</td>
-                                    <td class="text-right font-bold">৳${inv.paid_amount.toLocaleString()}</td>
+                                    <td class="text-right font-bold">৳${(inv.status === 'Cancelled' || inv.status === 'Returned') ? '0' : inv.paid_amount.toLocaleString()}</td>
                                     <td class="text-right bg-rose-50 text-rose-800">৳${inv.pcCol.toLocaleString()}</td>
                                     <td class="text-right font-black bg-emerald-50 text-emerald-800">৳${inv.netClinicCol.toLocaleString()}</td>
+                                    <td class="text-center text-[6pt] font-black">${inv.status}</td>
                                 </tr>
                             `).join('')}
                         </tbody>
                         <tfoot class="bg-gray-100 font-black">
                             <tr>
-                                <td colspan="4" class="text-right">Grand Totals:</td>
+                                <td colspan="4" class="text-right">Grand Totals (Active Only):</td>
                                 <td class="text-right">৳${reportTotals.admFee.toLocaleString()}</td>
                                 <td class="text-right">৳${reportTotals.lscs_ot.toLocaleString()}</td>
                                 <td class="text-right">৳${reportTotals.gb.toLocaleString()}</td>
@@ -359,6 +372,7 @@ const ClinicAccountsPage: React.FC<any> = ({
                                 <td class="text-right">৳${reportTotals.paidTotal.toLocaleString()}</td>
                                 <td class="text-right text-rose-700">৳${reportTotals.pc.toLocaleString()}</td>
                                 <td class="text-right text-emerald-700">৳${reportTotals.netClinic.toLocaleString()}</td>
+                                <td></td>
                             </tr>
                         </tfoot>
                     </table>
@@ -376,7 +390,7 @@ const ClinicAccountsPage: React.FC<any> = ({
         const expenses = detailedExpenses[date] || [];
         const dayInvoices = invoices.filter((inv: any) => inv.invoice_date === date);
         const totalExp = expenses.reduce((s, i) => s + i.paidAmount, 0);
-        const totalInvPaid = dayInvoices.reduce((s, i) => s + i.paid_amount, 0);
+        const totalInvPaid = dayInvoices.filter(i => i.status !== 'Cancelled' && i.status !== 'Returned').reduce((s, i) => s + i.paid_amount, 0);
 
         const html = `
             <html>
@@ -430,24 +444,26 @@ const ClinicAccountsPage: React.FC<any> = ({
                         <thead>
                             <tr>
                                 <th style="width: 20%">Invoice ID</th>
-                                <th style="width: 40%">Patient Name</th>
-                                <th style="width: 20%" class="text-right">Total Bill</th>
+                                <th style="width: 30%">Patient Name</th>
+                                <th style="width: 15%">Status</th>
+                                <th style="width: 15%" class="text-right">Total Bill</th>
                                 <th style="width: 20%" class="text-right">Paid Amount</th>
                             </tr>
                         </thead>
                         <tbody>
                             ${dayInvoices.length > 0 ? dayInvoices.map(inv => `
-                                <tr>
+                                <tr class="${inv.status === 'Cancelled' ? 'opacity-30 line-through' : ''}">
                                     <td class="font-mono text-xs">${inv.daily_id}</td>
                                     <td class="font-bold uppercase">${inv.patient_name}</td>
+                                    <td class="text-[8pt] font-black uppercase">${inv.status}</td>
                                     <td class="text-right font-medium">৳${inv.total_bill.toLocaleString()}</td>
-                                    <td class="text-right font-black text-emerald-700">৳${inv.paid_amount.toLocaleString()}</td>
+                                    <td class="text-right font-black text-emerald-700">৳${(inv.status === 'Cancelled' || inv.status === 'Returned') ? '0' : inv.paid_amount.toLocaleString()}</td>
                                 </tr>
-                            `).join('') : '<tr><td colspan="4" class="text-center italic py-4 text-gray-500">No patient invoices for this day.</td></tr>'}
+                            `).join('') : '<tr><td colspan="5" class="text-center italic py-4 text-gray-500">No patient invoices for this day.</td></tr>'}
                         </tbody>
                         <tfoot class="bg-gray-50">
                             <tr>
-                                <td colspan="3" class="text-right font-black uppercase">Total Billing (Cash):</td>
+                                <td colspan="4" class="text-right font-black uppercase">Total Billing (Active Cash):</td>
                                 <td class="text-right font-black text-lg text-emerald-800">৳${totalInvPaid.toLocaleString()}</td>
                             </tr>
                         </tfoot>
@@ -498,7 +514,7 @@ const ClinicAccountsPage: React.FC<any> = ({
                         <div>
                             <h3 class="font-bold border-b border-black mb-2 uppercase text-[8pt] tracking-widest text-gray-600">I. Revenue Analysis (Income)</h3>
                             <table class="text-[8.5pt]">
-                                <thead><tr class="bg-gray-100"><th>Category</th><th class="text-right">Amount</th></tr></thead>
+                                <thead><tr class="bg-gray-100"><th>Category</th><th className="text-right">Amount</th></tr></thead>
                                 <tbody>
                                     <tr><td>Admission Fee</td><td class="text-right">৳${currentData.collectionByCategory.admFee.toLocaleString()}</td></tr>
                                     <tr><td>Oxygen / Nebulization</td><td class="text-right">৳${currentData.collectionByCategory.oxygen.toLocaleString()}</td></tr>
@@ -513,7 +529,7 @@ const ClinicAccountsPage: React.FC<any> = ({
                                     <tr class="italic text-gray-600"><td>Due Recovery (বকেয়া আদায়)</td><td class="text-right">৳${dueRecov.toLocaleString()}</td></tr>
                                 </tbody>
                                 <tfoot class="bg-blue-50 font-black">
-                                    <tr><td>Total Revenue (A)</td><td class="text-right text-lg">৳${currentData.totalCollection.toLocaleString()}</td></tr>
+                                    <tr><td>Total Revenue (Gross - Comm)</td><td class="text-right text-lg">৳${currentData.totalCollection.toLocaleString()}</td></tr>
                                 </tfoot>
                             </table>
                         </div>
@@ -581,8 +597,8 @@ const ClinicAccountsPage: React.FC<any> = ({
                                 <input type="text" placeholder="Search Patient..." value={invoiceSearch} onChange={e=>setInvoiceSearch(e.target.value)} className="bg-slate-950 border border-slate-700 rounded-full px-5 py-1.5 text-xs text-white outline-none focus:ring-1 focus:ring-sky-500 w-64"/>
                             </h3>
                             <div className="overflow-x-auto rounded-xl border border-slate-700">
-                                <table className="w-full text-left text-sm"><thead className="bg-slate-950 text-slate-500 text-[10px] uppercase font-black"><tr><th className="p-4">ID</th><th className="p-4">Patient Name</th><th className="p-4 text-right">Total Bill</th><th className="p-4 text-right">Paid</th><th className="p-4 text-right">Due</th></tr></thead>
-                                <tbody className="divide-y divide-slate-800">{invoices.filter((inv:any)=>inv.patient_name.toLowerCase().includes(invoiceSearch.toLowerCase()) && inv.invoice_date === selectedDate).map((inv:any) => (<tr key={inv.daily_id} className="hover:bg-slate-700/40 transition-colors"><td className="p-4 font-mono text-cyan-400 text-xs">{inv.daily_id}</td><td className="p-4 font-bold">{inv.patient_name}</td><td className="p-4 text-right">৳{inv.total_bill.toLocaleString()}</td><td className="p-4 text-right text-emerald-400 font-bold">৳{inv.paid_amount.toLocaleString()}</td><td className="p-4 text-right text-rose-500 font-bold">৳{inv.due_bill.toLocaleString()}</td></tr>))}</tbody></table>
+                                <table className="w-full text-left text-sm"><thead className="bg-slate-950 text-slate-500 text-[10px] uppercase font-black"><tr><th className="p-4">ID</th><th className="p-4">Patient Name</th><th className="p-4 text-center">Status</th><th className="p-4 text-right">Total Bill</th><th className="p-4 text-right">Paid</th><th className="p-4 text-right">Due</th></tr></thead>
+                                <tbody className="divide-y divide-slate-800">{invoices.filter((inv:any)=>inv.patient_name.toLowerCase().includes(invoiceSearch.toLowerCase()) && inv.invoice_date === selectedDate).map((inv:any) => (<tr key={inv.daily_id} className={`hover:bg-slate-700/40 transition-colors ${inv.status === 'Cancelled' ? 'opacity-30 line-through' : ''}`}><td className="p-4 font-mono text-cyan-400 text-xs">{inv.daily_id}</td><td className="p-4 font-bold">{inv.patient_name}</td><td className="p-4 text-center"><span className="text-[8px] font-black uppercase px-2 py-0.5 rounded bg-slate-900">{inv.status}</span></td><td className="p-4 text-right">৳{inv.total_bill.toLocaleString()}</td><td className="p-4 text-right text-emerald-400 font-bold">৳{(inv.status === 'Cancelled' || inv.status === 'Returned') ? '0' : inv.paid_amount.toLocaleString()}</td><td className="p-4 text-right text-rose-500 font-bold">৳{inv.due_bill.toLocaleString()}</td></tr>))}</tbody></table>
                             </div>
                         </div>
                     </div>
@@ -631,7 +647,6 @@ const ClinicAccountsPage: React.FC<any> = ({
                                 </div>
                             </div>
 
-                            {/* TABLE: Occupational width is now full for screen */}
                             <div className="overflow-x-auto min-h-[500px] border border-slate-700 rounded-xl bg-slate-950/20 shadow-inner w-full">
                                 <table className="w-full text-left text-[11px] border-collapse min-w-[1500px]">
                                     <thead className="bg-slate-900/80 text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-700">
@@ -653,11 +668,12 @@ const ClinicAccountsPage: React.FC<any> = ({
                                             <th className="p-3 text-right bg-emerald-900/10 text-emerald-100 font-black">Paid Total</th>
                                             <th className="p-3 text-right bg-rose-900/10 text-rose-300 font-black border-l-2 border-rose-800/30">PC (Comm)</th>
                                             <th className="p-3 text-right bg-blue-900/10 text-sky-200 font-black border-l-2 border-blue-800/30">Clinic Net</th>
+                                            <th className="p-3 text-center">Status</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-800">
                                         {collectionReportData.length > 0 ? collectionReportData.map((inv: any) => (
-                                            <tr key={inv.daily_id} className="hover:bg-slate-700/30 transition-colors">
+                                            <tr key={inv.daily_id} className={`hover:bg-slate-700/30 transition-colors ${inv.status === 'Cancelled' ? 'opacity-30 line-through grayscale' : inv.status === 'Returned' ? 'bg-rose-900/5' : ''}`}>
                                                 <td className="p-3 font-mono text-sky-500 border-r border-slate-800/50">{inv.admission_id}</td>
                                                 <td className="p-3 border-r border-slate-800/50 whitespace-nowrap">{inv.admission_date || inv.invoice_date}</td>
                                                 <td className="p-3 font-black text-slate-200 border-r border-slate-800/50 uppercase whitespace-nowrap">{inv.patient_name}</td>
@@ -672,18 +688,19 @@ const ClinicAccountsPage: React.FC<any> = ({
                                                 <td className="p-3 text-right border-r border-slate-800/50">৳${inv.o2NebCol.toLocaleString()}</td>
                                                 <td className="p-3 text-right border-r border-slate-800/50">৳${inv.dressCol.toLocaleString()}</td>
                                                 <td className="p-3 text-right border-r border-slate-800/50">৳${inv.othersCol.toLocaleString()}</td>
-                                                <td className="p-3 text-right font-black text-emerald-400 bg-emerald-900/10">৳ {inv.paid_amount.toLocaleString()}</td>
+                                                <td className="p-3 text-right font-black text-emerald-400 bg-emerald-900/10">৳ {(inv.status === 'Cancelled' || inv.status === 'Returned') ? '0' : inv.paid_amount.toLocaleString()}</td>
                                                 <td className="p-3 text-right font-black text-rose-400 bg-rose-900/10 border-l-2 border-rose-800/30">৳ {inv.pcCol.toLocaleString()}</td>
                                                 <td className="p-3 text-right font-black text-sky-300 bg-blue-900/10 border-l-2 border-blue-800/30">৳ {inv.netClinicCol.toLocaleString()}</td>
+                                                <td className="p-3 text-center"><span className="text-[7px] font-black uppercase px-1 rounded bg-slate-900">{inv.status}</span></td>
                                             </tr>
                                         )) : (
-                                            <tr><td colSpan={17} className="p-20 text-center text-slate-600 italic font-black uppercase opacity-30 text-xl tracking-[0.2em]">No Collection Records Found</td></tr>
+                                            <tr><td colSpan={18} className="p-20 text-center text-slate-600 italic font-black uppercase opacity-30 text-xl tracking-[0.2em]">No Collection Records Found</td></tr>
                                         )}
                                     </tbody>
                                     {collectionReportData.length > 0 && (
                                         <tfoot className="bg-slate-900 text-slate-200 font-black border-t-2 border-slate-700 sticky bottom-0">
                                             <tr>
-                                                <td colSpan={4} className="p-4 text-right uppercase tracking-widest text-[11px]">Grand Summary Totals:</td>
+                                                <td colSpan={4} className="p-4 text-right uppercase tracking-widest text-[11px]">Grand Summary Totals (Active Only):</td>
                                                 <td className="p-4 text-right">৳${reportTotals.admFee.toLocaleString()}</td>
                                                 <td className="p-4 text-right">৳${reportTotals.lscs_ot.toLocaleString()}</td>
                                                 <td className="p-4 text-right">৳${reportTotals.gb.toLocaleString()}</td>
@@ -697,6 +714,7 @@ const ClinicAccountsPage: React.FC<any> = ({
                                                 <td className="p-4 text-right text-emerald-400 text-lg">৳ {reportTotals.paidTotal.toLocaleString()}</td>
                                                 <td className="p-4 text-right text-rose-400 text-lg">৳ {reportTotals.pc.toLocaleString()}</td>
                                                 <td className="p-4 text-right text-sky-400 text-2xl underline decoration-double">৳ {reportTotals.netClinic.toLocaleString()}</td>
+                                                <td></td>
                                             </tr>
                                         </tfoot>
                                     )}
@@ -732,7 +750,7 @@ const ClinicAccountsPage: React.FC<any> = ({
                                     <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>Dressing:</span> <span className="font-black">৳${dailySummaryData.collectionByCategory.dressing.toLocaleString()}</span></div>
                                     <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>Miscellaneous (Others):</span> <span className="font-black">৳${dailySummaryData.collectionByCategory.others.toLocaleString()}</span></div>
                                     <div className="flex justify-between italic text-slate-400 pb-1"><span>Due Recovery (বকেয়া আদায়):</span> <span className="font-black">৳${dailySummaryData.dayDueRecov.toLocaleString()}</span></div>
-                                    <div className="flex justify-between text-xl border-t-2 border-emerald-500/50 pt-3 text-white font-black"><span>Total Clinic Revenue:</span> <span>৳${dailySummaryData.totalCollection.toLocaleString()}</span></div>
+                                    <div className="flex justify-between text-xl border-t-2 border-emerald-500/50 pt-3 text-white font-black"><span>Total Net Revenue:</span> <span>৳${dailySummaryData.totalCollection.toLocaleString()}</span></div>
                                 </div>
                             </div>
                             <div className="bg-slate-800 p-6 rounded-3xl border border-slate-700 shadow-xl">
@@ -779,7 +797,7 @@ const ClinicAccountsPage: React.FC<any> = ({
                                     <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>Dressing:</span> <span className="font-black">৳${summaryData.collectionByCategory.dressing.toLocaleString()}</span></div>
                                     <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>Miscellaneous (Others):</span> <span className="font-black">৳${summaryData.collectionByCategory.others.toLocaleString()}</span></div>
                                     <div className="flex justify-between italic text-slate-400 pb-1"><span>Due Recovery (বকেয়া আদায়):</span> <span className="font-black">৳${summaryData.monthDueRecov.toLocaleString()}</span></div>
-                                    <div className="flex justify-between text-xl border-t-2 border-blue-500/50 pt-3 text-white font-black"><span>Total Clinic Revenue:</span> <span>৳${summaryData.totalCollection.toLocaleString()}</span></div>
+                                    <div className="flex justify-between text-xl border-t-2 border-blue-500/50 pt-3 text-white font-black"><span>Total Net Revenue:</span> <span>৳${summaryData.totalCollection.toLocaleString()}</span></div>
                                 </div>
                             </div>
                             <div className="bg-slate-800 p-6 rounded-3xl border border-slate-700 shadow-xl">

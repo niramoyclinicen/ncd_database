@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Patient, Doctor, Employee, Medicine, Referrar, MedicineItem, ExpenseItem } from './DiagnosticData';
 import SearchableSelect from './SearchableSelect';
@@ -1245,13 +1246,13 @@ const IndoorInvoicePage: React.FC<{
         const newItem: ServiceItem = { id: Date.now(), service_type: '', service_provider: '', service_charge: 0, quantity: 1, line_total: 0, discount: 0, payable_amount: 0, note: '', isClinicFund: false };
         const updatedItems = [...formData.items, newItem];
         const totals = calculateTotals(updatedItems, 0, formData.paid_amount, formData.special_discount_amount || 0);
-        setFormData(prev => ({ ...prev, ...totals }));
+        setFormData(prev => ({ ...prev, items: updatedItems, ...totals }));
     };
     
     const handleRemoveServiceItem = (id: number) => {
         const updatedItems = formData.items.filter(i => i.id !== id);
         const totals = calculateTotals(updatedItems, 0, formData.paid_amount, formData.special_discount_amount || 0);
-        setFormData(prev => ({ ...prev, ...totals }));
+        setFormData(prev => ({ ...prev, items: updatedItems, ...totals }));
     };
 
     const handleSaveInvoice = (e: React.FormEvent) => {
@@ -1288,10 +1289,17 @@ const IndoorInvoicePage: React.FC<{
 
     const handleReturnInvoice = (inv: IndoorInvoice) => {
         if (inv.status === 'Returned') return alert("Already returned.");
-        if (window.confirm(`আপনি কি এই ইনভয়েসের (${inv.daily_id}) টাকা রিটার্ন করতে চান? এটি আজকের ক্যাশ বক্স থেকে বাদ যাবে।`)) {
+        if (window.confirm(`রিফান্ড করতে চান? এটি আজকের ক্যাশ থেকে টাকা বিয়োগ করবে। (Mistake হলে 'Cancel' করুন)`)) {
             const todayStr = new Date().toISOString().split('T')[0];
             setIndoorInvoices(prev => prev.map(item => item.daily_id === inv.daily_id ? { ...item, status: 'Returned', return_date: todayStr } : item));
             setSuccessMessage("Invoice Returned Successfully.");
+        }
+    };
+
+    const handleCancelInvoice = (inv: IndoorInvoice) => {
+        if (window.confirm(`ভুল এন্ট্রি হলে 'Cancel' করুন। এটি একাউন্টে কোনো প্রভাব ফেলবে না।`)) {
+            setIndoorInvoices(prev => prev.map(item => item.daily_id === inv.daily_id ? { ...item, status: 'Cancelled' } : item));
+            setSuccessMessage("Invoice Cancelled!");
         }
     };
 
@@ -1519,7 +1527,8 @@ const IndoorInvoicePage: React.FC<{
                                                 checked={item.isClinicFund} 
                                                 onChange={e => {
                                                     const updated = formData.items.map(it => it.id === item.id ? { ...it, isClinicFund: e.target.checked } : it);
-                                                    setFormData(prev => ({ ...prev, items: updated }));
+                                                    const totals = calculateTotals(updated, 0, formData.paid_amount, formData.special_discount_amount || 0);
+                                                    setFormData(prev => ({ ...prev, items: updated, ...totals }));
                                                 }}
                                                 className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-blue-600"
                                             />
@@ -1563,21 +1572,29 @@ const IndoorInvoicePage: React.FC<{
                 )}
                 
                 <div className="mt-8">
-                    <h3 className="text-gray-400 font-bold mb-2">Saved Invoices</h3>
-                    <div className="max-h-60 overflow-y-auto bg-[#111827] rounded border border-gray-700">
+                    <h3 className="text-gray-400 font-bold mb-2 uppercase text-xs tracking-widest">Master Journal: Saved Indoor Invoices</h3>
+                    <div className="max-h-96 overflow-y-auto bg-[#111827] rounded-xl border border-gray-700 custom-scrollbar shadow-inner">
                         <table className="w-full text-sm text-left text-gray-300">
-                            <thead className="bg-[#1f2937] text-gray-400 sticky top-0"><tr><th className="p-2">ID</th><th className="p-2">Date</th><th className="p-2">Patient</th><th className="p-2 text-right">Total</th><th className="p-2 text-right">Paid</th><th className="p-2 text-right">Due</th><th className="p-2 text-center">Action</th></tr></thead>
+                            <thead className="bg-[#1f2937] text-gray-400 sticky top-0 z-10"><tr><th className="p-3">ID</th><th className="p-3">Date</th><th className="p-3">Patient</th><th className="p-3 text-right">Total</th><th className="p-3 text-right">Paid</th><th className="p-3 text-right">Due</th><th className="p-3 text-center">Status</th><th className="p-3 text-center">Action</th></tr></thead>
                             <tbody className="divide-y divide-gray-700">
                                 {indoorInvoices.map(inv => (
-                                    <tr key={inv.daily_id} onClick={() => handleLoadInvoice(inv)} className={`cursor-pointer hover:bg-gray-700 ${selectedInvoiceId === inv.daily_id ? 'bg-blue-900/30' : ''} ${inv.status === 'Returned' ? 'opacity-50 line-through' : ''}`}>
-                                        <td className="p-2 font-mono text-xs">{inv.daily_id}</td><td className="p-2">{inv.invoice_date}</td><td className="p-2">{inv.patient_name}</td><td className="p-2 text-right">{inv.total_bill.toFixed(2)}</td><td className="p-2 text-right text-green-400">{inv.paid_amount.toFixed(2)}</td><td className="p-2 text-right text-red-400">{inv.due_bill.toFixed(2)}</td><td className="p-2 text-center space-x-2">
+                                    <tr key={inv.daily_id} onClick={() => handleLoadInvoice(inv)} className={`cursor-pointer hover:bg-slate-800 transition-all ${selectedInvoiceId === inv.daily_id ? 'bg-blue-900/30' : ''} ${inv.status === 'Returned' ? 'bg-rose-900/10' : inv.status === 'Cancelled' ? 'opacity-30 grayscale line-through' : ''}`}>
+                                        <td className="p-3 font-mono text-xs text-sky-400">{inv.daily_id}</td><td className="p-3">{inv.invoice_date}</td><td className="p-3 font-black uppercase">{inv.patient_name}</td><td className="p-3 text-right font-bold">৳{inv.total_bill.toFixed(2)}</td><td className="p-3 text-right text-emerald-400 font-black">৳{inv.paid_amount.toFixed(2)}</td><td className="p-3 text-right text-rose-500 font-black">৳{inv.due_bill.toFixed(2)}</td>
+                                        <td className="p-3 text-center"><span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase ${inv.status==='Returned'?'bg-rose-600 text-white':inv.status==='Cancelled'?'bg-slate-700 text-slate-300':'bg-blue-600 text-white'}`}>{inv.status}</span></td>
+                                        <td className="p-3 text-center space-x-3" onClick={e=>e.stopPropagation()}>
                                             <button onClick={(e) => { e.stopPropagation(); handlePrintInvoice(inv); }} className="text-sky-400 hover:text-white text-xs font-bold underline">Print</button>
-                                            {inv.status !== 'Returned' && <button onClick={(e) => { e.stopPropagation(); handleReturnInvoice(inv); }} className="text-rose-400 hover:text-rose-600 text-xs font-bold underline">Return</button>}
+                                            {inv.status !== 'Returned' && inv.status !== 'Cancelled' && (
+                                                <>
+                                                    <button onClick={(e) => { e.stopPropagation(); handleReturnInvoice(inv); }} className="text-amber-500 hover:text-white text-xs font-bold underline">Return</button>
+                                                    <button onClick={(e) => { e.stopPropagation(); handleCancelInvoice(inv); }} className="text-rose-500 hover:text-white text-xs font-bold underline">Cancel</button>
+                                                </>
+                                            )}
                                         </td>
                                     </tr>
                                 ))}
                             </tbody>
                         </table>
+                        {indoorInvoices.length === 0 && <div className="p-20 text-center text-slate-700 font-black uppercase opacity-20">No Records Found</div>}
                     </div>
                 </div>
             </div>
@@ -1597,7 +1614,7 @@ const ClinicDueCollectionPage: React.FC<{
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedInvoice, setSelectedInvoice] = useState<IndoorInvoice | null>(null);
     const [amount, setAmount] = useState<number>(0);
-    const dueInvoices = indoorInvoices.filter(inv => inv.status !== 'Returned' && inv.due_bill > 0.5 && inv.patient_name.toLowerCase().includes(searchTerm.toLowerCase()));
+    const dueInvoices = indoorInvoices.filter(inv => inv.status !== 'Returned' && inv.status !== 'Cancelled' && inv.due_bill > 0.5 && inv.patient_name.toLowerCase().includes(searchTerm.toLowerCase()));
     
     const handlePrintReceipt = (invoice: IndoorInvoice, paidAmount: number) => {
         const win = window.open('', '_blank');
@@ -1752,7 +1769,7 @@ const ClinicPage: React.FC<ClinicPageProps> = ({
                             <div className="flex items-center gap-4">
                                 <button onClick={onBack} className="p-2 bg-[#374151] rounded-full hover:bg-[#4b5563] transition-colors"><BackIcon className="w-5 h-5 text-gray-300" /></button>
                                 <div>
-                                    <h1 className="text-2xl md:text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400">Niramoy Clinic & Diagnostic</h1>
+                                    <h1 className="text-2xl md:text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-white to-cyan-100 leading-tight tracking-tight mb-1">Niramoy Clinic & Diagnostic</h1>
                                     <p className="text-xs text-gray-400 mt-1">Enayetpur, Sirajgonj | Mobile: 01730 923007</p>
                                 </div>
                             </div>
