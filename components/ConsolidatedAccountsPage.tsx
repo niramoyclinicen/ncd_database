@@ -134,7 +134,6 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
     const [profitDistAmount, setProfitDistAmount] = useState<number>(0);
     const [manualLoanInstallment, setManualLoanInstallment] = useState<number>(0);
 
-    const [editingPartner, setEditingPartner] = useState<number | null>(null);
     const [newPlan, setNewPlan] = useState<Partial<FuturePlan>>({ title: '', estimatedCost: 0, status: 'Pending', targetDate: '' });
     const [newCompanyEntry, setNewCompanyEntry] = useState({ companyName: '', amount: 0, date: new Date().toISOString().split('T')[0] });
 
@@ -174,8 +173,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
 
     const deletePlan = (id: string) => { if(confirm("পরিকল্পনাটি মুছে ফেলতে চান?")) setFuturePlans(futurePlans.filter(p => p.id !== id)); };
     const updatePlan = (id: string, field: keyof FuturePlan, val: any) => { setFuturePlans(prev => prev.map(p => p.id === id ? { ...p, [field]: val } : p)); };
-    const updateShareholder = (id: number, field: keyof Shareholder, val: any) => { setDynamicShareholders(dynamicShareholders.map(s => s.id === id ? { ...s, [field]: val } : s)); };
-
+    
     const expenseSheetData = useMemo(() => {
         const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
         const rows = [];
@@ -183,7 +181,6 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
             const dateStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
             const dailyExps = detailedExpenses[dateStr] || [];
             const categorySums: Record<string, number> = {};
-            // ইউজারের অরিজিনাল ম্যাপ সিকোয়েন্স অনুযায়ী কলাম বানাবে
             expenseMapSequence.forEach(e => categorySums[e.key] = 0);
             dailyExps.forEach(exp => {
                 const searchCat = exp.category === 'Clinic development' ? 'Clinic_Dev' : exp.category;
@@ -257,6 +254,51 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
         }
         return rows;
     }, [detailedExpenses, selectedMonth, selectedYear]);
+
+    const statusReportData = useMemo(() => {
+        const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
+        const rows = [];
+        let runningBalance = 0;
+
+        const getNetDiagCash = (inv: LabInvoice) => {
+            const usgFee = inv.items.reduce((s, it) => s + (it.usg_exam_charge * it.quantity), 0);
+            const commPaid = inv.commission_paid || 0;
+            return inv.paid_amount - usgFee - commPaid;
+        };
+
+        for (let d = 1; d <= daysInMonth; d++) {
+            const dayStr = String(d).padStart(2, '0');
+            const dateStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${dayStr}`;
+            
+            // Collections
+            const diagColl = labInvoices.filter(inv => inv.invoice_date === dateStr && inv.status !== 'Cancelled' && inv.status !== 'Returned').reduce((s, inv) => s + getNetDiagCash(inv), 0)
+                           + dueCollections.filter(dc => dc.collection_date === dateStr && dc.invoice_id.startsWith('INV')).reduce((s, dc) => s + dc.amount_collected, 0);
+
+            const clinicColl = indoorInvoices.filter(inv => inv.invoice_date === dateStr && inv.status !== 'Cancelled' && inv.status !== 'Returned').reduce((s, inv) => {
+                const fundedRevenue = inv.items.filter(it => it.isClinicFund).reduce((ss, ii) => ss + ii.payable_amount, 0);
+                const pcAmount = inv.commission_paid || 0;
+                return s + (fundedRevenue - pcAmount);
+            }, 0) + dueCollections.filter(dc => dc.collection_date === dateStr && !dc.invoice_id.startsWith('INV')).reduce((s, dc) => s + dc.amount_collected, 0);
+
+            const totalColl = diagColl + clinicColl;
+
+            // Expenses
+            const dailyExps = detailedExpenses[dateStr] || [];
+            const diagExp = dailyExps.filter(ex => diagExpenseCategories.includes(ex.category)).reduce((s, ex) => s + ex.paidAmount, 0);
+            const clinicExp = dailyExps.filter(ex => clinicExpenseCategories.includes(ex.category)).reduce((s, ex) => s + ex.paidAmount, 0);
+            const totalExp = diagExp + clinicExp;
+
+            runningBalance += (totalColl - totalExp);
+
+            rows.push({
+                date: `${dayStr}-${monthOptions[selectedMonth].name.substring(0, 3)}-${String(selectedYear).substring(2)}`,
+                diagColl, clinicColl, totalColl,
+                diagExp, clinicExp, totalExp,
+                balance: runningBalance
+            });
+        }
+        return rows;
+    }, [labInvoices, indoorInvoices, dueCollections, detailedExpenses, selectedMonth, selectedYear]);
 
     const summary = useMemo(() => {
         const isSelectedMonth = (dateStr: string) => {
@@ -345,7 +387,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
         const win = window.open('', '', 'width=1200,height=800');
         if(!win) return;
         const isLandscape = elementId === 'section-monthly-expense';
-        const html = `<html><head><title>Print Report</title><script src="https://cdn.tailwindcss.com"></script><style>@page { size: A4 ${isLandscape ? 'landscape' : 'portrait'}; margin: 0; } body { background: white; font-family: sans-serif; padding: 10mm; } table { width: 100% !important; border-collapse: collapse !important; } th, td { border: 0.5pt solid #000 !important; padding: 4px; text-align: center; } .no-print { display: none !important; }</style></head><body>${content.innerHTML}<script>setTimeout(() => { window.print(); window.close(); }, 850);</script></body></html>`;
+        const html = `<html><head><title>Print Report</title><script src="https://cdn.tailwindcss.com"></script><style>@page { size: A4 ${isLandscape ? 'landscape' : 'portrait'}; margin: 5mm; } body { background: white; font-family: 'Segoe UI', Tahoma, sans-serif; padding: 5mm; color: black; } table { width: 100% !important; border-collapse: collapse !important; border: 1.2px solid #000 !important; } th, td { border: 1px solid #000 !important; padding: 2px 4px; text-align: center; } .no-print { display: none !important; } .font-bengali { font-family: 'Arial', sans-serif !important; }</style></head><body>${content.innerHTML}<script>setTimeout(() => { window.print(); window.close(); }, 850);</script></body></html>`;
         win.document.write(html); win.document.close();
     };
 
@@ -356,7 +398,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
         <div className="min-h-screen bg-slate-100 flex flex-col font-sans">
             <header className="bg-slate-800 p-4 border-b border-slate-700 sticky top-0 z-[100] no-print flex flex-col md:flex-row justify-between items-center text-white gap-4 shadow-xl">
                 <div className="flex items-center gap-4">
-                    <button onClick={onBack} className="p-2 bg-slate-700 rounded-full hover:bg-slate-600 transition-colors"><BackIcon className="w-5 h-5" /></button>
+                    <button onClick={onBack} className="p-2 bg-slate-700 rounded-full hover:bg-slate-600 transition-all"><BackIcon className="w-5 h-5" /></button>
                     <h1 className="font-bold uppercase tracking-tight text-sm">Accounts Console</h1>
                 </div>
                 <div className="flex bg-slate-900/50 p-1 rounded-lg border border-slate-700 overflow-x-auto max-w-full">
@@ -379,7 +421,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
 
             <div className="flex-1 overflow-y-auto p-4 md:p-8 bg-slate-200">
                 
-                {/* 1. Monthly Expense Sheet (Grid) */}
+                {/* 1. Monthly Expense Sheet */}
                 {activeTab === 'monthly_expense_sheet' && (
                     <div id="section-monthly-expense" className="relative animate-fade-in">
                         <button onClick={() => handlePrintSpecific('section-monthly-expense')} className="no-print absolute top-2 right-2 p-2 bg-emerald-600 text-white rounded-full shadow-lg hover:bg-emerald-500 z-50 flex items-center gap-2"><PrinterIcon size={18} /> <span className="text-xs font-bold">Print Landscape</span></button>
@@ -417,7 +459,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                     </div>
                 )}
 
-                {/* 2. Daily Collection (Diagnostic vs Clinic) */}
+                {/* 2. Daily Collection */}
                 {activeTab === 'daily_collection' && (
                     <div id="section-daily-collection" className="relative animate-fade-in">
                         <button onClick={() => handlePrintSpecific('section-daily-collection')} className="no-print absolute top-2 right-2 p-2 bg-indigo-600 text-white rounded-full shadow-lg flex items-center gap-2"><PrinterIcon size={18} /> <span className="text-xs font-bold">Print</span></button>
@@ -455,7 +497,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                     </div>
                 )}
 
-                {/* 3. Daily Expense (New 2-column view) */}
+                {/* 3. Daily Expense */}
                 {activeTab === 'daily_expense' && (
                     <div id="section-daily-expense" className="relative animate-fade-in">
                         <button onClick={() => handlePrintSpecific('section-daily-expense')} className="no-print absolute top-2 right-2 p-2 bg-rose-600 text-white rounded-full shadow-lg flex items-center gap-2"><PrinterIcon size={18} /> <span className="text-xs font-bold">Print</span></button>
@@ -491,7 +533,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                     </div>
                 )}
 
-                {/* 4. Accounts Sheet (Summary) */}
+                {/* 4. Accounts Sheet */}
                 {activeTab === 'accounts' && (
                     <div id="section-accounts" className="relative animate-fade-in h-full">
                         <button onClick={() => handlePrintSpecific('section-accounts')} className="no-print absolute top-2 right-2 p-2 bg-blue-600 text-white rounded-full shadow-lg"><FileTextIcon className="w-5 h-5" /></button>
@@ -571,46 +613,76 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                     </div>
                 )}
 
-                {/* 5. Company Collection */}
-                {activeTab === 'company_collection' && (
-                    <div className="max-w-4xl mx-auto space-y-8 animate-fade-in no-print">
-                        <div className="bg-white p-8 rounded-[2.5rem] shadow-2xl border border-slate-200">
-                             <h3 className="text-xl font-black text-cyan-600 mb-6 font-bengali border-b pb-4 flex items-center gap-3"><ClinicIcon className="w-6 h-6" /> কোম্পানি কালেকশন ডাটা এন্ট্রি</h3>
-                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                 <div><label className="text-[10px] font-black text-slate-500 uppercase ml-2 mb-1 block">কোম্পানি</label><input value={newCompanyEntry.companyName} onChange={e=>setNewCompanyEntry({...newCompanyEntry, companyName: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl font-bold" placeholder="কোম্পানির নাম..."/></div>
-                                 <div><label className="text-[10px] font-black text-slate-500 uppercase ml-2 mb-1 block">টাকার পরিমাণ (৳)</label><input type="number" value={newCompanyEntry.amount} onChange={e=>setNewCompanyEntry({...newCompanyEntry, amount: parseFloat(e.target.value) || 0})} className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl font-black" /></div>
-                                 <div><label className="text-[10px] font-black text-slate-500 uppercase ml-2 mb-1 block">তারিখ</label><input type="date" value={newCompanyEntry.date} onChange={e=>setNewCompanyEntry({...newCompanyEntry, date: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl font-black" /></div>
-                             </div>
-                             <button onClick={addCompanyCollection} className="mt-6 w-full py-4 bg-cyan-600 text-white rounded-2xl font-black uppercase text-xs shadow-xl transition-all">কালেকশন সেভ করুন</button>
-                        </div>
-                        <div className="overflow-x-auto rounded-[2rem] border border-slate-200 shadow-xl bg-white"><table className="w-full text-left border-collapse"><thead className="bg-slate-50 text-slate-500 font-black uppercase text-[10px] tracking-widest border-b border-slate-200"><tr><th className="p-5">তারিখ</th><th className="p-5">কোম্পানির নাম</th><th className="p-5 text-right">পরিমাণ (৳)</th><th className="p-5 text-center">X</th></tr></thead><tbody className="divide-y divide-slate-100">{companyCollections.map(c => (<tr key={c.id} className="hover:bg-cyan-50 transition-colors"><td className="p-5 font-bold text-slate-600">{c.date}</td><td className="p-5 font-black text-slate-800 uppercase">{c.companyName}</td><td className="p-5 text-right font-black text-cyan-600 text-lg">৳{c.amount.toLocaleString()}</td><td className="p-5 text-center"><button onClick={() => setCompanyCollections(companyCollections.filter(x=>x.id!==c.id))} className="text-rose-400 hover:text-rose-600 p-2"><TrashIcon size={18}/></button></td></tr>))}</tbody></table></div>
-                    </div>
-                )}
-
-                {/* 6. Profit Share (Shareholders) */}
-                {activeTab === 'shareholders' && (
-                    <div id="section-shareholders" className="relative animate-fade-in">
-                        <button onClick={() => handlePrintSpecific('section-shareholders')} className="no-print absolute top-2 right-2 p-2 bg-blue-600 text-white rounded-full shadow-lg"><PrinterIcon size={18} /></button>
-                        <main className="p-8 max-w-[210mm] mx-auto w-full bg-white text-black shadow-2xl flex flex-col border border-gray-300">
-                            <div className="text-center mb-8 border-b-2 border-black pb-4"><h1 className="text-2xl font-black uppercase text-blue-900 leading-none">Niramoy Clinic & Diagnostic</h1><h3 className="text-lg font-bold underline uppercase tracking-widest bg-gray-50 mt-2 py-1 font-bengali">অংশীদারগণের মুনাফা বন্টন শিট : {monthOptions[selectedMonth].name}, {selectedYear}</h3></div>
-                            <div className="flex justify-between items-center bg-gray-100 p-5 rounded-xl border-2 border-black mb-8">
-                                <div className="no-print"><label className="text-xs font-bold uppercase block mb-1">মোট বন্টনযোগ্য মুনাফা :</label><input type="number" value={profitDistAmount || ''} onChange={e=>setProfitDistAmount(parseFloat(e.target.value)||0)} className="w-48 bg-white border border-black p-2 text-xl font-black text-blue-700" /></div>
-                                <div className="text-right"><div><span className="text-xs font-bold uppercase">মোট শেয়ার :</span> <span className="text-xl font-black ml-2">{summary.totalShares}</span></div><div><span className="text-xs font-bold uppercase">শেয়ার প্রতি মুনাফা :</span> <span className="text-2xl font-black ml-2 text-emerald-700">৳ {summary.profitPerShare.toFixed(2)}</span></div></div>
+                {/* 8. Final Status (SINGLE PAGE A4 COMPACT) */}
+                {activeTab === 'final_status' && (
+                    <div id="section-status" className="relative animate-fade-in h-full">
+                        <button onClick={() => handlePrintSpecific('section-status')} className="no-print absolute top-2 right-2 p-2 bg-amber-600 text-white rounded-full shadow-lg flex items-center gap-2"><PrinterIcon size={18} /><span className="text-xs font-bold">Print A4 Portrait</span></button>
+                        <main className="p-4 sm:p-5 max-w-[210mm] mx-auto w-full bg-white text-black shadow-2xl flex flex-col border border-gray-300 font-sans min-h-[292mm]">
+                            
+                            {/* COMPACT HEADER */}
+                            <div className="flex justify-between items-start mb-3 border-b-2 border-black pb-1 shrink-0">
+                                <div className="text-left flex-1">
+                                    <h1 className="text-2xl font-black text-blue-900 uppercase tracking-tighter leading-none mb-1.5">Niramoy Clinic & Diagnostic</h1>
+                                    <h2 className="text-sm font-black underline uppercase tracking-widest font-bengali">মাসিক চূড়ান্ত রিপোর্ট (Closing Status) : {monthOptions[selectedMonth].name}, {selectedYear}</h2>
+                                </div>
+                                <div className="w-[270px] border border-black text-[8.5pt] font-bold">
+                                    <div className="flex justify-between border-b border-black p-1"><span className="text-blue-900">সর্বমোট জমা (Total Gross Cash) :</span> <span className="border-l border-black pl-3 w-18 text-right">{summary.grandTotalCollection.toLocaleString()}</span></div>
+                                    <div className="flex justify-between border-b border-black p-1"><span className="text-rose-900">সর্বমোট খরচ (Total Operating Cost) :</span> <span className="border-l border-black pl-3 w-18 text-right text-rose-600">{summary.totalExpense.toLocaleString()}</span></div>
+                                    <div className="flex justify-between p-1 bg-gray-50"><span className="text-blue-700 font-black">Nit Balance :</span> <span className="border-l border-black pl-3 w-18 text-right font-black text-blue-700">{(summary.grandTotalCollection - summary.totalExpense).toLocaleString()}</span></div>
+                                </div>
                             </div>
-                            <table className="w-full border-collapse border-2 border-black">
-                                <thead className="bg-gray-200"><tr><th className="p-2 border border-black w-10">SL</th><th className="p-2 border border-black text-left">অংশীদারগণের নাম</th><th className="p-2 border border-black">শেয়ার সংখ্যা</th><th className="p-2 border border-black text-right">মুনাফার পরিমাণ (৳)</th><th className="p-2 border border-black">স্বাক্ষর</th></tr></thead>
+
+                            {/* MAIN TABLE (TIGHTENED FOR SINGLE PAGE) */}
+                            <table className="w-full border-collapse border-2 border-black text-[8.2pt] font-sans">
+                                <thead>
+                                    <tr className="h-6.5">
+                                        <th className="border-2 border-black w-[75px]"></th> 
+                                        <th className="border-2 border-black text-purple-700 font-black uppercase text-xs py-0.5" colSpan={3}>Collection</th>
+                                        <th className="border-2 border-black text-fuchsia-700 font-black uppercase text-xs py-0.5" colSpan={3}>Expense</th>
+                                        <th className="border-2 border-black text-fuchsia-600 font-black uppercase text-xs py-0.5">Balance</th>
+                                    </tr>
+                                    <tr className="bg-gray-100 uppercase text-[7.8pt] font-black h-6.5">
+                                        <th className="border-2 border-black text-blue-700">Date</th>
+                                        <th className="border-2 border-black text-blue-700">Diagnostic</th>
+                                        <th className="border-2 border-black text-blue-700">Clinic</th>
+                                        <th className="border-2 border-black text-blue-700">Total collection</th>
+                                        <th className="border-2 border-black text-blue-700">Diagnostic</th>
+                                        <th className="border-2 border-black text-blue-700">Clinic</th>
+                                        <th className="border-2 border-black text-blue-700">Total Expense</th>
+                                        <th className="border-2 border-black text-blue-700"></th> 
+                                    </tr>
+                                </thead>
                                 <tbody>
-                                    {dynamicShareholders.map((s, i) => (
-                                        <tr key={s.id} className="h-10"><td className="p-2 border border-black text-center">{i + 1}</td><td className="p-2 border border-black font-black uppercase font-bengali">{s.name}</td><td className="p-2 border border-black text-center font-bold">{s.shares}</td><td className="p-2 border border-black text-right font-black text-blue-900">৳ {(s.shares * summary.profitPerShare).toLocaleString(undefined, {maximumFractionDigits:2})}</td><td className="p-2 border border-black text-center italic text-[10px] text-gray-300">Signature</td></tr>
+                                    {statusReportData.map((row, idx) => (
+                                        <tr key={idx} className="h-[25.5px] hover:bg-slate-50 transition-colors leading-tight">
+                                            <td className="border-2 border-black text-center font-mono font-bold text-[7.5pt]">{row.date}</td>
+                                            <td className="border-2 border-black text-center">{row.diagColl > 0 ? row.diagColl.toLocaleString() : ''}</td>
+                                            <td className="border-2 border-black text-center">{row.clinicColl > 0 ? row.clinicColl.toLocaleString() : ''}</td>
+                                            <td className="border-2 border-black text-center font-black bg-slate-50">{row.totalColl > 0 ? row.totalColl.toLocaleString() : ''}</td>
+                                            <td className="border-2 border-black text-center">{row.diagExp > 0 ? row.diagExp.toLocaleString() : ''}</td>
+                                            <td className="border-2 border-black text-center">{row.clinicExp > 0 ? row.clinicExp.toLocaleString() : ''}</td>
+                                            <td className="border-2 border-black text-center font-black bg-slate-50">{row.totalExp > 0 ? row.totalExp.toLocaleString() : ''}</td>
+                                            <td className="border-2 border-black text-center font-black text-slate-900 bg-gray-50">{row.balance > 0 ? row.balance.toLocaleString() : ''}</td>
+                                        </tr>
+                                    ))}
+                                    {/* Calculated padding empty rows */}
+                                    {statusReportData.length < 31 && Array.from({length: 31 - statusReportData.length}).map((_, i) => (
+                                        <tr key={`empty-${i}`} className="h-[25.5px]">
+                                            <td className="border-2 border-black"></td><td className="border-2 border-black"></td><td className="border-2 border-black"></td><td className="border-2 border-black"></td><td className="border-2 border-black"></td><td className="border-2 border-black"></td><td className="border-2 border-black"></td><td className="border-2 border-black"></td>
+                                        </tr>
                                     ))}
                                 </tbody>
-                                <tfoot className="bg-gray-100 font-black h-12"><tr><td colSpan={2} className="p-2 text-right">সর্বমোট :</td><td className="p-2 text-center">{summary.totalShares}</td><td className="p-2 text-right text-lg text-emerald-800">৳ {profitDistAmount.toLocaleString()}</td><td></td></tr></tfoot>
                             </table>
+
+                            <div className="mt-3 pt-2 flex justify-between px-10 text-gray-500 font-bold uppercase text-[7.8pt] shrink-0 no-print">
+                                <div className="text-center w-36 border-t border-black pt-1">Accountant</div>
+                                <div className="text-center w-36 border-t border-black pt-1">Authorized MD</div>
+                            </div>
                         </main>
                     </div>
                 )}
 
-                {/* 7. Money Management (Loans) */}
+                {/* RESTORED & PERSISTED: Money Management (Loans) */}
                 {activeTab === 'money_mgmt' && (
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-fade-in no-print">
                         <div className="space-y-6">
@@ -663,37 +735,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                     </div>
                 )}
 
-                {/* 8. Final Status (Monthly Closing) */}
-                {activeTab === 'final_status' && (
-                    <div id="section-status" className="relative animate-fade-in h-full">
-                        <button onClick={() => handlePrintSpecific('section-status')} className="no-print absolute top-2 right-2 p-2 bg-amber-600 text-white rounded-full shadow-lg"><PrinterIcon size={18} /></button>
-                        <main className="p-8 max-w-[210mm] mx-auto w-full bg-white text-black shadow-2xl flex flex-col border border-gray-300 font-serif">
-                            <div className="text-center mb-10 border-b-2 border-black pb-4"><h1 className="text-2xl font-black uppercase text-blue-900 leading-none">Niramoy Clinic & Diagnostic</h1><h3 className="text-lg font-bold underline uppercase tracking-widest bg-gray-50 mt-2 py-1 font-bengali">মাসিক চূড়ান্ত রিপোর্ট (Closing Status) : {monthOptions[selectedMonth].name}, {selectedYear}</h3></div>
-                            <div className="grid grid-cols-2 gap-10">
-                                <div className="space-y-6">
-                                    <div className="p-6 bg-blue-50 border-2 border-blue-900 rounded-3xl">
-                                        <p className="text-xs font-black uppercase text-blue-900 mb-2">সর্বমোট জমা (Total Gross Cash) :</p>
-                                        <h4 className="text-4xl font-black text-blue-950">৳ {summary.grandTotalCollection.toLocaleString()}</h4>
-                                    </div>
-                                    <div className="p-6 bg-rose-50 border-2 border-rose-900 rounded-3xl">
-                                        <p className="text-xs font-black uppercase text-rose-900 mb-2">সর্বমোট খরচ (Total Operating Cost) :</p>
-                                        <h4 className="text-4xl font-black text-rose-950">৳ {summary.totalExpense.toLocaleString()}</h4>
-                                    </div>
-                                </div>
-                                <div className="flex flex-col justify-center items-center bg-gray-900 text-white p-10 rounded-[3rem] border-4 border-amber-500 shadow-2xl text-center">
-                                    <p className="text-xs font-black uppercase tracking-[0.3em] text-amber-500 mb-4">নিট মুনাফা (Net Balance)</p>
-                                    <h2 className="text-5xl font-black">৳ {summary.netProfit.toLocaleString()}</h2>
-                                    <div className="mt-8 pt-8 border-t border-gray-700 w-full">
-                                        <div className="flex justify-between items-center text-sm font-bold mb-2"><span>বন্টিত লভ্যাংশ :</span><span className="text-amber-400">৳ {profitDistAmount.toLocaleString()}</span></div>
-                                        <div className="flex justify-between items-center text-sm font-bold text-emerald-400 pt-2 border-t border-gray-800"><span>পরবর্তী মাসের জের (CF) :</span><span className="text-2xl font-black">৳ {summary.finalClosingJer.toLocaleString()}</span></div>
-                                    </div>
-                                </div>
-                            </div>
-                        </main>
-                    </div>
-                )}
-
-                {/* 9. Future Plans */}
+                {/* RESTORED & PERSISTED: Future Plans */}
                 {activeTab === 'future_plans' && (
                     <div className="max-w-4xl mx-auto space-y-8 animate-fade-in no-print">
                         <div className="bg-white p-8 rounded-[2.5rem] shadow-2xl border border-slate-200">
@@ -719,7 +761,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                     </div>
                 )}
 
-                {/* 10. Partner Mgmt (Shareholder Management) */}
+                {/* RESTORED & PERSISTED: Partner Management */}
                 {activeTab === 'shareholder_mgmt' && (
                     <div className="max-w-4xl mx-auto space-y-8 animate-fade-in no-print">
                         <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-2xl flex items-center justify-between"><h3 className="text-2xl font-black text-slate-800 uppercase tracking-tighter">অংশীদার ব্যবস্থাপনা (Partner List)</h3><button onClick={() => {
@@ -737,6 +779,21 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                 </tr>
                             ))}
                         </tbody></table></div>
+                    </div>
+                )}
+
+                {/* RESTORED & PERSISTED: Company Collection */}
+                {activeTab === 'company_collection' && (
+                    <div className="max-w-4xl mx-auto space-y-8 animate-fade-in no-print">
+                        <div className="bg-white p-8 rounded-[2.5rem] shadow-2xl border border-slate-200">
+                             <h3 className="text-xl font-black text-cyan-600 mb-6 font-bengali border-b pb-4 flex items-center gap-3"><ClinicIcon className="w-6 h-6" /> কোম্পানি কালেকশন ডাটা এন্ট্রি</h3>
+                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                 <div><label className="text-[10px] font-black text-slate-500 uppercase ml-2 mb-1 block">কোম্পানি</label><input value={newCompanyEntry.companyName} onChange={e=>setNewCompanyEntry({...newCompanyEntry, companyName: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl font-bold" placeholder="কোম্পানির নাম..."/></div>
+                                 <div><label className="text-[10px] font-black text-slate-500 uppercase ml-2 mb-1 block">টাকার পরিমাণ (৳)</label><input type="number" value={newCompanyEntry.amount} onChange={e=>setNewCompanyEntry({...newCompanyEntry, amount: parseFloat(e.target.value) || 0})} className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl font-black" /></div>
+                                 <div><label className="text-[10px] font-black text-slate-500 uppercase ml-2 mb-1 block">তারিখ</label><input type="date" value={newCompanyEntry.date} onChange={e=>setNewCompanyEntry({...newCompanyEntry, date: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl font-black" /></div>
+                             </div>
+                             <button onClick={addCompanyCollection} className="mt-6 w-full py-4 bg-cyan-600 text-white rounded-2xl font-black uppercase text-xs shadow-xl transition-all">কালেকশন সেভ করুন</button>
+                        </div>
                     </div>
                 )}
             </div>
