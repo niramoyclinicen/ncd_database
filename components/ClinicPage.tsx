@@ -920,41 +920,109 @@ const AdmissionAndTreatmentPage: React.FC<{
         setSelectedDrugId('');
     };
 
+    const removeMedicationFromDraft = (id: number) => {
+        setCurrentOrder(prev => ({ ...prev, medications: prev.medications?.filter(m => m.id !== id) }));
+    };
+
+    const handleEditOrder = (block: ClinicalOrderBlock) => {
+        setEditingOrderBlockId(block.id);
+        setCurrentOrder({
+            date: block.date,
+            time: block.time,
+            category: block.category,
+            diet: block.diet,
+            medications: block.medications,
+            note: block.note
+        });
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
     const handleSaveOrderBlock = () => {
+        if (!currentOrder.date || !currentOrder.time) return alert("Date/Time required");
         if (!admissionData.admission_id) return alert("পেশেন্ট সিলেক্ট করুন");
-        const block: ClinicalOrderBlock = {
-            id: editingOrderBlockId || `OB-${Date.now()}`,
-            date: currentOrder.date || new Date().toISOString().split('T')[0],
-            time: currentOrder.time || new Date().toTimeString().slice(0, 5),
+
+        let updatedOrders = [...admissionData.clinical_orders];
+        if (editingOrderBlockId) {
+            updatedOrders = updatedOrders.map(order => order.id === editingOrderBlockId ? { ...order, ...currentOrder as ClinicalOrderBlock } : order);
+        } else {
+            const newBlock: ClinicalOrderBlock = { id: Date.now().toString(), ...currentOrder as ClinicalOrderBlock };
+            updatedOrders = [newBlock, ...updatedOrders];
+        }
+        
+        const updatedAdmission = { ...admissionData, clinical_orders: updatedOrders };
+        setAdmissionData(updatedAdmission);
+        syncAdmissionToGlobal(updatedAdmission); 
+        
+        setSuccessMessage(editingOrderBlockId ? "Order updated!" : "New order added!");
+        setCurrentOrder({ category: 'Conservative', diet: 'Regular', medications: [], note: '', date: new Date().toISOString().split('T')[0], time: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', hour12:false}) });
+        setEditingOrderBlockId(null);
+    };
+
+    const handleSaveTemplate = () => {
+        if (!newTemplateName) return alert("Enter template name");
+        const newTemplate: TreatmentTemplate = {
+            id: Date.now().toString(),
+            name: newTemplateName,
             category: currentOrder.category as any,
-            diet: currentOrder.diet || 'Regular',
+            diet: currentOrder.diet || '',
             medications: currentOrder.medications || [],
             note: currentOrder.note || ''
         };
-
-        const updatedOrders = editingOrderBlockId 
-            ? admissionData.clinical_orders.map(o => o.id === editingOrderBlockId ? block : o)
-            : [block, ...admissionData.clinical_orders];
-
-        const updatedAdm = { ...admissionData, clinical_orders: updatedOrders };
-        setAdmissionData(updatedAdm);
-        syncAdmissionToGlobal(updatedAdm);
-        
-        setCurrentOrder({
-            category: 'Conservative', diet: 'Regular', medications: [], note: '',
-            date: new Date().toISOString().split('T')[0],
-            time: new Date().toTimeString().slice(0, 5)
-        });
-        setEditingOrderBlockId(null);
-        setSuccessMessage("Clinical order block saved!");
+        setTemplates([...templates, newTemplate]);
+        setNewTemplateName('');
+        setShowTemplateModal(false);
+        setSuccessMessage("Template Saved!");
     };
+
+    const handleLoadTemplate = (t: TreatmentTemplate) => {
+        const medsWithNewIds = t.medications.map(m => ({
+            ...m,
+            id: Date.now() + Math.random() 
+        }));
+
+        setCurrentOrder(prev => ({
+            ...prev,
+            category: t.category,
+            diet: t.diet,
+            medications: medsWithNewIds,
+            note: t.note
+        }));
+        setShowTemplateModal(false);
+    };
+
+    const handleSaveNewDrugEntry = () => {
+        if(!newDrugEntry.name) return alert("Please enter drug name");
+        
+        setNewMedication(prev => ({
+            ...prev,
+            name: `${newDrugEntry.name} (${newDrugEntry.generic})`,
+            genericName: newDrugEntry.generic,
+            type: newDrugEntry.type,
+            dosage: newDrugEntry.strength,
+            inventoryId: undefined 
+        }));
+
+        const demand: RequestedDrug = {
+            id: Date.now().toString(), name: newDrugEntry.name, type: newDrugEntry.type,
+            strength: newDrugEntry.strength, genericName: newDrugEntry.generic,
+            requestedBy: admissionData.doctor_name || 'Doctor', date: new Date().toISOString().split('T')[0], status: 'Pending'
+        };
+        setDrugDemands((prev: RequestedDrug[]) => [demand, ...prev]);
+
+        setSuccessMessage("New drug added for prescription!");
+        setShowDrugDemandModal(false);
+        setNewDrugEntry({ name: '', generic: '', type: 'Tab', strength: '' });
+    };
+
+    const activeNurses = useMemo(() => employees.filter(e => e.status === 'Active'), [employees]);
+    const commonInputClass = "w-full p-2 bg-[#2d3748] border border-gray-600 rounded text-gray-200 text-sm focus:ring-1 focus:ring-blue-500";
 
     return (
         <div className="space-y-6">
             <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 flex justify-between items-center shadow-lg">
                 <div className="flex gap-2">
-                    <button onClick={() => setPageMode('admission')} className={`px-6 py-2 rounded-lg font-bold text-sm uppercase transition-all ${pageMode === 'admission' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}>Patient Admission</button>
-                    <button onClick={() => setPageMode('treatment')} className={`px-6 py-2 rounded-lg font-bold text-sm uppercase transition-all ${pageMode === 'treatment' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}>Clinical Management</button>
+                    <button onClick={() => setPageMode('admission')} className={`px-6 py-2 rounded-lg font-bold text-sm uppercase transition-all ${pageMode === 'admission' ? 'bg-blue-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}>Patient Admission</button>
+                    <button onClick={() => setPageMode('treatment')} className={`px-6 py-2 rounded-lg font-bold text-sm uppercase transition-all ${pageMode === 'treatment' ? 'bg-emerald-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}>Clinical Management</button>
                 </div>
                 {pageMode === 'treatment' && admissionData.admission_id && (
                     <div className="flex items-center gap-3 bg-slate-900 px-4 py-2 rounded-xl border border-emerald-500/30">
@@ -980,8 +1048,26 @@ const AdmissionAndTreatmentPage: React.FC<{
                              <div><SearchableSelect label="Consultant / MO" theme="dark" options={doctors.map(d=>({id: d.doctor_id, name: d.doctor_name, details: d.degree}))} value={admissionData.doctor_id} onChange={(id, name)=>setAdmissionData({...admissionData, doctor_id: id, doctor_name: name})} onAddNew={()=>setShowNewDoctorForm(true)} /></div>
                              <div><SearchableSelect label="Referrer / Agent" theme="dark" options={referrars.map(r=>({id: r.ref_id, name: r.ref_name, details: r.ref_degrees}))} value={admissionData.referrer_id} onChange={(id, name)=>setAdmissionData({...admissionData, referrer_id: id, referrer_name: name})} onAddNew={()=>setShowNewReferrarForm(true)} /></div>
                              
-                             <div><SearchableSelect label="Disease / Indication" theme="dark" options={indications.map(i=>({id: i.name, name: i.name}))} value={admissionData.indication} onChange={(id, name)=>setAdmissionData({...admissionData, indication: name})} onAddNew={()=>setShowIndicationManager(true)} /></div>
-                             <div><label className="text-[10px] font-black text-slate-500 uppercase ml-2 mb-1 block">Bed No / Ward</label><input value={admissionData.bed_no || ''} onChange={e=>setAdmissionData({...admissionData, bed_no: e.target.value})} className="w-full p-3 bg-slate-900 border border-slate-700 rounded-xl text-white font-bold" placeholder="e.g. Bed-01"/></div>
+                             <div><SearchableSelect label="Disease / Indication" theme="dark" options={indications.map(i=>({id: i.id, name: i.name}))} value={indications.find(i => i.name === admissionData.indication)?.id || ''} onChange={(_id, name)=>setAdmissionData({...admissionData, indication: name})} onAddNew={()=>setShowIndicationManager(true)} /></div>
+                             <div>
+                                <label className="text-[10px] font-black text-slate-500 uppercase ml-2 mb-1 block">Bed No / Ward</label>
+                                <select 
+                                    value={admissionData.bed_no || ''} 
+                                    onChange={e=>setAdmissionData({...admissionData, bed_no: e.target.value})} 
+                                    className="w-full p-3 bg-slate-900 border border-slate-700 rounded-xl text-white font-bold outline-none focus:ring-2 focus:ring-blue-500"
+                                >
+                                    <option value="">Select Bed...</option>
+                                    <optgroup label="Male Ward">
+                                        {Array.from({length: 5}, (_, i) => `M-${String(i+1).padStart(2, '0')}`).map(b => <option key={b} value={b}>{b}</option>)}
+                                    </optgroup>
+                                    <optgroup label="Female Ward">
+                                        {Array.from({length: 5}, (_, i) => `F-${String(i+1).padStart(2, '0')}`).map(b => <option key={b} value={b}>{b}</option>)}
+                                    </optgroup>
+                                    <optgroup label="Cabins">
+                                        {['CAB-101', 'CAB-102', 'CAB-103', 'CAB-104', 'VIP-01'].map(b => <option key={b} value={b}>{b}</option>)}
+                                    </optgroup>
+                                </select>
+                             </div>
                              <div><label className="text-[10px] font-black text-slate-500 uppercase ml-2 mb-1 block">Contract Bill (৳)</label><input type="number" value={admissionData.contract_amount} onChange={e=>setAdmissionData({...admissionData, contract_amount: parseFloat(e.target.value)||0})} className="w-full p-3 bg-slate-900 border border-slate-700 rounded-xl text-emerald-400 font-black text-lg" onFocus={e=>e.target.select()}/></div>
                              <div><label className="text-[10px] font-black text-slate-500 uppercase ml-2 mb-1 block">Adm. Date</label><input type="date" value={admissionData.admission_date} onChange={e=>setAdmissionData({...admissionData, admission_date: e.target.value})} className="w-full p-3 bg-slate-900 border border-slate-700 rounded-xl text-white font-bold"/></div>
                         </div>
@@ -1019,42 +1105,306 @@ const AdmissionAndTreatmentPage: React.FC<{
                 </div>
             ) : (
                 <div className="animate-fade-in space-y-6">
-                    <p className="text-slate-400 italic">Treatment management interface active for: {admissionData.patient_name}</p>
-                    {/* Simplified management UI since content was truncated */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="bg-slate-800 p-6 rounded-3xl border border-slate-700">
-                             <h4 className="text-sm font-black text-white uppercase mb-4 border-b border-slate-700 pb-2">Clinical Order Draft</h4>
-                             <div className="space-y-4">
-                                <SearchableSelect label="Select Medicine" theme="dark" options={medicines.map(m=>({id: m.id, name: m.tradeName, details: m.genericName}))} value={selectedDrugId} onChange={handleMedicineSelect} />
-                                <button onClick={addMedicationToDraft} className="w-full py-2 bg-emerald-600 rounded-xl font-bold">Add to List</button>
-                                <div className="mt-4 p-4 bg-slate-900 rounded-xl min-h-[100px]">
-                                    {currentOrder.medications?.map(m => (
-                                        <div key={m.id} className="text-xs text-white flex justify-between items-center py-1 border-b border-slate-800">
-                                            <span>{m.name}</span>
-                                            <button onClick={() => setCurrentOrder(prev => ({...prev, medications: prev.medications?.filter(x => x.id !== m.id)}))} className="text-red-500 font-bold">×</button>
-                                        </div>
-                                    ))}
-                                </div>
-                                <button onClick={handleSaveOrderBlock} className="w-full py-4 bg-blue-600 rounded-2xl font-black uppercase text-xs shadow-xl">Post Full Order Block</button>
-                             </div>
+                    <div className="bg-[#172554] p-4 rounded-lg border border-blue-800 shadow-lg mb-4 flex justify-between items-center">
+                        <div>
+                            {admissionData.admission_id ? ( <div><h2 className="text-xl font-bold text-white">Treating: <span className="text-yellow-400">{admissionData.patient_name}</span></h2><p className="text-sm text-blue-200">ID: {admissionData.admission_id} | Dr: {admissionData.doctor_name} | Bed: {admissionData.bed_no || 'N/A'}</p></div> ) : ( <div className="text-yellow-300 font-bold">Please select a patient from the Admission Section list first.</div> )}
                         </div>
-                        <div className="bg-slate-800 p-6 rounded-3xl border border-slate-700">
-                            <h4 className="text-sm font-black text-white uppercase mb-4 border-b border-slate-700 pb-2">Active Orders</h4>
-                            <div className="space-y-4 max-h-[400px] overflow-y-auto">
-                                {admissionData.clinical_orders.map(o => (
-                                    <div key={o.id} className="p-4 bg-slate-900 rounded-xl border border-slate-700">
-                                        <div className="flex justify-between items-center mb-2">
-                                            <span className="text-[10px] text-blue-400 font-black">{o.date} {o.time}</span>
-                                            <span className="text-[10px] bg-slate-800 px-2 py-0.5 rounded text-slate-500 font-bold uppercase">{o.category}</span>
-                                        </div>
-                                        {o.medications.map(m => <div key={m.id} className="text-xs text-slate-200 ml-2">• {m.name}</div>)}
-                                    </div>
-                                ))}
+                        {admissionData.admission_id && ( 
+                            <div className="flex gap-4 items-center">
+                                <button onClick={handlePrintTreatmentRecord} className="bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-2 rounded-lg font-bold text-sm shadow-lg flex items-center gap-2 transition-all"><FileTextIcon className="w-5 h-5"/> Print Full Chart</button>
+                                <div className="text-right"><span className="block text-xs text-gray-400 uppercase">Status</span><span className="inline-block px-2 py-1 bg-green-600 text-white text-xs rounded font-bold">Admitted</span></div> 
                             </div>
+                        )}
+                    </div>
+                    {admissionData.admission_id && (
+                        <div className="bg-[#20293a] p-4 rounded-lg border border-[#374151] shadow-lg">
+                            <div className="flex gap-4 border-b border-gray-700 pb-2 mb-4">
+                                {['orders', 'rounds', 'nurse', 'demands'].map(t => ( <button key={t} onClick={() => setActiveSubTab(t as any)} className={`px-4 py-2 font-bold ${activeSubTab === t ? 'text-blue-400 border-b-2 border-blue-400' : 'text-gray-400 hover:text-white'}`}> {t === 'orders' ? 'Doctor Orders' : t === 'rounds' ? 'Doctor Round' : t === 'demands' ? 'Drug Demands' : 'Nurse Chart'} </button> ))}
+                            </div>
+                            {activeSubTab === 'orders' && (
+                                <div className="space-y-4">
+                                    <div className="bg-[#172554] p-4 rounded border border-[#374151]">
+                                        <div className="flex justify-between items-center mb-2">
+                                            <h4 className="text-sm font-bold text-sky-300 uppercase">{editingOrderBlockId ? "Edit Treatment / Order" : "Add Treatment / Order"}</h4>
+                                            <div className="flex gap-2">
+                                                <button onClick={() => setShowTemplateModal(true)} className="text-xs bg-indigo-600 px-2 py-1 rounded text-white hover:bg-indigo-500">Templates</button>
+                                                {editingOrderBlockId && <button onClick={() => { setEditingOrderBlockId(null); setCurrentOrder({ category: 'Conservative', diet: 'Regular', medications: [], note: '', date: new Date().toISOString().split('T')[0], time: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', hour12:false}) }); }} className="text-xs text-red-300 hover:text-white">Cancel Edit</button>}
+                                            </div>
+                                        </div>
+                                        <div className="grid grid-cols-4 gap-4 mb-4">
+                                            <div><label className="text-xs text-gray-400 block">Date</label><input type="date" value={currentOrder.date} onChange={e=>setCurrentOrder({...currentOrder, date: e.target.value})} className={commonInputClass}/></div>
+                                            <div><label className="text-xs text-gray-400 block">Time</label><input type="time" value={currentOrder.time} onChange={e=>setCurrentOrder({...currentOrder, time: e.target.value})} className={commonInputClass}/></div>
+                                            <div><label className="text-xs text-gray-400 block">Category</label><select value={currentOrder.category} onChange={e=>setCurrentOrder({...currentOrder, category: e.target.value as any})} className={commonInputClass}><option value="Conservative">Conservative</option><option value="Pre-operative">Pre-operative</option><option value="Operative">Operative</option><option value="Post-operative">Post-operative</option></select></div>
+                                            <div><label className="text-xs text-gray-400 block">Diet</label><select value={currentOrder.diet} onChange={e=>setCurrentOrder({...currentOrder, diet: e.target.value})} className={commonInputClass}>{dietOptions.map(d=><option key={d} value={d}>{d}</option>)}</select></div>
+                                        </div>
+                                        <div className="bg-[#283245] p-3 rounded mb-4">
+                                            <div className="flex gap-2 items-end">
+                                                <div className="flex-1 relative"><SearchableSelect theme="dark" label="" options={medicines.map(m => ({ id: m.id, name: `${m.tradeName} (${m.genericName})` }))} value={selectedDrugId} onChange={handleMedicineSelect} placeholder="Search Drug..." inputHeightClass="h-9 bg-[#374151]" /><button onClick={() => setShowDrugDemandModal(true)} className="absolute right-1 top-1.5 h-6 w-6 bg-yellow-600 hover:bg-yellow-700 text-white rounded-full font-bold flex items-center justify-center text-sm z-20">+</button></div>
+                                                <select value={newMedication.type} onChange={e=>setNewMedication({...newMedication, type:e.target.value})} className="h-9 bg-[#374151] border-gray-600 rounded text-gray-200 text-xs px-2">{drugTypes.map(t=><option key={t} value={t}>{t}</option>)}</select>
+                                                <input value={newMedication.dosage} onChange={e=>setNewMedication({...newMedication, dosage:e.target.value})} placeholder="Dose" className="h-9 bg-[#374151] border border-gray-600 rounded text-gray-200 text-xs px-2 w-20"/>
+                                                <select value={newMedication.frequency} onChange={e=>setNewMedication({...newMedication, frequency:Number(e.target.value)})} className="h-9 bg-[#374151] border-gray-600 rounded text-gray-200 text-xs px-2">{drugFrequencies.map(f=><option key={f.value} value={f.value}>{f.label}</option>)}</select>
+                                                <button onClick={addMedicationToDraft} className="h-9 w-9 bg-blue-600 text-white rounded font-bold hover:bg-blue-500">+</button>
+                                            </div>
+                                        </div>
+                                        <div className="bg-[#111827] p-2 rounded border border-gray-700 mb-4 min-h-[60px]">
+                                            {currentOrder.medications?.map((m, i) => (<div key={m.id} className="flex justify-between items-center text-sm text-gray-300 border-b border-gray-800 pb-1 mb-1"><span>{i+1}. <b>{m.type} {m.name}</b> ({m.dosage}) --- <span className="text-yellow-500">{getFrequencyText(m.frequency)}</span></span><button onClick={()=>removeMedicationFromDraft(m.id)} className="text-red-500 text-xs font-bold">X</button></div>))}
+                                        </div>
+                                        <div className="mb-4"><textarea value={currentOrder.note} onChange={e=>setCurrentOrder({...currentOrder, note:e.target.value})} className="w-full p-2 bg-[#283245] border border-gray-600 rounded text-white text-sm h-12" placeholder="Note"/></div>
+                                        <button onClick={handleSaveOrderBlock} className={`w-full py-2 ${editingOrderBlockId ? 'bg-yellow-600 hover:bg-yellow-700' : 'bg-green-600 hover:bg-green-700'} text-white font-bold rounded`}>{editingOrderBlockId ? "Update Order" : "Save Order"}</button>
+                                    </div>
+                                    <div className="space-y-4">
+                                        {admissionData.clinical_orders.map(block => (
+                                            <div key={block.id} className={`bg-[#172554] border ${editingOrderBlockId === block.id ? 'border-yellow-500 ring-2 ring-yellow-500' : 'border-gray-600'} rounded shadow`}>
+                                                <div className="bg-[#2d3748] p-2 flex justify-between items-center border-b border-gray-600"><div className="flex gap-3 items-center"><span className="text-blue-400 font-bold font-mono">{block.date} {block.time}</span><span className="text-xs bg-blue-900 px-2 py-0.5 rounded text-blue-200">{block.category}</span><span className="text-green-400 text-sm">Diet: {block.diet}</span></div><div className="flex gap-2"><button onClick={() => handleEditOrder(block)} className="text-yellow-500 text-xs font-bold hover:text-yellow-400">EDIT</button><button onClick={()=>{if(confirm("Delete?")) setAdmissionData((prev: AdmissionRecord)=>({...prev, clinical_orders: prev.clinical_orders.filter((o: ClinicalOrderBlock)=>o.id!==block.id)}))}} className="text-red-500 text-xs font-bold hover:text-red-400">DEL</button></div></div>
+                                                <div className="p-3">{block.medications.map((m, i) => (<div key={i} className="text-sm text-gray-200 flex items-center mb-1"><span className="w-5 text-gray-500">{i+1}.</span><span className="font-bold">{m.type} {m.name}</span><span className="text-gray-400 ml-2">({m.dosage})</span><span className="mx-2 text-gray-600">---</span><span className="text-yellow-500 font-mono">{getFrequencyText(m.frequency)}</span></div>))}{block.note && <div className="mt-2 pt-2 border-t border-gray-700 text-sm text-amber-200"><span className="text-gray-500 text-xs font-bold mr-2">NOTE:</span>{block.note}</div>}</div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                            
+                            {activeSubTab === 'rounds' && (
+                                <div className="bg-[#172554] p-4 rounded border border-[#374151]">
+                                    <div className="flex gap-2 mb-4"><input type="time" value={roundTime} onChange={e=>setRoundTime(e.target.value)} className="bg-[#374151] border border-gray-600 rounded text-white p-2 w-32"/><input list="doctor_list_round" type="text" value={roundDoctor} onChange={e=>setRoundDoctor(e.target.value)} placeholder="Doctor" className="bg-[#374151] border border-gray-600 rounded text-white p-2 w-48"/><datalist id="doctor_list_round">{doctors.map(d=><option key={d.doctor_id} value={d.doctor_name}/>)}</datalist><input type="text" value={newRoundNote} onChange={e=>setNewRoundNote(e.target.value)} placeholder="Round Note..." className="flex-1 bg-[#374151] border border-gray-600 rounded text-white p-2"/><button onClick={()=>{if(!newRoundNote)return; const updated = {...admissionData, doctor_rounds:[...admissionData.doctor_rounds, {id:Date.now(), date:new Date().toISOString().split('T')[0], time:roundTime, note:newRoundNote, by:roundDoctor}]}; setAdmissionData(updated); syncAdmissionToGlobal(updated); setNewRoundNote('');}} className="bg-teal-600 text-white px-4 py-2 rounded">Add</button></div>
+                                    <div className="max-h-60 overflow-y-auto bg-[#111827] rounded"><table className="w-full text-sm text-left text-gray-300"><thead className="bg-[#1f2937] text-xs uppercase text-gray-400"><tr><th className="p-2">Time</th><th className="p-2">Note</th><th className="p-2">By</th><th className="p-2 text-right">X</th></tr></thead><tbody>{admissionData.doctor_rounds.map(r=><tr key={r.id} className="border-b border-gray-700"><td className="p-2">{r.time}</td><td className="p-2">{r.note}</td><td className="p-2">{r.by}</td><td className="p-2 text-right"><button onClick={()=>{const updated = {...admissionData, doctor_rounds:admissionData.doctor_rounds.filter(x=>x.id!==r.id)}; setAdmissionData(updated); syncAdmissionToGlobal(updated);}} className="text-red-500">x</button></td></tr>)}</tbody></table></div>
+                                </div>
+                            )}
+
+                            {activeSubTab === 'nurse' && (
+                                <div className="space-y-6">
+                                    <div className="bg-[#172554] p-5 rounded border border-[#374151]">
+                                        <div className="flex items-center gap-4 mb-4 bg-[#1f2937] p-4 rounded border border-[#374151] shadow-md"><div className="w-96"><SearchableSelect theme="dark" label="Select Performing Nurse (Logged)" options={activeNurses.map(nurse => ({ id: nurse.emp_name, name: nurse.emp_name, details: nurse.job_position }))} value={performingNurse} onChange={(_id, name) => setPerformingNurse(name)} onAddNew={() => {}} placeholder="Search Nurse..." inputHeightClass="h-10 bg-[#374151] border-gray-600" /></div></div>
+                                        <h4 className="text-lg font-bold text-purple-400 mb-4 uppercase tracking-wide">Scheduled Medications</h4>
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full text-sm text-left text-gray-300 border-collapse">
+                                                <thead className="bg-[#111827] text-xs uppercase font-bold text-gray-400">
+                                                    <tr>
+                                                        <th className="p-3 border border-gray-600">Drug Details</th>
+                                                        <th className="p-3 border border-gray-600">Frequency</th>
+                                                        <th className="p-3 border border-gray-600">Category</th>
+                                                        <th className="p-3 border border-gray-600">Last Given</th>
+                                                        <th className="p-3 border border-gray-600">Next Dose Due</th>
+                                                        <th className="p-3 border border-gray-600 text-right">Action</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="bg-[#1f2937]">
+                                                    {admissionData.clinical_orders.flatMap(o => o.medications).map((med, idx) => {
+                                                        const logs = admissionData.nurse_chart.filter(l => l.medicationId === med.id).sort((a, b) => b.id - a.id);
+                                                        const lastLog = logs[0];
+                                                        let statusText = 'Not Started';
+                                                        let nextTimeText = 'Start Now';
+                                                        let lastGivenText = 'Never';
+                                                        let lastGivenSrc = '';
+                                                        let nextColorClass = 'text-red-400 font-bold';
+                                                        let lastColorClass = 'text-gray-400';
+
+                                                        const substituteMed = medicines.find(m => 
+                                                            med.genericName && m.genericName && 
+                                                            m.genericName.toLowerCase() === med.genericName.toLowerCase() && 
+                                                            m.stock > 0
+                                                        );
+                                                        
+                                                        const autoSrc = substituteMed ? 'Clinic' : 'Outside';
+                                                        const currentSrc = medicationSources[med.id] || autoSrc;
+
+                                                        if (lastLog) {
+                                                            lastGivenText = lastLog.time;
+                                                            lastGivenSrc = lastLog.supplySrc === 'Outside' ? '(Outside)' : '(Clinic)';
+                                                            lastColorClass = 'text-gray-300';
+                                                            if (med.frequency === 0) {
+                                                                statusText = 'Completed';
+                                                                nextTimeText = '-';
+                                                                nextColorClass = 'text-green-400';
+                                                            } else {
+                                                                const lastTimeMs = lastLog.id; 
+                                                                const nextTimeMs = lastTimeMs + (med.frequency * 60 * 60 * 1000);
+                                                                const nextDate = new Date(nextTimeMs);
+                                                                const now = Date.now();
+                                                                const isOverdue = now > nextTimeMs;
+                                                                nextTimeText = `Next: ${nextDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+                                                                statusText = isOverdue ? 'On Schedule' : 'On Schedule';
+                                                                nextColorClass = isOverdue ? 'text-red-400 font-bold' : 'text-green-400 font-medium';
+                                                            }
+                                                        }
+
+                                                        return (
+                                                            <tr key={`${med.id}-${idx}`} className="border-b border-gray-700 hover:bg-gray-700/50">
+                                                                <td className="p-3 border border-gray-600 font-medium text-gray-100 text-base">{med.type}. {med.name} ({med.dosage})</td>
+                                                                <td className="p-3 border border-gray-600">{getFrequencyText(med.frequency)}</td>
+                                                                <td className="p-3 border border-gray-600">{med.category}</td>
+                                                                <td className={`p-3 border border-gray-700 ${lastColorClass}`}>{statusText} ({lastGivenText}) <span className="text-xs text-yellow-500">{lastGivenSrc}</span></td>
+                                                                <td className={`p-3 border border-gray-700 ${nextColorClass} text-base`}>{nextTimeText}</td>
+                                                                <td className="p-3 border border-gray-700 text-right">
+                                                                    <div className="flex flex-col gap-1 items-end">
+                                                                        <div className="flex gap-2 items-center">
+                                                                            <select 
+                                                                                value={currentSrc}
+                                                                                onChange={(e) => setMedicationSources(prev => ({...prev, [med.id]: e.target.value as 'Clinic' | 'Outside'}))}
+                                                                                className="bg-[#374151] text-xs text-white p-1 rounded border border-gray-600"
+                                                                            >
+                                                                                <option value="Clinic">Clinic Supply</option>
+                                                                                <option value="Outside">Patient/Outside</option>
+                                                                            </select>
+                                                                            <button 
+                                                                                onClick={() => {
+                                                                                    if(!performingNurse) return alert("Select Nurse First");
+                                                                                    
+                                                                                    // 3. OVERDOSE PREVENTION: Check if medicine was given less than 2 mins (120,000 ms) ago
+                                                                                    if (lastLog && (Date.now() - lastLog.id < 120000)) {
+                                                                                        if (!confirm("সতর্কতা: এই ঔষধটি মাত্র ২ মিনিট আগে দেওয়া হয়েছে। আপনি কি পুনরায় দিতে চান? (Medicine given < 2 mins ago. Proceed?)")) {
+                                                                                            return;
+                                                                                        }
+                                                                                    }
+
+                                                                                    let finalInventoryId = med.inventoryId;
+                                                                                    if (currentSrc === 'Clinic') {
+                                                                                        if (substituteMed) {
+                                                                                            finalInventoryId = substituteMed.id;
+                                                                                            const updatedMedicines = medicines.map(m => 
+                                                                                                m.id === substituteMed.id 
+                                                                                                ? { ...m, stock: m.stock - 1 } 
+                                                                                                : m
+                                                                                            );
+                                                                                            setMedicines(updatedMedicines);
+                                                                                        } else {
+                                                                                            return alert("Stock unavailable for Clinic Supply. Please switch to Outside.");
+                                                                                        }
+                                                                                    }
+
+                                                                                    const newLog: TreatmentLog = { 
+                                                                                        id: Date.now(), 
+                                                                                        date: new Date().toISOString().split('T')[0], 
+                                                                                        time: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}), 
+                                                                                        note: `Given: ${med.name}`, 
+                                                                                        by: performingNurse, 
+                                                                                        medicationId: med.id,
+                                                                                        supplySrc: currentSrc,
+                                                                                        actualInventoryId: finalInventoryId
+                                                                                    };
+                                                                                    const updated = {...admissionData, nurse_chart: [newLog, ...admissionData.nurse_chart]};
+                                                                                    setAdmissionData(updated);
+                                                                                    syncAdmissionToGlobal(updated); // IMMEDIATE SYNC FOR INVOICE
+                                                                                }} 
+                                                                                className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded font-bold shadow transition-colors"
+                                                                            >
+                                                                                Give
+                                                                            </button>
+                                                                        </div>
+                                                                        {substituteMed ? (
+                                                                            <span className="text-[10px] text-green-400 font-bold">
+                                                                                Available: {substituteMed.tradeName} (Stock: {substituteMed.stock})
+                                                                            </span>
+                                                                        ) : (
+                                                                            <span className="text-[10px] text-red-400 font-bold">Out of Stock</span>
+                                                                        )}
+                                                                    </div>
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    })}
+                                                    {admissionData.clinical_orders.flatMap(o => o.medications).length === 0 && <tr><td colSpan={6} className="p-8 text-center text-gray-500 text-base">No medications ordered by doctor yet.</td></tr>}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                    <div className="bg-[#172554] p-4 rounded border border-[#374151]">
+                                        <div className="flex gap-2 mb-2"><input type="text" value={newNurseNote} onChange={e => setNewNurseNote(e.target.value)} placeholder="Nurse Note..." className="flex-1 p-3 bg-[#374151] border border-gray-600 rounded text-gray-200"/><button onClick={() => { if(!performingNurse) return alert("Select Nurse"); const updated = {...admissionData, nurse_chart: [{ id: Date.now(), date: new Date().toISOString().split('T')[0], time: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}), note: newNurseNote, by: performingNurse }, ...admissionData.nurse_chart]}; setAdmissionData(updated); syncAdmissionToGlobal(updated); setNewNurseNote('');}} className="bg-purple-600 text-white px-6 py-3 rounded">Log</button></div>
+                                        <div className="max-h-60 overflow-y-auto bg-[#111827] rounded"><table className="w-full text-sm text-left text-gray-300"><thead className="bg-[#1f2937] sticky top-0"><tr><th className="p-2">Time</th><th className="p-2">Activity</th><th className="p-2">Nurse</th></tr></thead><tbody>{admissionData.nurse_chart.map(n=><tr key={n.id} className="border-b border-gray-700"><td className="p-2">{n.time}</td><td className="p-2">{n.note}</td><td className="p-2 text-purple-400">{n.by}</td></tr>)}</tbody></table></div>
+                                    </div>
+                                </div>
+                            )}
+                            {activeSubTab === 'demands' && (
+                                <div className="bg-[#172554] p-6 rounded border border-[#374151]">
+                                    <div className="flex justify-between items-center mb-4">
+                                        <h4 className="text-xl font-bold text-yellow-400">Drug Demand List</h4>
+                                        <button onClick={() => setShowDrugDemandModal(true)} className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded font-bold text-sm shadow-lg flex items-center gap-2 transition-all">
+                                            <PlusIcon size={16}/> Add New Demand
+                                        </button>
+                                    </div>
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-sm text-left text-gray-300">
+                                            <thead className="bg-[#111827] text-xs uppercase text-gray-400">
+                                                <tr>
+                                                    <th className="p-3">Drug</th>
+                                                    <th className="p-3">Generic</th>
+                                                    <th className="p-3">Req By</th>
+                                                    <th className="p-3">Status</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="bg-[#1f2937]">
+                                                {drugDemands.map(req => (
+                                                    <tr key={req.id} className="border-b border-gray-700">
+                                                        <td className="p-3">{req.name} <span className="text-xs text-gray-400">({req.type} {req.strength})</span></td>
+                                                        <td className="p-3">{req.genericName}</td>
+                                                        <td className="p-3">{req.requestedBy}</td>
+                                                        <td className="p-3">
+                                                            <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase ${req.status === 'Pending' ? 'bg-amber-900/50 text-amber-400' : 'bg-emerald-900/50 text-emerald-400'}`}>
+                                                                {req.status}
+                                                            </span>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                                {drugDemands.length === 0 && <tr><td colSpan={4} className="p-8 text-center text-gray-500 italic">No drugs in demand list.</td></tr>}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            )}
                         </div>
+                    )}
+                </div>
+            )}
+
+            {/* Modal Components for Admission & Treatment */}
+            {showIndicationManager && (
+                <GenericManagerPage 
+                    title="Manage Indication" 
+                    placeholder="Enter Indication Name" 
+                    items={indications} 
+                    setItems={setIndications as any} 
+                    onClose={()=>setShowIndicationManager(false)} 
+                    onSaveAndSelect={(_id, name)=>{setAdmissionData((prev: AdmissionRecord)=>({...prev, indication:name})); setShowIndicationManager(false);}} 
+                />
+            )}
+            {showServiceManager && (
+                <GenericManagerPage 
+                    title="Manage Services" 
+                    placeholder="Enter Service Name" 
+                    items={services} 
+                    setItems={setServices as any} 
+                    onClose={()=>setShowServiceManager(false)} 
+                    onSaveAndSelect={(_id, name)=>{setAdmissionData((prev: AdmissionRecord)=>({...prev, service_name:name})); setShowServiceManager(false);}} 
+                />
+            )}
+            {showTemplateModal && (
+                <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
+                    <div className="bg-[#1f2937] rounded-lg w-full max-w-lg border border-gray-600 shadow-2xl p-6">
+                        <h3 className="text-xl font-bold text-white mb-4">Treatment Templates</h3>
+                        <div className="flex gap-2 mb-6">
+                            <input value={newTemplateName} onChange={e=>setNewTemplateName(e.target.value)} placeholder="New Template Name" className="flex-1 p-2 bg-[#2d3748] border border-gray-600 rounded text-white"/>
+                            <button onClick={handleSaveTemplate} className="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-500">Save Current Order as Template</button>
+                        </div>
+                        <h4 className="text-sm font-bold text-gray-400 mb-2 uppercase">Saved Templates</h4>
+                        <div className="max-h-60 overflow-y-auto bg-[#111827] rounded border border-gray-700 p-2">
+                            {templates.map(t => (
+                                <div key={t.id} className="flex justify-between items-center p-2 hover:bg-gray-800 border-b border-gray-800 last:border-0">
+                                    <div onClick={() => handleLoadTemplate(t)} className="cursor-pointer flex-1">
+                                        <div className="font-bold text-blue-400">{t.name}</div>
+                                        <div className="text-xs text-gray-500">{t.category} - {t.medications.length} meds</div>
+                                    </div>
+                                    <button onClick={()=>{setTemplates((prev: TreatmentTemplate[])=>prev.filter((x: TreatmentTemplate)=>x.id!==t.id))}} className="text-red-500 text-xs">Del</button>
+                                </div>
+                            ))}
+                            {templates.length === 0 && <div className="text-center text-gray-500 p-4">No templates saved yet.</div>}
+                        </div>
+                        <div className="mt-4 text-right"><button onClick={()=>setShowTemplateModal(false)} className="bg-slate-600 text-white px-4 py-2 rounded">Close</button></div>
                     </div>
                 </div>
             )}
+            {showDrugDemandModal && <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4"><div className="bg-[#1f2937] rounded-lg w-full max-w-md border border-gray-600 shadow-2xl p-6"><h3 className="text-xl font-bold text-white mb-4">New Drug</h3><input value={newDrugEntry.name} onChange={e=>setNewDrugEntry({...newDrugEntry, name:e.target.value})} className="w-full p-2 bg-[#2d3748] border border-gray-600 rounded text-white mb-2" placeholder="Trade Name"/><input value={newDrugEntry.generic} onChange={e=>setNewDrugEntry({...newDrugEntry, generic:e.target.value})} className="w-full p-2 bg-[#2d3748] border border-gray-600 rounded text-white mb-2" placeholder="Generic Name (e.g. Paracetamol)"/><div className="grid grid-cols-2 gap-2 mb-4"><div><label className="text-[10px] text-gray-500 uppercase font-black mb-1">Type</label><select value={newDrugEntry.type} onChange={e=>setNewDrugEntry({...newDrugEntry, type: e.target.value})} className="w-full p-2 bg-[#2d3748] border border-gray-600 rounded text-white text-sm">{drugTypes.map(t=><option key={t} value={t}>{t}</option>)}</select></div><div><label className="text-[10px] text-gray-500 uppercase font-black mb-1">Strength</label><input value={newDrugEntry.strength} onChange={e=>setNewDrugEntry({...newDrugEntry, strength: e.target.value})} className="w-full p-2 bg-[#2d3748] border border-gray-600 rounded text-white text-sm" placeholder="500mg"/></div></div><button onClick={handleSaveNewDrugEntry} className="px-4 py-2 bg-blue-600 text-white rounded">Add</button><button onClick={()=>setShowDrugDemandModal(false)} className="px-4 py-2 bg-gray-600 text-white rounded ml-2">Cancel</button></div></div>}
+            {showNewPatientForm && <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4"><div className="bg-[#1f2937] rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto border border-gray-600"><div className="p-4"><PatientInfoPage patients={patients} setPatients={setPatients} isEmbedded={true} onClose={()=>setShowNewPatientForm(false)} onSaveAndSelect={(id,name)=>{setAdmissionData((prev: AdmissionRecord)=>({...prev, patient_id:id, patient_name:name})); setShowNewPatientForm(false);}}/></div></div></div>}
+            {showNewDoctorForm && <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4"><div className="bg-[#1f2937] rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto border border-gray-600"><div className="p-4"><DoctorInfoPage doctors={doctors} setDoctors={setDoctors} isEmbedded={true} onClose={()=>setShowNewDoctorForm(false)} onSaveAndSelect={(id,name)=>{setAdmissionData((prev: AdmissionRecord)=>({...prev, doctor_id:id, doctor_name:name})); setShowNewDoctorForm(false);}}/></div></div></div>}
+            {showNewReferrarForm && <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4"><div className="bg-[#1f2937] rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto border border-gray-600"><div className="p-4"><ReferrerInfoPage referrars={referrars} setReferrars={setReferrars} isEmbedded={true} onClose={()=>setShowNewReferrarForm(false)} onSaveAndSelect={(id,name)=>{setAdmissionData((prev: AdmissionRecord)=>({...prev, referrer_id:id, referrer_name:name})); setShowNewReferrarForm(false);}}/></div></div></div>}
         </div>
     );
 };
@@ -1411,6 +1761,72 @@ const IndoorInvoicePage: React.FC<{
         </div>
     );
 
+    // --- Helper function for keyword matching ---
+    const matchesKeyword = (source: string, words: string[]) => {
+        if(!source) return false;
+        const lower = source.toLowerCase();
+        return words.some(w => lower.includes(w.toLowerCase()));
+    };
+
+    // --- Core logic to categorize an invoice (Mapping Category Breakdown) ---
+    const categorizeInvoiceData = (inv: IndoorInvoice) => {
+        if (inv.status === 'Cancelled' || inv.status === 'Returned') {
+            return { admFee: 0, oxygen: 0, conservative: 0, nvd: 0, dc: 0, lscs_ot: 0, gb_ot: 0, others_ot: 0, dressing: 0, others: 0, pcAmount: 0, clinicNet: 0 };
+        }
+
+        const incomeItems = inv.items.filter((it: any) => it.isClinicFund === true);
+
+        const admFee = incomeItems
+            .filter((it: any) => matchesKeyword(it.service_type, ['Admission Fee', 'ভর্তি ফি']))
+            .reduce((s: number, i: any) => s + i.payable_amount, 0);
+
+        const oxygen = incomeItems
+            .filter((it: any) => matchesKeyword(it.service_type, ['Oxygen', 'O2', 'Nebulizer', 'Nebulization']))
+            .reduce((s: number, i: any) => s + i.payable_amount, 0);
+
+        const dressing = incomeItems
+            .filter((it: any) => matchesKeyword(it.service_type, ['Dressing']))
+            .reduce((s: number, i: any) => s + i.payable_amount, 0);
+
+        const conservative = incomeItems
+            .filter((it: any) => 
+                it.serviceCategory === 'Conservative treatment' && 
+                !matchesKeyword(it.service_type, ['Admission Fee', 'ভর্তি ফি', 'Oxygen', 'O2', 'Nebulizer', 'Nebulization', 'Dressing'])
+            )
+            .reduce((s: number, i: any) => s + i.payable_amount, 0);
+
+        let nvd = 0, dc = 0, lscs_ot = 0, gb_ot = 0, others_ot = 0, others = 0;
+        
+        incomeItems.forEach((it: any) => {
+            const sName = (it.service_type || '').toUpperCase();
+            const iName = (inv.indication || '').toUpperCase();
+            const sCat = (it.serviceCategory || inv.serviceCategory || '');
+
+            if (sCat.includes('Operation') || sCat.includes('OT') || sCat.includes('NVD')) {
+                if (sName.includes('LSCS') || iName.includes('LSCS') || sName.includes('LUCS') || iName.includes('LUCS')) {
+                    lscs_ot += it.payable_amount;
+                } else if (sName.includes('GB') || iName.includes('GB') || sName.includes('Gallbladder')) {
+                    gb_ot += it.payable_amount;
+                } else if (sName.includes('NVD') || iName.includes('NVD')) {
+                    nvd += it.payable_amount;
+                } else if (sName.includes('D&C') || iName.includes('D&C')) {
+                    dc += it.payable_amount;
+                } else if (!matchesKeyword(it.service_type, ['Admission Fee', 'Oxygen', 'O2', 'Nebulizer', 'Dressing'])) {
+                    others_ot += it.payable_amount;
+                }
+            } else if (!matchesKeyword(it.service_type, ['Admission Fee', 'Oxygen', 'O2', 'Nebulizer', 'Dressing'])) {
+                others += it.payable_amount;
+            }
+        });
+
+        const totalClinicRevenue = admFee + oxygen + conservative + nvd + dc + lscs_ot + gb_ot + others_ot + dressing + others;
+        const pcAmount = inv.commission_paid || 0;
+        // Logic Update: Subtract special discount from Clinic's net gain
+        const clinicNet = totalClinicRevenue - (inv.special_discount_amount || 0) - pcAmount;
+
+        return { admFee, oxygen, conservative, nvd, dc, lscs_ot, gb_ot, others_ot, dressing, others, pcAmount, clinicNet };
+    };
+
     return (
         <div className="space-y-6">
             <div className="grid grid-cols-4 gap-4">
@@ -1573,7 +1989,8 @@ const IndoorInvoicePage: React.FC<{
                 
                 <div className="mt-8">
                     <h3 className="text-gray-400 font-bold mb-2 uppercase text-xs tracking-widest">Master Journal: Saved Indoor Invoices</h3>
-                    <div className="max-h-96 overflow-y-auto bg-[#111827] rounded-xl border border-gray-700 custom-scrollbar shadow-inner">
+                    {/* Fixed: Container expanded for continuous page view (removed fixed height/overflow) */}
+                    <div className="bg-[#111827] rounded-xl border border-gray-700 shadow-inner">
                         <table className="w-full text-sm text-left text-gray-300">
                             <thead className="bg-[#1f2937] text-gray-400 sticky top-0 z-10"><tr><th className="p-3">ID</th><th className="p-3">Date</th><th className="p-3">Patient</th><th className="p-3 text-right">Total</th><th className="p-3 text-right">Paid</th><th className="p-3 text-right">Due</th><th className="p-3 text-center">Status</th><th className="p-3 text-center">Action</th></tr></thead>
                             <tbody className="divide-y divide-gray-700">

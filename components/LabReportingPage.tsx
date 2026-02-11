@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { LabInvoice as Invoice, Patient, Employee, Doctor, Test, ReportTemplate, LabReport, defaultPregnancyTemplates } from './DiagnosticData'; 
 import UltrasonographyReportEditor from './UltrasonographyReportEditor';
@@ -76,6 +77,18 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
         }).map((item: any) => item.test_name);
     }, [currentInvoice, activeTestName, tests]);
 
+    // Grouping logic for pathology tests
+    const groupedPathologyTests = useMemo(() => {
+        const groups: Record<string, string[]> = {};
+        activeTestGroup.forEach(tName => {
+            const testDef = tests.find(t => t.test_name === tName);
+            const cat = testDef?.category || 'Others';
+            if (!groups[cat]) groups[cat] = [];
+            groups[cat].push(tName);
+        });
+        return groups;
+    }, [activeTestGroup, tests]);
+
     useEffect(() => {
         if (!selectedInvoiceId || !activeTestName) return;
         const saved = reports.find((r: LabReport) => r.invoice_id === selectedInvoiceId && r.test_name === activeTestName);
@@ -83,7 +96,6 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
             setCurrentReportData(saved.data);
             setSelectedTechnologistId(saved.technologistId || '');
             setSelectedConsultantId(saved.consultantId || '');
-            // Try to load custom values if they were saved (optional improvement, using current logic for now)
         } else {
             setCurrentReportData(null);
         }
@@ -139,12 +151,26 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
                         body { background: white; margin: 0; padding: 0; font-family: 'Times New Roman', serif; }
                         .a4-container { width: 210mm; min-height: 297mm; margin: 0 auto; position: relative; display: flex; flex-direction: column; box-sizing: border-box; }
                         .report-content { 
-                            padding: 10mm 15mm; 
+                            padding: 10mm 15mm 40mm 15mm; 
                             ${printFullPad ? 'margin-top: 0;' : 'margin-top: 2.1in;'} 
                             flex: 1; 
                         }
+                        .footer {
+                            position: absolute;
+                            bottom: 15mm;
+                            left: 0;
+                            right: 0;
+                            padding: 0 20mm;
+                            display: flex;
+                            justify-content: space-between;
+                            align-items: flex-end;
+                            z-index: 50;
+                        }
+                        .signature-box { text-align: center; width: 45%; }
                         .no-print { display: none !important; }
                         .font-bengali { font-family: 'Arial', sans-serif !important; }
+                        .degree-text { white-space: pre-wrap; line-height: 1.3; }
+                        .page-break { page-break-after: always; }
                     </style>
                 </head>
                 <body>
@@ -171,18 +197,18 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
                             ${content.innerHTML}
                         </div>
 
-                        <div class="footer p-12 mt-auto flex justify-between items-end shrink-0">
-                            <div class="text-center w-64">
+                        <div class="footer">
+                            <div class="signature-box">
                                 <p class="text-[11px] font-black uppercase text-slate-500 mb-1">Lab Technologist</p>
-                                <div class="h-10 w-full"></div>
+                                <div class="h-12 w-full"></div>
                                 <p class="text-[14px] font-black text-slate-950 uppercase border-t-2 border-black pt-1">${customTechName || '...........................................'}</p>
-                                <p class="text-[9px] font-bold uppercase text-slate-500 tracking-widest">${customTechDegree || ''}</p>
+                                <p class="text-[9px] font-bold uppercase text-slate-500 tracking-widest degree-text">${customTechDegree || ''}</p>
                             </div>
-                            <div class="text-center w-72">
+                            <div class="signature-box">
                                 <p class="text-[11px] font-black uppercase text-slate-500 mb-1">Reported By</p>
-                                <div class="h-10 w-full"></div>
+                                <div class="h-12 w-full"></div>
                                 <p class="text-[14px] font-black text-slate-950 uppercase border-t-2 border-black pt-1">${customDocName || '...........................................'}</p>
-                                <p class="text-[10px] font-bold text-slate-600 italic whitespace-pre-wrap leading-tight">${customDocDegree || ''}</p>
+                                <p class="text-[10px] font-bold text-slate-600 italic whitespace-pre-wrap leading-tight degree-text">${customDocDegree || ''}</p>
                             </div>
                         </div>
                     </div>
@@ -199,24 +225,32 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
 
     const ReportHeader = () => {
         const regNo = currentInvoice?.invoice_id?.split('-').pop() + '/' + (currentInvoice?.invoice_date.substring(2,4) || '25');
+        const docObj = doctors.find((d: Doctor) => d.doctor_id === currentInvoice?.doctor_id);
+        const doctorFullInfo = (currentInvoice?.doctor_name || 'Self') + (docObj?.degree ? ', ' + docObj.degree : '');
+        
         return (
-            <div className="mb-6 shrink-0 text-black">
-                <table className="w-full border-collapse border-2 border-black text-[12px]">
+            <div className="mb-6 shrink-0 text-black no-print">
+                <table className="w-full border-collapse border border-black text-[11px]">
                     <tbody>
-                        <tr className="h-9">
-                            <td className="border-2 border-black px-3 py-1 bg-slate-50 w-24 font-bold uppercase text-[9px]">Date:</td>
-                            <td className="border-2 border-black px-3 py-1 font-bold w-[45%]">{currentInvoice?.invoice_date}</td>
-                            <td className="border-2 border-black px-3 py-1 bg-slate-50 w-28 font-bold uppercase text-[9px]">Reg. No:</td>
-                            <td className="border-2 border-black px-3 py-1 font-black text-blue-900 text-sm">{regNo}</td>
-                            <td rowSpan={2} className="border-2 border-black p-1 w-32 text-center bg-white">
-                                <img src={`https://bwipjs-api.metafloor.com/?bcid=code128&text=${encodeURIComponent(patient?.pt_id || '')}&scale=1&height=5`} alt="BC" className="h-6 mx-auto" />
+                        <tr className="h-8">
+                            <td className="border border-black px-2 py-1 font-bold whitespace-nowrap" style={{ width: '80px' }}>Pt. Name :</td>
+                            <td className="border border-black px-2 py-1 font-normal uppercase" style={{ width: 'auto' }}>
+                                {patient?.pt_name} / {patient?.address} / {patient?.ageY}Y
                             </td>
+                            <td className="border border-black px-2 py-1 font-bold whitespace-nowrap" style={{ width: '45px' }}>Sex :</td>
+                            <td className="border border-black px-2 py-1 font-normal" style={{ width: '60px' }}>{patient?.gender || 'N/A'}</td>
+                            <td className="border border-black px-2 py-1 font-bold whitespace-nowrap" style={{ width: '60px' }}>Reg.No :</td>
+                            <td className="border border-black px-2 py-1 font-normal" style={{ width: '80px' }}>{regNo}</td>
+                            <td className="border border-black px-2 py-1 font-bold whitespace-nowrap" style={{ width: '45px' }}>Date :</td>
+                            <td className="border border-black px-2 py-1 font-normal" style={{ width: '85px' }}>{currentInvoice?.invoice_date}</td>
                         </tr>
-                        <tr className="h-10">
-                            <td className="border-2 border-black px-3 py-1 bg-slate-50 font-bold uppercase text-[9px]">Patient:</td>
-                            <td className="border-2 border-black px-3 py-1 text-base font-black uppercase tracking-tight">{patient?.pt_name}</td>
-                            <td className="border-2 border-black px-3 py-1 bg-slate-50 font-bold uppercase text-[9px]">Age/Sex:</td>
-                            <td className="border-2 border-black px-3 py-1 font-black text-sm">{patient?.ageY || '0'} Y / {patient?.gender || 'N/A'}</td>
+                        <tr className="h-8">
+                            <td className="border border-black px-2 py-1 font-bold whitespace-nowrap" style={{ width: '80px' }}>Refd By Dr. :</td>
+                            <td className="border border-black px-2 py-1 font-normal text-[10px]" style={{ width: 'auto' }}>{doctorFullInfo}</td>
+                            <td className="border border-black px-2 py-1 font-bold whitespace-nowrap" style={{ width: '60px' }}>B_Code :</td>
+                            <td className="border border-black p-1 bg-white flex items-center justify-center" style={{ width: '200px' }}>
+                                <img src={`https://bwipjs-api.metafloor.com/?bcid=code128&text=${encodeURIComponent(patient?.pt_id || '')}&scale=1&height=5&incltext=false`} alt="BC" className="h-4" />
+                            </td>
                         </tr>
                     </tbody>
                 </table>
@@ -249,7 +283,7 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
                                     <div className={`font-black text-sm uppercase tracking-tight ${isActive ? 'text-white' : 'text-slate-900'}`}>{r.patient_name}</div>
                                     <div className="flex justify-between items-center mt-2">
                                         <span className={`text-[10px] font-mono ${isActive ? 'text-white/70' : 'text-slate-500'}`}>{r.invoice_id}</span>
-                                        <span className={`text-[8px] px-2 py-1 rounded-full font-black uppercase ${isAllDone ? 'bg-emerald-500 text-white' : 'bg-orange-500 text-white'}`}>{isAllDone ? 'Ready' : 'Pending'}</span>
+                                        <span className={`text-[8px] px-2 py-1 rounded-full font-black uppercase ${isAllDone ? 'bg-emerald-50 text-white' : 'bg-orange-500 text-white'}`}>{isAllDone ? 'Ready' : 'Pending'}</span>
                                     </div>
                                 </div>
                             );
@@ -271,8 +305,8 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
                         })}
                     </div>
                     <div className="p-4 bg-slate-900 border-t border-slate-700 space-y-3">
-                         <select value={selectedTechnologistId} onChange={e=>setSelectedTechnologistId(e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2 text-[10px] text-white font-bold outline-none"><option value="">-- Tech --</option>{employees.filter((e:any)=>e.department==='Diagnostic').map((e: any) => <option key={e.emp_id} value={e.emp_id}>{e.emp_name}</option>)}</select>
-                         <select value={selectedConsultantId} onChange={e=>setSelectedConsultantId(e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2 text-[10px] text-white font-bold outline-none"><option value="">-- Doctor --</option>{doctors.map((d: any) => <option key={d.doctor_id} value={d.doctor_id}>{d.doctor_name}</option>)}</select>
+                         <select value={selectedTechnologistId} onChange={e=>setSelectedTechnologistId(e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2 text-[10px] text-white font-bold outline-none"><option value="">-- Select Tech --</option>{employees.filter((e:any)=>e.department==='Diagnostic').map((e: any) => <option key={e.emp_id} value={e.emp_id}>{e.emp_name}</option>)}</select>
+                         <select value={selectedConsultantId} onChange={e=>setSelectedConsultantId(e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2 text-[10px] text-white font-bold outline-none"><option value="">-- Select Doctor --</option>{doctors.map((d: any) => <option key={d.doctor_id} value={d.doctor_id}>{d.doctor_name}</option>)}</select>
                     </div>
                 </div>
 
@@ -304,52 +338,76 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
                                 <div className="w-full max-w-[850px] mx-auto bg-white shadow-2xl min-h-[900px] flex flex-col p-12 rounded-[2.5rem] text-black" id="printable-report-content">
                                     <ReportHeader />
                                     <div className="flex-1">
-                                        {(activeTestName.toLowerCase().includes('lipid')) ? (
-                                            <LipidProfileInputPage results={currentReportData} onSaveOverride={handleSaveReport} patient={patient} invoice={currentInvoice} doctors={doctors} employees={employees} technologistId={selectedTechnologistId} consultantId={selectedConsultantId} isEmbedded={true} checkRange={isOutOfRange} />
-                                        ) : (activeTestName.toLowerCase().includes('urine')) ? (
-                                            <UrineRMEInputPage results={currentReportData} onSaveOverride={handleSaveReport} patient={patient} invoice={currentInvoice} doctors={doctors} employees={employees} technologistId={selectedTechnologistId} consultantId={selectedConsultantId} isEmbedded={true} checkRange={isOutOfRange} />
-                                        ) : (activeTestName.toLowerCase().includes('cbc')) ? (
-                                            <CBCInputPage results={currentReportData} onSaveOverride={handleSaveReport} patient={patient} invoice={currentInvoice} doctors={doctors} employees={employees} technologistId={selectedTechnologistId} consultantId={selectedConsultantId} isEmbedded={true} checkRange={isOutOfRange} />
-                                        ) : (activeTestName.toLowerCase().includes('semen')) ? (
-                                            <SemenAnalysisInputPage results={currentReportData} onSaveOverride={handleSaveReport} patient={patient} invoice={currentInvoice} doctors={doctors} employees={employees} technologistId={selectedTechnologistId} consultantId={selectedConsultantId} isEmbedded={true} checkRange={isOutOfRange} />
-                                        ) : (activeTestName.toLowerCase().includes('usg') || activeTestName.toLowerCase().includes('ultra')) ? (
+                                        {/* Pathology/Generic Logic with Grouping and CBC Isolation */}
+                                        {(activeTestName.toLowerCase().includes('usg') || activeTestName.toLowerCase().includes('ultra')) ? (
                                             <UltrasonographyReportEditor template={null} patient={patient} invoice={currentInvoice} onSave={handleSaveReport} reportData={currentReportData} setReportData={setCurrentReportData} doctors={doctors} employees={employees} technologistId={selectedTechnologistId} consultantId={selectedConsultantId} isEmbedded={true} />
                                         ) : (
-                                            <div className="space-y-6">
-                                                <h1 className="text-center font-black uppercase underline text-xl mb-8">Investigation Report</h1>
-                                                <table className="w-full border-collapse border-2 border-black">
-                                                    <thead className="bg-slate-100"><tr><th className="border-2 border-black p-2 text-left text-[11px] uppercase font-black w-[45%]">Investigation</th><th className="border-2 border-black p-2 text-center text-[11px] uppercase font-black w-[20%]">Result</th><th className="border-2 border-black p-2 text-center text-[11px] uppercase font-black w-[15%]">Unit</th><th className="border-2 border-black p-2 text-left text-[11px] uppercase font-black w-[20%]">Normal Range</th></tr></thead>
-                                                    <tbody>
-                                                        {activeTestGroup.map((tName: string) => {
-                                                            const testDef = tests.find((t: any) => t.test_name === tName);
-                                                            const val = currentReportData?.[tName] || '';
-                                                            const isAlert = isOutOfRange(val, testDef?.normal_range || '');
-                                                            return (
-                                                                <tr key={tName} className="h-9">
-                                                                    <td className="border-2 border-black px-3 py-1 font-black uppercase text-[11px]">{tName}</td>
-                                                                    <td className="border-2 border-black p-0 text-center"><input className={`w-full h-full p-1 border-none font-black text-center text-sm outline-none no-print ${isAlert ? 'bg-red-50 text-red-600' : 'bg-blue-50'}`} onChange={(e) => setCurrentReportData({ ...currentReportData, [tName]: e.target.value })} value={val} /><span className={`hidden print:block font-black text-sm ${isAlert ? 'text-red-600' : ''}`}>{val || '---'}</span></td>
-                                                                    <td className="border-2 border-black text-center text-[10px]">{testDef?.unit || '-'}</td>
-                                                                    <td className="border-2 border-black px-3 text-[9px] italic font-bold">{testDef?.normal_range || '-'}</td>
-                                                                </tr>
-                                                            );
-                                                        })}
-                                                    </tbody>
-                                                </table>
+                                            <div className="space-y-10">
+                                                {/* FIX: Add explicit type assertion to Object.entries to fix 'unknown' property error for testsInCat.some and testsInCat.map */}
+                                                {(Object.entries(groupedPathologyTests) as [string, string[]][]).map(([category, testsInCat], catIdx) => {
+                                                    const hasCBC = testsInCat.some(t => t.toLowerCase().includes('cbc'));
+                                                    
+                                                    // If CBC is present, we handle it separately for isolation if requested
+                                                    // But for this layout, we group by category and provide departmental headers
+                                                    return (
+                                                        <div key={category} className={`${hasCBC ? 'page-break mb-10' : 'mb-8'}`}>
+                                                            <h3 className="text-center font-black uppercase underline text-sm mb-4 border-2 border-black border-b-0 py-1 bg-slate-50">{category} Report</h3>
+                                                            {category === 'Hematology' && hasCBC ? (
+                                                                // Special handling for CBC if in Hematology
+                                                                <CBCInputPage results={currentReportData} onSaveOverride={handleSaveReport} patient={patient} invoice={currentInvoice} doctors={doctors} employees={employees} technologistId={selectedTechnologistId} consultantId={selectedConsultantId} isEmbedded={true} checkRange={isOutOfRange} />
+                                                            ) : (
+                                                                // Generic Table for other departments (Biochemistry, Serology, etc.)
+                                                                <table className="w-full border-collapse border-2 border-black">
+                                                                    <thead className="bg-slate-100">
+                                                                        <tr>
+                                                                            <th className="border-2 border-black p-2 text-left text-[11px] uppercase font-black w-[45%]">Investigation</th>
+                                                                            <th className="border-2 border-black p-2 text-center text-[11px] uppercase font-black w-[20%]">Result</th>
+                                                                            <th className="border-2 border-black p-2 text-center text-[11px] uppercase font-black w-[15%]">Unit</th>
+                                                                            <th className="border-2 border-black p-2 text-left text-[11px] uppercase font-black w-[20%]">Normal Range</th>
+                                                                        </tr>
+                                                                    </thead>
+                                                                    <tbody>
+                                                                        {testsInCat.map((tName: string) => {
+                                                                            const testDef = tests.find((t: any) => t.test_name === tName);
+                                                                            const val = currentReportData?.[tName] || '';
+                                                                            const isAlert = isOutOfRange(val, testDef?.normal_range || '');
+                                                                            
+                                                                            // Avoid re-rendering CBC if it was handled by the specific component above
+                                                                            if (category === 'Hematology' && tName.toLowerCase().includes('cbc')) return null;
+
+                                                                            return (
+                                                                                <tr key={tName} className="h-9">
+                                                                                    <td className="border-2 border-black px-3 py-1 font-black uppercase text-[11px]">{tName}</td>
+                                                                                    <td className="border-2 border-black p-0 text-center">
+                                                                                        <input className={`w-full h-full p-1 border-none font-black text-center text-sm outline-none no-print ${isAlert ? 'bg-red-50 text-red-600' : 'bg-blue-50'}`} onChange={(e) => setCurrentReportData({ ...currentReportData, [tName]: e.target.value })} value={val} />
+                                                                                        <span className={`hidden print:block font-black text-sm ${isAlert ? 'text-red-600' : ''}`}>{val || '---'}</span>
+                                                                                    </td>
+                                                                                    <td className="border-2 border-black text-center text-[10px]">{testDef?.unit || '-'}</td>
+                                                                                    <td className="border-2 border-black px-3 text-[9px] italic font-bold">{testDef?.normal_range || '-'}</td>
+                                                                                </tr>
+                                                                            );
+                                                                        })}
+                                                                    </tbody>
+                                                                </table>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })}
                                             </div>
                                         )}
                                     </div>
                                     
                                     {/* Manual Signature Section for Real-time Editing */}
-                                    <div className="mt-20 flex justify-between px-10 text-black no-print border-t-2 border-slate-100 pt-10">
+                                    <div className="mt-16 flex justify-between px-10 text-black no-print border-t-2 border-slate-100 pt-8">
                                         <div className="text-center w-64 space-y-2">
                                             <p className="text-[10px] font-black uppercase text-slate-400 mb-1 leading-none">Lab Technologist Override</p>
-                                            <input value={customTechName} onChange={e=>setCustomTechName(e.target.value)} placeholder="Name" className="w-full bg-slate-50 border border-slate-200 rounded p-1 text-[11px] font-black uppercase text-center"/>
-                                            <input value={customTechDegree} onChange={e=>setCustomTechDegree(e.target.value)} placeholder="Degree" className="w-full bg-slate-50 border border-slate-200 rounded p-1 text-[9px] font-bold text-center"/>
+                                            <input value={customTechName} onChange={e=>setCustomTechName(e.target.value)} placeholder="Name" className="w-full bg-slate-50 border border-slate-200 rounded p-1 text-[11px] font-black uppercase text-center outline-none focus:border-blue-500"/>
+                                            <textarea value={customTechDegree} onChange={e=>setCustomTechDegree(e.target.value)} placeholder="Degrees (Press Enter for new line)" className="w-full bg-slate-50 border border-slate-200 rounded p-1 text-[9px] font-bold text-center h-12 resize-none outline-none focus:border-blue-500"/>
                                         </div>
                                         <div className="text-center w-72 space-y-2">
                                             <p className="text-[10px] font-black uppercase text-slate-400 mb-1 leading-none">Reporting Doctor Override</p>
-                                            <input value={customDocName} onChange={e=>setCustomDocName(e.target.value)} placeholder="Name" className="w-full bg-slate-50 border border-slate-200 rounded p-1 text-[11px] font-black uppercase text-center"/>
-                                            <textarea value={customDocDegree} onChange={e=>setCustomDocDegree(e.target.value)} placeholder="Degree" className="w-full bg-slate-50 border border-slate-200 rounded p-1 text-[9px] font-bold text-center h-12 resize-none"/>
+                                            <input value={customDocName} onChange={e=>setCustomDocName(e.target.value)} placeholder="Name" className="w-full bg-slate-50 border border-slate-200 rounded p-1 text-[11px] font-black uppercase text-center outline-none focus:border-blue-500"/>
+                                            <textarea value={customDocDegree} onChange={e=>setCustomDocDegree(e.target.value)} placeholder="Degrees (Press Enter for new line)" className="w-full bg-slate-50 border border-slate-200 rounded p-1 text-[9px] font-bold text-center h-16 resize-none outline-none focus:border-blue-500"/>
                                         </div>
                                     </div>
                                 </div>
