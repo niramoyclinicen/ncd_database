@@ -497,8 +497,8 @@ const CertificateModal: React.FC<{
                         </div>
                     </div>
                     <div className="flex bg-slate-800 p-1 rounded-2xl border border-slate-700">
-                        <button onClick={() => setActiveTab('generate')} className={`px-6 py-2 text-xs font-black uppercase rounded-xl transition-all ${activeTab === 'generate' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500'}`}>New Entry</button>
-                        <button onClick={() => setActiveTab('saved')} className={`px-6 py-2 text-xs font-black uppercase rounded-xl transition-all ${activeTab === 'saved' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-500'}`}>Saved Records ({savedCerts.length})</button>
+                        <button onClick={() => setActiveTab('generate')} className={`px-6 py-2 text-xs font-black uppercase rounded-xl transition-all ${activeTab === 'generate' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}>New Entry</button>
+                        <button onClick={() => setActiveTab('saved')} className={`px-6 py-2 text-xs font-black uppercase rounded-xl transition-all ${activeTab === 'saved' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}>Saved Records ({savedCerts.length})</button>
                         <button onClick={onClose} className="ml-4 p-2 bg-rose-900/30 text-rose-500 rounded-xl hover:bg-rose-600 hover:text-white transition-all">&times;</button>
                     </div>
                 </div>
@@ -1404,7 +1404,7 @@ const AdmissionAndTreatmentPage: React.FC<{
             {showDrugDemandModal && <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4"><div className="bg-[#1f2937] rounded-lg w-full max-w-md border border-gray-600 shadow-2xl p-6"><h3 className="text-xl font-bold text-white mb-4">New Drug</h3><input value={newDrugEntry.name} onChange={e=>setNewDrugEntry({...newDrugEntry, name:e.target.value})} className="w-full p-2 bg-[#2d3748] border border-gray-600 rounded text-white mb-2" placeholder="Trade Name"/><input value={newDrugEntry.generic} onChange={e=>setNewDrugEntry({...newDrugEntry, generic:e.target.value})} className="w-full p-2 bg-[#2d3748] border border-gray-600 rounded text-white mb-2" placeholder="Generic Name (e.g. Paracetamol)"/><div className="grid grid-cols-2 gap-2 mb-4"><div><label className="text-[10px] text-gray-500 uppercase font-black mb-1">Type</label><select value={newDrugEntry.type} onChange={e=>setNewDrugEntry({...newDrugEntry, type: e.target.value})} className="w-full p-2 bg-[#2d3748] border border-gray-600 rounded text-white text-sm">{drugTypes.map(t=><option key={t} value={t}>{t}</option>)}</select></div><div><label className="text-[10px] text-gray-500 uppercase font-black mb-1">Strength</label><input value={newDrugEntry.strength} onChange={e=>setNewDrugEntry({...newDrugEntry, strength: e.target.value})} className="w-full p-2 bg-[#2d3748] border border-gray-600 rounded text-white text-sm" placeholder="500mg"/></div></div><button onClick={handleSaveNewDrugEntry} className="px-4 py-2 bg-blue-600 text-white rounded">Add</button><button onClick={()=>setShowDrugDemandModal(false)} className="px-4 py-2 bg-gray-600 text-white rounded ml-2">Cancel</button></div></div>}
             {showNewPatientForm && <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4"><div className="bg-[#1f2937] rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto border border-gray-600"><div className="p-4"><PatientInfoPage patients={patients} setPatients={setPatients} isEmbedded={true} onClose={()=>setShowNewPatientForm(false)} onSaveAndSelect={(id,name)=>{setAdmissionData((prev: AdmissionRecord)=>({...prev, patient_id:id, patient_name:name})); setShowNewPatientForm(false);}}/></div></div></div>}
             {showNewDoctorForm && <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4"><div className="bg-[#1f2937] rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto border border-gray-600"><div className="p-4"><DoctorInfoPage doctors={doctors} setDoctors={setDoctors} isEmbedded={true} onClose={()=>setShowNewDoctorForm(false)} onSaveAndSelect={(id,name)=>{setAdmissionData((prev: AdmissionRecord)=>({...prev, doctor_id:id, doctor_name:name})); setShowNewDoctorForm(false);}}/></div></div></div>}
-            {showNewReferrarForm && <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4"><div className="bg-[#1f2937] rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto border border-gray-600"><div className="p-4"><ReferrerInfoPage referrars={referrars} setReferrars={setReferrars} isEmbedded={true} onClose={()=>setShowNewReferrarForm(false)} onSaveAndSelect={(id,name)=>{setAdmissionData((prev: AdmissionRecord)=>({...prev, referrer_id:id, referrer_name:name})); setShowNewReferrarForm(false);}}/></div></div></div>}
+            {showNewReferrarForm && <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4"><div className="bg-[#1f2937] rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto border border-gray-600"><div className="p-4"><ReferrerInfoPage referrars={referrars} setReferrars={setReferrars} isEmbedded onClose={()=>setShowNewReferrarForm(false)} onSaveAndSelect={(id,name)=>{setAdmissionData((prev: AdmissionRecord)=>({...prev, referrer_id:id, referrer_name:name})); setShowNewReferrarForm(false);}}/></div></div></div>}
         </div>
     );
 };
@@ -1464,7 +1464,7 @@ const IndoorInvoicePage: React.FC<{
                         .filter(it => !it.isClinicFund)
                         .reduce((s, it) => s + it.payable_amount, 0);
                     
-                    const pcAmount = inv.commission_paid || 0;
+                    const pcAmount = (inv.special_commission || 0) + (inv.commission_paid || 0);
                     
                     if (inv.status !== 'Returned') {
                         totalBill += inv.total_bill;
@@ -1482,7 +1482,7 @@ const IndoorInvoicePage: React.FC<{
                         const nonFundedCost = inv.items
                             .filter(it => !it.isClinicFund)
                             .reduce((s, it) => s + it.payable_amount, 0);
-                        const pcAmount = inv.commission_paid || 0;
+                        const pcAmount = (inv.special_commission || 0) + (inv.commission_paid || 0);
                         hospitalNet -= (inv.paid_amount - nonFundedCost - pcAmount);
                     }
                 }
@@ -1776,53 +1776,49 @@ const IndoorInvoicePage: React.FC<{
 
         const incomeItems = inv.items.filter((it: any) => it.isClinicFund === true);
 
-        const admFee = incomeItems
-            .filter((it: any) => matchesKeyword(it.service_type, ['Admission Fee', 'ভর্তি ফি']))
-            .reduce((s: number, i: any) => s + i.payable_amount, 0);
+        let admFee = 0, oxygen = 0, dressing = 0, conservative = 0, nvd = 0, dc = 0, lscs_ot = 0, gb_ot = 0, others_ot = 0, others = 0;
 
-        const oxygen = incomeItems
-            .filter((it: any) => matchesKeyword(it.service_type, ['Oxygen', 'O2', 'Nebulizer', 'Nebulization']))
-            .reduce((s: number, i: any) => s + i.payable_amount, 0);
-
-        const dressing = incomeItems
-            .filter((it: any) => matchesKeyword(it.service_type, ['Dressing']))
-            .reduce((s: number, i: any) => s + i.payable_amount, 0);
-
-        const conservative = incomeItems
-            .filter((it: any) => 
-                it.serviceCategory === 'Conservative treatment' && 
-                !matchesKeyword(it.service_type, ['Admission Fee', 'ভর্তি ফি', 'Oxygen', 'O2', 'Nebulizer', 'Nebulization', 'Dressing'])
-            )
-            .reduce((s: number, i: any) => s + i.payable_amount, 0);
-
-        let nvd = 0, dc = 0, lscs_ot = 0, gb_ot = 0, others_ot = 0, others = 0;
-        
         incomeItems.forEach((it: any) => {
-            const sName = (it.service_type || '').toUpperCase();
-            const iName = (inv.indication || '').toUpperCase();
-            const sCat = (it.serviceCategory || inv.serviceCategory || '');
+            const typeLower = (it.service_type || '').toLowerCase();
+            const amt = it.payable_amount;
+            const subCat = (inv.subCategory || '').toUpperCase();
+            const mainCat = inv.serviceCategory;
 
-            if (sCat.includes('Operation') || sCat.includes('OT') || sCat.includes('NVD')) {
-                if (sName.includes('LSCS') || iName.includes('LSCS') || sName.includes('LUCS') || iName.includes('LUCS')) {
-                    lscs_ot += it.payable_amount;
-                } else if (sName.includes('GB') || iName.includes('GB') || sName.includes('Gallbladder')) {
-                    gb_ot += it.payable_amount;
-                } else if (sName.includes('NVD') || iName.includes('NVD')) {
-                    nvd += it.payable_amount;
-                } else if (sName.includes('D&C') || iName.includes('D&C')) {
-                    dc += it.payable_amount;
-                } else if (!matchesKeyword(it.service_type, ['Admission Fee', 'Oxygen', 'O2', 'Nebulizer', 'Dressing'])) {
-                    others_ot += it.payable_amount;
-                }
-            } else if (!matchesKeyword(it.service_type, ['Admission Fee', 'Oxygen', 'O2', 'Nebulizer', 'Dressing'])) {
-                others += it.payable_amount;
+            // Priority 1: Direct Item Keywords (Admission, O2, Dressing)
+            if (matchesKeyword(typeLower, ['admission fee', 'ভর্তি ফি'])) {
+                admFee += amt;
+            } else if (matchesKeyword(typeLower, ['oxygen', 'o2', 'nebulizer', 'nebulization'])) {
+                oxygen += amt;
+            } else if (matchesKeyword(typeLower, ['dressing'])) {
+                dressing += amt;
+            } 
+            // Priority 2: Explicit Sub-Category Matching
+            else if (subCat === 'LSCS_OT') {
+                lscs_ot += amt;
+            } else if (subCat === 'GB_OT') {
+                gb_ot += amt;
+            } else if (subCat === 'NVD') {
+                nvd += amt;
+            } else if (subCat === 'D&C') {
+                dc += amt;
+            } 
+            // Priority 3: Main Category Fallbacks
+            else if (mainCat === 'Operation') {
+                others_ot += amt;
+            } else if (mainCat === 'Conservative treatment') {
+                conservative += amt;
+            } 
+            // Priority 4: Misc
+            else {
+                others += amt;
             }
         });
 
-        const totalClinicRevenue = admFee + oxygen + conservative + nvd + dc + lscs_ot + gb_ot + others_ot + dressing + others;
-        const pcAmount = inv.commission_paid || 0;
-        // Logic Update: Subtract special discount from Clinic's net gain
-        const clinicNet = totalClinicRevenue - (inv.special_discount_amount || 0) - pcAmount;
+        const totalRevenue = incomeItems.reduce((s, it) => s + it.payable_amount, 0);
+        // Deduct PC Amount: Sum of special_commission and commission_paid
+        const pcAmount = (inv.special_commission || 0) + (inv.commission_paid || 0);
+        // Deduct Special Discounts and PC from the Hospital's Gain
+        const clinicNet = totalRevenue - (inv.special_discount_amount || 0) - pcAmount;
 
         return { admFee, oxygen, conservative, nvd, dc, lscs_ot, gb_ot, others_ot, dressing, others, pcAmount, clinicNet };
     };

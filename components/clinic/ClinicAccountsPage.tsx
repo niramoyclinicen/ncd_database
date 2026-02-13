@@ -83,59 +83,55 @@ const ClinicAccountsPage: React.FC<any> = ({
 
     // --- Core logic to categorize an invoice (Mapping Category Breakdown) ---
     const categorizeInvoiceData = (inv: any) => {
-        // লজিক ১: যদি ইনভয়েস Cancelled বা Returned হয়, তবে তার সব ভ্যালু ০ ধরবে যাতে সামারিতে ইফেক্ট না পড়ে
         if (inv.status === 'Cancelled' || inv.status === 'Returned') {
             return { admFee: 0, oxygen: 0, conservative: 0, nvd: 0, dc: 0, lscs_ot: 0, gb_ot: 0, others_ot: 0, dressing: 0, others: 0, pcAmount: 0, clinicNet: 0 };
         }
 
         const incomeItems = inv.items.filter((it: any) => it.isClinicFund === true);
 
-        const admFee = incomeItems
-            .filter((it: any) => matchesKeyword(it.service_type, ['Admission Fee', 'ভর্তি ফি']))
-            .reduce((s: number, i: any) => s + i.payable_amount, 0);
+        let admFee = 0, oxygen = 0, dressing = 0, conservative = 0, nvd = 0, dc = 0, lscs_ot = 0, gb_ot = 0, others_ot = 0, others = 0;
 
-        const oxygen = incomeItems
-            .filter((it: any) => matchesKeyword(it.service_type, ['Oxygen', 'O2', 'Nebulizer', 'Nebulization']))
-            .reduce((s: number, i: any) => s + i.payable_amount, 0);
-
-        const dressing = incomeItems
-            .filter((it: any) => matchesKeyword(it.service_type, ['Dressing']))
-            .reduce((s: number, i: any) => s + i.payable_amount, 0);
-
-        const conservative = incomeItems
-            .filter((it: any) => 
-                it.serviceCategory === 'Conservative treatment' && 
-                !matchesKeyword(it.service_type, ['Admission Fee', 'ভর্তি ফি', 'Oxygen', 'O2', 'Nebulizer', 'Nebulization', 'Dressing'])
-            )
-            .reduce((s: number, i: any) => s + i.payable_amount, 0);
-
-        let nvd = 0, dc = 0, lscs_ot = 0, gb_ot = 0, others_ot = 0, others = 0;
-        
         incomeItems.forEach((it: any) => {
-            const sName = (it.service_type || '').toUpperCase();
-            const iName = (inv.service_name || '').toUpperCase();
-            const sCat = (it.serviceCategory || inv.serviceCategory || '');
+            const typeLower = (it.service_type || '').toLowerCase();
+            const amt = it.payable_amount;
+            const subCat = (inv.subCategory || '').toUpperCase();
+            const mainCat = inv.serviceCategory;
 
-            if (sCat.includes('Operation') || sCat.includes('OT') || sCat.includes('NVD')) {
-                if (sName.includes('LSCS') || iName.includes('LSCS') || sName.includes('LUCS') || iName.includes('LUCS')) {
-                    lscs_ot += it.payable_amount;
-                } else if (sName.includes('GB') || iName.includes('GB') || sName.includes('Gallbladder')) {
-                    gb_ot += it.payable_amount;
-                } else if (sName.includes('NVD') || iName.includes('NVD')) {
-                    nvd += it.payable_amount;
-                } else if (sName.includes('D&C') || iName.includes('D&C')) {
-                    dc += it.payable_amount;
-                } else if (!matchesKeyword(it.service_type, ['Admission Fee', 'Oxygen', 'O2', 'Nebulizer', 'Dressing'])) {
-                    others_ot += it.payable_amount;
-                }
-            } else if (!matchesKeyword(it.service_type, ['Admission Fee', 'Oxygen', 'O2', 'Nebulizer', 'Dressing'])) {
-                others += it.payable_amount;
+            // Rule 1: Key Item Keywords (Admission, O2, Dressing)
+            if (matchesKeyword(typeLower, ['admission fee', 'ভর্তি ফি'])) {
+                admFee += amt;
+            } else if (matchesKeyword(typeLower, ['oxygen', 'o2', 'nebulizer', 'nebulization'])) {
+                oxygen += amt;
+            } else if (matchesKeyword(typeLower, ['dressing'])) {
+                dressing += amt;
+            } 
+            // Rule 2: Priority Sub-Category Logic
+            else if (subCat === 'LSCS_OT') {
+                lscs_ot += amt;
+            } else if (subCat === 'GB_OT') {
+                gb_ot += amt;
+            } else if (subCat === 'NVD') {
+                nvd += amt;
+            } else if (subCat === 'D&C') {
+                dc += amt;
+            } 
+            // Rule 3: Category Logic
+            else if (mainCat === 'Operation') {
+                others_ot += amt;
+            } else if (mainCat === 'Conservative treatment') {
+                conservative += amt;
+            } 
+            // Rule 4: Others (Misc)
+            else {
+                others += amt;
             }
         });
 
-        const totalClinicRevenue = admFee + oxygen + conservative + nvd + dc + lscs_ot + gb_ot + others_ot + dressing + others;
-        const pcAmount = inv.commission_paid || 0;
-        const clinicNet = totalClinicRevenue - pcAmount;
+        const totalRevenue = incomeItems.reduce((s, it) => s + it.payable_amount, 0);
+        // Deduct PC Amount: special_commission (YES) + commission_paid (NO)
+        const pcAmount = (inv.special_commission || 0) + (inv.commission_paid || 0);
+        // Hospital Profit: Net - Discounts - Commissions
+        const clinicNet = totalRevenue - (inv.special_discount_amount || 0) - pcAmount;
 
         return { admFee, oxygen, conservative, nvd, dc, lscs_ot, gb_ot, others_ot, dressing, others, pcAmount, clinicNet };
     };
@@ -153,7 +149,6 @@ const ClinicAccountsPage: React.FC<any> = ({
         }).reduce((sum:any, dc:any) => sum + dc.amount_collected, 0);
 
         const collectionByCategory = monthInvoices.reduce((acc, inv) => {
-            // স্ট্যাটাস ফিল্টার এখন categorizeInvoiceData এর ভিতরেই হ্যান্ডেল করা হয়েছে
             const catData = categorizeInvoiceData(inv);
             acc.admFee += catData.admFee;
             acc.oxygen += catData.oxygen;
@@ -264,7 +259,6 @@ const ClinicAccountsPage: React.FC<any> = ({
 
     const reportTotals = useMemo(() => {
         return collectionReportData.reduce((acc, curr) => {
-            // শুধুমাত্র অ্যাক্টিভ ইনভয়েসগুলোর টোটাল দেখাবে
             if (curr.status !== 'Cancelled' && curr.status !== 'Returned') {
                 acc.admFee += curr.admFeeCol;
                 acc.lscs_ot += curr.lscsOtCol;
