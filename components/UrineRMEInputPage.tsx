@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Activity, SaveIcon, FileTextIcon } from './Icons';
 import { Patient, LabInvoice, Doctor, Employee } from './DiagnosticData';
@@ -27,13 +28,10 @@ const UrineRMEInputPage: React.FC<any> = ({ results: initialResults, onSaveOverr
   const formatCellValue = (val: string) => {
     const digits = val.replace(/\D/g, '');
     if (digits.length === 2) {
-      // Input "24" -> "02-04"
       return `0${digits[0]}-0${digits[1]}`;
     } else if (digits.length === 3) {
-      // Input "812" -> "08-12"
       return `0${digits[0]}-${digits[1]}${digits[2]}`;
     } else if (digits.length === 4) {
-        // Input "1015" -> "10-15"
         return `${digits.slice(0, 2)}-${digits.slice(2, 4)}`;
     }
     return val;
@@ -101,8 +99,6 @@ const UrineRMEInputPage: React.FC<any> = ({ results: initialResults, onSaveOverr
             
             <div className="flex-1">
               <div className="flex flex-col bg-white">
-                
-                {/* 1. PHYSICAL SECTION */}
                 <div className="border-2 border-black rounded-xl overflow-hidden mb-8">
                   <SectionHeader title="Physical Examination" />
                   <div className="grid grid-cols-2 divide-x border-black">
@@ -118,7 +114,6 @@ const UrineRMEInputPage: React.FC<any> = ({ results: initialResults, onSaveOverr
                   </div>
                 </div>
 
-                {/* 2. CHEMICAL SECTION */}
                 <div className="border-2 border-black rounded-xl overflow-hidden mb-8">
                   <SectionHeader title="Chemical Examination" />
                   <div className="grid grid-cols-2 divide-x border-black">
@@ -135,7 +130,6 @@ const UrineRMEInputPage: React.FC<any> = ({ results: initialResults, onSaveOverr
                   </div>
                 </div>
 
-                {/* 3. MICROSCOPIC SECTION */}
                 <div className="border-2 border-black rounded-xl overflow-hidden mb-8">
                   <SectionHeader title="Microscopic Examination" />
                   <div className="grid grid-cols-2 divide-x border-black">
@@ -157,7 +151,6 @@ const UrineRMEInputPage: React.FC<any> = ({ results: initialResults, onSaveOverr
                 </div>
               </div>
 
-              {/* IMPRESSION */}
               <div className="mt-4 pt-6 border-t-2 border-black mb-12">
                   <h4 className="text-[13px] font-black uppercase underline mb-3 italic tracking-tighter text-black">Impression / Notes:</h4>
                   <textarea 

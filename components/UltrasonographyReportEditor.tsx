@@ -26,15 +26,6 @@ const UltrasonographyReportEditor: React.FC<Props> = ({ template, patient, invoi
     const [placeholderValues, setPlaceholderValues] = useState<Record<string, string>>({});
     const [tagValues, setTagValues] = useState<Record<string, string>>({});
 
-    const technologist = useMemo(() => employees.find(e => e.emp_id === technologistId), [employees, technologistId]);
-    const consultant = useMemo(() => doctors.find(d => d.doctor_id === consultantId), [doctors, consultantId]);
-
-    const formattedRegNo = useMemo(() => {
-        const serial = invoice?.invoice_id?.split('-').pop() || '000';
-        const year = invoice?.invoice_date ? invoice.invoice_date.substring(2, 4) : new Date().getFullYear().toString().substring(2, 4);
-        return `${serial}/${year}`;
-    }, [invoice?.invoice_id, invoice?.invoice_date]);
-
     useEffect(() => {
         if (reportData && reportData.fields) {
             const hasMissingIds = reportData.fields.some((f: any) => !f.fieldId);
@@ -148,9 +139,6 @@ const UltrasonographyReportEditor: React.FC<Props> = ({ template, patient, invoi
         );
     };
 
-    const docObj = doctors.find(d => d.doctor_id === invoice?.doctor_id);
-    const doctorFullInfo = (invoice?.doctor_name || 'Self') + (docObj?.degree ? ', ' + docObj.degree : '');
-
     return (
         <div className={`flex flex-col h-full ${isEmbedded ? 'bg-transparent' : 'bg-slate-100 overflow-hidden'} font-sans text-black`}>
             {!isEmbedded && (
@@ -168,35 +156,6 @@ const UltrasonographyReportEditor: React.FC<Props> = ({ template, patient, invoi
 
             <div className={`flex-1 ${isEmbedded ? '' : 'overflow-y-auto p-2 flex justify-center custom-scrollbar bg-slate-200'}`}>
                 <div className={`${isEmbedded ? 'w-full' : 'bg-white w-full max-w-[820px] min-h-[1160px] shadow-2xl p-10'} flex flex-col font-serif relative`}>
-                    
-                    {!isEmbedded && (
-                        <div className="mb-8 shrink-0 no-print">
-                            <table className="w-full border-collapse border border-black text-[11px]">
-                                <tbody>
-                                    <tr className="h-8">
-                                        <td className="border border-black px-2 py-1 font-bold whitespace-nowrap" style={{ width: '80px' }}>Pt. Name :</td>
-                                        <td className="border border-black px-2 py-1 font-normal uppercase" style={{ width: 'auto' }}>
-                                            {patient?.pt_name} / {patient?.address} / {patient?.ageY}Y
-                                        </td>
-                                        <td className="border border-black px-2 py-1 font-bold whitespace-nowrap" style={{ width: '45px' }}>Sex :</td>
-                                        <td className="border border-black px-2 py-1 font-normal" style={{ width: '60px' }}>{patient?.gender || 'N/A'}</td>
-                                        <td className="border border-black px-2 py-1 font-bold whitespace-nowrap" style={{ width: '60px' }}>Reg.No :</td>
-                                        <td className="border border-black px-2 py-1 font-normal" style={{ width: '80px' }}>{formattedRegNo}</td>
-                                        <td className="border border-black px-2 py-1 font-bold whitespace-nowrap" style={{ width: '45px' }}>Date :</td>
-                                        <td className="border border-black px-2 py-1 font-normal" style={{ width: '85px' }}>{invoice?.invoice_date}</td>
-                                    </tr>
-                                    <tr className="h-8">
-                                        <td className="border border-black px-2 py-1 font-bold whitespace-nowrap" style={{ width: '80px' }}>Refd By Dr. :</td>
-                                        <td className="border border-black px-2 py-1 font-normal text-[10px]" style={{ width: 'auto' }}>{doctorFullInfo}</td>
-                                        <td className="border border-black px-2 py-1 font-bold whitespace-nowrap" style={{ width: '60px' }}>B_Code :</td>
-                                        <td className="border border-black p-1 bg-white flex items-center justify-center" style={{ width: '200px' }}>
-                                            <img src={`https://bwipjs-api.metafloor.com/?bcid=code128&text=${encodeURIComponent(patient?.pt_id || '')}&scale=1&height=5&incltext=false`} alt="BC" className="h-4" />
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    )}
                     
                     <h1 className="text-lg text-center font-black underline uppercase tracking-widest mb-8 text-black">{reportData.title}</h1>
                     
@@ -225,22 +184,6 @@ const UltrasonographyReportEditor: React.FC<Props> = ({ template, patient, invoi
                             <p className="hidden print:block font-black text-[16px] italic text-black whitespace-pre-wrap leading-tight">{reportData.impression || 'Normal Study.'}</p>
                         </div>
                     </div>
-
-                    {!isEmbedded && (
-                        <div className="mt-auto pt-8 flex justify-between px-6 shrink-0 font-sans border-t-2 border-black no-print">
-                            <div className="text-center w-64 flex flex-col items-center">
-                                <p className="text-[9px] font-black uppercase text-slate-500 mb-1 leading-none">Technologist</p>
-                                <div className="h-8 w-full"></div>
-                                <div className="text-[12px] font-black uppercase text-black leading-tight border-t border-black pt-1 w-full">${technologist?.emp_name || '...........................................'}</div>
-                            </div>
-                            <div className="text-center w-64 flex flex-col items-center">
-                                <p className="text-[9px] font-black uppercase text-slate-500 mb-1 leading-none">Reporting Doctor</p>
-                                <div className="h-8 w-full"></div>
-                                <div className="text-[12px] font-black uppercase text-black leading-tight border-t border-black pt-1 w-full">${consultant?.doctor_name || '...........................................'}</div>
-                                <div className="text-[9px] font-bold text-slate-700 whitespace-pre-wrap mt-1 degree-text">${consultant?.degree || 'Specialist Pathologist'}</div>
-                            </div>
-                        </div>
-                    )}
                 </div>
             </div>
         </div>

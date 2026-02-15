@@ -34,7 +34,6 @@ const LipidProfileInputPage: React.FC<any> = ({ results: initialResults, onSaveO
         if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
         typingTimeoutRef.current = setTimeout(() => {
             if (onSaveOverride && isEmbedded) {
-                // Pass true for auto-save flag
                 onSaveOverride(updated, true);
             }
             typingTimeoutRef.current = null;

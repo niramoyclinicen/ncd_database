@@ -21,7 +21,8 @@ const TestInfoPage: React.FC<Props> = ({ reagents, tests, setTests }) => {
 
   useEffect(() => {
     if (successMessage) {
-        const timer = setTimeout(() => setSuccessMessage(''), 5000);
+        // Reduced duration to 3 seconds as requested
+        const timer = setTimeout(() => setSuccessMessage(''), 3000);
         return () => clearTimeout(timer);
     }
   }, [successMessage]);
@@ -93,7 +94,7 @@ const TestInfoPage: React.FC<Props> = ({ reagents, tests, setTests }) => {
     } else {
       setTests([finalTest, ...tests]);
     }
-    setSuccessMessage('Test data saved successfully!');
+    setSuccessMessage('টেস্ট ডাটা সফলভাবে সেভ করা হয়েছে!');
     resetForm();
   };
 
@@ -108,9 +109,10 @@ const TestInfoPage: React.FC<Props> = ({ reagents, tests, setTests }) => {
 
   return (
     <div className="bg-slate-900 text-slate-200 rounded-xl p-4 sm:p-6 space-y-8 relative">
+        {/* Updated Success Message - Positioned at bottom, high z-index, 3s auto-hide */}
         {successMessage && (
-            <div className="fixed top-10 left-1/2 -translate-x-1/2 z-[999] bg-emerald-600 border-2 border-white text-white px-10 py-4 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] animate-fade-in-down font-black flex items-center gap-3">
-                <div className="bg-white text-emerald-600 rounded-full w-8 h-8 flex items-center justify-center text-lg shadow-lg">✓</div>
+            <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[1000] bg-emerald-600 border-2 border-white text-white px-12 py-5 rounded-[2rem] shadow-[0_20px_60px_rgba(0,0,0,0.7)] animate-fade-in-up font-black flex items-center gap-4 text-lg">
+                <div className="bg-white text-emerald-600 rounded-full w-10 h-10 flex items-center justify-center text-xl shadow-lg">✓</div>
                 {successMessage}
             </div>
         )}
