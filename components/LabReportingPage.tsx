@@ -145,25 +145,29 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
                     <script src="https://cdn.tailwindcss.com"></script>
                     <style>
                         @page { size: A4; margin: 0; }
-                        body { background: white; margin: 0; padding: 0; font-family: 'Times New Roman', serif; }
+                        body { background: white; margin: 0; padding: 0; font-family: 'Times New Roman', serif; color: black; }
                         .paper-page { 
                             width: 210mm; 
-                            min-height: 297mm; 
+                            height: 296.9mm; 
                             margin: 0 auto; 
                             position: relative; 
                             display: flex; 
                             flex-direction: column; 
                             box-sizing: border-box; 
+                            overflow: hidden;
+                        }
+                        /* Prevent extra blank page by only breaking after non-last pages */
+                        .paper-page:not(:last-child) {
                             page-break-after: always;
                         }
                         .report-content { 
-                            padding: 10mm 15mm 45mm 15mm; 
+                            padding: 10mm 18mm 10mm 18mm; 
                             ${printFullPad ? 'margin-top: 0;' : 'margin-top: 2.1in;'} 
                             flex: 1;
                         }
                         .footer-sign {
                             position: absolute;
-                            bottom: 15mm;
+                            bottom: 12mm;
                             left: 0;
                             right: 0;
                             padding: 0 20mm;
@@ -258,15 +262,15 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
         <div className="footer-sign">
             <div className="signature-box">
                 <p className="text-[11px] font-black uppercase text-slate-500 mb-1">Lab Technologist</p>
-                <div className="h-12 w-full"></div>
-                <p className="text-[14px] font-black text-slate-950 uppercase border-t-2 border-black pt-1">{customTechName || '...........................................'}</p>
-                <p className="text-[9px] font-bold uppercase text-slate-500 tracking-widest">{customTechDegree || 'Medical Technologist'}</p>
+                <div className="h-14 w-full"></div>
+                <p className="text-[15px] font-black text-slate-950 uppercase border-t-2 border-black pt-1 leading-none">{customTechName || '...........................................'}</p>
+                <p className="text-[9px] font-bold uppercase text-slate-500 tracking-widest mt-1.5">{customTechDegree || 'Medical Technologist'}</p>
             </div>
             <div className="signature-box">
                 <p className="text-[11px] font-black uppercase text-slate-500 mb-1">Reported By</p>
-                <div className="h-12 w-full"></div>
-                <p className="text-[14px] font-black text-slate-950 uppercase border-t-2 border-black pt-1">{customDocName || '...........................................'}</p>
-                <p className="text-[10px] font-bold text-slate-600 italic whitespace-pre-wrap leading-tight">{customDocDegree || ''}</p>
+                <div className="h-14 w-full"></div>
+                <p className="text-[15px] font-black text-slate-950 uppercase border-t-2 border-black pt-1 leading-none">{customDocName || '...........................................'}</p>
+                <p className="text-[10px] font-bold text-slate-600 italic whitespace-pre-wrap leading-tight mt-1.5">{customDocDegree || ''}</p>
             </div>
         </div>
     );
@@ -320,7 +324,8 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
                     </div>
                 </div>
 
-                <div className="col-span-8 bg-white flex flex-col shadow-2xl relative overflow-hidden">
+                {/* Main Content Area: Now with reduced side margins and centered white workspace */}
+                <div className="col-span-8 bg-white flex flex-col relative overflow-hidden">
                     {activeTestName ? (
                         <div className="flex-1 flex flex-col h-full overflow-hidden">
                             <div className="bg-slate-50 p-4 border-b no-print flex justify-between items-center shrink-0">
@@ -337,8 +342,8 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
                                 </div>
                             </div>
 
-                            {/* Main Scrolling View - Mimics Word Documents */}
-                            <div className="flex-1 overflow-y-auto bg-slate-300 custom-scrollbar py-10 space-y-10" id="printable-report-content">
+                            {/* Scrolling View - bg-white to match paper, reduced px for better UI width */}
+                            <div className="flex-1 overflow-y-auto bg-white custom-scrollbar py-8 px-4 md:px-8 space-y-12" id="printable-report-content">
                                 {(activeTestName.toLowerCase().includes('usg') || activeTestName.toLowerCase().includes('ultra')) ? (
                                     <div className="paper-page bg-white shadow-2xl mx-auto rounded-sm flex flex-col text-black">
                                         {printFullPad && <MasterPadHeader />}
@@ -354,14 +359,11 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
                                         {(Object.entries(groupedPathologyTests) as [string, string[]][]).map(([category, testsInCat], catIdx) => {
                                             const cbcTest = testsInCat.find(t => t.toLowerCase().includes('cbc'));
                                             const otherTests = testsInCat.filter(t => !t.toLowerCase().includes('cbc'));
-                                            
-                                            // Handle Special Standalones like Urine/Semen within Category
                                             const specialTests = otherTests.filter(t => t.toLowerCase().includes('urine') || t.toLowerCase().includes('semen'));
                                             const regularTests = otherTests.filter(t => !specialTests.includes(t));
 
                                             return (
                                                 <React.Fragment key={category}>
-                                                    {/* REGULAR PATHOLOGY PAGE */}
                                                     {regularTests.length > 0 && (
                                                         <div className="paper-page bg-white shadow-2xl mx-auto rounded-sm flex flex-col text-black">
                                                             {printFullPad && <MasterPadHeader />}
@@ -401,7 +403,6 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
                                                         </div>
                                                     )}
 
-                                                    {/* ISOLATED CBC PAGE */}
                                                     {cbcTest && (
                                                         <div className="paper-page bg-white shadow-2xl mx-auto rounded-sm flex flex-col text-black">
                                                             {printFullPad && <MasterPadHeader />}
@@ -414,7 +415,6 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
                                                         </div>
                                                     )}
 
-                                                    {/* ISOLATED SPECIAL TEST PAGES (Urine, Semen) */}
                                                     {specialTests.map(tName => (
                                                         <div key={tName} className="paper-page bg-white shadow-2xl mx-auto rounded-sm flex flex-col text-black">
                                                             {printFullPad && <MasterPadHeader />}
@@ -446,7 +446,7 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
                 </div>
             </div>
             
-            {/* Override Controls for technologist/doctor names at the bottom of the screen */}
+            {/* Override Controls at bottom of screen */}
             {activeTestName && (
                 <div className="no-print bg-slate-900 border-t border-slate-700 p-4 shrink-0 flex justify-center gap-10">
                     <div className="flex items-center gap-3">
