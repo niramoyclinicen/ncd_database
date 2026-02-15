@@ -171,6 +171,7 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
                             justify-content: space-between;
                             align-items: flex-end;
                             background: white;
+                            z-index: 100;
                         }
                         .signature-box { text-align: center; width: 45%; }
                         .category-title { 
@@ -277,22 +278,22 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
             {successMessage && <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-slate-900 border-2 border-emerald-500 text-white px-12 py-8 rounded-[3rem] shadow-2xl z-[500] animate-bounce flex flex-col items-center gap-4"><div className="w-12 h-12 bg-emerald-500 rounded-full flex items-center justify-center text-white text-2xl font-black">✓</div><div className="text-xl font-black uppercase tracking-widest">{successMessage}</div></div>}
             
             <div className="grid grid-cols-12 flex-1 overflow-hidden">
-                <div className="col-span-3 bg-white border-r flex flex-col shadow-sm no-print">
+                <div className="col-span-2 bg-white border-r flex flex-col shadow-sm no-print">
                     <div className="p-4 bg-slate-900 text-white flex justify-between items-center">
-                        <h3 className="font-black text-xs uppercase tracking-widest">Reporting Queue</h3>
-                        <button onClick={() => setViewMode('template_mgmt')} className="p-2 bg-slate-800 rounded-xl hover:bg-blue-600 transition-all shadow-md"><SettingsIcon size={16}/></button>
+                        <h3 className="font-black text-[10px] uppercase tracking-widest">Reporting Queue</h3>
+                        <button onClick={() => setViewMode('template_mgmt')} className="p-2 bg-slate-800 rounded-xl hover:bg-blue-600 transition-all shadow-md"><SettingsIcon size={14}/></button>
                     </div>
                     <div className="p-3 bg-slate-50 border-b">
-                        <input placeholder="Search ID/Name..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full px-4 py-2 border rounded-2xl text-sm bg-white outline-none focus:ring-2 focus:ring-blue-500 font-bold shadow-sm" />
+                        <input placeholder="Search Patient..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full px-4 py-2 border rounded-2xl text-[11px] bg-white outline-none focus:ring-2 focus:ring-blue-500 font-bold shadow-sm" />
                     </div>
                     <div className="flex-1 overflow-y-auto px-2 py-4 space-y-3 custom-scrollbar">
                         {invoices.filter((i: any) => i.patient_name.toLowerCase().includes(searchTerm.toLowerCase()) || i.invoice_id.includes(searchTerm)).map((r: any) => {
                             const isActive = selectedInvoiceId === r.invoice_id;
                             return (
-                                <div key={r.invoice_id} onClick={() => { setSelectedInvoiceId(r.invoice_id); setActiveTestName(null); }} className={`p-4 border-2 rounded-[2rem] cursor-pointer transition-all ${isActive ? 'bg-blue-600 border-blue-400 text-white shadow-xl scale-105' : 'bg-white hover:border-blue-200'}`}>
-                                    <div className={`font-black text-sm uppercase tracking-tight ${isActive ? 'text-white' : 'text-slate-900'}`}>{r.patient_name}</div>
+                                <div key={r.invoice_id} onClick={() => { setSelectedInvoiceId(r.invoice_id); setActiveTestName(null); }} className={`p-3 border-2 rounded-2xl cursor-pointer transition-all ${isActive ? 'bg-blue-600 border-blue-400 text-white shadow-xl scale-105' : 'bg-white hover:border-blue-200'}`}>
+                                    <div className={`font-black text-[11px] uppercase tracking-tight ${isActive ? 'text-white' : 'text-slate-900'}`}>{r.patient_name}</div>
                                     <div className="flex justify-between items-center mt-2">
-                                        <span className={`text-[10px] font-mono ${isActive ? 'text-white/70' : 'text-slate-500'}`}>{r.invoice_id}</span>
+                                        <span className={`text-[9px] font-mono ${isActive ? 'text-white/70' : 'text-slate-500'}`}>{r.invoice_id}</span>
                                     </div>
                                 </div>
                             );
@@ -319,7 +320,7 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
                     </div>
                 </div>
 
-                <div className="col-span-7 bg-white flex flex-col shadow-2xl relative overflow-hidden">
+                <div className="col-span-8 bg-white flex flex-col shadow-2xl relative overflow-hidden">
                     {activeTestName ? (
                         <div className="flex-1 flex flex-col h-full overflow-hidden">
                             <div className="bg-slate-50 p-4 border-b no-print flex justify-between items-center shrink-0">
