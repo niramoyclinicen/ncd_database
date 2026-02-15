@@ -197,7 +197,7 @@ export interface DueCollection {
 export interface Employee {
   emp_id: string; 
   emp_name: string; 
-  machine_id?: string; // Link to ZKTeco Fingerprint ID
+  machine_id?: string; 
   gender: string; 
   job_position: string; 
   department: string; 
@@ -351,7 +351,7 @@ export interface ServiceItem {
   discount: number;
   payable_amount: number;
   note: string;
-  isClinicFund?: boolean; // New: tracking if this item goes to clinic fund
+  isClinicFund?: boolean; 
 }
 
 export type ServiceItemDef = ServiceItem;
@@ -361,16 +361,16 @@ export interface IndoorInvoice {
   monthly_id: string;
   yearly_id: string;
   invoice_date: string;
-  admission_id: string;
+  admission_id: string; 
   patient_id: string;
   patient_name: string;
-  doctor_id: string;
-  doctor_name: string;
-  referrar_id: string;
-  referrar_name: string;
+  doctor_id?: string;
+  doctor_name?: string;
+  referrar_id?: string;
+  referrar_name?: string;
   indication: string;
   serviceCategory: string;
-  subCategory?: string; // New: Sub Category tracking
+  subCategory?: string; 
   services: any[]; 
   contact_bill: string;
   items: ServiceItem[];
@@ -411,9 +411,7 @@ export interface CommissionPayment {
   ref_id: string;
   amount: number;
   date: string;
-  paid_by: string;
   method: string;
-  note: string;
 }
 
 export interface FieldVisitLog {
@@ -425,21 +423,23 @@ export interface FieldVisitLog {
   outcomes: string;
 }
 
+// --- ALL MOCK DATA REMOVED FOR CLEAN START ---
+
+export const mockPatients: Patient[] = [];
 export const mockDoctors: Doctor[] = [];
 export const mockReferrars: Referrar[] = [];
-export const mockReagents: Reagent[] = [];
+export const mockTests: Test[] = [];
 export const mockInvoices: LabInvoice[] = [];
+export const mockReagents: Reagent[] = [];
 export const mockDueCollections: DueCollection[] = [];
 export const mockEmployees: Employee[] = [];
 export const mockMedicines: Medicine[] = [];
 export const mockPurchaseInvoices: PurchaseInvoice[] = [];
 export const mockSalesInvoices: SalesInvoice[] = [];
-export const mockPatients: Patient[] = [];
 export const mockAdmissions: any[] = [];
 export const mockIndoorInvoices: any[] = [];
 export const initialAppointments: Appointment[] = [];
 export const initialClinicalDrugs: DrugMonograph[] = [];
-export const mockTests: Test[] = [];
 
 export const defaultPregnancyTemplates: ReportTemplate[] = [
   {
@@ -466,3 +466,91 @@ export const defaultPregnancyTemplates: ReportTemplate[] = [
     impression: 'Single live intrauterine pregnancy of ___ weeks ___ days.'
   }
 ];
+
+export interface UrineRMEResults {
+  quantity: string;
+  colour: string;
+  appearance: string;
+  sediment: string;
+  specificGravity: string;
+  reaction: string;
+  albumin: string;
+  sugar: string;
+  bileSalt: string;
+  bilePigment: string;
+  ketones: string;
+  epithelialCells: string;
+  pusCells: string;
+  rbc: string;
+  bacteria: string;
+  sperm: string;
+  casts: string;
+  crystals: string;
+  amorphousPhosphate: string;
+  calciumOxalate: string;
+  uricAcid: string;
+  others: string;
+}
+
+export const normalUrineRMEResults: UrineRMEResults = {
+  quantity: 'Sufficient',
+  colour: 'Straw',
+  appearance: 'Clear',
+  sediment: 'Nil',
+  specificGravity: '1.015',
+  reaction: 'Acidic',
+  albumin: 'Nil',
+  sugar: 'Nil',
+  bileSalt: 'Nil',
+  bilePigment: 'Nil',
+  ketones: 'Nil',
+  epithelialCells: '',
+  pusCells: '',
+  rbc: '',
+  bacteria: 'Nil',
+  sperm: 'Nil',
+  casts: 'Nil',
+  crystals: '',
+  amorphousPhosphate: '',
+  calciumOxalate: '',
+  uricAcid: '',
+  others: 'Urine routine examination reveals normal findings.'
+};
+
+export interface CBCResults {
+    hemoglobin: string;
+    esr: string;
+    wbc: string;
+    neutrophils: string;
+    lymphocytes: string;
+    monocytes: string;
+    eosinophils: string;
+    basophils: string;
+    platelets: string;
+}
+
+export const emptyCBCResults: CBCResults = {
+    hemoglobin: '',
+    esr: '',
+    wbc: '',
+    neutrophils: '',
+    lymphocytes: '',
+    monocytes: '',
+    eosinophils: '',
+    basophils: '',
+    platelets: ''
+};
+
+export interface LipidResults {
+  s_cholesterol: string;
+  triglycerides: string;
+  hdl_cholesterol: string;
+  ldl_cholesterol: string;
+  vldl_cholesterol: string;
+  note: string;
+  s_cholesterol_range: string;
+  triglycerides_range: string;
+  hdl_cholesterol_range: string;
+  ldl_cholesterol_range: string;
+  vldl_cholesterol_range: string;
+}

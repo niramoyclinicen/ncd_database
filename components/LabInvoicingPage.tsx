@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Patient, Doctor, Employee, LabInvoice, LabInvoiceItem, emptyLabInvoice, Referrar, Reagent, Test, testCategories, DiagnosticSubPage } from './DiagnosticData';
 import { formatDateTime } from '../utils/dateUtils';
@@ -599,7 +600,7 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
     summary.paidAmount -= totalRefunded; // Deduct refunds from today's cash
 
     return summary;
-  }, [invoices, reportDate]);
+  }, [performance.now(), invoices, reportDate]); // Using performance.now() as an additional trigger if needed
 
   const monthlyReport = useMemo(() => {
     const currentMonth = today.getMonth();
@@ -984,6 +985,7 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
           <table className="min-w-full divide-y divide-slate-700">
             <thead className="bg-slate-700">
               <tr>
+                <th scope="col" className="px-4 py-4 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">SL</th>
                 <th scope="col" className="px-6 py-4 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Invoice ID</th>
                 <th scope="col" className="px-6 py-4 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Date</th>
                 <th scope="col" className="px-6 py-4 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Patient Name</th>
@@ -997,8 +999,9 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
               </tr>
             </thead>
             <tbody className="bg-slate-800 divide-y divide-slate-700">
-              {filteredInvoices.map((invoice) => (
+              {filteredInvoices.map((invoice, index) => (
                 <tr key={invoice.invoice_id} onClick={() => handleRowClick(invoice)} className={`cursor-pointer hover:bg-slate-700/50 ${selectedInvoiceId === invoice.invoice_id ? 'bg-blue-900/40' : ''}`} aria-selected={selectedInvoiceId === invoice.invoice_id} tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && handleRowClick(invoice)}>
+                  <td className="px-4 py-4 whitespace-nowrap text-sm text-slate-400 font-bold">{index + 1}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300 font-mono text-xs">{invoice.invoice_id}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300">{invoice.invoice_date}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-100 font-black uppercase">{invoice.patient_name}</td>
@@ -1013,7 +1016,7 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
               ))}
               {filteredInvoices.length === 0 && (
                 <tr>
-                    <td colSpan={10} className="px-6 py-12 text-center text-slate-500 italic uppercase font-black tracking-widest opacity-30">
+                    <td colSpan={11} className="px-6 py-12 text-center text-slate-500 italic uppercase font-black tracking-widest opacity-30">
                         No Matching Invoices Found
                     </td>
                 </tr>

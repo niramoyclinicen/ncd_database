@@ -1,12 +1,35 @@
 
-import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { SaveIcon, FileTextIcon } from './Icons';
-import { Patient, LabInvoice, Doctor, Employee } from './DiagnosticData';
+import React, { useState, useEffect, useRef } from 'react';
+import { LipidResults } from './DiagnosticData';
 
-export interface LipidResults {
-  s_cholesterol: string; triglycerides: string; hdl_cholesterol: string; ldl_cholesterol: string; vldl_cholesterol: string; note: string;
-  s_cholesterol_range: string; triglycerides_range: string; hdl_cholesterol_range: string; ldl_cholesterol_range: string; vldl_cholesterol_range: string;
-}
+const TableRow = ({ label, field, rangeField, val, range, isAlert, onChange, disabled }: any) => {
+    return (
+        <tr className="border-b-2 border-black h-10">
+            <td className="p-2 border-r-2 border-black font-black uppercase text-[11px]">{label}</td>
+            <td className="p-0.5 border-r-2 border-black text-center">
+                <input 
+                    value={val} 
+                    onChange={e=>onChange(field, e.target.value)} 
+                    className={`w-full border-none text-center font-black text-lg outline-none no-print placeholder:text-slate-300 ${isAlert ? 'bg-red-50 text-red-600' : 'bg-blue-50/50 text-slate-900'}`} 
+                    placeholder="..." 
+                    onFocus={e=>e.target.select()}
+                    disabled={disabled}
+                />
+                <span className={`hidden print:block text-center font-black text-base ${isAlert ? 'text-red-600' : ''}`}>{val || '...'}</span>
+            </td>
+            <td className="p-2 border-r-2 border-black text-center font-black text-[10px] uppercase italic">mg/dL</td>
+            <td className="p-1.5 font-bold text-[9px] text-slate-700 italic whitespace-pre-wrap leading-tight">
+                <textarea 
+                    value={range} 
+                    onChange={e=>onChange(rangeField, e.target.value)} 
+                    className="w-full bg-transparent border-none text-[9px] outline-none no-print leading-tight h-8 resize-none" 
+                    rows={1}
+                />
+                <span className="hidden print:block">{range}</span>
+            </td>
+        </tr>
+    );
+};
 
 const defaultLipidResults: LipidResults = {
   s_cholesterol: '', triglycerides: '', hdl_cholesterol: '', ldl_cholesterol: '', vldl_cholesterol: '', note: '',
@@ -17,7 +40,7 @@ const defaultLipidResults: LipidResults = {
   vldl_cholesterol_range: 'Normal: 05 - 40'
 };
 
-const LipidProfileInputPage: React.FC<any> = ({ results: initialResults, onSaveOverride, disabled, patient, invoice, doctors, employees, technologistId, consultantId, isEmbedded, checkRange }) => {
+const LipidProfileInputPage: React.FC<any> = ({ results: initialResults, onSaveOverride, disabled, isEmbedded, checkRange }) => {
     const [localResults, setLocalResults] = useState<LipidResults>(initialResults || defaultLipidResults);
     const typingTimeoutRef = useRef<any>(null);
 
@@ -27,48 +50,33 @@ const LipidProfileInputPage: React.FC<any> = ({ results: initialResults, onSaveO
         }
     }, [initialResults]);
 
-    const updateField = (f: keyof LipidResults, v: string) => {
+    const updateField = (f: string, v: string) => {
         const updated = { ...localResults, [f]: v };
         setLocalResults(updated);
         
         if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
         typingTimeoutRef.current = setTimeout(() => {
-            if (onSaveOverride && isEmbedded) {
-                onSaveOverride(updated, true);
-            }
+            if (onSaveOverride && isEmbedded) onSaveOverride(updated, true);
             typingTimeoutRef.current = null;
-        }, 1000);
+        }, 800);
     };
 
-    const TableRow = ({ label, field, rangeField }: any) => {
-        const val = localResults[field as keyof LipidResults] || '';
-        const range = localResults[rangeField as keyof LipidResults] || '';
+    const renderRow = (label: string, field: keyof LipidResults, rangeField: keyof LipidResults) => {
+        const val = localResults[field] || '';
+        const range = localResults[rangeField] || '';
         const isAlert = checkRange && checkRange(val, range);
-
         return (
-            <tr className="border-b-2 border-black h-10">
-                <td className="p-2 border-r-2 border-black font-black uppercase text-[11px]">{label}</td>
-                <td className="p-0.5 border-r-2 border-black text-center">
-                    <input 
-                        value={val} 
-                        onChange={e=>updateField(field as keyof LipidResults, e.target.value)} 
-                        className={`w-full border-none text-center font-black text-lg outline-none no-print placeholder:text-slate-300 ${isAlert ? 'bg-red-50 text-red-600' : 'bg-blue-50/50 text-slate-900'}`} 
-                        placeholder="..." 
-                        onFocus={e=>e.target.select()}
-                    />
-                    <span className={`hidden print:block text-center font-black text-base ${isAlert ? 'text-red-600' : ''}`}>{val || '...'}</span>
-                </td>
-                <td className="p-2 border-r-2 border-black text-center font-black text-[10px] uppercase italic">mg/dL</td>
-                <td className="p-1.5 font-bold text-[9px] text-slate-700 italic whitespace-pre-wrap leading-tight">
-                    <textarea 
-                        value={range} 
-                        onChange={e=>updateField(rangeField as keyof LipidResults, e.target.value)} 
-                        className="w-full bg-transparent border-none text-[9px] outline-none no-print leading-tight h-8 resize-none" 
-                        rows={1}
-                    />
-                    <span className="hidden print:block">{range}</span>
-                </td>
-            </tr>
+            <TableRow 
+                key={field}
+                label={label} 
+                field={field} 
+                rangeField={rangeField} 
+                val={val} 
+                range={range} 
+                isAlert={isAlert} 
+                onChange={updateField} 
+                disabled={disabled} 
+            />
         );
     };
 
@@ -88,11 +96,11 @@ const LipidProfileInputPage: React.FC<any> = ({ results: initialResults, onSaveO
                                 </tr>
                             </thead>
                             <tbody>
-                                <TableRow label="Serum Cholesterol" field="s_cholesterol" rangeField="s_cholesterol_range" />
-                                <TableRow label="Serum Triglycerides" field="triglycerides" rangeField="triglycerides_range" />
-                                <TableRow label="HDL Cholesterol" field="hdl_cholesterol" rangeField="hdl_cholesterol_range" />
-                                <TableRow label="LDL Cholesterol (Calc)" field="ldl_cholesterol" rangeField="ldl_cholesterol_range" />
-                                <TableRow label="VLDL Cholesterol (Calc)" field="vldl_cholesterol" rangeField="vldl_cholesterol_range" />
+                                {renderRow("Serum Cholesterol", "s_cholesterol", "s_cholesterol_range")}
+                                {renderRow("Serum Triglycerides", "triglycerides", "triglycerides_range")}
+                                {renderRow("HDL Cholesterol", "hdl_cholesterol", "hdl_cholesterol_range")}
+                                {renderRow("LDL Cholesterol (Calc)", "ldl_cholesterol", "ldl_cholesterol_range")}
+                                {renderRow("VLDL Cholesterol (Calc)", "vldl_cholesterol", "vldl_cholesterol_range")}
                             </tbody>
                         </table>
                         <div className="mt-6 border-t-2 border-black pt-4">
