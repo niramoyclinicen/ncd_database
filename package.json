@@ -1,76 +1,35 @@
-import { createClient } from '@supabase/supabase-js';
-
-/**
- * NCD Cloud Database Service
- * Manages real-time sync with Supabase and LocalStorage fallback.
- */
-
-const SUPABASE_URL = process.env.SUPABASE_URL || '';
-const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || '';
-
-// URL validation to prevent Supabase Client from throwing a fatal error
-const isValidSupabaseConfig = (url: string, key: string) => {
-  try {
-    return url && key && (url.startsWith('http://') || url.startsWith('https://'));
-  } catch {
-    return false;
-  }
-};
-
-// Initialize only if valid credentials exist, otherwise keep as null to prevent crash
-const supabase = isValidSupabaseConfig(SUPABASE_URL, SUPABASE_ANON_KEY)
-  ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
-  : null;
-
-const LOCAL_STORAGE_KEY = 'ncd_offline_cache_v1';
-const MASTER_RECORD_ID = 1;
-
-export const dbService = {
-  saveToCloud: async (appState: any) => {
-    try {
-      // Primary local backup
-      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(appState));
-
-      if (supabase) {
-        const { error } = await supabase
-          .from('ncd_state')
-          .upsert({ 
-            id: MASTER_RECORD_ID, 
-            data: appState,
-            updated_at: new Date().toISOString() 
-          }, { onConflict: 'id' });
-          
-        if (error) throw error;
-      }
-      return { success: true };
-    } catch (error) {
-      console.warn("Database Sync Status: Local storage only.", error);
-      return { success: false, error };
-    }
+{
+  "name": "ncd-clinic-diagnostic-management",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "lint": "eslint .",
+    "preview": "vite preview"
   },
-
-  loadFromCloud: async (defaultData: any) => {
-    try {
-      if (supabase) {
-        const { data: record, error } = await supabase
-          .from('ncd_state')
-          .select('data')
-          .eq('id', MASTER_RECORD_ID)
-          .single();
-        
-        if (record && record.data) {
-          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(record.data));
-          return record.data;
-        }
-      }
-
-      // Fallback if cloud is unavailable
-      const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-      return saved ? JSON.parse(saved) : defaultData;
-    } catch (error) {
-      console.warn("Database Load Status: Using local data.", error);
-      const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-      return saved ? JSON.parse(saved) : defaultData;
-    }
+  "dependencies": {
+    "@google/genai": "^1.36.0",
+    "@supabase/supabase-js": "^2.48.1",
+    "lucide-react": "^0.474.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/react": "^19.0.8",
+    "@types/react-dom": "^19.0.3",
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.20",
+    "eslint": "^10.0.0",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react-refresh": "^0.5.0",
+    "globals": "^17.3.0",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.7.3",
+    "typescript-eslint": "^8.56.0",
+    "vite": "^6.0.11"
   }
-};
+}

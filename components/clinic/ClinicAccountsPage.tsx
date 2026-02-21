@@ -7,7 +7,7 @@ import { ClinicIcon, Activity, BackIcon, FileTextIcon, PrinterIcon, SearchIcon }
 // --- Clinic Specific Categories ---
 const clinicExpenseCategories = [
     'Stuff salary', 'Generator', 'Motorcycle', 'Marketing', 'Clinic development', 
-    'Medicine buy (Pharmacy)', 'X-Ray', 'House rent', 'Stationery', 'Food/Refreshment', 
+    'House rent', 'Stationery', 'Food/Refreshment', 
     'Doctor donation', 'Repair/Instruments', 'Press', 'License/Official', 
     'Bank/NGO Installment', 'Mobile', 'Interest/Loan', 'Others', 'Old Loan Repay'
 ];
@@ -15,7 +15,7 @@ const clinicExpenseCategories = [
 const expenseCategoryBanglaMap: Record<string, string> = {
     'Stuff salary': 'স্টাফ স্যালারী', 'Generator': 'জেনারেটর', 'Motorcycle': 'মোটর সাইকেল',
     'Marketing': 'মার্কেটিং', 'Clinic development': 'ক্লিনিক উন্নয়ন',
-    'Medicine buy (Pharmacy)': 'ঔষধ ক্রয় (ফার্মেসী)', 'X-Ray': 'এক্স-রে খরচ', 'House rent': 'বাড়ী ভাড়া',
+    'House rent': 'বাড়ী ভাড়া',
     'Stationery': 'স্টেশনারী', 'Food/Refreshment': 'আপ্যায়ন/খাবার', 'Doctor donation': 'ডাক্তার ডোনেশন',
     'Repair/Instruments': 'যন্ত্রপাতি মেরামত', 'Press': 'প্রেস/ছাপা খরচ', 'License/Official': 'লাইসেন্স/অফিসিয়াল',
     'Bank/NGO Installment': 'ব্যাংক/এনজিও কিস্তি', 'Mobile': 'মোবাইল খরচ', 'Interest/Loan': 'কিস্তি/সুদ',
@@ -749,7 +749,7 @@ const ClinicAccountsPage: React.FC<any> = ({
                             </div>
                             <div className="bg-slate-800 p-6 rounded-3xl border border-slate-700 shadow-xl">
                                 <h3 className="text-rose-400 font-black uppercase text-sm mb-4 border-b border-slate-700 pb-2">Daily Operating Cost (B)</h3>
-                                <div className="space-y-2 text-xs overflow-y-auto max-h-[300px] custom-scrollbar pr-2">
+                                <div className="space-y-2 text-xs pr-2">
                                     {clinicExpenseCategories.map(cat => (
                                         <div key={cat} className="flex justify-between border-b border-slate-700/30 pb-1"><span>{expenseCategoryBanglaMap[cat] || cat}:</span> <span className="font-black">৳${(dailySummaryData.expensesByCategory[cat] || 0).toLocaleString()}</span></div>
                                     ))}
@@ -757,8 +757,8 @@ const ClinicAccountsPage: React.FC<any> = ({
                                 <div className="flex justify-between text-lg border-t-2 border-rose-500/50 pt-3 text-white font-black mt-2"><span>Total Expense:</span> <span>৳${dailySummaryData.totalExpense.toLocaleString()}</span></div>
                             </div>
                         </div>
-                        <div className="flex justify-center mt-10 no-print">
-                            <div className="bg-gradient-to-br from-slate-900 to-indigo-900 p-10 rounded-[3rem] text-center shadow-2xl border-2 border-amber-500/20 scale-110">
+                        <div className="flex justify-center mt-4 no-print">
+                            <div className="bg-gradient-to-br from-slate-900 to-indigo-900 p-6 rounded-3xl text-center shadow-2xl border-2 border-amber-500/20">
                                 <p className="text-slate-400 text-xs font-black uppercase mb-2">Daily Net Profit/Loss (A - B)</p>
                                 <h4 className={`text-5xl font-black ${dailySummaryData.balance >= 0 ? 'text-green-400' : 'text-rose-500'}`}>৳${dailySummaryData.balance.toLocaleString()}</h4>
                             </div>
@@ -796,7 +796,7 @@ const ClinicAccountsPage: React.FC<any> = ({
                             </div>
                             <div className="bg-slate-800 p-6 rounded-3xl border border-slate-700 shadow-xl">
                                 <h3 className="text-rose-400 font-black uppercase text-sm mb-4 border-b border-slate-700 pb-2">Monthly Operating Cost (B)</h3>
-                                <div className="space-y-2 text-xs overflow-y-auto max-h-[300px] custom-scrollbar pr-2">
+                                <div className="space-y-2 text-xs pr-2">
                                     {clinicExpenseCategories.map(cat => (
                                         <div key={cat} className="flex justify-between border-b border-slate-700/30 pb-1"><span>{expenseCategoryBanglaMap[cat] || cat}:</span> <span className="font-black">৳${(summaryData.expensesByCategory[cat] || 0).toLocaleString()}</span></div>
                                     ))}
@@ -804,8 +804,8 @@ const ClinicAccountsPage: React.FC<any> = ({
                                 <div className="flex justify-between text-lg border-t-2 border-rose-500/50 pt-3 text-white font-black mt-2"><span>Total Expense:</span> <span>৳${summaryData.totalExpense.toLocaleString()}</span></div>
                             </div>
                         </div>
-                        <div className="flex justify-center mt-10 no-print">
-                            <div className="bg-gradient-to-br from-indigo-700 to-slate-900 p-10 rounded-[3rem] text-center shadow-2xl border-2 border-white/10 scale-110">
+                        <div className="flex justify-center mt-4 no-print">
+                            <div className="bg-gradient-to-br from-indigo-700 to-slate-900 p-6 rounded-3xl text-center shadow-2xl border-2 border-white/10">
                                 <p className="text-slate-400 text-xs font-black uppercase mb-2">Monthly Net Profit (A - B)</p>
                                 <h4 className={`text-5xl font-black ${summaryData.balance >= 0 ? 'text-green-400' : 'text-rose-500'}`}>৳${summaryData.balance.toLocaleString()}</h4>
                             </div>

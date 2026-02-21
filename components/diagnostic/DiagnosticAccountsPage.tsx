@@ -4,25 +4,37 @@ import { Activity, BackIcon, FileTextIcon, SearchIcon, PrinterIcon } from '../Ic
 
 // --- Configuration & Data ---
 const expenseCategories = [
-    'House rent', 'Electricity bill', 'Stuff salary', 'Reagent buy', 'Doctor donation',
-    'Instruments buy/ repair', 'Diagnostic development', 'Maintenance', 'License cost', 'Others',
+    'House rent', 'Electricity bill', 'Stuff salary', 'Reagent buy', 'Marketing', 'Motorcycle', 'Doctor donation & Vehicle service',
+    'Instruments buy/ repair', 'Diagnostic development', 'Maintenance', 'License cost', 
+    'X-ray Film buy', 'Mobile buy/ Flexiload', 'Press Cost', 'Food/Meal Cost', 'Paper / Dish / Wifi Bill',
+    'Others',
 ];
 
 const expenseCategoryBanglaMap: Record<string, string> = {
     'House rent': 'বাড়ী ভাড়া', 'Electricity bill': 'বিদ্যুৎ বিল', 'Stuff salary': 'স্টাফ স্যালারী',
-    'Reagent buy': 'রিএজেন্ট ক্রয়', 'Doctor donation': 'ডাক্তার ডোনেশন', 'Instruments buy/ repair': 'যন্ত্রপাতি ক্রয়/মেরামত',
-    'Diagnostic development': 'ডায়াগনস্টিক উন্নয়ন', 'Maintenance': 'রক্ষণাবেক্ষণ', 'License cost': 'লাইসেন্স খরচ', 'Others': 'অন্যান্য',
+    'Reagent buy': 'রিএজেন্ট ক্রয়', 'Marketing': 'মার্কেটিং', 'Motorcycle':'মোটর সাইকেল','Doctor donation & Vehicle service': 'ডাক্তার ডোনেশন', 'Instruments buy/ repair': 'যন্ত্রপাতি ক্রয়/মেরামত',
+    'Diagnostic development': 'ডায়াগনস্টিক উন্নয়ন', 'Maintenance': 'রক্ষণাবেক্ষণ', 'License cost': 'লাইসেন্স খরচ', 
+    'X-ray Film buy': 'এক্স-রে ফিল্ম ক্রয়', 'Mobile buy/ Flexiload': 'মোবাইল ক্রয়/ফ্লেক্সিলোড', 'Press Cost': 'প্রেস খরচ', 
+    'Food/Meal Cost': 'খাবার খরচ', 'Paper / Dish / Wifi Bill': 'পেপার/ডিশ/ওয়াইফাই বিল',
+    'Others': 'অন্যান্য',
 };
 
 const subCategoryMap: Record<string, string[]> = {
     'House rent': ['Diagnostic Building Rent'],
     'Electricity bill': ['Meter 01', 'Meter 02'],
     'Reagent buy': ['Local Market', 'Company Delivery', 'Special Order'],
-    'Doctor donation': ['Monthly Referral Pay', 'Festival Bonus'],
+    'Marketing': ['Doctor Appayon', 'PC conference', 'PC Gift','Others'],
+    'Motorcycle': ['Motorcycle buy', 'Motorcycle repair', 'Motorcycle License'],
+    'Doctor donation & Vehicle service': ['Weekly vehicle', 'Monthly Referral Pay', 'Festival Bonus'],
     'Instruments buy/ repair': ['Lab Equipment', 'IT/Computer', 'Furniture'],
     'Diagnostic development': ['New Test Marketing', 'Branding'],
-    'Maintenance': ['AC Service', 'Generator Service', 'Cleaning'],
-    'License cost': ['DG Health', 'Environment', 'Atomic Energy'],
+    'Maintenance': ['AC Service', ' Fridge ', 'Generator Service', 'Clothing', 'Stationary', 'Cleaning'],
+    'License cost': ['Trade License', 'Fire License', 'Labour welfare License','Narcotic License','DG Health', 'Environment', 'Atomic Energy'],
+    'X-ray Film buy': ['12x15 Film', '10x12 Film', '8x10 Film'],
+    'Mobile buy/ Flexiload': ['Office Mobile_buy', 'Marketing mobile Mobile_buy', 'MD mobile buy', 'Office Mobile_Flexiload', 'Marketing mobile_Flexiload', 'MD mobile_Flexiload'],
+    'Press Cost': ['Pad Printing', 'Envelope Printing', 'Leaflet','Others'],
+    'Food/Meal Cost': ['Staff Lunch','Doctor Lunch', 'Guest Entertainment', 'Tea/Snacks'],
+    'Paper / Dish / Wifi Bill': ['Newspaper', 'Dish Bill', 'Wifi Bill'],
     'Others': ['Entertainment', 'Donation', 'Emergency']
 };
 
@@ -51,10 +63,14 @@ const SummaryBox = ({ title, items, totalLabel, totalValue, colorClass }: any) =
     </div>
 );
 
-const DailyExpenseForm: React.FC<any> = ({ selectedDate, onDateChange, dailyExpenseItems, onSave, employees }) => {
+const DailyExpenseForm: React.FC<any> = ({ selectedDate, onDateChange, dailyExpenseItems, onSave, employees, monthlyRoster }) => {
     const [items, setItems] = useState<ExpenseItem[]>(dailyExpenseItems.length > 0 ? dailyExpenseItems : [{
         id: Date.now(), category: expenseCategories[0], subCategory: '', description: '', billAmount: 0, paidAmount: 0
     }]);
+
+    const periodKey = selectedDate.substring(0, 7); // YYYY-MM
+    const activeEmpIds = monthlyRoster[periodKey] || [];
+    const filteredEmployees = employees.filter((e: any) => activeEmpIds.includes(e.emp_id));
 
     useEffect(() => {
         setItems(dailyExpenseItems.length > 0 ? dailyExpenseItems : [{
@@ -104,7 +120,7 @@ const DailyExpenseForm: React.FC<any> = ({ selectedDate, onDateChange, dailyExpe
                                             className="w-full bg-slate-800 border-2 border-amber-600/50 rounded-xl p-2.5 text-white text-sm font-black outline-none focus:border-amber-500"
                                         >
                                             <option value="">-- Select Employee --</option>
-                                            {employees.filter((e:any) => e.is_current_month).map((e:any) => <option key={e.emp_id} value={e.emp_name}>{e.emp_name}</option>)}
+                                            {filteredEmployees.map((e:any) => <option key={e.emp_id} value={e.emp_name}>{e.emp_name}</option>)}
                                         </select>
                                     ) : (
                                         <>
@@ -140,7 +156,7 @@ const DailyExpenseForm: React.FC<any> = ({ selectedDate, onDateChange, dailyExpe
     );
 };
 
-const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollections, employees, detailedExpenses, setDetailedExpenses }) => {
+const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollections, employees, detailedExpenses, setDetailedExpenses, monthlyRoster }) => {
     const todayStr = new Date().toISOString().split('T')[0];
     const [selectedDate, setSelectedDate] = useState(todayStr);
     const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
@@ -336,7 +352,7 @@ const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollection
             <main className="flex-1 p-8 space-y-10 container mx-auto overflow-y-auto">
                 {activeTab === 'entry' && (
                     <div className="animate-fade-in space-y-10">
-                        <DailyExpenseForm selectedDate={selectedDate} onDateChange={setSelectedDate} dailyExpenseItems={detailedExpenses[selectedDate] || []} onSave={handleSaveExpense} employees={employees} />
+                        <DailyExpenseForm selectedDate={selectedDate} onDateChange={setSelectedDate} dailyExpenseItems={detailedExpenses[selectedDate] || []} onSave={handleSaveExpense} employees={employees} monthlyRoster={monthlyRoster} />
                     </div>
                 )}
 

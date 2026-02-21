@@ -1,64 +1,42 @@
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>NCD | Clinic & Diagnostic Management</title>
-    <!-- Tailwind CSS via CDN -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-      tailwind.config = {
-        darkMode: 'class',
-        theme: {
-          extend: {
-            animation: {
-              'spin-slow': 'spin 3s linear infinite',
-              'spin-slow-reverse': 'spin-reverse 60s linear infinite',
-              'fade-in-down': 'fadeInDown 0.5s ease-out',
-              'fade-in-up': 'fadeInUp 0.5s ease-out forwards',
-              'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-              'shimmer': 'shimmer 1.5s infinite',
-            },
-            keyframes: {
-              'spin-reverse': {
-                '0%': { transform: 'rotate(360deg)' },
-                '100%': { transform: 'rotate(0deg)' },
-              },
-              fadeInDown: {
-                '0%': { opacity: '0', transform: 'translateY(-10px)' },
-                '100%': { opacity: '1', transform: 'translateY(0)' },
-              },
-              fadeInUp: {
-                '0%': { opacity: '0', transform: 'translateY(10px)' },
-                '100%': { opacity: '1', transform: 'translateY(0)' },
-              },
-              shimmer: {
-                '100%': { transform: 'translateX(100%)' }
-              }
-            }
-          }
-        }
-      }
-    </script>
-    <script type="importmap">
-{
-  "imports": {
-    "react": "https://esm.sh/react@19.0.0",
-    "react-dom": "https://esm.sh/react-dom@19.0.0",
-    "react-dom/client": "https://esm.sh/react-dom@19.0.0/client",
-    "lucide-react": "https://esm.sh/lucide-react@0.474.0",
-    "@google/genai": "https://esm.sh/@google/genai@1.36.0",
-    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.48.1",
-    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2",
-    "react/": "https://esm.sh/react@^19.2.3/",
-    "vite": "https://esm.sh/vite@^7.3.1",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.3/"
-  }
-}
-</script>
-  </head>
-  <body class="dark bg-slate-950">
-    <div id="root"></div>
-    <script type="module" src="/index.tsx"></script>
-  </body>
-</html>
+# NCD - Clinic & Diagnostic Management System
+
+This is a professional-grade, comprehensive management system for **Niramoy Clinic & Diagnostic (NCD)**.
+
+## 🚀 Key Modules
+- **Dynamic Dashboard:** Role-based access to various departments.
+- **Diagnostic Management:** Full lifecycle from patient registration and invoicing to automated lab reporting (CBC, Lipid Profile, Urine R/M/E, etc.) and reagent tracking.
+- **Clinic Management:** Admission system, bed occupancy management, doctor rounds, nurse medication charts, and certificate generation (Birth, Death, Discharge).
+- **Pharmacy (Medicine):** Advanced stock management, outdoor sales, indoor billing integration, and a drug database (Monograph).
+- **Accounting:** Consolidated accounts sheet with automated profit calculation, shareholder profit sharing, and loan/installment tracking.
+- **AI Assistant:** Integrated Google Gemini AI to query stock, expenses, and invoices using natural language (Bengali/English).
+- **Cloud Sync:** Real-time data synchronization with Supabase for data security and multi-device access.
+
+## 🛠️ Setup Instructions
+1. **Extract the files:** Unzip all project files into a folder.
+2. **Install Dependencies:** Open your terminal in the project folder and run:
+   ```bash
+   npm install
+   ```
+3. **Environment Variables:** Create a `.env` file or set these in your hosting provider (like Vercel):
+   - `API_KEY`: Your Google Gemini API Key.
+   - `SUPABASE_URL`: Your Supabase project URL.
+   - `SUPABASE_ANON_KEY`: Your Supabase anonymous key.
+4. **Run Development Server:**
+   ```bash
+   npm run dev
+   ```
+5. **Build for Production:**
+   ```bash
+   npm run build
+   ```
+
+## 🔐 Security & Access
+- **Default Admin Password:** `admin123`
+- Passwords for all departments can be managed and updated from the **Admin Settings** (Gear icon at the bottom right of the dashboard).
+
+## 📄 License & Registration
+- **Diagnostic License:** HSM41671
+- **Clinic Registration:** HSM76710
+
+---
+*Developed for Niramoy Clinic & Diagnostic, Enayetpur, Sirajgonj.*

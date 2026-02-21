@@ -128,6 +128,7 @@ const AccountingPage: React.FC<AccountingPageProps> = ({
             detailedExpenses={detailedExpenses} 
             setDetailedExpenses={setDetailedExpenses}
             setReagents={setReagents} 
+            monthlyRoster={monthlyRoster}
         />
     );
   }

@@ -632,6 +632,15 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
     return summary;
   }, [invoices, today]);
 
+  const tableTotals = useMemo(() => {
+    return filteredInvoices.reduce((acc, inv) => {
+      acc.total += inv.total_amount;
+      acc.paid += inv.paid_amount;
+      acc.due += inv.due_amount;
+      return acc;
+    }, { total: 0, paid: 0, due: 0 });
+  }, [filteredInvoices]);
+
   const resetTableFilters = () => {
     setTableFilterDate('');
     setTableFilterMonth('');
@@ -1022,6 +1031,17 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
                 </tr>
               )}
             </tbody>
+            {filteredInvoices.length > 0 && (
+              <tfoot className="bg-slate-700/80 border-t-2 border-slate-600">
+                <tr>
+                  <td colSpan={6} className="px-6 py-4 text-right text-xs font-black text-slate-100 uppercase tracking-wider">Total:</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-100 text-right font-black border-l border-slate-600/50">{tableTotals.total.toFixed(2)}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-emerald-400 text-right font-black border-l border-slate-600/50">{tableTotals.paid.toFixed(2)}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-rose-400 text-right font-black border-l border-slate-600/50">{tableTotals.due.toFixed(2)}</td>
+                  <td colSpan={2} className="px-6 py-4 border-l border-slate-600/50"></td>
+                </tr>
+              </tfoot>
+            )}
           </table>
         </div>
       </div>

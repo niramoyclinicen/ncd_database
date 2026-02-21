@@ -106,13 +106,15 @@ const expenseMapSequence = [
 ];
 
 const diagExpenseCategories = [
-    'House rent', 'Electricity bill', 'Stuff salary', 'Reagent buy', 'Doctor donation',
-    'Instruments buy/ repair', 'Diagnostic development', 'Maintenance', 'License cost', 'Others'
+    'House rent', 'Electricity bill', 'Stuff salary', 'Reagent buy', 'Marketing', 'Motorcycle', 'Doctor donation & Vehicle service',
+    'Instruments buy/ repair', 'Diagnostic development', 'Maintenance', 'License cost', 
+    'X-ray Film buy', 'Mobile buy/ Flexiload', 'Press Cost', 'Food/Meal Cost', 'Paper / Dish / Wifi Bill',
+    'Others',
 ];
 
 const clinicExpenseCategories = [
     'Stuff salary', 'Generator', 'Motorcycle', 'Marketing', 'Clinic development', 
-    'Medicine buy (Pharmacy)', 'X-Ray', 'House rent', 'Stationery', 'Food/Refreshment', 
+    'House rent', 'Stationery', 'Food/Refreshment', 
     'Doctor donation', 'Repair/Instruments', 'Press', 'License/Official', 
     'Bank/NGO Installment', 'Mobile', 'Interest/Loan', 'Others', 'Old Loan Repay'
 ];
@@ -183,9 +185,27 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
             const categorySums: Record<string, number> = {};
             expenseMapSequence.forEach(e => categorySums[e.key] = 0);
             dailyExps.forEach(exp => {
-                const searchCat = exp.category === 'Clinic development' ? 'Clinic_Dev' : exp.category;
-                const matched = expenseMapSequence.find(e => e.key === searchCat);
+                let catName = exp.category;
+                
+                // Mapping Diagnostic & Clinic categories to Consolidated keys
+                if (catName === 'Clinic development' || catName === 'Diagnostic development') catName = 'Clinic_Dev';
+                if (catName === 'Electricity bill' || catName === 'Paper / Dish / Wifi Bill') catName = 'Bills';
+                if (catName === 'Doctor donation & Vehicle service') catName = 'Doctor donation';
+                if (catName === 'Instruments buy/ repair' || catName === 'Maintenance' || catName === 'Repair/Instruments') {
+                    if (exp.subCategory === 'Stationary' || exp.subCategory === 'Stationery') catName = 'Stationery';
+                    else catName = 'Instruments';
+                }
+                if (catName === 'License cost' || catName === 'License/Official') catName = 'License';
+                if (catName === 'X-ray Film buy') catName = 'X-Ray';
+                if (catName === 'Mobile buy/ Flexiload') catName = 'Mobile';
+                if (catName === 'Press Cost') catName = 'Press';
+                if (catName === 'Food/Meal Cost' || catName === 'Food/Refreshment') catName = 'Food';
+                if (catName === 'Bank/NGO Installment' || catName === 'Interest/Loan') catName = 'Installment';
+                if (catName === 'Stationery') catName = 'Stationery'; // Ensure direct match if any
+
+                const matched = expenseMapSequence.find(e => e.key === catName);
                 if (matched) categorySums[matched.key] += exp.paidAmount;
+                else categorySums['Others'] += exp.paidAmount;
             });
             const totalDay = Object.values(categorySums).reduce((a, b) => a + b, 0);
             rows.push({ date: dateStr, categories: categorySums, total: totalDay });
@@ -321,9 +341,21 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
         const calcNetPrev = () => {
             const prevLab = labInvoices.filter(inv => isBeforeSelectedMonth(inv.invoice_date) && inv.status !== 'Cancelled' && inv.status !== 'Returned').reduce((s, i) => s + getNetDiagCash(i), 0);
             const prevLabDue = dueCollections.filter(dc => isBeforeSelectedMonth(dc.collection_date) && dc.invoice_id.startsWith('INV')).reduce((s, dc) => s + dc.amount_collected, 0);
-            const prevClinic = indoorInvoices.filter(inv => isBeforeSelectedMonth(inv.invoice_date) && inv.status !== 'Cancelled' && inv.status !== 'Returned').reduce((s, i) => s + i.paid_amount, 0);
+            
+            const prevClinic = indoorInvoices.filter(inv => isBeforeSelectedMonth(inv.invoice_date) && inv.status !== 'Cancelled' && inv.status !== 'Returned').reduce((acc, inv) => {
+                const netIncomeForInv = inv.items.filter((it: any) => it.isClinicFund).reduce((s: number, i: any) => s + i.payable_amount, 0);
+                const pcAmount = inv.commission_paid || 0;
+                return acc + (netIncomeForInv - pcAmount);
+            }, 0);
+
             const prevClinicDue = dueCollections.filter(dc => isBeforeSelectedMonth(dc.collection_date) && !dc.invoice_id.startsWith('INV')).reduce((s, dc) => s + dc.amount_collected, 0);
-            const prevMedSales = salesInvoices.filter(inv => isBeforeSelectedMonth(inv.invoiceDate)).reduce((s, i) => s + i.netPayable, 0);
+            
+            const prevMedSalesOutdoor = salesInvoices.filter(inv => isBeforeSelectedMonth(inv.invoiceDate)).reduce((s, i) => s + i.netPayable, 0);
+            const prevMedSalesIndoor = indoorInvoices.filter(inv => isBeforeSelectedMonth(inv.invoice_date) && inv.status !== 'Cancelled' && inv.status !== 'Returned').reduce((s, inv) => {
+                return s + inv.items.filter(it => it.service_type === 'Medicine').reduce((ss, it) => ss + it.payable_amount, 0);
+            }, 0);
+            const prevMedSales = prevMedSalesOutdoor + prevMedSalesIndoor;
+
             const prevMedPurch = purchaseInvoices.filter(inv => isBeforeSelectedMonth(inv.invoiceDate) && inv.status !== 'Initial' && inv.status !== 'Cancelled').reduce((s, i) => s + i.paidAmount, 0);
             const prevCompany = companyCollections.filter(c => isBeforeSelectedMonth(c.date)).reduce((s, c) => s + c.amount, 0);
             let prevExp = 0;
@@ -351,7 +383,13 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
 
         const clinicCurrent = clinicRevenueCurrent - totalMonthlyOperatingExpenses;
         const clinicDue = dueCollections.filter(dc => isSelectedMonth(dc.collection_date) && !dc.invoice_id.startsWith('INV')).reduce((s, dc) => s + dc.amount_collected, 0);
-        const medSalesCurrent = salesInvoices.filter(inv => isSelectedMonth(inv.invoiceDate)).reduce((s, i) => s + i.netPayable, 0);
+        
+        const medSalesOutdoor = salesInvoices.filter(inv => isSelectedMonth(inv.invoiceDate)).reduce((s, i) => s + i.netPayable, 0);
+        const medSalesIndoor = indoorInvoices.filter(inv => isSelectedMonth(inv.invoice_date) && inv.status !== 'Cancelled' && inv.status !== 'Returned').reduce((s, inv) => {
+            return s + inv.items.filter(it => it.service_type === 'Medicine').reduce((ss, it) => ss + it.payable_amount, 0);
+        }, 0);
+        const medSalesCurrent = medSalesOutdoor + medSalesIndoor;
+
         const medPurchCurrent = purchaseInvoices.filter(inv => isSelectedMonth(inv.invoiceDate) && inv.status !== 'Initial' && inv.status !== 'Cancelled').reduce((s, i) => s + i.paidAmount, 0);
         const companyCurrent = companyCollections.filter(c => isSelectedMonth(c.date)).reduce((s, c) => s + c.amount, 0);
 
@@ -365,7 +403,23 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
         expenseMapSequence.forEach(e => groupedExp[e.key] = 0);
         Object.entries(detailedExpenses).forEach(([date, items]) => {
             if (isSelectedMonth(date)) (items as ExpenseItem[]).forEach(it => {
-                const catName = it.category === 'Clinic development' ? 'Clinic_Dev' : it.category;
+                let catName = it.category;
+                
+                // Mapping Diagnostic categories to Consolidated keys
+                if (catName === 'Clinic development' || catName === 'Diagnostic development') catName = 'Clinic_Dev';
+                if (catName === 'Electricity bill' || catName === 'Paper / Dish / Wifi Bill') catName = 'Bills';
+                if (catName === 'Doctor donation & Vehicle service') catName = 'Doctor donation';
+                if (catName === 'Instruments buy/ repair' || catName === 'Maintenance' || catName === 'Repair/Instruments') {
+                    if (it.subCategory === 'Stationary' || it.subCategory === 'Stationery') catName = 'Stationery';
+                    else catName = 'Instruments';
+                }
+                if (catName === 'License cost' || catName === 'License/Official') catName = 'License';
+                if (catName === 'X-ray Film buy') catName = 'X-Ray';
+                if (catName === 'Mobile buy/ Flexiload') catName = 'Mobile';
+                if (catName === 'Press Cost') catName = 'Press';
+                if (catName === 'Food/Meal Cost' || catName === 'Food/Refreshment') catName = 'Food';
+                if (catName === 'Bank/NGO Installment' || catName === 'Interest/Loan') catName = 'Installment';
+
                 const mapping = expenseMapSequence.find(e => e.key === catName);
                 const key = mapping ? mapping.key : 'Others';
                 groupedExp[key] += it.paidAmount;
@@ -572,8 +626,8 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                         <div className="text-[11px] font-black font-bengali underline mb-0.5">গ) ঔষধ হইতে (নিট মুনাফা) :</div>
                                         <table className="w-full border border-black">
                                             <tbody>
-                                                <tr className="h-8"><td className="p-1 border border-black text-center w-8">১</td><td className={commonTableCellClass}>ঔষধ বিক্রয়</td><td className={commonAmtCellClass}>{summary.medSalesCurrent.toLocaleString()}</td></tr>
-                                                <tr className="h-8"><td className="p-1 border border-black text-center w-8">২</td><td className={`${commonTableCellClass} text-black-600`}>ঔষধ ক্রয় (খরচ)</td><td className={`${commonAmtCellClass} text-blackred-600`}>({summary.medPurchCurrent.toLocaleString()})</td></tr>
+                                                <tr className="h-8"><td className="p-1 border border-black text-center w-8">১</td><td className={commonTableCellClass}>মোট ঔষধ বিক্রয়</td><td className={commonAmtCellClass}>{summary.medSalesCurrent.toLocaleString()}</td></tr>
+                                                <tr className="h-8"><td className="p-1 border border-black text-center w-8">২</td><td className={commonTableCellClass}>মোট ঔষধ ক্রয় (খরচ)</td><td className={`${commonAmtCellClass} text-rose-600`}>({summary.medPurchCurrent.toLocaleString()})</td></tr>
                                                 <tr className="bg-gray-100 font-black h-8"><td colSpan={2} className="p-1 text-right text-[10px]">নিট ঔষধ মুনাফা :</td><td className={commonAmtCellClass}>{summary.totalMedNet.toLocaleString()}</td></tr>
                                             </tbody>
                                         </table>

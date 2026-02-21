@@ -518,6 +518,10 @@ const DoctorAppointmentPage: React.FC<DoctorAppointmentPageProps> = ({
                         title="Filter by Entire Month"
                     />
                 </div>
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-indigo-900/40 border border-indigo-700/50 rounded-lg shadow-inner">
+                    <span className="text-[10px] font-black text-indigo-300 uppercase tracking-widest">Total:</span>
+                    <span className="text-xs font-black text-white">{filteredAppointments.length}</span>
+                </div>
                 <button 
                     onClick={() => { setListSearchDoctor(''); setListFilterDate(''); setListFilterMonth(''); }}
                     className="p-1.5 bg-slate-700 hover:bg-rose-600 text-white rounded-lg transition-colors"
@@ -532,6 +536,7 @@ const DoctorAppointmentPage: React.FC<DoctorAppointmentPageProps> = ({
             <table className="min-w-full divide-y divide-slate-800">
                 <thead className="bg-slate-900/50">
                     <tr>
+                        <th className="px-6 py-4 text-left text-[10px] font-black text-slate-500 uppercase tracking-widest">SL</th>
                         <th className="px-6 py-4 text-left text-[10px] font-black text-slate-500 uppercase tracking-widest">ID</th>
                         <th className="px-6 py-4 text-left text-[10px] font-black text-slate-500 uppercase tracking-widest">Schedule</th>
                         <th className="px-6 py-4 text-left text-[10px] font-black text-slate-500 uppercase tracking-widest">Patient Details</th>
@@ -541,12 +546,13 @@ const DoctorAppointmentPage: React.FC<DoctorAppointmentPageProps> = ({
                     </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/50">
-                    {filteredAppointments.length > 0 ? filteredAppointments.map((appt) => (
+                    {filteredAppointments.length > 0 ? filteredAppointments.map((appt, index) => (
                         <tr 
                             key={appt.appointment_id} 
                             className={`hover:bg-slate-800/40 cursor-pointer transition-colors ${selectedAppointmentId === appt.appointment_id ? 'bg-blue-900/20 border-l-4 border-blue-500' : ''}`} 
                             onClick={() => handleRowClick(appt)}
                         >
+                            <td className="px-6 py-4 whitespace-nowrap text-xs font-bold text-slate-400">{index + 1}</td>
                             <td className="px-6 py-4 whitespace-nowrap text-xs font-mono text-sky-400">{appt.appointment_id}</td>
                             <td className="px-6 py-4 whitespace-nowrap">
                                 <div className="text-sm font-bold text-slate-200">{appt.appointment_date}</div>
@@ -566,7 +572,7 @@ const DoctorAppointmentPage: React.FC<DoctorAppointmentPageProps> = ({
                             </td>
                         </tr>
                     )) : (
-                        <tr><td colSpan={6} className="p-20 text-center text-slate-700 italic font-black uppercase opacity-20 text-2xl tracking-[0.3em]">No Appointment Data</td></tr>
+                        <tr><td colSpan={7} className="p-20 text-center text-slate-700 italic font-black uppercase opacity-20 text-2xl tracking-[0.3em]">No Appointment Data</td></tr>
                     )}
                 </tbody>
             </table>

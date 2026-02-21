@@ -13,7 +13,7 @@ const CLINIC_REGISTRATION = 'HSM76710';
 // Clinic Expense Categories for net balance calculation
 const clinicExpenseCategories = [
     'Stuff salary', 'Generator', 'Motorcycle', 'Marketing', 'Clinic development', 
-    'Medicine buy (Pharmacy)', 'X-Ray', 'House rent', 'Stationery', 'Food/Refreshment', 
+    'House rent', 'Stationery', 'Food/Refreshment', 
     'Doctor donation', 'Repair/Instruments', 'Press', 'License/Official', 
     'Bank/NGO Installment', 'Mobile', 'Interest/Loan', 'Others', 'Old Loan Repay'
 ];
@@ -1431,6 +1431,15 @@ const IndoorInvoicePage: React.FC<{
     
     // Persistent OT Details Library for Suggestions
     const [otDetailsLibrary, setOtDetailsLibrary] = useState<Record<string, string>>(() => JSON.parse(localStorage.getItem('ncd_ot_details_library') || '{}'));
+    const [tableSearchTerm, setTableSearchTerm] = useState('');
+
+    const filteredInvoices = useMemo(() => {
+        return indoorInvoices.filter(inv => 
+            inv.patient_name.toLowerCase().includes(tableSearchTerm.toLowerCase()) ||
+            inv.daily_id.toLowerCase().includes(tableSearchTerm.toLowerCase()) ||
+            inv.patient_id.toLowerCase().includes(tableSearchTerm.toLowerCase())
+        );
+    }, [indoorInvoices, tableSearchTerm]);
 
     useEffect(() => {
         localStorage.setItem('ncd_clinic_subcategories', JSON.stringify(subCategories));
@@ -1984,13 +1993,25 @@ const IndoorInvoicePage: React.FC<{
                 )}
                 
                 <div className="mt-8">
-                    <h3 className="text-gray-400 font-bold mb-2 uppercase text-xs tracking-widest">Master Journal: Saved Indoor Invoices</h3>
+                    <div className="flex justify-between items-center mb-2">
+                        <h3 className="text-gray-400 font-bold uppercase text-xs tracking-widest">Master Journal: Saved Indoor Invoices</h3>
+                        <div className="relative w-64">
+                            <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={14} />
+                            <input 
+                                type="text" 
+                                placeholder="Search Patient or ID..." 
+                                value={tableSearchTerm}
+                                onChange={e => setTableSearchTerm(e.target.value)}
+                                className="w-full bg-[#111827] border border-gray-700 rounded-lg pl-9 pr-3 py-1.5 text-xs text-white focus:ring-1 focus:ring-blue-500 outline-none"
+                            />
+                        </div>
+                    </div>
                     {/* Fixed: Container expanded for continuous page view (removed fixed height/overflow) */}
                     <div className="bg-[#111827] rounded-xl border border-gray-700 shadow-inner">
                         <table className="w-full text-sm text-left text-gray-300">
                             <thead className="bg-[#1f2937] text-gray-400 sticky top-0 z-10"><tr><th className="p-3">ID</th><th className="p-3">Date</th><th className="p-3">Patient</th><th className="p-3 text-right">Total</th><th className="p-3 text-right">Paid</th><th className="p-3 text-right">Due</th><th className="p-3 text-center">Status</th><th className="p-3 text-center">Action</th></tr></thead>
                             <tbody className="divide-y divide-gray-700">
-                                {indoorInvoices.map(inv => (
+                                {filteredInvoices.map(inv => (
                                     <tr key={inv.daily_id} onClick={() => handleLoadInvoice(inv)} className={`cursor-pointer hover:bg-slate-800 transition-all ${selectedInvoiceId === inv.daily_id ? 'bg-blue-900/30' : ''} ${inv.status === 'Returned' ? 'bg-rose-900/10' : inv.status === 'Cancelled' ? 'opacity-30 grayscale line-through' : ''}`}>
                                         <td className="p-3 font-mono text-xs text-sky-400">{inv.daily_id}</td><td className="p-3">{inv.invoice_date}</td><td className="p-3 font-black uppercase">{inv.patient_name}</td><td className="p-3 text-right font-bold">৳{inv.total_bill.toFixed(2)}</td><td className="p-3 text-right text-emerald-400 font-black">৳{inv.paid_amount.toFixed(2)}</td><td className="p-3 text-right text-rose-500 font-black">৳{inv.due_bill.toFixed(2)}</td>
                                         <td className="p-3 text-center"><span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase ${inv.status==='Returned'?'bg-rose-600 text-white':inv.status==='Cancelled'?'bg-slate-700 text-slate-300':'bg-blue-600 text-white'}`}>{inv.status}</span></td>
@@ -2007,7 +2028,7 @@ const IndoorInvoicePage: React.FC<{
                                 ))}
                             </tbody>
                         </table>
-                        {indoorInvoices.length === 0 && <div className="p-20 text-center text-slate-700 font-black uppercase opacity-20">No Records Found</div>}
+                        {filteredInvoices.length === 0 && <div className="p-20 text-center text-slate-700 font-black uppercase opacity-20">No Records Found</div>}
                     </div>
                 </div>
             </div>
