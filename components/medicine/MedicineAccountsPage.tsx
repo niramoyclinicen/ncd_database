@@ -21,7 +21,7 @@ const MedicineAccountsPage: React.FC<MedicineAccountsPageProps> = ({
 }) => {
     const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth());
     const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
-    const [profitDistributionPercent, setProfitDistributionPercent] = useState<number>(50); // Now manually adjustable
+    const [manualProfitDistAmount, setManualProfitDistAmount] = useState<number>(0); 
 
     const stats = useMemo(() => {
         // Calculate Current Month Stats
@@ -117,7 +117,7 @@ const MedicineAccountsPage: React.FC<MedicineAccountsPageProps> = ({
     const grandTotalSell = stats.totalSellCurrent + stats.totalSellPrev;
     const grandTotalBuy = stats.totalBuyCurrent + stats.totalBuyPrev;
     const currentBalance = grandTotalSell - grandTotalBuy;
-    const profitDistValue = (currentBalance * profitDistributionPercent) / 100;
+    const profitDistValue = manualProfitDistAmount;
     const remainingBalance = currentBalance - profitDistValue;
 
     const handlePrint = () => { window.print(); };
@@ -159,13 +159,14 @@ const MedicineAccountsPage: React.FC<MedicineAccountsPageProps> = ({
                     <h2 className="text-3xl font-extrabold font-bengali text-amber-400 border-b-2 border-amber-500/30 pb-2">মেডিসিন ক্রয়-বিক্রয় ব্যালেন্স</h2>
                     <div className="flex flex-wrap gap-4 items-center bg-slate-800/50 p-4 rounded-2xl border border-slate-700">
                         <div className="flex flex-col gap-1">
-                            <label className="text-[10px] font-black text-slate-500 uppercase ml-1">Distribution %</label>
+                            <label className="text-[10px] font-black text-slate-500 uppercase ml-1">লভ্যাংশ বণ্টন (টাকা)</label>
                             <input 
                                 type="number" 
-                                value={profitDistributionPercent} 
-                                onChange={e => setProfitDistributionPercent(parseFloat(e.target.value) || 0)}
-                                className="w-24 bg-slate-900 border border-slate-600 rounded-lg p-2 text-white font-black text-center focus:ring-2 focus:ring-amber-500 outline-none"
+                                value={manualProfitDistAmount || ''} 
+                                onChange={e => setManualProfitDistAmount(parseFloat(e.target.value) || 0)}
+                                className="w-32 bg-slate-900 border border-slate-600 rounded-lg p-2 text-white font-black text-center focus:ring-2 focus:ring-amber-500 outline-none"
                                 onFocus={e => e.target.select()}
+                                placeholder="টাকা লিখুন"
                             />
                         </div>
                         <div className="flex flex-col gap-1">
@@ -191,7 +192,7 @@ const MedicineAccountsPage: React.FC<MedicineAccountsPageProps> = ({
                                 <th className={headerCell}>মোট ঔষধ বিক্রয়</th>
                                 <th className={headerCell}>মোট ঔষধ ক্রয়</th>
                                 <th className={headerCell}>ব্যালেন্স</th>
-                                <th className={headerCell}>লভ্যাংশ বণ্টন ({profitDistributionPercent}%)</th>
+                                <th className={headerCell}>লভ্যাংশ বণ্টন</th>
                                 <th className={headerCell}>অবশিষ্ট</th>
                             </tr>
                         </thead>
