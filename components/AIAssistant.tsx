@@ -103,7 +103,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({
                     let resultText = "";
                     if (fc.name === 'query_purchase_records') {
                         const { query } = fc.args as any;
-                        let found = purchaseInvoices.filter(inv => inv.source.toLowerCase().includes(query.toLowerCase()) || inv.items.some(it => it.tradeName.toLowerCase().includes(query.toLowerCase())));
+                        const found = purchaseInvoices.filter(inv => inv.source.toLowerCase().includes(query.toLowerCase()) || inv.items.some(it => it.tradeName.toLowerCase().includes(query.toLowerCase())));
                         resultText = found.length > 0 ? `রেকর্ড অনুযায়ী, ${query} সংক্রান্ত মোট ${found.length} টি ভাউচার পাওয়া গেছে। মোট খরচ ৳${found.reduce((s,i)=>s+i.paidAmount,0).toLocaleString()}।` : `দুঃখিত, "${query}" এর কোনো কেনার রেকর্ড নেই।`;
                     } else if (fc.name === 'query_expenses') {
                         const { category } = fc.args as any;
