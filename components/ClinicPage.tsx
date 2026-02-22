@@ -1846,7 +1846,31 @@ const IndoorInvoicePage: React.FC<{
             <div className="bg-[#20293a] p-6 rounded border border-[#374151]">
                 <h3 className="text-xl font-bold text-white mb-4 border-b border-gray-700 pb-2">Indoor Invoice</h3>
                 <div className="flex gap-4 mb-6">
-                    <select className="w-1/3 p-2 bg-[#2d2d55] border border-gray-600 rounded text-white" onChange={e => { const adm = admissions.find(a => a.admission_id === e.target.value); setSelectedAdmission(adm || null); if(adm) setFormData({...emptyIndoorInvoice, admission_id: adm.admission_id, patient_id: adm.patient_id, patient_name: adm.patient_name, admission_date: adm.admission_date, status: 'Posted'}); }} value={selectedAdmission?.admission_id || ''}> <option value="">Select Patient...</option>{admissions.map(a => <option key={a.admission_id} value={a.admission_id}>{a.patient_name} ({a.admission_id})</option>)} </select>
+                    <div className="w-1/3">
+                        <SearchableSelect 
+                            label="" 
+                            theme="dark" 
+                            placeholder="Search Patient or Date..."
+                            options={admissions.map(a => ({
+                                id: a.admission_id, 
+                                name: a.patient_name, 
+                                details: `Date: ${a.admission_date} | ID: ${a.admission_id}`
+                            }))} 
+                            value={selectedAdmission?.admission_id || ''} 
+                            onChange={(id) => { 
+                                const adm = admissions.find(a => a.admission_id === id); 
+                                setSelectedAdmission(adm || null); 
+                                if(adm) setFormData({
+                                    ...emptyIndoorInvoice, 
+                                    admission_id: adm.admission_id, 
+                                    patient_id: adm.patient_id, 
+                                    patient_name: adm.patient_name, 
+                                    admission_date: adm.admission_date, 
+                                    status: 'Posted'
+                                }); 
+                            }} 
+                        />
+                    </div>
                     <button onClick={handleGenerateId} className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded font-bold shadow transition-all">Generate ID</button>
                 </div>
                 {formData.daily_id && (
