@@ -1219,8 +1219,7 @@ const AdmissionAndTreatmentPage: React.FC<{
                                                                 const lastTimeMs = lastLog.id; 
                                                                 const nextTimeMs = lastTimeMs + (med.frequency * 60 * 60 * 1000);
                                                                 const nextDate = new Date(nextTimeMs);
-                                                                const now = Date.now();
-                                                                const isOverdue = now > nextTimeMs;
+                                                                const isOverdue = Date.now() > nextTimeMs;
                                                                 nextTimeText = `Next: ${nextDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
                                                                 statusText = isOverdue ? 'On Schedule' : 'On Schedule';
                                                                 nextColorClass = isOverdue ? 'text-red-400 font-bold' : 'text-green-400 font-medium';
@@ -1566,7 +1565,7 @@ const IndoorInvoicePage: React.FC<{
     };
 
     const handleServiceChange = (id: number, field: keyof ServiceItem, value: any) => {
-        let updatedItems = formData.items.map(item => item.id === id ? { ...item, [field]: value } : item);
+        const updatedItems = formData.items.map(item => item.id === id ? { ...item, [field]: value } : item);
         
         if (field === 'service_type' && (value === 'Medicine' || value === 'medicine') && formData.admission_id) {
             const latestAdm = admissions.find(a => a.admission_id === formData.admission_id);
@@ -2090,6 +2089,13 @@ const ClinicDueCollectionPage: React.FC<{
     );
 };
 
+const CertificateCard = ({ title, icon, color, onClick }: any) => (
+    <div onClick={onClick} className={`bg-slate-800 p-4 rounded-lg border border-slate-700 hover:border-${color}-500 transition-all cursor-pointer group flex flex-col items-center justify-center h-32`}>
+        <div className={`p-3 rounded-full bg-${color}-900/50 text-${color}-400 mb-2 group-hover:scale-110 transition-transform`}>{icon}</div>
+        <span className="text-gray-300 font-bold text-sm text-center group-hover:text-white">{title}</span>
+    </div>
+);
+
 // 4. Report Summary
 const ReportSummaryPage: React.FC<{ 
     admissions: AdmissionRecord[]; 
@@ -2102,7 +2108,6 @@ const ReportSummaryPage: React.FC<{
     const discharged = totalAdmissions - activeAdmissions;
     const [activeCertType, setActiveCertType] = useState<'discharge' | 'birth' | 'death' | 'referral' | null>(null);
     const doctorStats = doctors.map(doc => ({ name: doc.doctor_name, count: admissions.filter(a => a.doctor_id === doc.doctor_id).length })).filter(d => d.count > 0);
-    const CertificateCard = ({ title, icon, color, onClick }: any) => (<div onClick={onClick} className={`bg-slate-800 p-4 rounded-lg border border-slate-700 hover:border-${color}-500 transition-all cursor-pointer group flex flex-col items-center justify-center h-32`}><div className={`p-3 rounded-full bg-${color}-900/50 text-${color}-400 mb-2 group-hover:scale-110 transition-transform`}>{icon}</div><span className="text-gray-300 font-bold text-sm text-center group-hover:text-white">{title}</span></div>);
     return (
         <div className="bg-[#1f2937] p-6 rounded border border-[#374151]">
             <h3 className="text-xl font-bold text-white mb-6">Report Summary</h3>

@@ -40,13 +40,13 @@ const InputRow = ({ label, field, options, isLast, autoFormat, val, onChange, di
 
 const UrineRMEInputPage: React.FC<any> = ({ results: initialResults, onSaveOverride, disabled, isEmbedded }) => {
   const [localResults, setLocalResults] = useState<UrineRMEResults>(initialResults || normalUrineRMEResults);
+  const [prevInitialResults, setPrevInitialResults] = useState(initialResults);
   const typingTimeoutRef = useRef<any>(null);
 
-  useEffect(() => { 
-      if (!typingTimeoutRef.current && initialResults) {
-          setLocalResults(initialResults); 
-      }
-  }, [initialResults]);
+  if (initialResults !== prevInitialResults) {
+      setLocalResults(initialResults || normalUrineRMEResults);
+      setPrevInitialResults(initialResults);
+  }
 
   const formatCellValue = (val: string) => {
     const digits = val.replace(/\D/g, '');

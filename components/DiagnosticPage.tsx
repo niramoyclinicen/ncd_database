@@ -48,7 +48,58 @@ interface DiagnosticPageProps {
   setAppointments: React.Dispatch<React.SetStateAction<Appointment[]>>;
   monthlyRoster: Record<string, string[]>;
   setMonthlyRoster: React.Dispatch<React.SetStateAction<Record<string, string[]>>>;
+  employeeReferrerMap: Record<string, string[]>;
+  setEmployeeReferrerMap: React.Dispatch<React.SetStateAction<Record<string, string[]>>>;
 }
+
+const TopBarButton: React.FC<{ label: string; icon?: React.ReactNode; isActive: boolean; onClick: () => void; disabled?: boolean }> = ({ label, icon, isActive, onClick, disabled = false }) => (
+  <button
+    onClick={onClick}
+    disabled={disabled}
+    className={`
+      relative group overflow-hidden
+      flex flex-col md:flex-row items-center justify-center w-full px-3 py-2 
+      rounded-xl font-bold text-xs md:text-sm tracking-wide
+      transition-all duration-300 ease-out
+      border
+      ${isActive 
+        ? 'bg-gradient-to-br from-cyan-600 to-blue-700 border-cyan-400 text-white shadow-lg shadow-cyan-500/40 translate-y-0.5' 
+        : disabled 
+          ? 'bg-slate-900 border-slate-800 text-slate-700 cursor-not-allowed opacity-50'
+          : 'bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700 text-slate-400 hover:border-cyan-500/50 hover:text-cyan-400 hover:shadow-md hover:shadow-cyan-900/20 hover:-translate-y-0.5'}
+    `}
+  >
+    <div className={`absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full ${(!isActive && !disabled) ? 'group-hover:animate-shimmer' : ''}`} />
+    {icon && <span className={`mb-1 md:mb-0 md:mr-2 ${isActive ? 'text-white' : disabled ? 'text-slate-800' : 'text-slate-500 group-hover:text-cyan-400'}`}>{icon}</span>}
+    <span className="text-center z-10">{label}</span>
+    {disabled && (
+      <div className="absolute top-1 right-1">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="text-slate-700">
+          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+          <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+        </svg>
+      </div>
+    )}
+  </button>
+);
+
+const SidebarItem: React.FC<{ label: string; icon: React.ReactNode; id: DiagnosticSubPage; activeTab: string; onClick: (id: DiagnosticSubPage) => void; disabled?: boolean }> = ({ label, icon, id, activeTab, onClick, disabled = false }) => (
+  <button
+    onClick={() => !disabled && onClick(id)}
+    disabled={disabled}
+    className={`
+      w-full flex items-center px-4 py-3 text-sm font-medium transition-all duration-200 border-l-4
+      ${activeTab === id 
+        ? 'bg-slate-800 text-cyan-400 border-cyan-500 shadow-[inset_0_2px_10_rgba(0,0,0,0.3)]' 
+        : disabled 
+          ? 'opacity-30 cursor-not-allowed border-transparent grayscale'
+          : 'text-slate-400 border-transparent hover:bg-slate-800/50 hover:text-slate-200 hover:border-slate-600'}
+    `}
+  >
+    <span className={`mr-3 ${activeTab === id ? 'text-cyan-400' : 'text-slate-500'}`}>{icon}</span>
+    {label}
+  </button>
+);
 
 const DiagnosticPage: React.FC<DiagnosticPageProps> = ({ 
   onBack, userRole = 'ADMIN', doctors, setDoctors, 
@@ -65,20 +116,14 @@ const DiagnosticPage: React.FC<DiagnosticPageProps> = ({
   detailedExpenses,
   attendanceLog, setAttendanceLog, leaveLog, setLeaveLog,
   appointments, setAppointments,
-  monthlyRoster, setMonthlyRoster
+  monthlyRoster, setMonthlyRoster,
+  employeeReferrerMap, setEmployeeReferrerMap
 }) => {
   const isLabReporter = userRole === 'LAB_REPORTER';
   const isDiagAdmin = userRole === 'DIAGNOSTIC_ADMIN';
   
-  const [activeTab, setActiveTab] = useState<DiagnosticSubPage>(isLabReporter ? 'lab_reporting' : 'doctor_appointment');
-  const [employeeReferrerMap, setEmployeeReferrerMap] = useState<Record<string, string[]>>({});
-
-  useEffect(() => {
-    if (isLabReporter) {
-        setActiveTab('lab_reporting');
-    }
-  }, [isLabReporter]);
-
+  const [activeTab, setActiveTab] = useState<DiagnosticSubPage>(() => isLabReporter ? 'lab_reporting' : 'doctor_appointment');
+  
   const renderContent = () => {
     switch (activeTab) {
       case 'doctor_appointment':
@@ -230,55 +275,6 @@ const DiagnosticPage: React.FC<DiagnosticPageProps> = ({
     }
   };
 
-  const TopBarButton: React.FC<{ label: string; icon?: React.ReactNode; isActive: boolean; onClick: () => void; disabled?: boolean }> = ({ label, icon, isActive, onClick, disabled = false }) => (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      className={`
-        relative group overflow-hidden
-        flex flex-col md:flex-row items-center justify-center w-full px-3 py-2 
-        rounded-xl font-bold text-xs md:text-sm tracking-wide
-        transition-all duration-300 ease-out
-        border
-        ${isActive 
-          ? 'bg-gradient-to-br from-cyan-600 to-blue-700 border-cyan-400 text-white shadow-lg shadow-cyan-500/40 translate-y-0.5' 
-          : disabled 
-            ? 'bg-slate-900 border-slate-800 text-slate-700 cursor-not-allowed opacity-50'
-            : 'bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700 text-slate-400 hover:border-cyan-500/50 hover:text-cyan-400 hover:shadow-md hover:shadow-cyan-900/20 hover:-translate-y-0.5'}
-      `}
-    >
-      <div className={`absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full ${(!isActive && !disabled) ? 'group-hover:animate-shimmer' : ''}`} />
-      {icon && <span className={`mb-1 md:mb-0 md:mr-2 ${isActive ? 'text-white' : disabled ? 'text-slate-800' : 'text-slate-500 group-hover:text-cyan-400'}`}>{icon}</span>}
-      <span className="text-center z-10">{label}</span>
-      {disabled && (
-        <div className="absolute top-1 right-1">
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="text-slate-700">
-            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-          </svg>
-        </div>
-      )}
-    </button>
-  );
-
-  const SidebarItem: React.FC<{ label: string; icon: React.ReactNode; id: DiagnosticSubPage; disabled?: boolean }> = ({ label, icon, id, disabled = false }) => (
-    <button
-      onClick={() => !disabled && setActiveTab(id)}
-      disabled={disabled}
-      className={`
-        w-full flex items-center px-4 py-3 text-sm font-medium transition-all duration-200 border-l-4
-        ${activeTab === id 
-          ? 'bg-slate-800 text-cyan-400 border-cyan-500 shadow-[inset_0_2px_10px_rgba(0,0,0,0.3)]' 
-          : disabled 
-            ? 'opacity-30 cursor-not-allowed border-transparent grayscale'
-            : 'text-slate-400 border-transparent hover:bg-slate-800/50 hover:text-slate-200 hover:border-slate-600'}
-      `}
-    >
-      <span className={`mr-3 ${activeTab === id ? 'text-cyan-400' : 'text-slate-500'}`}>{icon}</span>
-      {label}
-    </button>
-  );
-
   return (
     <div className="flex h-screen bg-slate-900 text-slate-100 overflow-hidden">
       <aside className="w-64 bg-slate-950 border-r border-slate-800 flex flex-col z-20 shadow-2xl hidden md:flex pt-48">
@@ -287,11 +283,11 @@ const DiagnosticPage: React.FC<DiagnosticPageProps> = ({
               Data Entry / Setup
             </div>
             <div className="space-y-1">
-              <SidebarItem id="patient_info" label="Patient Information" icon={<UsersIcon className="w-5 h-5" />} disabled={isLabReporter} />
-              <SidebarItem id="doctor_info" label="Doctor Information" icon={<StethoscopeIcon className="w-5 h-5" />} disabled={isLabReporter} />
-              <SidebarItem id="referrer_info" label="Referrer Information" icon={<UserPlusIcon className="w-5 h-5" />} disabled={isLabReporter} />
-              <SidebarItem id="test_info" label="Test Information" icon={<DnaIcon className="w-5 h-5" />} disabled={isLabReporter} />
-              <SidebarItem id="reagent_info" label="Reagent Information" icon={<TestTubeIcon className="w-5 h-5" />} disabled={isLabReporter} />
+              <SidebarItem id="patient_info" label="Patient Information" icon={<UsersIcon className="w-5 h-5" />} activeTab={activeTab} onClick={setActiveTab} disabled={isLabReporter} />
+              <SidebarItem id="doctor_info" label="Doctor Information" icon={<StethoscopeIcon className="w-5 h-5" />} activeTab={activeTab} onClick={setActiveTab} disabled={isLabReporter} />
+              <SidebarItem id="referrer_info" label="Referrer Information" icon={<UserPlusIcon className="w-5 h-5" />} activeTab={activeTab} onClick={setActiveTab} disabled={isLabReporter} />
+              <SidebarItem id="test_info" label="Test Information" icon={<DnaIcon className="w-5 h-5" />} activeTab={activeTab} onClick={setActiveTab} disabled={isLabReporter} />
+              <SidebarItem id="reagent_info" label="Reagent Information" icon={<TestTubeIcon className="w-5 h-5" />} activeTab={activeTab} onClick={setActiveTab} disabled={isLabReporter} />
             </div>
 
             <div className="mt-8 px-4 mb-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">
@@ -318,7 +314,7 @@ const DiagnosticPage: React.FC<DiagnosticPageProps> = ({
         </div>
       </aside>
 
-      <main className="flex-1 flex flex-col h-screen overflow-hidden relative">
+      <main className="flex-1 flex flex-col overflow-hidden relative">
         <div className="absolute inset-0 pointer-events-none">
            <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-blue-900/10 rounded-full blur-[100px] -translate-y-1/2 translate-x-1/2"></div>
         </div>
@@ -385,7 +381,7 @@ const DiagnosticPage: React.FC<DiagnosticPageProps> = ({
            </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 md:p-6 bg-slate-900/50 relative z-10">
+        <div className={`flex-1 ${activeTab === 'lab_reporting' ? 'overflow-hidden p-0' : 'overflow-y-auto p-4 md:p-6'} bg-slate-900/50 relative z-10`}>
           <div className="w-full h-full">
             {renderContent()}
           </div>

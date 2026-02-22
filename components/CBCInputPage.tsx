@@ -27,14 +27,14 @@ const TableRow = ({ label, field, unit, range, val, isAlert, onChange, disabled 
 const CBCInputPage: React.FC<any> = ({ results: initialResults, onSaveOverride, disabled, isEmbedded, checkRange }) => {
     const [localResults, setLocalResults] = useState<CBCResults>(initialResults || emptyCBCResults);
     const [impression, setImpression] = useState(initialResults?.impression || '');
+    const [prevInitialResults, setPrevInitialResults] = useState(initialResults);
     const typingTimeoutRef = useRef<any | null>(null);
 
-    useEffect(() => { 
-        if (!typingTimeoutRef.current && initialResults) {
-            setLocalResults(initialResults); 
-            setImpression(initialResults.impression || '');
-        }
-    }, [initialResults]);
+    if (initialResults !== prevInitialResults) {
+        setLocalResults(initialResults || emptyCBCResults);
+        setImpression(initialResults?.impression || '');
+        setPrevInitialResults(initialResults);
+    }
     
     const updateField = (f: keyof CBCResults, v: string) => {
         const updated = { ...localResults, [f]: v, impression };

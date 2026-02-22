@@ -36,10 +36,6 @@ const DoctorInfoPage: React.FC<DoctorInfoPageProps> = ({ doctors, setDoctors, is
     setFilteredDoctors(results);
   }, [searchTerm, doctors, isEmbedded]);
 
-  useEffect(() => {
-    if (isEmbedded && !isEditing && !formData.doctor_id) handleGetNewId();
-  }, [isEmbedded, isEditing, formData.doctor_id]);
-
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     if (name === 'mobile') {
@@ -73,6 +69,10 @@ const DoctorInfoPage: React.FC<DoctorInfoPageProps> = ({ doctors, setDoctors, is
     setSelectedDoctorId(null);
     setIsEditing(false);
   };
+
+  useEffect(() => {
+    if (isEmbedded && !isEditing && !formData.doctor_id) handleGetNewId();
+  }, [isEmbedded, isEditing, formData.doctor_id, handleGetNewId]);
 
   const handleSaveDoctor = (e: React.FormEvent) => {
     e.preventDefault();

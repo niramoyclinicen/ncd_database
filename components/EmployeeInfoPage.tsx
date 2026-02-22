@@ -152,7 +152,7 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
                 ].sort();
 
                 let totalMinutes = 0;
-                let sessionDetails = [];
+                const sessionDetails = [];
 
                 // Pair the sorted punches: (1,2), (3,4), etc.
                 for (let i = 0; i < punches.length; i += 2) {

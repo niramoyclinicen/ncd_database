@@ -123,6 +123,34 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
 
     const [printFullPad, setPrintFullPad] = useState<boolean>(true); 
 
+    const handleSelectInvoice = (id: string) => {
+        setSelectedInvoiceId(id);
+        setActiveTestName(null);
+        setCurrentReportData(null);
+    };
+
+    const handleSelectTest = (tName: string) => {
+        setActiveTestName(tName);
+        const saved = reports.find((r: LabReport) => r.invoice_id === selectedInvoiceId && r.test_name === tName);
+        if (saved) {
+            setCurrentReportData(saved.data);
+            setSelectedTechnologistId(saved.technologistId || '');
+            setSelectedConsultantId(saved.consultantId || '');
+            
+            const tech = employees.find((e: any) => e.emp_id === saved.technologistId);
+            if (tech) {
+                setCustomTechName(tech.emp_name);
+                setCustomTechDegree(tech.degree || 'Medical Technologist');
+            }
+            const doc = doctors.find((d: any) => d.doctor_id === saved.consultantId);
+            if (doc) {
+                setCustomDocName(doc.doctor_name);
+                setCustomDocDegree(doc.degree);
+            }
+        } else {
+            setCurrentReportData(null);
+        }
+    };
     const currentInvoice = useMemo(() => invoices.find((inv: Invoice) => inv.invoice_id === selectedInvoiceId), [selectedInvoiceId, invoices]);
     const patient = useMemo(() => patients.find((p: Patient) => p.pt_id === currentInvoice?.patient_id), [currentInvoice, patients]);
 
@@ -133,22 +161,6 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
             return () => clearTimeout(timer);
         }
     }, [successMessage]);
-
-    useEffect(() => {
-        const tech = employees.find((e: any) => e.emp_id === selectedTechnologistId);
-        if (tech) {
-            setCustomTechName(tech.emp_name);
-            setCustomTechDegree(tech.degree || 'Medical Technologist');
-        }
-    }, [selectedTechnologistId, employees]);
-
-    useEffect(() => {
-        const doc = doctors.find((d: any) => d.doctor_id === selectedConsultantId);
-        if (doc) {
-            setCustomDocName(doc.doctor_name);
-            setCustomDocDegree(doc.degree);
-        }
-    }, [selectedConsultantId, doctors]);
 
     // FOCUS LOGIC: Only show/print the active selected test
     const activeTestGroup = useMemo(() => {
@@ -166,18 +178,6 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
         });
         return groups;
     }, [activeTestGroup, tests]);
-
-    useEffect(() => {
-        if (!selectedInvoiceId || !activeTestName) return;
-        const saved = reports.find((r: LabReport) => r.invoice_id === selectedInvoiceId && r.test_name === activeTestName);
-        if (saved) {
-            setCurrentReportData(saved.data);
-            setSelectedTechnologistId(saved.technologistId || '');
-            setSelectedConsultantId(saved.consultantId || '');
-        } else {
-            setCurrentReportData(null);
-        }
-    }, [selectedInvoiceId, activeTestName, reports]);
 
     const handleSaveReport = (reportData: any, isAutoSave: boolean = false) => {
         if (!selectedInvoiceId || !activeTestName) return;
@@ -287,7 +287,7 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
     if (viewMode === 'template_mgmt') return <TemplateManagementPage onBack={() => setViewMode('reporting')} />;
 
     return (
-        <div className="bg-slate-200 h-screen flex flex-col font-sans overflow-hidden text-black">
+        <div className="bg-slate-200 h-full flex flex-col font-sans overflow-hidden text-black">
             <style>{`
                 .paper-page { width: 210mm; height: 294mm; min-height: 294mm; margin: 0 auto; position: relative; background: white; display: flex; flex-direction: column; box-shadow: 0 0 50px rgba(0,0,0,0.1); box-sizing: border-box; overflow: hidden; }
                 .paper-inner { padding: 0 15mm; flex: 1; display: flex; flex-direction: column; position: relative; }
@@ -316,7 +316,7 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
                         {invoices.filter((i: any) => i.patient_name.toLowerCase().includes(searchTerm.toLowerCase()) || i.invoice_id.includes(searchTerm)).map((r: any) => {
                             const isActive = selectedInvoiceId === r.invoice_id;
                             return (
-                                <div key={r.invoice_id} onClick={() => { setSelectedInvoiceId(r.invoice_id); setActiveTestName(null); }} className={`p-3 border-2 rounded-2xl cursor-pointer transition-all ${isActive ? 'bg-blue-600 border-blue-400 text-white shadow-xl scale-105' : 'bg-white hover:border-blue-200'}`}>
+                                <div key={r.invoice_id} onClick={() => handleSelectInvoice(r.invoice_id)} className={`p-3 border-2 rounded-2xl cursor-pointer transition-all ${isActive ? 'bg-blue-600 border-blue-400 text-white shadow-xl scale-105' : 'bg-white hover:border-blue-200'}`}>
                                     <div className={`font-black text-[11px] uppercase tracking-tight ${isActive ? 'text-white' : 'text-slate-900'}`}>{r.patient_name}</div>
                                     <div className="flex justify-between items-center mt-2">
                                         <span className={`text-[9px] font-mono ${isActive ? 'text-white/70' : 'text-slate-500'}`}>{r.invoice_id}</span>
@@ -333,7 +333,7 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
                         {currentInvoice?.items.map((it: any) => {
                             const isTestDone = reports.some((rep: any) => rep.invoice_id === selectedInvoiceId && rep.test_name === it.test_name);
                             return (
-                                <button key={it.test_id} onClick={() => setActiveTestName(it.test_name)} className={`w-full text-left p-4 rounded-2xl text-[11px] font-black transition-all border flex justify-between items-center ${activeTestName === it.test_name ? 'bg-indigo-600 text-white border-indigo-500 shadow-lg' : isTestDone ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-white text-slate-600 border-slate-200'}`}>
+                                <button key={it.test_id} onClick={() => handleSelectTest(it.test_name)} className={`w-full text-left p-4 rounded-2xl text-[11px] font-black transition-all border flex justify-between items-center ${activeTestName === it.test_name ? 'bg-indigo-600 text-white border-indigo-500 shadow-lg' : isTestDone ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-white text-slate-600 border-slate-200'}`}>
                                     <span className="truncate pr-1 uppercase">{it.test_name}</span>
                                     {isTestDone && <span>✓</span>}
                                 </button>
@@ -341,8 +341,24 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
                         })}
                     </div>
                     <div className="p-4 bg-slate-900 border-t border-slate-700 space-y-3">
-                         <select value={selectedTechnologistId} onChange={e=>setSelectedTechnologistId(e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2 text-[10px] text-white font-bold outline-none"><option value="">-- Select Tech --</option>{employees.filter((e:any)=>e.department==='Diagnostic').map((e: any) => <option key={e.emp_id} value={e.emp_id}>{e.emp_name}</option>)}</select>
-                         <select value={selectedConsultantId} onChange={e=>setSelectedConsultantId(e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2 text-[10px] text-white font-bold outline-none"><option value="">-- Select Doctor --</option>{doctors.map((d: any) => <option key={d.doctor_id} value={d.doctor_id}>{d.doctor_name}</option>)}</select>
+                         <select value={selectedTechnologistId} onChange={e=>{
+                             const id = e.target.value;
+                             setSelectedTechnologistId(id);
+                             const tech = employees.find((emp: any) => emp.emp_id === id);
+                             if (tech) {
+                                 setCustomTechName(tech.emp_name);
+                                 setCustomTechDegree(tech.degree || 'Medical Technologist');
+                             }
+                         }} className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2 text-[10px] text-white font-bold outline-none"><option value="">-- Select Tech --</option>{employees.filter((e:any)=>e.department==='Diagnostic').map((e: any) => <option key={e.emp_id} value={e.emp_id}>{e.emp_name}</option>)}</select>
+                         <select value={selectedConsultantId} onChange={e=>{
+                             const id = e.target.value;
+                             setSelectedConsultantId(id);
+                             const doc = doctors.find((d: any) => d.doctor_id === id);
+                             if (doc) {
+                                 setCustomDocName(doc.doctor_name);
+                                 setCustomDocDegree(doc.degree);
+                             }
+                         }} className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2 text-[10px] text-white font-bold outline-none"><option value="">-- Select Doctor --</option>{doctors.map((d: any) => <option key={d.doctor_id} value={d.doctor_id}>{d.doctor_name}</option>)}</select>
                     </div>
                 </div>
 

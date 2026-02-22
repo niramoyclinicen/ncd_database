@@ -60,6 +60,12 @@ const App: React.FC = () => {
   const [prescriptions, setPrescriptions] = useState<PrescriptionRecord[]>([]);
   const [appointments, setAppointments] = useState(initialAppointments);
   
+  // Marketing States
+  const [employeeReferrerMap, setEmployeeReferrerMap] = useState<Record<string, string[]>>(() => {
+    const saved = localStorage.getItem('ncd_mkt_mapping');
+    return saved ? JSON.parse(saved) : {};
+  });
+
   // HR/Payroll States
   const [attendanceLog, setAttendanceLog] = useState<Record<string, any>>({});
   const [leaveLog, setLeaveLog] = useState<Record<string, any>>({});
@@ -121,6 +127,7 @@ const App: React.FC = () => {
       };
       await dbService.saveToCloud(currentState);
       localStorage.setItem('ncd_monthly_roster', JSON.stringify(monthlyRoster));
+      localStorage.setItem('ncd_mkt_mapping', JSON.stringify(employeeReferrerMap));
     };
 
     const syncInterval = setTimeout(syncData, 2000);
@@ -129,7 +136,7 @@ const App: React.FC = () => {
     patients, doctors, referrars, tests, reagents, labInvoices, 
     dueCollections, reports, employees, medicines, clinicalDrugs,
     purchaseInvoices, salesInvoices, admissions, indoorInvoices,
-    detailedExpenses, prescriptions, appointments, attendanceLog, leaveLog, monthlyRoster, isDataLoaded
+    detailedExpenses, prescriptions, appointments, attendanceLog, leaveLog, monthlyRoster, employeeReferrerMap, isDataLoaded
   ]);
 
   // --- HANDLERS ---
@@ -212,6 +219,7 @@ const App: React.FC = () => {
             leaveLog={leaveLog} setLeaveLog={setLeaveLog}
             appointments={appointments} setAppointments={setAppointments}
             monthlyRoster={monthlyRoster} setMonthlyRoster={setMonthlyRoster}
+            employeeReferrerMap={employeeReferrerMap} setEmployeeReferrerMap={setEmployeeReferrerMap}
           />
         );
 
@@ -272,6 +280,8 @@ const App: React.FC = () => {
             indoorInvoices={indoorInvoices}
             patients={patients}
             employees={employees}
+            employeeReferrerMap={employeeReferrerMap}
+            setEmployeeReferrerMap={setEmployeeReferrerMap}
           />
         );
 

@@ -27,7 +27,7 @@ const TemplateManagementPage: React.FC<Props> = ({ onBack }) => {
     fields: EditorField[];
     impression: string;
     extraNote: string;
-  }>({
+  }>(() => ({
     id: '', 
     name: '', 
     category: 'Ultrasonography (USG)', 
@@ -35,7 +35,7 @@ const TemplateManagementPage: React.FC<Props> = ({ onBack }) => {
     fields: [{ label: '', value: '', type: 'locked', isBold: false, fontSize: '14px', color: '#000000', id: `row-${Date.now()}` }], 
     extraNote: '', 
     impression: ''
-  });
+  }));
 
   useEffect(() => {
     localStorage.setItem('ncd_report_templates_v4', JSON.stringify(templates));

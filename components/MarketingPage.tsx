@@ -14,21 +14,34 @@ interface MarketingPageProps {
   indoorInvoices: IndoorInvoice[];
   patients: Patient[];
   employees: Employee[];
+  employeeReferrerMap: Record<string, string[]>;
+  setEmployeeReferrerMap: React.Dispatch<React.SetStateAction<Record<string, string[]>>>;
 }
 
+const monthOptions = [
+  { value: 0, name: 'January' }, { value: 1, name: 'February' }, { value: 2, name: 'March' },
+  { value: 3, name: 'April' }, { value: 4, name: 'May' }, { value: 5, name: 'June' },
+  { value: 6, name: 'July' }, { value: 7, name: 'August' }, { value: 8, name: 'September' },
+  { value: 9, name: 'October' }, { value: 10, name: 'November' }, { value: 11, name: 'December' }
+];
+
 const MarketingPage: React.FC<MarketingPageProps> = ({ 
-  onBack, referrars, labInvoices, indoorInvoices, patients, employees 
+  onBack, referrars, labInvoices, indoorInvoices, patients, employees,
+  employeeReferrerMap, setEmployeeReferrerMap
 }) => {
   const [activeTab, setActiveTab] = useState<'analytics' | 'commission' | 'targets' | 'visits'>('analytics');
   const [searchTerm, setSearchTerm] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+  const [setupView, setSetupView] = useState<'mapping' | 'targets'>('mapping');
+  const [selectedArea, setSelectedArea] = useState<string>('All');
+  const [showAllStaff, setShowAllStaff] = useState(false);
 
   // --- PERSISTED STATE ---
-  const [targets, setTargets] = useState<MarketingTarget[]>(() => JSON.parse(localStorage.getItem('ncd_mkt_targets') || '[]'));
+  const [targets, setTargets] = useState<MarketingTarget[]>(() => JSON.parse(localStorage.getItem('ncd_mkt_targets_v2') || '[]'));
   const [payments, setPayments] = useState<CommissionPayment[]>(() => JSON.parse(localStorage.getItem('ncd_mkt_payments') || '[]'));
   const [visits, setVisits] = useState<FieldVisitLog[]>(() => JSON.parse(localStorage.getItem('ncd_mkt_visits') || '[]'));
 
-  useEffect(() => localStorage.setItem('ncd_mkt_targets', JSON.stringify(targets)), [targets]);
+  useEffect(() => localStorage.setItem('ncd_mkt_targets_v2', JSON.stringify(targets)), [targets]);
   useEffect(() => localStorage.setItem('ncd_mkt_payments', JSON.stringify(payments)), [payments]);
   useEffect(() => localStorage.setItem('ncd_mkt_visits', JSON.stringify(visits)), [visits]);
 
@@ -37,9 +50,38 @@ const MarketingPage: React.FC<MarketingPageProps> = ({
   const [newPayment, setNewPayment] = useState<Partial<CommissionPayment>>({ ref_id: '', amount: 0, date: new Date().toISOString().split('T')[0], method: 'Cash' });
   const [newVisit, setNewVisit] = useState<Partial<FieldVisitLog>>({ staff_id: '', date: new Date().toISOString().split('T')[0], location: '', objective: '', outcomes: '' });
 
-  const marketingStaff = useMemo(() => employees.filter(e => e.job_position.toLowerCase().includes('marketing')), [employees]);
+  const marketingStaff = useMemo(() => {
+    let filtered = employees;
+    if (!showAllStaff) {
+        filtered = employees.filter(e => e.job_position.toLowerCase().includes('marketing'));
+    }
+    if (selectedArea !== 'All') {
+        filtered = filtered.filter(e => e.address?.toLowerCase().includes(selectedArea.toLowerCase()));
+    }
+    return filtered;
+  }, [employees, showAllStaff, selectedArea]);
+
+  const areas = useMemo(() => {
+    const uniqueAreas = new Set(employees.map(e => e.address).filter(Boolean));
+    return ['All', ...Array.from(uniqueAreas)];
+  }, [employees]);
+
+  const [selectedManagerId, setSelectedManagerId] = useState<string>('');
 
   // --- ANALYTICS CALCULATIONS ---
+  const managerStats = useMemo(() => {
+    if (!selectedManagerId) return null;
+    const assignedRefIds = employeeReferrerMap[selectedManagerId] || [];
+    const managerInvoices = labInvoices.filter(inv => assignedRefIds.includes(inv.referrar_id || ''));
+    
+    const totalPatients = managerInvoices.length;
+    const totalBill = managerInvoices.reduce((sum, inv) => sum + inv.total_amount, 0);
+    const totalPaid = managerInvoices.reduce((sum, inv) => sum + inv.paid_amount, 0);
+    const totalCommission = managerInvoices.reduce((sum, inv) => sum + inv.special_commission, 0);
+    
+    return { totalPatients, totalBill, totalPaid, totalCommission };
+  }, [selectedManagerId, employeeReferrerMap, labInvoices]);
+
   const areaStats = useMemo(() => {
     const data: Record<string, { count: number, collection: number }> = {};
     const allInvoices = [...labInvoices.map(i => ({...i, dept: 'Diag'})), ...indoorInvoices.map(i => ({...i, dept: 'Clinic'}))];
@@ -67,6 +109,53 @@ const MarketingPage: React.FC<MarketingPageProps> = ({
   // --- RENDERERS ---
   const renderAnalytics = () => (
     <div className="space-y-8 animate-fade-in">
+        {/* Manager Selection for Detailed Output */}
+        <div className="bg-slate-900/80 p-8 rounded-[2.5rem] border border-slate-800 shadow-2xl">
+            <div className="flex flex-col md:flex-row justify-between items-center gap-6">
+                <div className="flex-1">
+                    <h3 className="text-xl font-black text-white uppercase tracking-tight mb-2">Detailed Manager Performance</h3>
+                    <p className="text-xs text-slate-500 font-bold uppercase tracking-widest">Select a marketing manager to view detailed output data</p>
+                </div>
+                <div className="w-full md:w-72">
+                    <select 
+                        value={selectedManagerId} 
+                        onChange={e => setSelectedManagerId(e.target.value)}
+                        className="w-full bg-slate-800 border-2 border-slate-700 rounded-2xl p-4 text-white font-black outline-none focus:border-cyan-500 shadow-xl"
+                    >
+                        <option value="">Select Manager...</option>
+                        {employees.filter(e => Object.keys(employeeReferrerMap).includes(e.emp_id)).map(e => (
+                            <option key={e.emp_id} value={e.emp_id}>{e.emp_name}</option>
+                        ))}
+                    </select>
+                </div>
+            </div>
+
+            {selectedManagerId && managerStats && (
+                <div className="mt-10 grid grid-cols-1 md:grid-cols-4 gap-6">
+                    <div className="bg-slate-800/50 p-6 rounded-3xl border border-slate-700/50">
+                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Total Patients</p>
+                        <p className="text-3xl font-black text-blue-400">{managerStats.totalPatients}</p>
+                        <p className="text-[10px] text-slate-600 font-bold mt-2 uppercase">From { (employeeReferrerMap[selectedManagerId] || []).length } Referrers</p>
+                    </div>
+                    <div className="bg-slate-800/50 p-6 rounded-3xl border border-slate-700/50">
+                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Total Revenue</p>
+                        <p className="text-3xl font-black text-emerald-400">৳{managerStats.totalBill.toLocaleString()}</p>
+                        <p className="text-[10px] text-slate-600 font-bold mt-2 uppercase">৳{managerStats.totalPaid.toLocaleString()} Collected</p>
+                    </div>
+                    <div className="bg-slate-800/50 p-6 rounded-3xl border border-slate-700/50">
+                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Avg Revenue/Pt</p>
+                        <p className="text-3xl font-black text-cyan-400">৳{managerStats.totalPatients > 0 ? Math.round(managerStats.totalBill / managerStats.totalPatients).toLocaleString() : 0}</p>
+                        <p className="text-[10px] text-slate-600 font-bold mt-2 uppercase">Per Patient Average</p>
+                    </div>
+                    <div className="bg-slate-800/50 p-6 rounded-3xl border border-slate-700/50">
+                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Comm. Liability</p>
+                        <p className="text-3xl font-black text-amber-400">৳{managerStats.totalCommission.toLocaleString()}</p>
+                        <p className="text-[10px] text-slate-600 font-bold mt-2 uppercase">{managerStats.totalBill > 0 ? ((managerStats.totalCommission / managerStats.totalBill) * 100).toFixed(1) : 0}% of Revenue</p>
+                    </div>
+                </div>
+            )}
+        </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             <div className="bg-slate-900/50 p-6 rounded-[2rem] border border-slate-800">
                 <h4 className="text-sm font-black text-cyan-400 uppercase tracking-widest mb-6 flex items-center gap-2"><MapPinIcon size={18}/> Area-wise Business Distribution</h4>
@@ -156,54 +245,228 @@ const MarketingPage: React.FC<MarketingPageProps> = ({
     </div>
   );
 
+  const handleToggleReferrer = (staffId: string, refId: string) => {
+    setEmployeeReferrerMap(prev => {
+        const currentRefs = prev[staffId] || [];
+        const isAssigned = currentRefs.includes(refId);
+        const newMapping = { ...prev };
+        if (isAssigned) {
+            newMapping[staffId] = currentRefs.filter(id => id !== refId);
+        } else {
+            newMapping[staffId] = [...currentRefs, refId];
+        }
+        return newMapping;
+    });
+  };
+
   const renderTargetSystem = () => (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 animate-fade-in">
-        <div className="lg:col-span-4 bg-slate-900 p-8 rounded-[2.5rem] border border-slate-800 h-fit">
-            <h3 className="text-lg font-black text-blue-400 uppercase mb-6 flex items-center gap-3"><PlusIcon size={20}/> Set New Target</h3>
-            <div className="space-y-4">
-                <div>
-                    <label className="text-[10px] font-black text-slate-500 uppercase block mb-1 ml-2">Marketing Officer</label>
-                    <select value={newTarget.staff_id} onChange={e=>setNewTarget({...newTarget, staff_id: e.target.value})} className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white">
-                        <option value="">Select Staff...</option>
-                        {marketingStaff.map(s => <option key={s.emp_id} value={s.emp_id}>{s.emp_name}</option>)}
-                    </select>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                    <div><label className="text-[10px] font-black text-slate-500 uppercase block mb-1 ml-2">Patient Count</label><input type="number" value={newTarget.pt_count_target} onChange={e=>setNewTarget({...newTarget, pt_count_target: parseInt(e.target.value)})} className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white font-black"/></div>
-                    <div><label className="text-[10px] font-black text-slate-500 uppercase block mb-1 ml-2">Revenue (৳)</label><input type="number" value={newTarget.revenue_target} onChange={e=>setNewTarget({...newTarget, revenue_target: parseFloat(e.target.value)})} className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white font-black"/></div>
-                </div>
-                <button onClick={()=>{setTargets([...targets, {...newTarget, id: `TG-${Date.now()}`} as MarketingTarget]); setSuccessMessage("Target Set!");}} className="w-full bg-blue-600 hover:bg-blue-500 py-4 rounded-xl text-white font-black uppercase text-xs shadow-xl active:scale-95 transition-all mt-4">Assign Goal</button>
+    <div className="space-y-8 animate-fade-in">
+        <div className="flex justify-center mb-8">
+            <div className="bg-slate-900 p-1 rounded-2xl border border-slate-800 flex shadow-2xl">
+                <button 
+                    onClick={() => setSetupView('mapping')}
+                    className={`px-8 py-3 rounded-xl font-black text-xs uppercase transition-all ${setupView === 'mapping' ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40' : 'text-slate-500 hover:text-slate-300'}`}
+                >
+                    Referrer Mapping
+                </button>
+                <button 
+                    onClick={() => setSetupView('targets')}
+                    className={`px-8 py-3 rounded-xl font-black text-xs uppercase transition-all ${setupView === 'targets' ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40' : 'text-slate-500 hover:text-slate-300'}`}
+                >
+                    Set Targets
+                </button>
             </div>
         </div>
-        <div className="lg:col-span-8 bg-slate-900/50 p-8 rounded-[2.5rem] border border-slate-800">
-            <h3 className="text-lg font-black text-white uppercase mb-8 flex items-center gap-3"><Activity size={20}/> Monthly Performance Radar</h3>
-            <div className="space-y-8">
-                {targets.map(tg => {
-                    const staff = employees.find(e => e.emp_id === tg.staff_id);
-                    // Mock calculation for demo
-                    const currentPts = Math.floor(Math.random() * tg.pt_count_target);
-                    const progress = (currentPts / tg.pt_count_target) * 100;
-                    return (
-                        <div key={tg.id} className="bg-slate-800/40 p-6 rounded-[2rem] border border-slate-700/50 group hover:border-blue-500/30 transition-all">
-                            <div className="flex justify-between items-center mb-4">
-                                <div className="flex items-center gap-4">
-                                    <div className="w-12 h-12 bg-blue-600/20 rounded-full flex items-center justify-center text-blue-400 font-black">{staff?.emp_name?.charAt(0)}</div>
-                                    <div><p className="text-white font-black uppercase text-sm">{staff?.emp_name}</p><p className="text-[10px] text-slate-500 font-black uppercase tracking-widest">{monthOptions[tg.month].name} {tg.year} Goal</p></div>
+
+        {setupView === 'mapping' ? (
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                <div className="lg:col-span-4 space-y-6">
+                    <div className="bg-slate-900 p-6 rounded-[2.5rem] border border-slate-800">
+                        <h3 className="text-sm font-black text-blue-400 uppercase tracking-widest mb-6 flex items-center gap-2">
+                            <UsersIcon size={18}/> Select Marketing Staff
+                        </h3>
+                        
+                        <div className="space-y-4 mb-6">
+                            <div className="flex items-center justify-between px-2">
+                                <label className="text-[10px] font-black text-slate-500 uppercase">Filter by Area</label>
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                    <input 
+                                        type="checkbox" 
+                                        checked={showAllStaff} 
+                                        onChange={e => setShowAllStaff(e.target.checked)}
+                                        className="w-4 h-4 rounded border-slate-700 bg-slate-800 text-blue-600 focus:ring-blue-500"
+                                    />
+                                    <span className="text-[10px] font-black text-slate-400 uppercase">Show All Staff</span>
+                                </label>
+                            </div>
+                            <select 
+                                value={selectedArea} 
+                                onChange={e => setSelectedArea(e.target.value)}
+                                className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white font-bold outline-none focus:border-blue-500"
+                            >
+                                {areas.map(a => <option key={a} value={a}>{a}</option>)}
+                            </select>
+                        </div>
+
+                        <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                            {marketingStaff.map(s => (
+                                <button
+                                    key={s.emp_id}
+                                    onClick={() => setNewTarget({ ...newTarget, staff_id: s.emp_id })}
+                                    className={`w-full p-4 rounded-2xl border transition-all flex items-center justify-between group ${newTarget.staff_id === s.emp_id ? 'bg-blue-600/20 border-blue-500 shadow-lg shadow-blue-900/20' : 'bg-slate-800/40 border-slate-700 hover:border-slate-500'}`}
+                                >
+                                    <div className="text-left">
+                                        <p className={`font-black uppercase text-xs ${newTarget.staff_id === s.emp_id ? 'text-blue-400' : 'text-white'}`}>{s.emp_name}</p>
+                                        <p className="text-[9px] text-slate-500 font-bold uppercase mt-0.5">{s.job_position} • {s.address || 'No Area'}</p>
+                                    </div>
+                                    <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${newTarget.staff_id === s.emp_id ? 'border-blue-400 bg-blue-400 text-slate-900' : 'border-slate-700 group-hover:border-slate-500'}`}>
+                                        {newTarget.staff_id === s.emp_id && <SaveIcon size={12} />}
+                                    </div>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+
+                <div className="lg:col-span-8">
+                    {newTarget.staff_id ? (
+                        <div className="bg-slate-900 p-8 rounded-[2.5rem] border border-slate-800">
+                            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+                                <div>
+                                    <h3 className="text-xl font-black text-white uppercase tracking-tight">
+                                        Assign Referrers to {employees.find(e => e.emp_id === newTarget.staff_id)?.emp_name}
+                                    </h3>
+                                    <p className="text-xs text-slate-500 font-bold uppercase tracking-widest mt-1">
+                                        {(employeeReferrerMap[newTarget.staff_id!] || []).length} Referrers Assigned
+                                    </p>
                                 </div>
-                                <div className="text-right">
-                                    <p className="text-xs font-black text-blue-400">{Math.round(progress)}% Complete</p>
-                                    <p className="text-[10px] text-slate-600 font-bold uppercase mt-1">{currentPts} / {tg.pt_count_target} Patients</p>
+                                <div className="relative w-full md:w-64">
+                                    <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
+                                    <input 
+                                        type="text" 
+                                        placeholder="Search Referrers..." 
+                                        value={searchTerm}
+                                        onChange={e => setSearchTerm(e.target.value)}
+                                        className="w-full bg-slate-800 border border-slate-700 rounded-xl py-2.5 pl-10 pr-4 text-white text-xs font-bold outline-none focus:border-blue-500"
+                                    />
                                 </div>
                             </div>
-                            <div className="w-full h-3 bg-slate-900 rounded-full overflow-hidden shadow-inner">
-                                <div className="h-full bg-gradient-to-r from-blue-600 to-indigo-400 shadow-[0_0_15px_rgba(37,99,235,0.4)]" style={{ width: `${progress}%` }}></div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
+                                {referrars
+                                    .filter(r => r.ref_name.toLowerCase().includes(searchTerm.toLowerCase()) || r.area?.toLowerCase().includes(searchTerm.toLowerCase()))
+                                    .map(r => {
+                                        const isAssignedToCurrent = (employeeReferrerMap[newTarget.staff_id!] || []).includes(r.ref_id);
+                                        const assignedToOther = Object.entries(employeeReferrerMap).find(([sid, refs]) => sid !== newTarget.staff_id && refs.includes(r.ref_id));
+                                        
+                                        return (
+                                            <button
+                                                key={r.ref_id}
+                                                onClick={() => !assignedToOther && handleToggleReferrer(newTarget.staff_id!, r.ref_id)}
+                                                disabled={!!assignedToOther}
+                                                className={`p-4 rounded-2xl border transition-all flex items-center justify-between text-left group ${isAssignedToCurrent ? 'bg-emerald-600/20 border-emerald-500' : assignedToOther ? 'bg-slate-900 border-slate-800 opacity-40 cursor-not-allowed' : 'bg-slate-800/40 border-slate-700 hover:border-slate-500'}`}
+                                            >
+                                                <div>
+                                                    <p className={`font-black uppercase text-xs ${isAssignedToCurrent ? 'text-emerald-400' : 'text-white'}`}>{r.ref_name}</p>
+                                                    <p className="text-[9px] text-slate-500 font-bold uppercase mt-0.5">{r.area || 'General Area'}</p>
+                                                    {assignedToOther && (
+                                                        <p className="text-[8px] text-rose-400 font-black uppercase mt-1">
+                                                            Assigned to: {employees.find(e => e.emp_id === assignedToOther[0])?.emp_name}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${isAssignedToCurrent ? 'border-emerald-400 bg-emerald-400 text-slate-900' : 'border-slate-700'}`}>
+                                                    {isAssignedToCurrent && <SaveIcon size={10} />}
+                                                </div>
+                                            </button>
+                                        );
+                                    })}
                             </div>
                         </div>
-                    );
-                })}
-                {targets.length === 0 && <div className="py-20 text-center text-slate-700 italic font-black uppercase opacity-20 text-xl tracking-[0.2em]">No Targets Defined Yet</div>}
+                    ) : (
+                        <div className="h-full flex flex-col items-center justify-center p-12 bg-slate-900/30 rounded-[2.5rem] border-2 border-dashed border-slate-800 text-slate-700">
+                            <UsersIcon size={64} className="mb-4 opacity-20" />
+                            <p className="text-xl font-black uppercase tracking-widest opacity-20">Select a staff member to start mapping</p>
+                        </div>
+                    )}
+                </div>
             </div>
-        </div>
+        ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                <div className="lg:col-span-4 bg-slate-900 p-8 rounded-[2.5rem] border border-slate-800 h-fit">
+                    <h3 className="text-lg font-black text-blue-400 uppercase mb-6 flex items-center gap-3"><PlusIcon size={20}/> Set New Target</h3>
+                    <div className="space-y-4">
+                        <div>
+                            <label className="text-[10px] font-black text-slate-500 uppercase block mb-1 ml-2">Marketing Officer</label>
+                            <select value={newTarget.staff_id} onChange={e=>setNewTarget({...newTarget, staff_id: e.target.value})} className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white">
+                                <option value="">Select Staff...</option>
+                                {marketingStaff.map(s => <option key={s.emp_id} value={s.emp_id}>{s.emp_name}</option>)}
+                            </select>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div><label className="text-[10px] font-black text-slate-500 uppercase block mb-1 ml-2">Patient Count</label><input type="number" value={newTarget.pt_count_target} onChange={e=>setNewTarget({...newTarget, pt_count_target: parseInt(e.target.value)})} className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white font-black"/></div>
+                            <div><label className="text-[10px] font-black text-slate-500 uppercase block mb-1 ml-2">Revenue (৳)</label><input type="number" value={newTarget.revenue_target} onChange={e=>setNewTarget({...newTarget, revenue_target: parseFloat(e.target.value)})} className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white font-black"/></div>
+                        </div>
+                        <button onClick={()=>{setTargets([...targets, {...newTarget, id: `TG-${Date.now()}`} as MarketingTarget]); setSuccessMessage("Target Set!");}} className="w-full bg-blue-600 hover:bg-blue-500 py-4 rounded-xl text-white font-black uppercase text-xs shadow-xl active:scale-95 transition-all mt-4">Assign Goal</button>
+                    </div>
+                </div>
+                <div className="lg:col-span-8 bg-slate-900/50 p-8 rounded-[2.5rem] border border-slate-800">
+                    <h3 className="text-lg font-black text-white uppercase mb-8 flex items-center gap-3"><Activity size={20}/> Monthly Performance Radar</h3>
+                    <div className="space-y-8">
+                        {targets.map(tg => {
+                            const staff = employees.find(e => e.emp_id === tg.staff_id);
+                            const assignedRefIds = employeeReferrerMap[tg.staff_id] || [];
+                            
+                            // Real data calculation
+                            const currentPts = labInvoices.filter(inv => assignedRefIds.includes(inv.referrar_id || '')).length;
+                            const currentRevenue = labInvoices.filter(inv => assignedRefIds.includes(inv.referrar_id || '')).reduce((sum, inv) => sum + inv.paid_amount, 0);
+                            
+                            const progress = (currentPts / tg.pt_count_target) * 100;
+                            const revProgress = (currentRevenue / tg.revenue_target) * 100;
+
+                            return (
+                                <div key={tg.id} className="bg-slate-800/40 p-6 rounded-[2rem] border border-slate-700/50 group hover:border-blue-500/30 transition-all">
+                                    <div className="flex justify-between items-center mb-4">
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-12 h-12 bg-blue-600/20 rounded-full flex items-center justify-center text-blue-400 font-black">{staff?.emp_name?.charAt(0)}</div>
+                                            <div>
+                                                <p className="text-white font-black uppercase text-sm">{staff?.emp_name}</p>
+                                                <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest">{monthOptions[tg.month].name} {tg.year} Goal</p>
+                                            </div>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="text-xs font-black text-blue-400">{Math.round(progress)}% Pt | {Math.round(revProgress)}% Rev</p>
+                                            <p className="text-[10px] text-slate-600 font-bold uppercase mt-1">{currentPts} / {tg.pt_count_target} Patients</p>
+                                        </div>
+                                    </div>
+                                    <div className="space-y-3">
+                                        <div>
+                                            <div className="flex justify-between text-[8px] font-black uppercase mb-1">
+                                                <span className="text-slate-500">Patient Count</span>
+                                                <span className="text-blue-400">{currentPts} / {tg.pt_count_target}</span>
+                                            </div>
+                                            <div className="w-full h-2 bg-slate-900 rounded-full overflow-hidden shadow-inner">
+                                                <div className="h-full bg-gradient-to-r from-blue-600 to-indigo-400" style={{ width: `${Math.min(progress, 100)}%` }}></div>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <div className="flex justify-between text-[8px] font-black uppercase mb-1">
+                                                <span className="text-slate-500">Revenue Collection</span>
+                                                <span className="text-emerald-400">৳{currentRevenue.toLocaleString()} / ৳{tg.revenue_target.toLocaleString()}</span>
+                                            </div>
+                                            <div className="w-full h-2 bg-slate-900 rounded-full overflow-hidden shadow-inner">
+                                                <div className="h-full bg-gradient-to-r from-emerald-600 to-teal-400" style={{ width: `${Math.min(revProgress, 100)}%` }}></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                        {targets.length === 0 && <div className="py-20 text-center text-slate-700 italic font-black uppercase opacity-20 text-xl tracking-[0.2em]">No Targets Defined Yet</div>}
+                    </div>
+                </div>
+            </div>
+        )}
     </div>
   );
 
@@ -239,13 +502,6 @@ const MarketingPage: React.FC<MarketingPageProps> = ({
         </div>
     </div>
   );
-
-  const monthOptions = [
-    { value: 0, name: 'January' }, { value: 1, name: 'February' }, { value: 2, name: 'March' },
-    { value: 3, name: 'April' }, { value: 4, name: 'May' }, { value: 5, name: 'June' },
-    { value: 6, name: 'July' }, { value: 7, name: 'August' }, { value: 8, name: 'September' },
-    { value: 9, name: 'October' }, { value: 10, name: 'November' }, { value: 11, name: 'December' }
-  ];
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">

@@ -30,7 +30,7 @@ const monthOptions = [
 ];
 
 const DailyExpenseForm: React.FC<any> = ({ selectedDate, onDateChange, items: initialItems, onSave, onPrint, employees }) => {
-    const [items, setItems] = useState<ExpenseItem[]>(initialItems.length > 0 ? initialItems : [{
+    const [items, setItems] = useState<ExpenseItem[]>(() => initialItems.length > 0 ? initialItems : [{
         id: Date.now(), category: clinicExpenseCategories[0], subCategory: '', description: '', billAmount: 0, paidAmount: 0
     }]);
     useEffect(() => { setItems(initialItems.length > 0 ? initialItems : [{ id: Date.now(), category: clinicExpenseCategories[0], subCategory: '', description: '', billAmount: 0, paidAmount: 0 }]); }, [initialItems, selectedDate]);

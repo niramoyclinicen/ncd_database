@@ -12,6 +12,27 @@ interface DashboardProps {
   onNavigate: (view: ViewState) => void;
 }
 
+const HexCell = ({ content, isCenter = false, hexStyle }: { content: React.ReactNode, isCenter?: boolean, hexStyle: React.CSSProperties }) => (
+  <div 
+    className={`
+      relative flex justify-center items-center
+      ${isCenter 
+        ? 'bg-gradient-to-br from-blue-600 to-cyan-600 shadow-[0_0_25px_rgba(34,211,238,0.6)] z-20 border border-white/20' 
+        : 'bg-cyan-900/30 border border-cyan-400/50 backdrop-blur-md hover:bg-cyan-500/20 hover:scale-110 hover:shadow-[0_0_15px_rgba(0,200,255,0.4)] hover:z-20'
+      }
+    `}
+    style={{
+      ...hexStyle,
+      width: isCenter ? '70px' : '60px',
+      height: isCenter ? '70px' : '60px',
+    }}
+  >
+    <div className={isCenter ? 'text-white drop-shadow-md animate-pulse' : 'text-cyan-400 drop-shadow'}>
+      {content}
+    </div>
+  </div>
+);
+
 const MedicalHexLogo = () => {
   const hexStyle: React.CSSProperties = {
     width: '60px',
@@ -22,27 +43,6 @@ const MedicalHexLogo = () => {
     alignItems: 'center',
     transition: '0.3s',
   };
-
-  const HexCell = ({ content, isCenter = false }: { content: React.ReactNode, isCenter?: boolean }) => (
-    <div 
-      className={`
-        relative flex justify-center items-center
-        ${isCenter 
-          ? 'bg-gradient-to-br from-blue-600 to-cyan-600 shadow-[0_0_25px_rgba(34,211,238,0.6)] z-20 border border-white/20' 
-          : 'bg-cyan-900/30 border border-cyan-400/50 backdrop-blur-md hover:bg-cyan-500/20 hover:scale-110 hover:shadow-[0_0_15px_rgba(0,200,255,0.4)] hover:z-20'
-        }
-      `}
-      style={{
-        ...hexStyle,
-        width: isCenter ? '70px' : '60px',
-        height: isCenter ? '70px' : '60px',
-      }}
-    >
-      <div className={isCenter ? 'text-white drop-shadow-md animate-pulse' : 'text-cyan-400 drop-shadow'}>
-        {content}
-      </div>
-    </div>
-  );
 
   return (
     <div className="relative w-56 h-64 flex flex-col items-center justify-center -ml-12">
@@ -61,25 +61,25 @@ const MedicalHexLogo = () => {
        </svg>
       <div className="relative w-48 h-48 z-10">
         <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }}>
-           <HexCell content={<span className="text-2xl font-bold font-sans tracking-tight">NcD</span>} isCenter />
+           <HexCell content={<span className="text-2xl font-bold font-sans tracking-tight">NcD</span>} isCenter hexStyle={hexStyle} />
         </div>
         <div style={{ position: 'absolute', top: '12%', left: '50%', transform: 'translate(-50%, -50%)' }}>
-           <HexCell content={<StethoscopeIcon className="w-7 h-7" />} />
+           <HexCell content={<StethoscopeIcon className="w-7 h-7" />} hexStyle={hexStyle} />
         </div>
         <div style={{ position: 'absolute', top: '31%', left: '83%', transform: 'translate(-50%, -50%)' }}>
-           <HexCell content={<MedicineIcon className="w-7 h-7" />} />
+           <HexCell content={<MedicineIcon className="w-7 h-7" />} hexStyle={hexStyle} />
         </div>
         <div style={{ position: 'absolute', top: '69%', left: '83%', transform: 'translate(-50%, -50%)' }}>
-           <HexCell content={<WheelchairIcon className="w-7 h-7" />} />
+           <HexCell content={<WheelchairIcon className="w-7 h-7" />} hexStyle={hexStyle} />
         </div>
         <div style={{ position: 'absolute', top: '88%', left: '50%', transform: 'translate(-50%, -50%)' }}>
-           <HexCell content={<ClinicIcon className="w-7 h-7" />} />
+           <HexCell content={<ClinicIcon className="w-7 h-7" />} hexStyle={hexStyle} />
         </div>
         <div style={{ position: 'absolute', top: '69%', left: '17%', transform: 'translate(-50%, -50%)' }}>
-           <HexCell content={<SyringeIcon className="w-7 h-7" />} />
+           <HexCell content={<SyringeIcon className="w-7 h-7" />} hexStyle={hexStyle} />
         </div>
         <div style={{ position: 'absolute', top: '31%', left: '17%', transform: 'translate(-50%, -50%)' }}>
-           <HexCell content={<DiagnosticIcon className="w-7 h-7" />} />
+           <HexCell content={<DiagnosticIcon className="w-7 h-7" />} hexStyle={hexStyle} />
         </div>
       </div>
     </div>

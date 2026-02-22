@@ -64,7 +64,7 @@ const SummaryBox = ({ title, items, totalLabel, totalValue, colorClass }: any) =
 );
 
 const DailyExpenseForm: React.FC<any> = ({ selectedDate, onDateChange, dailyExpenseItems, onSave, employees, monthlyRoster }) => {
-    const [items, setItems] = useState<ExpenseItem[]>(dailyExpenseItems.length > 0 ? dailyExpenseItems : [{
+    const [items, setItems] = useState<ExpenseItem[]>(() => dailyExpenseItems.length > 0 ? dailyExpenseItems : [{
         id: Date.now(), category: expenseCategories[0], subCategory: '', description: '', billAmount: 0, paidAmount: 0
     }]);
 

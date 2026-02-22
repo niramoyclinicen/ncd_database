@@ -42,13 +42,13 @@ const defaultLipidResults: LipidResults = {
 
 const LipidProfileInputPage: React.FC<any> = ({ results: initialResults, onSaveOverride, disabled, isEmbedded, checkRange }) => {
     const [localResults, setLocalResults] = useState<LipidResults>(initialResults || defaultLipidResults);
+    const [prevInitialResults, setPrevInitialResults] = useState(initialResults);
     const typingTimeoutRef = useRef<any>(null);
 
-    useEffect(() => { 
-        if (!typingTimeoutRef.current && initialResults) {
-            setLocalResults(initialResults); 
-        }
-    }, [initialResults]);
+    if (initialResults !== prevInitialResults) {
+        setLocalResults(initialResults || defaultLipidResults);
+        setPrevInitialResults(initialResults);
+    }
 
     const updateField = (f: string, v: string) => {
         const updated = { ...localResults, [f]: v };

@@ -13,13 +13,13 @@ export const normalSemenResults: SemenResults = {
 
 const SemenAnalysisInputPage: React.FC<any> = ({ results: initialResults, onSaveOverride, disabled, patient, invoice, doctors, employees, technologistId, consultantId, isEmbedded }) => {
     const [localResults, setLocalResults] = useState<SemenResults>(initialResults || normalSemenResults);
+    const [prevInitialResults, setPrevInitialResults] = useState(initialResults);
     const typingTimeoutRef = useRef<any>(null);
 
-    useEffect(() => { 
-        if (!typingTimeoutRef.current && initialResults) {
-            setLocalResults(initialResults); 
-        }
-    }, [initialResults]);
+    if (initialResults !== prevInitialResults) {
+        setLocalResults(initialResults || normalSemenResults);
+        setPrevInitialResults(initialResults);
+    }
 
     const updateField = (f: keyof SemenResults, v: string) => {
         const updated = { ...localResults, [f]: v };
