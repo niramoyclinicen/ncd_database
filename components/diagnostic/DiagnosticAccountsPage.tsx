@@ -23,7 +23,7 @@ const subCategoryMap: Record<string, string[]> = {
     'House rent': ['Diagnostic Building Rent'],
     'Electricity bill': ['Meter 01', 'Meter 02'],
     'Reagent buy': ['Local Market', 'Company Delivery', 'Special Order'],
-    'Marketing': ['Doctor Appayon', 'PC conference', 'PC Gift','Others'],
+    'Marketing': ['Doctor Appayon', 'PC conference', 'PC Gift', 'Miking', 'Recording', 'Others'],
     'Motorcycle': ['Motorcycle buy', 'Motorcycle repair', 'Motorcycle License'],
     'Doctor donation & Vehicle service': ['Weekly vehicle', 'Monthly Referral Pay', 'Festival Bonus'],
     'Instruments buy/ repair': ['Lab Equipment', 'IT/Computer', 'Furniture'],
