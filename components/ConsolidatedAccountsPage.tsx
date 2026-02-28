@@ -90,7 +90,7 @@ const expenseMapSequence = [
     { key: 'Marketing', label: 'মার্কেটিং' },
     { key: 'Clinic_Dev', label: 'ক্লিনিক উন্নয়ন' },
     { key: 'Bills', label: 'বিদ্যুৎ+ পেপার+ ডিশ বিল' },
-    { key: 'Reagent buy', label: 'রিএজেন্ট/মালামাল ক্রয়' },
+    { key: 'Reagent buy', label: 'রিএজেন্ট' },
     { key: 'X-Ray', label: 'এক্স-রে' },
     { key: 'House rent', label: 'বাড়ী ভাড়া' },
     { key: 'Stationery', label: 'স্টেশনারী' },
@@ -101,6 +101,7 @@ const expenseMapSequence = [
     { key: 'License', label: 'লাইসেন্স' },
     { key: 'Installment', label: 'কিস্তি' },
     { key: 'Mobile', label: 'মোবাইল খরচ' },
+    { key: 'Maintenance', label: 'রক্ষণাবেক্ষণ' },
     { key: 'Others', label: 'অন্যান্য খরচ' },
     { key: 'Old Loan Repay', label: 'পূর্বের ঋণ পরিশোধ' }
 ];
@@ -191,10 +192,11 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                 if (catName === 'Clinic development' || catName === 'Diagnostic development') catName = 'Clinic_Dev';
                 if (catName === 'Electricity bill' || catName === 'Paper / Dish / Wifi Bill') catName = 'Bills';
                 if (catName === 'Doctor donation & Vehicle service') catName = 'Doctor donation';
-                if (catName === 'Instruments buy/ repair' || catName === 'Maintenance' || catName === 'Repair/Instruments') {
+                if (catName === 'Instruments buy/ repair' || catName === 'Repair/Instruments') {
                     if (exp.subCategory === 'Stationary' || exp.subCategory === 'Stationery') catName = 'Stationery';
                     else catName = 'Instruments';
                 }
+                if (catName === 'Maintenance') catName = 'Maintenance';
                 if (catName === 'License cost' || catName === 'License/Official') catName = 'License';
                 if (catName === 'X-ray Film buy') catName = 'X-Ray';
                 if (catName === 'Mobile buy/ Flexiload') catName = 'Mobile';
@@ -409,10 +411,11 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                 if (catName === 'Clinic development' || catName === 'Diagnostic development') catName = 'Clinic_Dev';
                 if (catName === 'Electricity bill' || catName === 'Paper / Dish / Wifi Bill') catName = 'Bills';
                 if (catName === 'Doctor donation & Vehicle service') catName = 'Doctor donation';
-                if (catName === 'Instruments buy/ repair' || catName === 'Maintenance' || catName === 'Repair/Instruments') {
+                if (catName === 'Instruments buy/ repair' || catName === 'Repair/Instruments') {
                     if (it.subCategory === 'Stationary' || it.subCategory === 'Stationery') catName = 'Stationery';
                     else catName = 'Instruments';
                 }
+                if (catName === 'Maintenance') catName = 'Maintenance';
                 if (catName === 'License cost' || catName === 'License/Official') catName = 'License';
                 if (catName === 'X-ray Film buy') catName = 'X-Ray';
                 if (catName === 'Mobile buy/ Flexiload') catName = 'Mobile';
@@ -488,24 +491,24 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                 <thead>
                                     <tr className="bg-gray-100">
                                         <th className="border border-black p-2 w-[80px]">Date</th>
-                                        {expenseMapSequence.map(e => <th key={e.key} className="border border-black p-2 font-black text-[10px] uppercase">{e.label}</th>)}
-                                        <th className="border border-black p-2 bg-gray-200 font-black">Monthly Total</th>
+                                        {expenseMapSequence.map(e => <th key={e.key} className="border border-black p-1 font-black text-[9px] uppercase min-w-[75px]">{e.label}</th>)}
+                                        <th className="border border-black p-2 bg-gray-200 font-black min-w-[100px]">Monthly Total</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {expenseSheetData.rows.map(row => (
                                         <tr key={row.date} className="hover:bg-blue-50 transition-colors h-10">
-                                            <td className="border border-black p-1 text-center font-mono font-bold text-xs whitespace-nowrap">{row.date.split('-')[2]} {monthOptions[parseInt(row.date.split('-')[1])-1].name.substring(0,3)}</td>
-                                            {expenseMapSequence.map(e => <td key={e.key} className="border border-black p-1 text-center font-medium text-sm">{row.categories[e.key] > 0 ? row.categories[e.key].toLocaleString() : '-'}</td>)}
-                                            <td className="border border-black p-1 text-center font-black bg-gray-50 text-base">৳{row.total > 0 ? row.total.toLocaleString() : '-'}</td>
+                                            <td className="border border-black p-1 text-center font-mono font-bold text-xs whitespace-nowrap w-[80px]">{row.date.split('-')[2]} {monthOptions[parseInt(row.date.split('-')[1])-1].name.substring(0,3)}</td>
+                                            {expenseMapSequence.map(e => <td key={e.key} className="border border-black p-1 text-center font-medium text-xs min-w-[75px]">{row.categories[e.key] > 0 ? row.categories[e.key].toLocaleString() : '-'}</td>)}
+                                            <td className="border border-black p-1 text-center font-black bg-gray-50 text-sm min-w-[100px]">৳{row.total > 0 ? row.total.toLocaleString() : '-'}</td>
                                         </tr>
                                     ))}
                                 </tbody>
                                 <tfoot className="bg-gray-100 font-black h-12">
                                     <tr>
-                                        <td className="border border-black p-1 text-center text-xs uppercase">TOTALS:</td>
-                                        {expenseMapSequence.map(e => <td key={e.key} className="border border-black p-1 text-center text-blue-900 text-sm">{expenseSheetData.columnTotals[e.key] > 0 ? expenseSheetData.columnTotals[e.key].toLocaleString() : '-'}</td>)}
-                                        <td className="border border-black p-1 text-center text-emerald-700 bg-emerald-50 font-black text-lg">৳{expenseSheetData.grandTotal.toLocaleString()}</td>
+                                        <td className="border border-black p-1 text-center text-xs uppercase w-[80px]">TOTALS:</td>
+                                        {expenseMapSequence.map(e => <td key={e.key} className="border border-black p-1 text-center text-blue-900 text-xs min-w-[75px]">{expenseSheetData.columnTotals[e.key] > 0 ? expenseSheetData.columnTotals[e.key].toLocaleString() : '-'}</td>)}
+                                        <td className="border border-black p-1 text-center text-emerald-700 bg-emerald-50 font-black text-base min-w-[100px]">৳{expenseSheetData.grandTotal.toLocaleString()}</td>
                                     </tr>
                                 </tfoot>
                             </table>

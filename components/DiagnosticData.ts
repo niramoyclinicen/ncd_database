@@ -218,8 +218,15 @@ export const emptyEmployee: Employee = {
 };
 
 export interface ExpenseItem {
-  id: number; category: string; subCategory: string; description: string; billAmount: number; paidAmount: number;
+  id: number; 
+  category: string; 
+  subCategory: string; 
+  description: string; 
+  billAmount: number; 
+  paidAmount: number;
   metadata?: any; 
+  isEdited?: boolean;
+  lastEditedAt?: string;
 }
 
 export interface Medicine {

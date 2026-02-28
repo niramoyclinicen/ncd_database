@@ -64,19 +64,14 @@ const SummaryBox = ({ title, items, totalLabel, totalValue, colorClass }: any) =
 );
 
 const DailyExpenseForm: React.FC<any> = ({ selectedDate, onDateChange, dailyExpenseItems, onSave, employees, monthlyRoster }) => {
-    const [items, setItems] = useState<ExpenseItem[]>(() => dailyExpenseItems.length > 0 ? dailyExpenseItems : [{
+    const [items, setItems] = useState<ExpenseItem[]>(() => [{
         id: Date.now(), category: expenseCategories[0], subCategory: '', description: '', billAmount: 0, paidAmount: 0
     }]);
+    const [savedSearchTerm, setSavedSearchTerm] = useState('');
 
     const periodKey = selectedDate.substring(0, 7); // YYYY-MM
     const activeEmpIds = monthlyRoster[periodKey] || [];
     const filteredEmployees = employees.filter((e: any) => activeEmpIds.includes(e.emp_id));
-
-    useEffect(() => {
-        setItems(dailyExpenseItems.length > 0 ? dailyExpenseItems : [{
-            id: Date.now(), category: expenseCategories[0], subCategory: '', description: '', billAmount: 0, paidAmount: 0
-        }]);
-    }, [dailyExpenseItems, selectedDate]);
 
     const handleItemChange = (id: number, field: keyof ExpenseItem, value: any) => {
         setItems(prev => prev.map(item => item.id === id ? { ...item, [field]: value } : item));
@@ -85,71 +80,173 @@ const DailyExpenseForm: React.FC<any> = ({ selectedDate, onDateChange, dailyExpe
     const addItem = () => setItems(prev => [...prev, { id: Date.now(), category: expenseCategories[0], subCategory: '', description: '', billAmount: 0, paidAmount: 0 }]);
     const removeItem = (id: number) => setItems(prev => prev.filter(i => i.id !== id));
 
+    const handleEditSavedItem = (savedItem: ExpenseItem) => {
+        // Load the saved item into the form for editing
+        // We replace the current items with this one to focus on editing it
+        setItems([{ ...savedItem }]);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    const handleSave = () => {
+        // When saving, we need to merge the current 'items' in the form with the 'dailyExpenseItems'
+        // If an item in 'items' has an ID that already exists in 'dailyExpenseItems', it's an update.
+        const updatedDailyItems = [...dailyExpenseItems];
+        
+        items.forEach(formItem => {
+            const existingIdx = updatedDailyItems.findIndex(di => di.id === formItem.id);
+            if (existingIdx !== -1) {
+                // It's an edit
+                updatedDailyItems[existingIdx] = { 
+                    ...formItem, 
+                    isEdited: true, 
+                    lastEditedAt: new Date().toLocaleString() 
+                };
+            } else {
+                // It's a new item
+                updatedDailyItems.push(formItem);
+            }
+        });
+
+        onSave(selectedDate, updatedDailyItems);
+        // Reset form after save
+        setItems([{
+            id: Date.now(), category: expenseCategories[0], subCategory: '', description: '', billAmount: 0, paidAmount: 0
+        }]);
+    };
+
     const totalPaid = items.reduce((acc, item) => acc + (Number(item.paidAmount) || 0), 0);
 
+    const filteredSavedItems = dailyExpenseItems.filter((it: ExpenseItem) => 
+        it.category.toLowerCase().includes(savedSearchTerm.toLowerCase()) ||
+        it.subCategory.toLowerCase().includes(savedSearchTerm.toLowerCase()) ||
+        it.description.toLowerCase().includes(savedSearchTerm.toLowerCase())
+    );
+
     return (
-        <div className="bg-sky-950/40 rounded-[2rem] p-8 border border-sky-800 shadow-xl no-print">
-            <div className="flex justify-between items-center mb-6 border-b border-sky-800 pb-4">
-                <h3 className="text-xl font-black text-sky-100 flex items-center gap-3"><Activity className="w-6 h-6 text-sky-400" /> Daily Expense Entry</h3>
-                <input type="date" value={selectedDate} onChange={(e) => onDateChange(e.target.value)} className="bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white text-sm font-black" />
-            </div>
-            <div className="overflow-x-auto min-h-[150px]">
-                <table className="w-full text-left">
-                    <thead>
-                        <tr className="text-[11px] text-slate-500 uppercase font-black tracking-widest">
-                            <th className="pb-3 pl-2">Category</th>
-                            <th className="pb-3 pl-2">Employee / Details</th>
-                            <th className="pb-3 pl-2">Description</th>
-                            <th className="pb-3 text-right">Paid Amount</th>
-                            <th className="pb-3 text-center">X</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-800">
-                        {items.map(item => (
-                            <tr key={item.id}>
-                                <td className="py-3 pr-2">
-                                    <select value={item.category} onChange={e => handleItemChange(item.id, 'category', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white text-sm font-black outline-none focus:border-blue-500">
-                                        {expenseCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-                                    </select>
-                                </td>
-                                <td className="py-3 pr-2">
-                                    {item.category === 'Stuff salary' ? (
-                                        <select 
-                                            value={item.subCategory} 
-                                            onChange={e => handleItemChange(item.id, 'subCategory', e.target.value)} 
-                                            className="w-full bg-slate-800 border-2 border-amber-600/50 rounded-xl p-2.5 text-white text-sm font-black outline-none focus:border-amber-500"
-                                        >
-                                            <option value="">-- Select Employee --</option>
-                                            {filteredEmployees.map((e:any) => <option key={e.emp_id} value={e.emp_name}>{e.emp_name}</option>)}
+        <div className="space-y-10">
+            <div className="bg-sky-950/40 rounded-[2rem] p-8 border border-sky-800 shadow-xl no-print">
+                <div className="flex justify-between items-center mb-6 border-b border-sky-800 pb-4">
+                    <h3 className="text-xl font-black text-sky-100 flex items-center gap-3"><Activity className="w-6 h-6 text-sky-400" /> Daily Expense Entry</h3>
+                    <input type="date" value={selectedDate} onChange={(e) => onDateChange(e.target.value)} className="bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white text-sm font-black" />
+                </div>
+                <div className="overflow-x-auto min-h-[150px]">
+                    <table className="w-full text-left">
+                        <thead>
+                            <tr className="text-[11px] text-slate-500 uppercase font-black tracking-widest">
+                                <th className="pb-3 pl-2">Category</th>
+                                <th className="pb-3 pl-2">Employee / Details</th>
+                                <th className="pb-3 pl-2">Description</th>
+                                <th className="pb-3 text-right">Paid Amount</th>
+                                <th className="pb-3 text-center">X</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-800">
+                            {items.map(item => (
+                                <tr key={item.id}>
+                                    <td className="py-3 pr-2">
+                                        <select value={item.category} onChange={e => handleItemChange(item.id, 'category', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white text-sm font-black outline-none focus:border-blue-500">
+                                            {expenseCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
                                         </select>
-                                    ) : (
-                                        <>
-                                            <input 
-                                                list={`list-${item.id}`} 
+                                    </td>
+                                    <td className="py-3 pr-2">
+                                        {item.category === 'Stuff salary' ? (
+                                            <select 
                                                 value={item.subCategory} 
                                                 onChange={e => handleItemChange(item.id, 'subCategory', e.target.value)} 
-                                                className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white text-sm font-black outline-none focus:border-blue-500" 
-                                                placeholder="Sub-category..." 
-                                            />
-                                            <datalist id={`list-${item.id}`}>
-                                                {subCategoryMap[item.category]?.map((sub, i) => <option key={i} value={sub} />)}
-                                            </datalist>
-                                        </>
-                                    )}
-                                </td>
-                                <td className="py-3 pr-2"><input value={item.description} onChange={e => handleItemChange(item.id, 'description', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white text-sm font-bold" placeholder="Additional details..." /></td>
-                                <td className="py-3 pr-2"><input type="number" value={item.paidAmount} onChange={e => handleItemChange(item.id, 'paidAmount', parseFloat(e.target.value) || 0)} className="w-28 bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white text-base font-black text-right outline-none focus:border-emerald-500" onFocus={e => e.target.select()} /></td>
-                                <td className="py-3 text-center"><button onClick={() => removeItem(item.id)} className="text-red-500 font-bold text-2xl hover:text-red-400">×</button></td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
+                                                className="w-full bg-slate-800 border-2 border-amber-600/50 rounded-xl p-2.5 text-white text-sm font-black outline-none focus:border-amber-500"
+                                            >
+                                                <option value="">-- Select Employee --</option>
+                                                {filteredEmployees.map((e:any) => <option key={e.emp_id} value={e.emp_name}>{e.emp_name}</option>)}
+                                            </select>
+                                        ) : (
+                                            <>
+                                                <input 
+                                                    list={`list-${item.id}`} 
+                                                    value={item.subCategory} 
+                                                    onChange={e => handleItemChange(item.id, 'subCategory', e.target.value)} 
+                                                    className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white text-sm font-black outline-none focus:border-blue-500" 
+                                                    placeholder="Sub-category..." 
+                                                />
+                                                <datalist id={`list-${item.id}`}>
+                                                    {subCategoryMap[item.category]?.map((sub, i) => <option key={i} value={sub} />)}
+                                                </datalist>
+                                            </>
+                                        )}
+                                    </td>
+                                    <td className="py-3 pr-2"><input value={item.description} onChange={e => handleItemChange(item.id, 'description', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white text-sm font-bold" placeholder="Additional details..." /></td>
+                                    <td className="py-3 pr-2"><input type="number" value={item.paidAmount} onChange={e => handleItemChange(item.id, 'paidAmount', parseFloat(e.target.value) || 0)} className="w-28 bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white text-base font-black text-right outline-none focus:border-emerald-500" onFocus={e => e.target.select()} /></td>
+                                    <td className="py-3 text-center"><button onClick={() => removeItem(item.id)} className="text-red-500 font-bold text-2xl hover:text-red-400">×</button></td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+                <div className="mt-8 flex justify-between items-center border-t border-sky-900/50 pt-6">
+                    <button onClick={addItem} className="bg-slate-700 hover:bg-slate-600 text-white px-6 py-2.5 rounded-xl font-black text-[11px] uppercase tracking-wider transition-all">+ Add Item Row</button>
+                    <div className="flex items-center gap-8">
+                        <div className="text-slate-400 font-black uppercase text-xs tracking-widest">Total Paid: <span className="text-emerald-400 text-3xl font-black ml-2">৳{totalPaid.toLocaleString()}</span></div>
+                        <button onClick={handleSave} className="bg-green-600 hover:bg-green-500 text-white px-12 py-3 rounded-2xl font-black shadow-2xl uppercase text-[11px] tracking-widest transition-all">Save Daily Ledger</button>
+                    </div>
+                </div>
             </div>
-            <div className="mt-8 flex justify-between items-center border-t border-sky-900/50 pt-6">
-                <button onClick={addItem} className="bg-slate-700 hover:bg-slate-600 text-white px-6 py-2.5 rounded-xl font-black text-[11px] uppercase tracking-wider transition-all">+ Add Item Row</button>
-                <div className="flex items-center gap-8">
-                    <div className="text-slate-400 font-black uppercase text-xs tracking-widest">Total Paid: <span className="text-emerald-400 text-3xl font-black ml-2">৳{totalPaid.toLocaleString()}</span></div>
-                    <button onClick={() => onSave(selectedDate, items)} className="bg-green-600 hover:bg-green-500 text-white px-12 py-3 rounded-2xl font-black shadow-2xl uppercase text-[11px] tracking-widest transition-all">Save Daily Ledger</button>
+
+            {/* Saved Expenses List */}
+            <div className="bg-slate-900 rounded-[2rem] p-8 border border-slate-800 shadow-xl">
+                <div className="flex justify-between items-center mb-6 border-b border-slate-800 pb-4">
+                    <h3 className="text-xl font-black text-white flex items-center gap-3"><FileTextIcon className="w-6 h-6 text-blue-400" /> Saved Expenses for {selectedDate}</h3>
+                    <div className="relative w-64">
+                        <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
+                        <input 
+                            type="text" 
+                            placeholder="Search saved..." 
+                            value={savedSearchTerm} 
+                            onChange={e => setSavedSearchTerm(e.target.value)} 
+                            className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-10 pr-4 py-2 text-xs text-white outline-none focus:border-blue-500" 
+                        />
+                    </div>
+                </div>
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                        <thead>
+                            <tr className="text-[10px] text-slate-500 uppercase font-black tracking-widest border-b border-slate-800">
+                                <th className="pb-3 pl-2">Category</th>
+                                <th className="pb-3">Sub-Category</th>
+                                <th className="pb-3">Description</th>
+                                <th className="pb-3 text-right">Amount</th>
+                                <th className="pb-3 text-center">Status</th>
+                                <th className="pb-3 text-center">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-800/50">
+                            {filteredSavedItems.length > 0 ? filteredSavedItems.map((it: ExpenseItem) => (
+                                <tr key={it.id} className="hover:bg-slate-800/30 transition-colors">
+                                    <td className="py-4 pl-2 font-bold text-slate-300">{it.category}</td>
+                                    <td className="py-4 text-slate-400">{it.subCategory}</td>
+                                    <td className="py-4 text-slate-500 italic">{it.description}</td>
+                                    <td className="py-4 text-right font-black text-white">৳{it.paidAmount.toLocaleString()}</td>
+                                    <td className="py-4 text-center">
+                                        {it.isEdited ? (
+                                            <span className="bg-amber-900/30 text-amber-400 px-2 py-1 rounded text-[9px] font-black uppercase border border-amber-500/20" title={`Edited at ${it.lastEditedAt}`}>Edited</span>
+                                        ) : (
+                                            <span className="bg-emerald-900/30 text-emerald-400 px-2 py-1 rounded text-[9px] font-black uppercase border border-emerald-500/20">Original</span>
+                                        )}
+                                    </td>
+                                    <td className="py-4 text-center">
+                                        <button 
+                                            onClick={() => handleEditSavedItem(it)} 
+                                            className="text-blue-400 hover:text-blue-300 font-black uppercase text-[10px] tracking-widest border border-blue-500/30 px-3 py-1 rounded-lg hover:bg-blue-600/10 transition-all"
+                                        >
+                                            Edit
+                                        </button>
+                                    </td>
+                                </tr>
+                            )) : (
+                                <tr>
+                                    <td colSpan={6} className="py-10 text-center text-slate-600 font-bold italic">No saved expenses found for this date.</td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
@@ -349,10 +446,19 @@ const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollection
                 </div>
             </header>
 
+            {successMessage && (
+                <div className="fixed top-24 right-8 z-50 animate-bounce">
+                    <div className="bg-emerald-600 text-white px-6 py-3 rounded-2xl font-black shadow-2xl flex items-center gap-3 border border-emerald-400">
+                        <Activity className="w-5 h-5" />
+                        {successMessage}
+                    </div>
+                </div>
+            )}
+
             <main className="flex-1 p-8 space-y-10 container mx-auto overflow-y-auto">
                 {activeTab === 'entry' && (
                     <div className="animate-fade-in space-y-10">
-                        <DailyExpenseForm selectedDate={selectedDate} onDateChange={setSelectedDate} dailyExpenseItems={detailedExpenses[selectedDate] || []} onSave={handleSaveExpense} employees={employees} monthlyRoster={monthlyRoster} />
+                        <DailyExpenseForm key={selectedDate} selectedDate={selectedDate} onDateChange={setSelectedDate} dailyExpenseItems={detailedExpenses[selectedDate] || []} onSave={handleSaveExpense} employees={employees} monthlyRoster={monthlyRoster} />
                     </div>
                 )}
 
