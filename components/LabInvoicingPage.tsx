@@ -316,18 +316,20 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
 
   const handleDoctorSelect = (id: string, name: string) => {
     setFormData(prev => ({ ...prev, doctor_id: id, doctor_name: name }));
+    if (errors.doctor_id) setErrors(prev => ({ ...prev, doctor_id: false }));
     setShowNewDoctorForm(false);
   };
 
   const handleReferrarSelect = (id: string, name: string) => {
     setFormData(prev => ({ ...prev, referrar_id: id, referrar_name: name }));
+    if (errors.referrar_id) setErrors(prev => ({ ...prev, referrar_id: false }));
     setShowNewReferrarForm(false);
   };
 
   const handleEmployeeSelect = (field: 'bill_created_by' | 'bill_paid_by', id: string, name: string) => {
     setFormData(prev => ({ ...prev, [field]: name }));
-    if (field === 'bill_created_by' && errors.bill_created_by) {
-      setErrors(prev => ({ ...prev, bill_created_by: false }));
+    if (errors[field]) {
+      setErrors(prev => ({ ...prev, [field]: false }));
     }
   };
 
@@ -365,13 +367,17 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
     e.preventDefault();
     const validationErrors: Record<string, boolean> = {};
     if (!formData.invoice_id) validationErrors.invoice_id = true;
+    if (!formData.invoice_date) validationErrors.invoice_date = true;
     if (!formData.patient_id) validationErrors.patient_id = true;
+    if (!formData.doctor_id) validationErrors.doctor_id = true;
+    if (!formData.referrar_id) validationErrors.referrar_id = true;
     if (formData.items.length === 0) validationErrors.items = true;
     if (!formData.bill_created_by) validationErrors.bill_created_by = true;
+    if (!formData.bill_paid_by) validationErrors.bill_paid_by = true;
 
     if (Object.keys(validationErrors).length > 0) {
         setErrors(validationErrors);
-        alert('Please fill all required fields highlighted in red.');
+        alert('অনুগ্রহ করে সবগুলি প্রয়োজনীয় ঘর পূরণ করুন: তারিখ, পেশেন্ট, ডাক্তার, রেফারার, টেস্ট আইটেম, বিল ক্রিটেড বাই এবং বিল পেইড বাই।');
         return;
     }
     if (totals.dueAmount < -0.001) {
@@ -764,7 +770,7 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-x-4 gap-y-5">
           <div>
             <label htmlFor="invoice_date" className={commonLabelClasses}>Invoice Date</label>
-            <input type="date" id="invoice_date" name="invoice_date" value={formData.invoice_date} onChange={handleInputChange} required className={`${commonInputClasses} h-10`} />
+            <input type="date" id="invoice_date" name="invoice_date" value={formData.invoice_date} onChange={handleInputChange} required className={`${commonInputClasses} h-10 ${errors.invoice_date ? 'border-red-500 ring-2 ring-red-500' : ''}`} />
           </div>
           <div className={`rounded-md ${errors.patient_id ? 'ring-2 ring-red-500' : ''}`}>
              <SearchableSelect
@@ -779,7 +785,7 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
                 inputHeightClass="h-10"
                 />
           </div>
-          <div>
+          <div className={`rounded-md ${errors.doctor_id ? 'ring-2 ring-red-500' : ''}`}>
             <SearchableSelect
               theme="dark"
               label="Consulting Doctor"
@@ -789,18 +795,20 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
               onAddNew={() => setShowNewDoctorForm(true)}
               placeholder="Search or add new doctor"
               inputHeightClass="h-10"
+              required
             />
           </div>
-          <div>
+          <div className={`rounded-md ${errors.referrar_id ? 'ring-2 ring-red-500' : ''}`}>
             <SearchableSelect
               theme="dark"
-              label="Referrar (Optional)"
+              label="Referrar"
               options={referrars.map(r => ({ id: r.ref_id, name: r.ref_name, details: r.ref_degrees }))}
               value={formData.referrar_id || ''}
               onChange={handleReferrarSelect}
               onAddNew={() => setShowNewReferrarForm(true)}
               placeholder="Search or add new referrar"
               inputHeightClass="h-10"
+              required
             />
           </div>
           <div>
@@ -876,10 +884,45 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-5 mt-6 border-t border-sky-800 pt-6">
           <div className="space-y-4">
              <div><label htmlFor="notes" className={commonLabelClasses}>Notes (Optional)</label><textarea id="notes" name="notes" rows={3} value={formData.notes} onChange={handleInputChange} className={commonInputClasses}></textarea></div>
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6">
-                <div className={`rounded-md ${errors.bill_created_by ? 'ring-2 ring-red-500' : ''}`}><SearchableSelect theme="dark" label="Bill_Create_By" options={activeEmployees.map(emp => ({ id: emp.emp_name, name: emp.emp_name, details: emp.job_position }))} value={formData.bill_created_by || ''} onChange={(id, name) => handleEmployeeSelect('bill_created_by', id, name)} onAddNew={() => onNavigateSubPage('employee_info' as DiagnosticSubPage)} placeholder="Select Employee" inputHeightClass="h-10" /></div>
-                <div><SearchableSelect theme="dark" label="Bill_Paid_By" options={activeEmployees.map(emp => ({ id: emp.emp_name, name: emp.emp_name, details: emp.job_position }))} value={formData.bill_paid_by || ''} onChange={(id, name) => handleEmployeeSelect('bill_paid_by', id, name)} onAddNew={() => onNavigateSubPage('employee_info' as DiagnosticSubPage)} placeholder="Select Employee" inputHeightClass="h-10" /></div>
-             </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6">
+                {activeEmployees.length === 0 ? (
+                  <div className="col-span-2 mb-2 p-4 bg-rose-900/30 border border-rose-800 rounded-lg text-rose-300 text-xs font-bold text-center uppercase tracking-wider flex items-center justify-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                    </svg>
+                    বর্তমান মাসের কোন কর্মচারী সিলেক্ট করা নেই
+                  </div>
+                ) : (
+                  <>
+                    <div className={`rounded-md ${errors.bill_created_by ? 'ring-2 ring-red-500' : ''}`}>
+                      <SearchableSelect 
+                        theme="dark" 
+                        label="Bill Created By" 
+                        options={activeEmployees.map(emp => ({ id: emp.emp_name, name: emp.emp_name, details: emp.job_position }))} 
+                        value={formData.bill_created_by || ''} 
+                        onChange={(id, name) => handleEmployeeSelect('bill_created_by', id, name)} 
+                        onAddNew={() => onNavigateSubPage('employee_info' as DiagnosticSubPage)} 
+                        placeholder="Select Employee" 
+                        required
+                        inputHeightClass="h-10" 
+                      />
+                    </div>
+                    <div className={`rounded-md ${errors.bill_paid_by ? 'ring-2 ring-red-500' : ''}`}>
+                      <SearchableSelect 
+                        theme="dark" 
+                        label="Bill Paid By" 
+                        options={activeEmployees.map(emp => ({ id: emp.emp_name, name: emp.emp_name, details: emp.job_position }))} 
+                        value={formData.bill_paid_by || ''} 
+                        onChange={(id, name) => handleEmployeeSelect('bill_paid_by', id, name)} 
+                        onAddNew={() => onNavigateSubPage('employee_info' as DiagnosticSubPage)} 
+                        placeholder="Select Employee" 
+                        required
+                        inputHeightClass="h-10" 
+                      />
+                    </div>
+                  </>
+                )}
+              </div>
              <div><label htmlFor="payment_method" className={commonLabelClasses}>Payment Method</label><select id="payment_method" name="payment_method" value={formData.payment_method} onChange={handleInputChange} className={commonInputClasses}><option value="Cash">Cash</option><option value="Card">Card</option><option value="Mobile Banking">Mobile Banking</option></select></div>
           </div>
           <div className="space-y-2 bg-slate-800 p-4 rounded-lg border border-slate-700 text-slate-300">

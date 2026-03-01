@@ -1431,14 +1431,22 @@ const IndoorInvoicePage: React.FC<{
     // Persistent OT Details Library for Suggestions
     const [otDetailsLibrary, setOtDetailsLibrary] = useState<Record<string, string>>(() => JSON.parse(localStorage.getItem('ncd_ot_details_library') || '{}'));
     const [tableSearchTerm, setTableSearchTerm] = useState('');
+    const [tableDateFilter, setTableDateFilter] = useState('');
+    const [tableMonthFilter, setTableMonthFilter] = useState('');
 
     const filteredInvoices = useMemo(() => {
-        return indoorInvoices.filter(inv => 
-            inv.patient_name.toLowerCase().includes(tableSearchTerm.toLowerCase()) ||
-            inv.daily_id.toLowerCase().includes(tableSearchTerm.toLowerCase()) ||
-            inv.patient_id.toLowerCase().includes(tableSearchTerm.toLowerCase())
-        );
-    }, [indoorInvoices, tableSearchTerm]);
+        return indoorInvoices.filter(inv => {
+            const matchesSearch = inv.patient_name.toLowerCase().includes(tableSearchTerm.toLowerCase()) ||
+                inv.daily_id.toLowerCase().includes(tableSearchTerm.toLowerCase()) ||
+                inv.patient_id.toLowerCase().includes(tableSearchTerm.toLowerCase());
+            
+            const matchesDate = !tableDateFilter || inv.invoice_date === tableDateFilter;
+            
+            const matchesMonth = !tableMonthFilter || (inv.invoice_date && inv.invoice_date.startsWith(tableMonthFilter));
+
+            return matchesSearch && matchesDate && matchesMonth;
+        });
+    }, [indoorInvoices, tableSearchTerm, tableDateFilter, tableMonthFilter]);
 
     useEffect(() => {
         localStorage.setItem('ncd_clinic_subcategories', JSON.stringify(subCategories));
@@ -1647,10 +1655,9 @@ const IndoorInvoicePage: React.FC<{
 
     const handleReturnInvoice = (inv: IndoorInvoice) => {
         if (inv.status === 'Returned') return alert("Already returned.");
-        if (window.confirm(`রিফান্ড করতে চান? এটি আজকের ক্যাশ থেকে টাকা বিয়োগ করবে। (Mistake হলে 'Cancel' করুন)`)) {
-            const todayStr = new Date().toISOString().split('T')[0];
-            setIndoorInvoices(prev => prev.map(item => item.daily_id === inv.daily_id ? { ...item, status: 'Returned', return_date: todayStr } : item));
-            setSuccessMessage("Invoice Returned Successfully.");
+        if (window.confirm(`আপনি কি এই ইনভয়েসটি রিটার্ন করতে চান? কনফার্ম করলে ইনভয়েসটি এডিট করার জন্য লোড হবে।`)) {
+            handleLoadInvoice(inv);
+            setSuccessMessage("Invoice Loaded for Return/Adjustment.");
         }
     };
 
@@ -2016,26 +2023,41 @@ const IndoorInvoicePage: React.FC<{
                 )}
                 
                 <div className="mt-8">
-                    <div className="flex justify-between items-center mb-2">
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
                         <h3 className="text-gray-400 font-bold uppercase text-xs tracking-widest">Master Journal: Saved Indoor Invoices</h3>
-                        <div className="relative w-64">
-                            <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={14} />
+                        <div className="flex flex-wrap gap-2">
+                            <div className="relative w-48">
+                                <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={14} />
+                                <input 
+                                    type="text" 
+                                    placeholder="Search Patient or ID..." 
+                                    value={tableSearchTerm}
+                                    onChange={e => setTableSearchTerm(e.target.value)}
+                                    className="w-full bg-[#111827] border border-gray-700 rounded-lg pl-9 pr-3 py-1.5 text-[10px] text-white focus:ring-1 focus:ring-blue-500 outline-none"
+                                />
+                            </div>
                             <input 
-                                type="text" 
-                                placeholder="Search Patient or ID..." 
-                                value={tableSearchTerm}
-                                onChange={e => setTableSearchTerm(e.target.value)}
-                                className="w-full bg-[#111827] border border-gray-700 rounded-lg pl-9 pr-3 py-1.5 text-xs text-white focus:ring-1 focus:ring-blue-500 outline-none"
+                                type="date" 
+                                value={tableDateFilter}
+                                onChange={e => setTableDateFilter(e.target.value)}
+                                className="bg-[#111827] border border-gray-700 rounded-lg px-3 py-1.5 text-[10px] text-white focus:ring-1 focus:ring-blue-500 outline-none"
+                            />
+                            <input 
+                                type="month" 
+                                value={tableMonthFilter}
+                                onChange={e => setTableMonthFilter(e.target.value)}
+                                className="bg-[#111827] border border-gray-700 rounded-lg px-3 py-1.5 text-[10px] text-white focus:ring-1 focus:ring-blue-500 outline-none"
                             />
                         </div>
                     </div>
                     {/* Fixed: Container expanded for continuous page view (removed fixed height/overflow) */}
                     <div className="bg-[#111827] rounded-xl border border-gray-700 shadow-inner">
                         <table className="w-full text-sm text-left text-gray-300">
-                            <thead className="bg-[#1f2937] text-gray-400 sticky top-0 z-10"><tr><th className="p-3">ID</th><th className="p-3">Date</th><th className="p-3">Patient</th><th className="p-3 text-right">Total</th><th className="p-3 text-right">Paid</th><th className="p-3 text-right">Due</th><th className="p-3 text-center">Status</th><th className="p-3 text-center">Action</th></tr></thead>
+                            <thead className="bg-[#1f2937] text-gray-400 sticky top-0 z-10"><tr><th className="p-3 text-center">SL</th><th className="p-3">ID</th><th className="p-3">Date</th><th className="p-3">Patient</th><th className="p-3 text-right">Total</th><th className="p-3 text-right">Paid</th><th className="p-3 text-right">Due</th><th className="p-3 text-center">Status</th><th className="p-3 text-center">Action</th></tr></thead>
                             <tbody className="divide-y divide-gray-700">
-                                {filteredInvoices.map(inv => (
+                                {filteredInvoices.map((inv, index) => (
                                     <tr key={inv.daily_id} onClick={() => handleLoadInvoice(inv)} className={`cursor-pointer hover:bg-slate-800 transition-all ${selectedInvoiceId === inv.daily_id ? 'bg-blue-900/30' : ''} ${inv.status === 'Returned' ? 'bg-rose-900/10' : inv.status === 'Cancelled' ? 'opacity-30 grayscale line-through' : ''}`}>
+                                        <td className="p-3 text-center text-gray-500 font-mono text-xs">{index + 1}</td>
                                         <td className="p-3 font-mono text-xs text-sky-400">{inv.daily_id}</td><td className="p-3">{inv.invoice_date}</td><td className="p-3 font-black uppercase">{inv.patient_name}</td><td className="p-3 text-right font-bold">৳{inv.total_bill.toFixed(2)}</td><td className="p-3 text-right text-emerald-400 font-black">৳{inv.paid_amount.toFixed(2)}</td><td className="p-3 text-right text-rose-500 font-black">৳{inv.due_bill.toFixed(2)}</td>
                                         <td className="p-3 text-center"><span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase ${inv.status==='Returned'?'bg-rose-600 text-white':inv.status==='Cancelled'?'bg-slate-700 text-slate-300':'bg-blue-600 text-white'}`}>{inv.status}</span></td>
                                         <td className="p-3 text-center space-x-3" onClick={e=>e.stopPropagation()}>
