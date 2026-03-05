@@ -38,17 +38,20 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
 
   // Sync internal search term with external value (ID) -> Name
   useEffect(() => {
-    const selectedOption = options.find((opt) => opt.id === value);
-    if (selectedOption) {
-      setSearchTerm(selectedOption.name);
-    } else {
-        // If allowCustom is true, and we have a value that doesn't match an option, show the value.
-        if (allowCustom && value) {
-             setSearchTerm(value);
-        } else if (!value && !isOpen) {
-             setSearchTerm('');
-        }
-    }
+    const timer = setTimeout(() => {
+      const selectedOption = options.find((opt) => opt.id === value);
+      if (selectedOption) {
+        setSearchTerm(selectedOption.name);
+      } else {
+          // If allowCustom is true, and we have a value that doesn't match an option, show the value.
+          if (allowCustom && value) {
+               setSearchTerm(value);
+          } else if (!value && !isOpen) {
+               setSearchTerm('');
+          }
+      }
+    }, 0);
+    return () => clearTimeout(timer);
   }, [value, options, isOpen, allowCustom]);
 
   const filteredOptions = options.filter(
@@ -71,14 +74,17 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
   // When closing, revert input to selected value name to avoid confusion
   useEffect(() => {
       if (!isOpen) {
-          const selectedOption = options.find((opt) => opt.id === value);
-          if (selectedOption) {
-              setSearchTerm(selectedOption.name);
-          } else if (allowCustom && value) {
-              setSearchTerm(value);
-          } else {
-              setSearchTerm('');
-          }
+          const timer = setTimeout(() => {
+              const selectedOption = options.find((opt) => opt.id === value);
+              if (selectedOption) {
+                  setSearchTerm(selectedOption.name);
+              } else if (allowCustom && value) {
+                  setSearchTerm(value);
+              } else {
+                  setSearchTerm('');
+              }
+          }, 0);
+          return () => clearTimeout(timer);
       }
   }, [isOpen, value, options, allowCustom]);
 

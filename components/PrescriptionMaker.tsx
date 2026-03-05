@@ -65,7 +65,6 @@ const PrescriptionMaker: React.FC<PrescriptionMakerProps> = ({ appointmentId, pa
     const [diagnosisInput, setDiagnosisInput] = useState('');
     const [medicines, setMedicines] = useState<MedicineItem[]>([]);
     const [medSearchTerm, setMedSearchTerm] = useState('');
-    const [searchResults, setSearchResults] = useState<DrugMonograph[]>([]);
     const [showDropdown, setShowDropdown] = useState(false); 
     const [focusedMedicine, setFocusedMedicine] = useState<DrugMonograph | null>(null);
     const [tempDose, setTempDose] = useState('1+0+1');
@@ -83,23 +82,26 @@ const PrescriptionMaker: React.FC<PrescriptionMakerProps> = ({ appointmentId, pa
     }, [allPrescriptions, patient.pt_id]);
 
     useEffect(() => {
-        if (existingData) {
-            setSelectedComplaints(existingData.complaints || []);
-            setSelectedDiagnoses(existingData.diagnoses || []);
-            setOnExam(existingData.onExam || '');
-            setVitals(existingData.vitals || { bp: '', pulse: '', weight: '', temp: '' });
-            setSelectedTests(existingData.tests || []);
-            setMedicines(existingData.medicines || []);
-            setAdviceText(existingData.advice || '');
-            setNextVisit(existingData.nextVisit || '');
-        }
+        const timer = setTimeout(() => {
+            if (existingData) {
+                setSelectedComplaints(existingData.complaints || []);
+                setSelectedDiagnoses(existingData.diagnoses || []);
+                setOnExam(existingData.onExam || '');
+                setVitals(existingData.vitals || { bp: '', pulse: '', weight: '', temp: '' });
+                setSelectedTests(existingData.tests || []);
+                setMedicines(existingData.medicines || []);
+                setAdviceText(existingData.advice || '');
+                setNextVisit(existingData.nextVisit || '');
+            }
 
-        const savedName = localStorage.getItem(`rx_pref_name_${doctor.doctor_id}`);
-        const savedDegree = localStorage.getItem(`rx_pref_degree_${doctor.doctor_id}`);
-        const savedSchedule = localStorage.getItem(`rx_pref_schedule_${doctor.doctor_id}`);
-        if (savedName) setLocalDocName(savedName);
-        if (savedDegree) setLocalDocDegree(savedDegree);
-        if (savedSchedule) setLocalDocSchedule(savedSchedule);
+            const savedName = localStorage.getItem(`rx_pref_name_${doctor.doctor_id}`);
+            const savedDegree = localStorage.getItem(`rx_pref_degree_${doctor.doctor_id}`);
+            const savedSchedule = localStorage.getItem(`rx_pref_schedule_${doctor.doctor_id}`);
+            if (savedName) setLocalDocName(savedName);
+            if (savedDegree) setLocalDocDegree(savedDegree);
+            if (savedSchedule) setLocalDocSchedule(savedSchedule);
+        }, 0);
+        return () => clearTimeout(timer);
     }, [existingData, doctor.doctor_id]);
 
     useEffect(() => {
@@ -154,13 +156,12 @@ const PrescriptionMaker: React.FC<PrescriptionMakerProps> = ({ appointmentId, pa
         setTestSearch('');
     };
 
-    // Medicine Selection
-    useEffect(() => {
+    const searchResults = useMemo(() => {
         if (medSearchTerm.length > 0) {
             const term = medSearchTerm.toLowerCase();
-            const results = drugDatabase.filter(d => d.brandName.toLowerCase().includes(term) || d.genericName.toLowerCase().includes(term));
-            setSearchResults(results.slice(0, 50));
-        } else { setSearchResults(drugDatabase.slice(0, 20)); }
+            return drugDatabase.filter(d => d.brandName.toLowerCase().includes(term) || d.genericName.toLowerCase().includes(term)).slice(0, 50);
+        }
+        return drugDatabase.slice(0, 20);
     }, [medSearchTerm, drugDatabase]);
 
     const handleSelectDrug = (drug: DrugMonograph) => {

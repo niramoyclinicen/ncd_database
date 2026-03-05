@@ -89,17 +89,23 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
   
   // Auto Calculations
   useEffect(() => {
-    const sub = purchaseFormData.items.reduce((sum, item) => sum + item.lineTotalBuy, 0);
-    const net = sub - purchaseFormData.discount;
-    const due = net - (purchaseFormData.paidAmount || 0);
-    setPurchaseFormData(prev => ({ ...prev, totalAmount: sub, netPayable: net, dueAmount: due }));
+    const timer = setTimeout(() => {
+      const sub = purchaseFormData.items.reduce((sum, item) => sum + item.lineTotalBuy, 0);
+      const net = sub - purchaseFormData.discount;
+      const due = net - (purchaseFormData.paidAmount || 0);
+      setPurchaseFormData(prev => ({ ...prev, totalAmount: sub, netPayable: net, dueAmount: due }));
+    }, 0);
+    return () => clearTimeout(timer);
   }, [purchaseFormData.items, purchaseFormData.discount, purchaseFormData.paidAmount]);
 
   useEffect(() => {
+    const timer = setTimeout(() => {
       const sub = salesFormData.items.reduce((sum, item) => sum + item.lineTotalSell, 0);
       const net = sub - salesFormData.discount;
       const due = net - salesFormData.paidAmount;
       setSalesFormData(prev => ({ ...prev, totalAmount: sub, netPayable: net, dueAmount: due }));
+    }, 0);
+    return () => clearTimeout(timer);
   }, [salesFormData.items, salesFormData.discount, salesFormData.paidAmount]);
 
   const handleSearchChange = (term: string, type: 'buy' | 'sell') => {
@@ -164,12 +170,13 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
   const addPurchaseItem = () => {
       if (!currentPurchaseItem.tradeName || (currentPurchaseItem.qtyBuying || 0) <= 0) return;
       const existingMed = medicines.find(m => m.tradeName.trim().toLowerCase() === currentPurchaseItem.tradeName?.trim().toLowerCase());
-      if (!currentPurchaseItem.id && existingMed) {
+      let itemId = currentPurchaseItem.id;
+      if (!itemId && existingMed) {
           if (confirm(`"${existingMed.tradeName}" নামে ঔষধটি আগে থেকেই সিস্টেমে আছে। আপনি কি এই ঔষধটির সাথেই স্টক যোগ করতে চান?`)) {
-              currentPurchaseItem.id = existingMed.id;
+              itemId = existingMed.id;
           } else { return; }
       }
-      const newItem: InvoiceItem = { ...currentPurchaseItem as InvoiceItem, id: currentPurchaseItem.id || Date.now().toString(), lineTotalBuy: (Number(currentPurchaseItem.unitPriceBuy) || 0) * (Number(currentPurchaseItem.qtyBuying) || 0), stock: 0, defaultFrequency: '' };
+      const newItem: InvoiceItem = { ...currentPurchaseItem as InvoiceItem, id: itemId || Date.now().toString(), lineTotalBuy: (Number(currentPurchaseItem.unitPriceBuy) || 0) * (Number(currentPurchaseItem.qtyBuying) || 0), stock: 0, defaultFrequency: '' };
       setPurchaseFormData(prev => ({ ...prev, items: [...prev.items, newItem] }));
       setCurrentPurchaseItem({ tradeName: '', genericName: '', formulation: 'Tab', strength: '', unitPriceBuy: 0, unitPriceSell: 0, qtyBuying: 0, lineTotalBuy: 0, expiryDate: '' });
       setSearchTerm(''); setShowSuggestions(false);

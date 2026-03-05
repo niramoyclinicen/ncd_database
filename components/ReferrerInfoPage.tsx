@@ -11,13 +11,34 @@ interface ReferrarInfoPageProps {
 }
 
 const ReferrarInfoPage: React.FC<ReferrarInfoPageProps> = ({ referrars, setReferrars, isEmbedded = false, onClose, onSaveAndSelect }) => {
-    const [filteredReferrars, setFilteredReferrars] = useState<Referrar[]>(referrars);
     const [formData, setFormData] = useState<Referrar>(emptyReferrar);
     const [selectedReferrarId, setSelectedReferrarId] = useState<string | null>(null);
     const [isEditing, setIsEditing] = useState<boolean>(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [mobileError, setMobileError] = useState('');
     const [successMessage, setSuccessMessage] = useState('');
+
+    const filteredReferrars = React.useMemo(() => {
+        if (isEmbedded) return referrars;
+        return referrars.filter(referrar =>
+            referrar.ref_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            referrar.ref_id.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+    }, [searchTerm, referrars, isEmbedded]);
+
+    const handleGetNewId = React.useCallback(() => {
+        const today = new Date();
+        const year = today.getFullYear();
+        const month = String(today.getMonth() + 1).padStart(2, '0');
+        const day = String(today.getDate()).padStart(2, '0');
+        
+        const referrarsTodayCount = referrars.filter(r => r.ref_id.startsWith(`REF-${year}-${month}-${day}`)).length;
+        const newSerial = String(referrarsTodayCount + 1).padStart(3, '0');
+        
+        const newId = `REF-${year}-${month}-${day}-${newSerial}`;
+        setFormData({ ...emptyReferrar, ref_id: newId });
+        setIsEditing(false);
+    }, [referrars]);
 
     useEffect(() => {
         if (successMessage) {
@@ -27,19 +48,11 @@ const ReferrarInfoPage: React.FC<ReferrarInfoPageProps> = ({ referrars, setRefer
     }, [successMessage]);
 
     useEffect(() => {
-        if (isEmbedded) return;
-        const results = referrars.filter(referrar =>
-            referrar.ref_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            referrar.ref_id.toLowerCase().includes(searchTerm.toLowerCase())
-        );
-        setFilteredReferrars(results);
-    }, [searchTerm, referrars, isEmbedded]);
-
-    useEffect(() => {
         if (isEmbedded && !isEditing && !formData.ref_id) {
-            handleGetNewId();
+            const timer = setTimeout(() => handleGetNewId(), 0);
+            return () => clearTimeout(timer);
         }
-    }, [isEmbedded, isEditing, formData.ref_id]);
+    }, [isEmbedded, isEditing, formData.ref_id, handleGetNewId]);
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
@@ -65,20 +78,6 @@ const ReferrarInfoPage: React.FC<ReferrarInfoPageProps> = ({ referrars, setRefer
         if (isEmbedded) {
             handleGetNewId();
         }
-    };
-
-    const handleGetNewId = () => {
-        const today = new Date();
-        const year = today.getFullYear();
-        const month = String(today.getMonth() + 1).padStart(2, '0');
-        const day = String(today.getDate()).padStart(2, '0');
-        
-        const referrarsTodayCount = referrars.filter(r => r.ref_id.startsWith(`REF-${year}-${month}-${day}`)).length;
-        const newSerial = String(referrarsTodayCount + 1).padStart(3, '0');
-        
-        const newId = `REF-${year}-${month}-${day}-${newSerial}`;
-        setFormData({ ...emptyReferrar, ref_id: newId });
-        setIsEditing(false);
     };
 
     const handleSaveReferrar = (e: React.FormEvent) => {

@@ -72,7 +72,6 @@ interface DoctorAppointmentPageProps {
 const DoctorAppointmentPage: React.FC<DoctorAppointmentPageProps> = ({ 
   patients, setPatients, doctors, setDoctors, referrars, setReferrars, invoices = [], appointments, setAppointments 
 }) => {
-  const [filteredAppointments, setFilteredAppointments] = useState<Appointment[]>(appointments);
   const [formData, setFormData] = useState<Appointment>(emptyAppointment);
   const [selectedAppointmentId, setSelectedAppointmentId] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState<boolean>(false);
@@ -80,6 +79,7 @@ const DoctorAppointmentPage: React.FC<DoctorAppointmentPageProps> = ({
   
   // New list filters
   const [listSearchDoctor, setListSearchDoctor] = useState('');
+  const [listSearchPatient, setListSearchPatient] = useState('');
   const [listFilterDate, setListFilterDate] = useState('');
   const [listFilterMonth, setListFilterMonth] = useState('');
 
@@ -109,8 +109,8 @@ const DoctorAppointmentPage: React.FC<DoctorAppointmentPageProps> = ({
   }, [successMessage]);
 
   // Updated List Filtering Logic
-  useEffect(() => {
-    const results = appointments.filter(appt => {
+  const filteredAppointments = useMemo(() => {
+    return appointments.filter(appt => {
       // 1. General Search Term (matches Pt Name, Doc Name, Ref Name, ID)
       const matchesSearch = searchTerm === '' || 
         appt.patient_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -122,16 +122,21 @@ const DoctorAppointmentPage: React.FC<DoctorAppointmentPageProps> = ({
       const matchesDoctor = listSearchDoctor === '' || 
         appt.doctor_name.toLowerCase().includes(listSearchDoctor.toLowerCase());
 
+      // 2b. Specific Patient Search
+      const matchesPatient = listSearchPatient === '' ||
+        appt.patient_name.toLowerCase().includes(listSearchPatient.toLowerCase());
+
       // 3. Specific Date Filter
       const matchesDate = listFilterDate === '' || appt.appointment_date === listFilterDate;
 
       // 4. Specific Month Filter
       const matchesMonth = listFilterMonth === '' || appt.appointment_date.startsWith(listFilterMonth);
 
-      return matchesSearch && matchesDoctor && matchesDate && matchesMonth;
+      return matchesSearch && matchesDoctor && matchesPatient && matchesDate && matchesMonth;
     });
-    setFilteredAppointments(results);
-  }, [searchTerm, listSearchDoctor, listFilterDate, listFilterMonth, appointments]);
+  }, [searchTerm, listSearchDoctor, listSearchPatient, listFilterDate, listFilterMonth, appointments]);
+
+  const totalFilteredFees = filteredAppointments.reduce((sum, appt) => sum + appt.doctor_fee, 0);
 
   useEffect(() => {
     const calculateTotals = () => {
@@ -495,7 +500,17 @@ const DoctorAppointmentPage: React.FC<DoctorAppointmentPageProps> = ({
                         placeholder="Filter by Doctor..." 
                         value={listSearchDoctor} 
                         onChange={(e) => setListSearchDoctor(e.target.value)}
-                        className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white font-bold outline-none focus:border-blue-500 w-40"
+                        className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white font-bold outline-none focus:border-blue-500 w-32"
+                    />
+                </div>
+                <div className="flex items-center gap-2">
+                    <SearchIcon size={16} className="text-slate-500" />
+                    <input 
+                        type="text" 
+                        placeholder="Filter by Patient..." 
+                        value={listSearchPatient} 
+                        onChange={(e) => setListSearchPatient(e.target.value)}
+                        className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white font-bold outline-none focus:border-blue-500 w-32"
                     />
                 </div>
                 <div className="flex items-center gap-2">
@@ -522,8 +537,12 @@ const DoctorAppointmentPage: React.FC<DoctorAppointmentPageProps> = ({
                     <span className="text-[10px] font-black text-indigo-300 uppercase tracking-widest">Total:</span>
                     <span className="text-xs font-black text-white">{filteredAppointments.length}</span>
                 </div>
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-900/40 border border-emerald-700/50 rounded-lg shadow-inner">
+                    <span className="text-[10px] font-black text-emerald-300 uppercase tracking-widest">Total Fee:</span>
+                    <span className="text-xs font-black text-white">৳ {totalFilteredFees.toFixed(2)}</span>
+                </div>
                 <button 
-                    onClick={() => { setListSearchDoctor(''); setListFilterDate(''); setListFilterMonth(''); }}
+                    onClick={() => { setListSearchDoctor(''); setListSearchPatient(''); setListFilterDate(''); setListFilterMonth(''); }}
                     className="p-1.5 bg-slate-700 hover:bg-rose-600 text-white rounded-lg transition-colors"
                     title="Clear List Filters"
                 >

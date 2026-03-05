@@ -49,7 +49,6 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
   setInvoices,
   monthlyRoster
 }) => {
-  const [filteredInvoices, setFilteredInvoices] = useState<LabInvoice[]>(invoices);
   const [formData, setFormData] = useState<LabInvoice>(emptyLabInvoice);
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState<boolean>(false);
@@ -66,13 +65,14 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
   const [tableFilterMonth, setTableFilterMonth] = useState('');
   const [tableFilterYear, setTableFilterYear] = useState('');
   const [tableFilterDoctorId, setTableFilterDoctorId] = useState('');
+  const [tableFilterPatientName, setTableFilterPatientName] = useState('');
 
   // Local state for the "Paid Amount (BDT)" input to allow free typing
   const [displayPaidAmount, setDisplayPaidAmount] = useState<string>('');
   const [displayDiscountPercentage, setDisplayDiscountPercentage] = useState<string>('');
   const [displayDiscountAmount, setDisplayDiscountAmount] = useState<string>('');
 
-  const today = new Date();
+  const today = useMemo(() => new Date(), []);
   const todayDateString = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
   const [reportDate, setReportDate] = useState<string>(todayDateString);
 
@@ -106,15 +106,24 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
 
   // Effect to synchronize `displayPaidAmount` with `formData.paid_amount`
   useEffect(() => {
-    setDisplayPaidAmount(formData.paid_amount.toFixed(2));
+    const timer = setTimeout(() => {
+      setDisplayPaidAmount(formData.paid_amount.toFixed(2));
+    }, 0);
+    return () => clearTimeout(timer);
   }, [formData.paid_amount]);
 
   useEffect(() => {
-    setDisplayDiscountPercentage(formData.discount_percentage.toFixed(2));
+    const timer = setTimeout(() => {
+      setDisplayDiscountPercentage(formData.discount_percentage.toFixed(2));
+    }, 0);
+    return () => clearTimeout(timer);
   }, [formData.discount_percentage]);
 
   useEffect(() => {
-    setDisplayDiscountAmount(formData.discount_amount.toFixed(2));
+    const timer = setTimeout(() => {
+      setDisplayDiscountAmount(formData.discount_amount.toFixed(2));
+    }, 0);
+    return () => clearTimeout(timer);
   }, [formData.discount_amount]);
 
   // Calculation Logic
@@ -133,8 +142,8 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
   }, [formData.items, formData.paid_amount, formData.discount_amount, formData.special_commission, formData.commission_paid, applyPC, formData.status]);
   
   // Filter invoices when search term or invoices state changes
-  useEffect(() => {
-    const results = invoices.filter(invoice => {
+  const filteredInvoices = useMemo(() => {
+    return invoices.filter(invoice => {
       const matchesSearch = invoice.invoice_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
         invoice.patient_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (invoice.doctor_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -147,11 +156,11 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
       const matchesYear = !tableFilterYear || String(invDateObj.getFullYear()) === tableFilterYear;
       
       const matchesDoctor = !tableFilterDoctorId || invoice.doctor_id === tableFilterDoctorId;
+      const matchesPatient = !tableFilterPatientName || invoice.patient_name.toLowerCase().includes(tableFilterPatientName.toLowerCase());
 
-      return matchesSearch && matchesDate && matchesMonth && matchesYear && matchesDoctor;
+      return matchesSearch && matchesDate && matchesMonth && matchesYear && matchesDoctor && matchesPatient;
     });
-    setFilteredInvoices(results);
-  }, [searchTerm, tableFilterDate, tableFilterMonth, tableFilterYear, tableFilterDoctorId, invoices]);
+  }, [searchTerm, tableFilterDate, tableFilterMonth, tableFilterYear, tableFilterDoctorId, tableFilterPatientName, invoices]);
 
 
   const filteredTestsForSelect = useMemo(() => {
@@ -606,7 +615,7 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
     summary.paidAmount -= totalRefunded; // Deduct refunds from today's cash
 
     return summary;
-  }, [performance.now(), invoices, reportDate]); // Using performance.now() as an additional trigger if needed
+  }, [invoices, reportDate]); // Using invoices and reportDate as triggers
 
   const monthlyReport = useMemo(() => {
     const currentMonth = today.getMonth();
@@ -652,6 +661,7 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
     setTableFilterMonth('');
     setTableFilterYear('');
     setTableFilterDoctorId('');
+    setTableFilterPatientName('');
   };
 
   return (
@@ -983,8 +993,17 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
             </h3>
             
             {/* TABLE FILTER CONTROLS */}
-            <div className="flex flex-wrap items-center gap-3 bg-slate-700/40 p-3 rounded-2xl border border-slate-600 shadow-inner no-print">
-                <div className="w-48">
+            <div className="flex flex-wrap items-center justify-end gap-3 bg-slate-700/40 p-3 rounded-2xl border border-slate-600 shadow-inner no-print ml-auto">
+                <div className="w-40">
+                    <input 
+                        type="text" 
+                        placeholder="Search Patient..." 
+                        value={tableFilterPatientName} 
+                        onChange={(e) => setTableFilterPatientName(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-1.5 text-xs text-white font-bold outline-none focus:border-blue-500"
+                    />
+                </div>
+                <div className="w-40">
                     <select 
                         value={tableFilterDoctorId} 
                         onChange={(e) => setTableFilterDoctorId(e.target.value)}
@@ -1030,6 +1049,22 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
                 >
                     <TrashIcon size={14} />
                 </button>
+            </div>
+        </div>
+
+        {/* COLUMN-WISE TOTALS SUMMARY */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4 no-print">
+            <div className="bg-slate-800/60 border border-slate-700 p-3 rounded-xl flex justify-between items-center">
+                <span className="text-xs font-black text-slate-400 uppercase tracking-widest">Total Amount:</span>
+                <span className="text-sm font-black text-white">৳ {tableTotals.total.toFixed(2)}</span>
+            </div>
+            <div className="bg-emerald-900/30 border border-emerald-800/50 p-3 rounded-xl flex justify-between items-center">
+                <span className="text-xs font-black text-emerald-400 uppercase tracking-widest">Total Paid:</span>
+                <span className="text-sm font-black text-emerald-400">৳ {tableTotals.paid.toFixed(2)}</span>
+            </div>
+            <div className="bg-rose-900/30 border border-rose-800/50 p-3 rounded-xl flex justify-between items-center">
+                <span className="text-xs font-black text-rose-400 uppercase tracking-widest">Total Due:</span>
+                <span className="text-sm font-black text-rose-400">৳ {tableTotals.due.toFixed(2)}</span>
             </div>
         </div>
 

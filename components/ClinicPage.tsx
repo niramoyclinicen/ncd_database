@@ -345,21 +345,25 @@ const CertificateModal: React.FC<{
 
     useEffect(() => {
         if(selectedAdmission) {
-            // Pre-fill defaults based on type
-            if(type === 'birth') {
-                setCertData((prev: any) => ({...prev, details: { ...prev.details, sex: selectedPatient?.gender === 'Female' ? 'Female' : 'Male', weight: '3.0kg', deliveryType: 'Normal' }}));
-            } else if(type === 'death') {
-                setCertData((prev: any) => ({...prev, details: { ...prev.details, cause: 'Cardiac Arrest', certBy: selectedAdmission.doctor_name }}));
-            } else if(type === 'referral') {
-                setCertData((prev: any) => ({...prev, details: { ...prev.details, refTo: 'Sirajgonj Sadar Hospital', reason: 'Advanced Management' }}));
-            }
+            const timer = setTimeout(() => {
+                // Pre-fill defaults based on type
+                if(type === 'birth') {
+                    setCertData((prev: any) => ({...prev, details: { ...prev.details, sex: selectedPatient?.gender === 'Female' ? 'Female' : 'Male', weight: '3.0kg', deliveryType: 'Normal' }}));
+                } else if(type === 'death') {
+                    setCertData((prev: any) => ({...prev, details: { ...prev.details, cause: 'Cardiac Arrest', certBy: selectedAdmission.doctor_name }}));
+                } else if(type === 'referral') {
+                    setCertData((prev: any) => ({...prev, details: { ...prev.details, refTo: 'Sirajgonj Sadar Hospital', reason: 'Advanced Management' }}));
+                }
+            }, 0);
+            return () => clearTimeout(timer);
         }
-    }, [selectedAdmissionId, type, selectedPatient]);
+    }, [selectedAdmissionId, type, selectedPatient, selectedAdmission]);
 
     const handleSave = () => {
         if(!selectedAdmissionId) return alert("প্রথমে পেশেন্ট সিলেক্ট করুন");
+        const currentTime = Date.now();
         const newCert: ClinicCertificate = {
-            id: `CERT-${Date.now()}`,
+            id: `CERT-${currentTime}`,
             type,
             admissionId: selectedAdmissionId,
             patientName: selectedPatient?.pt_name || '',
@@ -585,6 +589,7 @@ const DischargeRxMasterModal: React.FC<{
     doctors: Doctor[];
     onClose: () => void;
 }> = ({ admissions, patients, doctors, onClose }) => {
+    const [now] = useState(() => Date.now());
     const [searchTerm, setSearchTerm] = useState('');
     
     const filtered = useMemo(() => admissions.filter(a => 
@@ -755,14 +760,6 @@ const AdmissionAndTreatmentPage: React.FC<{
     const [showNewDoctorForm, setShowNewDoctorForm] = useState(false);
     const [showNewReferrarForm, setShowNewReferrarForm] = useState(false);
 
-    useEffect(() => {
-        const now = new Date();
-        const timeStr = now.toTimeString().slice(0, 5);
-        setRoundTime(timeStr);
-        if(!currentOrder.time) setCurrentOrder((prev: any) => ({...prev, time: timeStr}));
-        if(admissionData.doctor_name && !roundDoctor) setRoundDoctor(admissionData.doctor_name);
-    }, [admissionData.doctor_name, currentOrder.time, roundDoctor]);
-
     const handleGetNewId = () => {
         const today = new Date();
         const year = today.getFullYear();
@@ -888,6 +885,12 @@ const AdmissionAndTreatmentPage: React.FC<{
         setAdmissionData(admission);
         setSelectedAdmissionId(admission.admission_id);
         setPageMode('treatment');
+        
+        const now = new Date();
+        const timeStr = now.toTimeString().slice(0, 5);
+        setRoundTime(timeStr);
+        setRoundDoctor(admission.doctor_name || '');
+        setCurrentOrder((prev: any) => ({...prev, time: timeStr}));
     };
 
     const handleEditAdmissionInfo = (admission: AdmissionRecord) => {
@@ -1219,7 +1222,7 @@ const AdmissionAndTreatmentPage: React.FC<{
                                                                 const lastTimeMs = lastLog.id; 
                                                                 const nextTimeMs = lastTimeMs + (med.frequency * 60 * 60 * 1000);
                                                                 const nextDate = new Date(nextTimeMs);
-                                                                const isOverdue = Date.now() > nextTimeMs;
+                                                                const isOverdue = now > nextTimeMs;
                                                                 nextTimeText = `Next: ${nextDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
                                                                 statusText = isOverdue ? 'On Schedule' : 'On Schedule';
                                                                 nextColorClass = isOverdue ? 'text-red-400 font-bold' : 'text-green-400 font-medium';
@@ -1447,6 +1450,15 @@ const IndoorInvoicePage: React.FC<{
             return matchesSearch && matchesDate && matchesMonth;
         });
     }, [indoorInvoices, tableSearchTerm, tableDateFilter, tableMonthFilter]);
+
+    const tableTotals = useMemo(() => {
+        return filteredInvoices.reduce((acc, inv) => {
+            acc.total += inv.total_bill;
+            acc.paid += inv.paid_amount;
+            acc.due += inv.due_bill;
+            return acc;
+        }, { total: 0, paid: 0, due: 0 });
+    }, [filteredInvoices]);
 
     useEffect(() => {
         localStorage.setItem('ncd_clinic_subcategories', JSON.stringify(subCategories));
@@ -2023,8 +2035,8 @@ const IndoorInvoicePage: React.FC<{
                 )}
                 
                 <div className="mt-8">
-                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
-                        <h3 className="text-gray-400 font-bold uppercase text-xs tracking-widest">Master Journal: Saved Indoor Invoices</h3>
+                    <div className="flex flex-col md:flex-row items-start md:items-center gap-4 mb-4">
+                        <h3 className="text-gray-400 font-bold uppercase text-xs tracking-widest whitespace-nowrap">Master Journal: Saved Indoor Invoices</h3>
                         <div className="flex flex-wrap gap-2">
                             <div className="relative w-48">
                                 <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={14} />
@@ -2050,6 +2062,23 @@ const IndoorInvoicePage: React.FC<{
                             />
                         </div>
                     </div>
+
+                    {/* COLUMN-WISE TOTALS SUMMARY */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4 no-print">
+                        <div className="bg-slate-800/60 border border-slate-700 p-3 rounded-xl flex justify-between items-center">
+                            <span className="text-xs font-black text-slate-400 uppercase tracking-widest">Total Amount:</span>
+                            <span className="text-sm font-black text-white">৳ {tableTotals.total.toFixed(2)}</span>
+                        </div>
+                        <div className="bg-emerald-900/30 border border-emerald-800/50 p-3 rounded-xl flex justify-between items-center">
+                            <span className="text-xs font-black text-emerald-400 uppercase tracking-widest">Total Paid:</span>
+                            <span className="text-sm font-black text-emerald-400">৳ {tableTotals.paid.toFixed(2)}</span>
+                        </div>
+                        <div className="bg-rose-900/30 border border-rose-800/50 p-3 rounded-xl flex justify-between items-center">
+                            <span className="text-xs font-black text-rose-400 uppercase tracking-widest">Total Due:</span>
+                            <span className="text-sm font-black text-rose-400">৳ {tableTotals.due.toFixed(2)}</span>
+                        </div>
+                    </div>
+
                     {/* Fixed: Container expanded for continuous page view (removed fixed height/overflow) */}
                     <div className="bg-[#111827] rounded-xl border border-gray-700 shadow-inner">
                         <table className="w-full text-sm text-left text-gray-300">
@@ -2232,6 +2261,7 @@ interface ClinicPageProps {
 const ClinicPage: React.FC<ClinicPageProps> = ({ 
     onBack, patients, setPatients, doctors, setDoctors, referrars, setReferrars, employees, medicines, setMedicines, admissions, setAdmissions, indoorInvoices, setIndoorInvoices, detailedExpenses 
 }) => {
+    const [now] = useState(() => Date.now());
     const [activeTab, setActiveTab] = useState<'admission' | 'invoice' | 'due_collection' | 'report_summary' | 'bed_status' | 'patient_info'>('admission');
     const [clinicDueCollections, setClinicDueCollections] = useState<ClinicDueCollection[]>([]);
     const [successMessage, setSuccessMessage] = useState('');

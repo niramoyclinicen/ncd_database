@@ -13,20 +13,18 @@ interface Props {
 
 const PrevDueCollectionPage: React.FC<Props> = ({ invoices, setInvoices, dueCollections, setDueCollections, employees }) => {
     const [searchTerm, setSearchTerm] = useState('');
-    const [filteredInvoices, setFilteredInvoices] = useState<LabInvoice[]>([]);
     const [selectedInvoice, setSelectedInvoice] = useState<LabInvoice | null>(null);
     const [collectionAmount, setCollectionAmount] = useState<number>(0);
     const [collectedBy, setCollectedBy] = useState<string>('');
     const [showModal, setShowModal] = useState(false);
     const [successMessage, setSuccessMessage] = useState('');
 
-    useEffect(() => {
-        const dueInvoices = invoices.filter(inv => 
+    const filteredInvoices = useMemo(() => {
+        return invoices.filter(inv => 
             inv.due_amount > 0.5 && 
             (inv.invoice_id.toLowerCase().includes(searchTerm.toLowerCase()) || 
              inv.patient_name.toLowerCase().includes(searchTerm.toLowerCase()))
         );
-        setFilteredInvoices(dueInvoices);
     }, [searchTerm, invoices]);
 
     const handlePrintReceipt = (invoice: LabInvoice, collectedAmt: number) => {

@@ -42,7 +42,10 @@ const TestInfoPage: React.FC<Props> = ({ reagents, tests, setTests }) => {
   };
 
   useEffect(() => {
-    setTempSubTests(formData.sub_tests || []);
+    const timer = setTimeout(() => {
+      setTempSubTests(formData.sub_tests || []);
+    }, 0);
+    return () => clearTimeout(timer);
   }, [formData.test_id, formData.sub_tests]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {

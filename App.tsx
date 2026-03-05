@@ -77,14 +77,7 @@ const App: React.FC = () => {
   // --- DATA LOADING ---
   useEffect(() => {
     const loadData = async () => {
-      const defaultData = {
-        patients, doctors, referrars, tests, reagents, labInvoices, 
-        dueCollections, reports, employees, medicines, clinicalDrugs,
-        purchaseInvoices, salesInvoices, admissions, indoorInvoices,
-        detailedExpenses, prescriptions, appointments, attendanceLog, leaveLog, monthlyRoster
-      };
-      
-      const loadedData = await dbService.loadFromCloud(defaultData);
+      const loadedData = await dbService.loadFromCloud({});
       
       if (loadedData) {
         setPatients(loadedData.patients || []);

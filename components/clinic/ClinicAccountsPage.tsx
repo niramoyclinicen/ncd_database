@@ -30,10 +30,10 @@ const monthOptions = [
 ];
 
 const DailyExpenseForm: React.FC<any> = ({ selectedDate, onDateChange, items: initialItems, onSave, onPrint, employees }) => {
-    const [items, setItems] = useState<ExpenseItem[]>(() => initialItems.length > 0 ? initialItems : [{
-        id: Date.now(), category: clinicExpenseCategories[0], subCategory: '', description: '', billAmount: 0, paidAmount: 0
-    }]);
-    useEffect(() => { setItems(initialItems.length > 0 ? initialItems : [{ id: Date.now(), category: clinicExpenseCategories[0], subCategory: '', description: '', billAmount: 0, paidAmount: 0 }]); }, [initialItems, selectedDate]);
+    const [items, setItems] = useState<ExpenseItem[]>(() => 
+        initialItems.length > 0 ? initialItems : [{ id: Date.now(), category: clinicExpenseCategories[0], subCategory: '', description: '', billAmount: 0, paidAmount: 0 }]
+    );
+    
     const handleItemChange = (id: number, field: keyof ExpenseItem, value: any) => setItems(prev => prev.map(item => item.id === id ? { ...item, [field]: value } : item));
     const totals = items.reduce((acc, item) => { acc.cost += Number(item.billAmount) || 0; acc.paid += Number(item.paidAmount) || 0; return acc; }, { cost: 0, paid: 0 });
     const inputClass = "w-full bg-slate-700 border border-slate-600 rounded p-1.5 text-white text-sm outline-none";
@@ -82,7 +82,7 @@ const ClinicAccountsPage: React.FC<any> = ({
     };
 
     // --- Core logic to categorize an invoice (Mapping Category Breakdown) ---
-    const categorizeInvoiceData = (inv: any) => {
+    const categorizeInvoiceData = React.useCallback((inv: any) => {
         if (inv.status === 'Cancelled' || inv.status === 'Returned') {
             return { admFee: 0, oxygen: 0, conservative: 0, nvd: 0, dc: 0, lscs_ot: 0, gb_ot: 0, others_ot: 0, dressing: 0, others: 0, pcAmount: 0, clinicNet: 0 };
         }
@@ -134,11 +134,12 @@ const ClinicAccountsPage: React.FC<any> = ({
         const clinicNet = totalRevenue - (inv.special_discount_amount || 0) - pcAmount;
 
         return { admFee, oxygen, conservative, nvd, dc, lscs_ot, gb_ot, others_ot, dressing, others, pcAmount, clinicNet };
-    };
+    }, []);
 
     const summaryData = useMemo(() => {
         const monthInvoices = invoices.filter((inv:any) => {
-            const d = new Date(inv.invoice_date);
+            const dateToUse = inv.admission_date || inv.invoice_date;
+            const d = new Date(dateToUse);
             return d.getMonth() === selectedMonth && d.getFullYear() === selectedYear;
         });
         
@@ -182,10 +183,10 @@ const ClinicAccountsPage: React.FC<any> = ({
         });
         const totalExpense = Object.values(expensesByCategory).reduce((s, v) => s + v, 0);
         return { totalCollection: totalCollectionIncludingDue, collectionByCategory, monthDueRecov, expensesByCategory, totalExpense, balance: totalCollectionIncludingDue - totalExpense };
-    }, [selectedMonth, selectedYear, invoices, dueCollections, detailedExpenses]);
+    }, [selectedMonth, selectedYear, invoices, dueCollections, detailedExpenses, categorizeInvoiceData]);
 
     const dailySummaryData = useMemo(() => {
-        const dayInvoices = invoices.filter((inv: any) => inv.invoice_date === selectedDate);
+        const dayInvoices = invoices.filter((inv: any) => (inv.admission_date || inv.invoice_date) === selectedDate);
         
         const dayDueRecov = dueCollections.filter((dc: any) => {
             const isClinic = !dc.invoice_id.startsWith('INV-');
@@ -225,12 +226,13 @@ const ClinicAccountsPage: React.FC<any> = ({
         });
 
         return { totalCollection, collectionByCategory, dayDueRecov, totalExpense, expensesByCategory, balance: totalCollection - totalExpense };
-    }, [selectedDate, invoices, dueCollections, detailedExpenses]);
+    }, [selectedDate, invoices, dueCollections, detailedExpenses, categorizeInvoiceData]);
 
     const collectionReportData = useMemo(() => {
         const filtered = invoices.filter((inv: any) => {
-            if (isTodayFilter) return inv.invoice_date === selectedDate;
-            const d = new Date(inv.invoice_date);
+            const dateToUse = inv.admission_date || inv.invoice_date;
+            if (isTodayFilter) return dateToUse === selectedDate;
+            const d = new Date(dateToUse);
             return d.getMonth() === selectedMonth && d.getFullYear() === selectedYear;
         }).filter((inv: any) => 
             inv.patient_name.toLowerCase().includes(invoiceSearch.toLowerCase()) || 
@@ -255,7 +257,7 @@ const ClinicAccountsPage: React.FC<any> = ({
                 netClinicCol: catData.clinicNet
             };
         });
-    }, [invoices, isTodayFilter, selectedDate, selectedMonth, selectedYear, invoiceSearch]);
+    }, [invoices, isTodayFilter, selectedDate, selectedMonth, selectedYear, invoiceSearch, categorizeInvoiceData]);
 
     const reportTotals = useMemo(() => {
         return collectionReportData.reduce((acc, curr) => {
@@ -382,7 +384,7 @@ const ClinicAccountsPage: React.FC<any> = ({
         if(!win) return;
         const date = selectedDate;
         const expenses = detailedExpenses[date] || [];
-        const dayInvoices = invoices.filter((inv: any) => inv.invoice_date === date);
+        const dayInvoices = invoices.filter((inv: any) => (inv.admission_date || inv.invoice_date) === date);
         const totalExp = expenses.reduce((s, i) => s + i.paidAmount, 0);
         const totalInvPaid = dayInvoices.filter(i => i.status !== 'Cancelled' && i.status !== 'Returned').reduce((s, i) => s + i.paid_amount, 0);
 
@@ -578,6 +580,7 @@ const ClinicAccountsPage: React.FC<any> = ({
                 {viewMode === 'detailed' && (
                     <div className="max-w-7xl mx-auto space-y-8 animate-fade-in">
                         <DailyExpenseForm 
+                            key={selectedDate}
                             selectedDate={selectedDate} 
                             onDateChange={setSelectedDate} 
                             items={detailedExpenses[selectedDate] || []} 
@@ -592,7 +595,7 @@ const ClinicAccountsPage: React.FC<any> = ({
                             </h3>
                             <div className="overflow-x-auto rounded-xl border border-slate-700">
                                 <table className="w-full text-left text-sm"><thead className="bg-slate-950 text-slate-500 text-[10px] uppercase font-black"><tr><th className="p-4">ID</th><th className="p-4">Patient Name</th><th className="p-4 text-center">Status</th><th className="p-4 text-right">Total Bill</th><th className="p-4 text-right">Paid</th><th className="p-4 text-right">Due</th></tr></thead>
-                                <tbody className="divide-y divide-slate-800">{invoices.filter((inv:any)=>inv.patient_name.toLowerCase().includes(invoiceSearch.toLowerCase()) && inv.invoice_date === selectedDate).map((inv:any) => (<tr key={inv.daily_id} className={`hover:bg-slate-700/40 transition-colors ${inv.status === 'Cancelled' ? 'opacity-30 line-through' : ''}`}><td className="p-4 font-mono text-cyan-400 text-xs">{inv.daily_id}</td><td className="p-4 font-bold">{inv.patient_name}</td><td className="p-4 text-center"><span className="text-[8px] font-black uppercase px-2 py-0.5 rounded bg-slate-900">{inv.status}</span></td><td className="p-4 text-right">৳{inv.total_bill.toLocaleString()}</td><td className="p-4 text-right text-emerald-400 font-bold">৳{(inv.status === 'Cancelled' || inv.status === 'Returned') ? '0' : inv.paid_amount.toLocaleString()}</td><td className="p-4 text-right text-rose-500 font-bold">৳{inv.due_bill.toLocaleString()}</td></tr>))}</tbody></table>
+                                <tbody className="divide-y divide-slate-800">{invoices.filter((inv:any)=>inv.patient_name.toLowerCase().includes(invoiceSearch.toLowerCase()) && (inv.admission_date || inv.invoice_date) === selectedDate).map((inv:any) => (<tr key={inv.daily_id} className={`hover:bg-slate-700/40 transition-colors ${inv.status === 'Cancelled' ? 'opacity-30 line-through' : ''}`}><td className="p-4 font-mono text-cyan-400 text-xs">{inv.daily_id}</td><td className="p-4 font-bold">{inv.patient_name}</td><td className="p-4 text-center"><span className="text-[8px] font-black uppercase px-2 py-0.5 rounded bg-slate-900">{inv.status}</span></td><td className="p-4 text-right">৳{inv.total_bill.toLocaleString()}</td><td className="p-4 text-right text-emerald-400 font-bold">৳{(inv.status === 'Cancelled' || inv.status === 'Returned') ? '0' : inv.paid_amount.toLocaleString()}</td><td className="p-4 text-right text-rose-500 font-bold">৳{inv.due_bill.toLocaleString()}</td></tr>))}</tbody></table>
                             </div>
                         </div>
                     </div>

@@ -76,7 +76,15 @@ const TemplateManagementPage: React.FC<Props> = ({ onBack }) => {
     }));
   };
 
-  const handleSave = () => {
+  const resetForm = useCallback(() => {
+    setCurrentTemplate({ 
+      id: '', name: '', category: 'Ultrasonography (USG)', gender: 'Common', 
+      fields: [{ label: '', value: '', type: 'locked', isBold: false, fontSize: '14px', color: '#000000', id: `row-${Date.now()}` }], 
+      extraNote: '', impression: '' 
+    });
+  }, []);
+
+  const handleSave = useCallback(() => {
     if (!currentTemplate.name) return alert("টেমপ্লেটের একটি নাম দিন।");
     
     const storageTemplate: ReportTemplate = {
@@ -100,15 +108,7 @@ const TemplateManagementPage: React.FC<Props> = ({ onBack }) => {
     setIsEditing(false);
     resetForm();
     alert("Master Template Saved Successfully!");
-  };
-
-  const resetForm = () => {
-    setCurrentTemplate({ 
-      id: '', name: '', category: 'Ultrasonography (USG)', gender: 'Common', 
-      fields: [{ label: '', value: '', type: 'locked', isBold: false, fontSize: '14px', color: '#000000', id: `row-${Date.now()}` }], 
-      extraNote: '', impression: '' 
-    });
-  };
+  }, [currentTemplate, isEditing, setTemplates, resetForm]);
 
   const editTemplate = (t: ReportTemplate) => {
     setCurrentTemplate({

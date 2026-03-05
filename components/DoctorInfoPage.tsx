@@ -11,7 +11,6 @@ interface DoctorInfoPageProps {
 }
 
 const DoctorInfoPage: React.FC<DoctorInfoPageProps> = ({ doctors, setDoctors, isEmbedded = false, onClose, onSaveAndSelect }) => {
-  const [filteredDoctors, setFilteredDoctors] = useState<Doctor[]>(doctors);
   const [formData, setFormData] = useState<Doctor>(emptyDoctor);
   const [selectedDoctorId, setSelectedDoctorId] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState<boolean>(false);
@@ -27,13 +26,12 @@ const DoctorInfoPage: React.FC<DoctorInfoPageProps> = ({ doctors, setDoctors, is
     }
   }, [successMessage]);
 
-  useEffect(() => {
-    if (isEmbedded) return;
-    const results = doctors.filter(doctor =>
+  const filteredDoctors = useMemo(() => {
+    if (isEmbedded) return doctors;
+    return doctors.filter(doctor =>
       doctor.doctor_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       doctor.doctor_id.toLowerCase().includes(searchTerm.toLowerCase())
     );
-    setFilteredDoctors(results);
   }, [searchTerm, doctors, isEmbedded]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -58,7 +56,7 @@ const DoctorInfoPage: React.FC<DoctorInfoPageProps> = ({ doctors, setDoctors, is
     }
   };
 
-  const handleGetNewId = () => {
+  const handleGetNewId = useCallback(() => {
     const today = new Date();
     const year = today.getFullYear();
     const month = String(today.getMonth() + 1).padStart(2, '0');
@@ -68,10 +66,13 @@ const DoctorInfoPage: React.FC<DoctorInfoPageProps> = ({ doctors, setDoctors, is
     setFormData({ ...emptyDoctor, doctor_id: newId });
     setSelectedDoctorId(null);
     setIsEditing(false);
-  };
+  }, [doctors]);
 
   useEffect(() => {
-    if (isEmbedded && !isEditing && !formData.doctor_id) handleGetNewId();
+    if (isEmbedded && !isEditing && !formData.doctor_id) {
+      const timer = setTimeout(() => handleGetNewId(), 0);
+      return () => clearTimeout(timer);
+    }
   }, [isEmbedded, isEditing, formData.doctor_id, handleGetNewId]);
 
   const handleSaveDoctor = (e: React.FormEvent) => {
