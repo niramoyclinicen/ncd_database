@@ -80,6 +80,10 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
   const [currentSalesItem, setCurrentSalesItem] = useState<Partial<SalesItem>>({ tradeName: '', genericName: '', formulation: 'Tab', strength: '', unitPriceSell: 0, qtySelling: 0, lineTotalSell: 0, stock: 0 });
   
   const [searchTerm, setSearchTerm] = useState('');
+  const [sellSearchName, setSellSearchName] = useState('');
+  const [sellSearchDate, setSellSearchDate] = useState('');
+  const [sellSearchMonth, setSellSearchMonth] = useState<string>(new Date().getMonth().toString());
+  const [sellSearchYear, setSellSearchYear] = useState<string>(new Date().getFullYear().toString());
   const [suggestions, setSuggestions] = useState<Medicine[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [supplierSuggestions, setSupplierSuggestions] = useState<string[]>([]);
@@ -550,22 +554,94 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
   };
 
   const renderSellTab = () => {
+    const filteredOutdoor = salesInvoices.filter(inv => {
+        const matchesName = inv.customerName.toLowerCase().includes(sellSearchName.toLowerCase());
+        const matchesDate = !sellSearchDate || inv.invoiceDate === sellSearchDate;
+        const [y, m] = inv.invoiceDate.split('-').map(Number);
+        const matchesMonth = sellSearchMonth === 'all' || (m - 1) === parseInt(sellSearchMonth);
+        const matchesYear = y === parseInt(sellSearchYear);
+        return matchesName && matchesDate && matchesMonth && matchesYear;
+    });
+
+    const filteredIndoor = indoorInvoices.filter(inv => {
+        const isMed = inv.items.some(it => it.service_type === 'Medicine');
+        if (!isMed) return false;
+        const matchesName = inv.patient_name.toLowerCase().includes(sellSearchName.toLowerCase());
+        const matchesDate = !sellSearchDate || inv.invoice_date === sellSearchDate;
+        const [y, m] = inv.invoice_date.split('-').map(Number);
+        const matchesMonth = sellSearchMonth === 'all' || (m - 1) === parseInt(sellSearchMonth);
+        const matchesYear = y === parseInt(sellSearchYear);
+        return matchesName && matchesDate && matchesMonth && matchesYear;
+    });
+
+    const totalOutdoor = filteredOutdoor.reduce((sum, inv) => sum + inv.netPayable, 0);
+    const totalIndoor = filteredIndoor.reduce((sum, inv) => {
+        return sum + inv.items.filter(it => it.service_type === 'Medicine').reduce((s, it) => s + it.payable_amount, 0);
+    }, 0);
+
     if(sellViewMode === 'list') return (
         <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-slate-900/40 p-4 rounded-xl border border-slate-700 mb-2">
+                <div>
+                    <label className="block text-[10px] font-black text-slate-500 mb-1 uppercase">Customer Name</label>
+                    <input type="text" value={sellSearchName} onChange={e => setSellSearchName(e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-white text-sm" placeholder="Search name..." />
+                </div>
+                <div>
+                    <label className="block text-[10px] font-black text-slate-500 mb-1 uppercase">Date</label>
+                    <input type="date" value={sellSearchDate} onChange={e => setSellSearchDate(e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-white text-sm" />
+                </div>
+                <div>
+                    <label className="block text-[10px] font-black text-slate-500 mb-1 uppercase">Month</label>
+                    <select value={sellSearchMonth} onChange={e => setSellSearchMonth(e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-white text-sm">
+                        <option value="all">All Months</option>
+                        {monthOptions.map(m => <option key={m.value} value={m.value}>{m.name}</option>)}
+                    </select>
+                </div>
+                <div>
+                    <label className="block text-[10px] font-black text-slate-500 mb-1 uppercase">Year</label>
+                    <select value={sellSearchYear} onChange={e => setSellSearchYear(e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-white text-sm">
+                        {[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}
+                    </select>
+                </div>
+            </div>
+
+            <div className="bg-slate-900/60 p-4 rounded-xl border border-slate-700 flex flex-wrap justify-between items-center gap-4">
+                <div className="flex gap-6">
+                    <div className="flex flex-col">
+                        <span className="text-[10px] font-black text-slate-500 uppercase">Outdoor Total</span>
+                        <span className="text-lg font-black text-emerald-400">৳ {totalOutdoor.toLocaleString()}</span>
+                    </div>
+                    <div className="flex flex-col">
+                        <span className="text-[10px] font-black text-slate-500 uppercase">Indoor Total</span>
+                        <span className="text-lg font-black text-purple-400">৳ {totalIndoor.toLocaleString()}</span>
+                    </div>
+                </div>
+                <div className="flex flex-col items-end">
+                    <span className="text-[10px] font-black text-slate-500 uppercase">Grand Total Sales</span>
+                    <span className="text-2xl font-black text-blue-400">৳ {(totalOutdoor + totalIndoor).toLocaleString()}</span>
+                </div>
+            </div>
+
             <div className="flex bg-[#20293a] p-1 rounded-lg border border-[#374151]">
-                <button onClick={() => setSellSubTab('outdoor')} className={`flex-1 py-2 rounded-md font-bold text-xs uppercase transition-all ${sellSubTab === 'outdoor' ? 'bg-emerald-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}>Outdoor Medicine Sales</button>
-                <button onClick={() => setSellSubTab('indoor')} className={`flex-1 py-2 rounded-md font-bold text-xs uppercase transition-all ${sellSubTab === 'indoor' ? 'bg-purple-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}>Indoor Medicine Management</button>
+                <button onClick={() => setSellSubTab('outdoor')} className={`flex-1 py-2 rounded-md font-bold text-xs uppercase transition-all flex items-center justify-center gap-2 ${sellSubTab === 'outdoor' ? 'bg-emerald-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}>
+                    Outdoor Medicine Sales
+                    <span className="bg-black/20 px-2 py-0.5 rounded text-[10px]">৳{totalOutdoor.toLocaleString()}</span>
+                </button>
+                <button onClick={() => setSellSubTab('indoor')} className={`flex-1 py-2 rounded-md font-bold text-xs uppercase transition-all flex items-center justify-center gap-2 ${sellSubTab === 'indoor' ? 'bg-purple-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}>
+                    Indoor Medicine Management
+                    <span className="bg-black/20 px-2 py-0.5 rounded text-[10px]">৳{totalIndoor.toLocaleString()}</span>
+                </button>
             </div>
 
             {sellSubTab === 'outdoor' ? (
                 <>
-                    <div className="flex justify-between items-center border-b border-slate-700 pb-3"><h2 className="text-xl font-bold text-emerald-400 flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-emerald-400"></span> Direct Outdoor Sales</h2><button onClick={() => {const newId = `SL-${Date.now()}`; setSalesFormData({invoiceId: newId, invoiceDate: new Date().toISOString().split('T')[0], customerName: '', customerMobile: '', customerAge: '', customerGender: '', refDoctorName: '', items: [], totalAmount: 0, discount: 0, netPayable: 0, paidAmount: 0, dueAmount: 0, billCreatedBy: 'Admin', status: 'Saved', createdDate: ''}); setSellViewMode('add'); setErrors({}); setEditingInvoiceId(null);}} className="bg-emerald-600 text-white px-8 py-2 rounded-lg hover:bg-emerald-500 font-black shadow-2xl transition-all">+ New Sale</button></div>
-                    <div className="overflow-x-auto rounded-2xl border border-slate-700 shadow-2xl"><table className="w-full text-left border-collapse text-sm"><thead className="bg-slate-700 text-slate-100"><tr><th className="p-4 font-black">ID</th><th className="p-4 font-black">Date</th><th className="p-4 font-black">Customer Name</th><th className="p-4 text-right font-black">Net Amount</th><th className="p-4 text-center font-black">Action</th></tr></thead><tbody>{salesInvoices.map(inv => (<tr key={inv.invoiceId} onClick={() => handlePrintSale(inv)} className="bg-slate-800 border-b border-slate-700 hover:bg-slate-750 transition-colors cursor-pointer group"><td className="p-4 text-slate-300 font-mono text-xs group-hover:text-emerald-400 transition-colors underline">{inv.invoiceId}</td><td className="p-4 text-slate-100 font-bold">{inv.invoiceDate}</td><td className="p-4 text-white font-black">{inv.customerName}</td><td className="p-4 text-emerald-400 text-right font-black">৳{inv.netPayable.toFixed(2)}</td><td className="p-4 text-center space-x-2" onClick={e=>e.stopPropagation()}><button onClick={() => handlePrintSale(inv)} className="text-sky-400 hover:text-white font-black uppercase text-[10px] border border-sky-800 px-3 py-1 rounded">Voucher</button><button onClick={() => startEditSale(inv)} className="text-amber-400 hover:text-white font-black uppercase text-[10px] border border-amber-800 px-3 py-1 rounded">Correct</button><button onClick={() => handleReturnSale(inv)} className="bg-rose-900/50 text-rose-400 hover:bg-rose-600 hover:text-white font-black uppercase text-[10px] border border-rose-800 px-3 py-1 rounded transition-all">Return</button></td></tr>))}</tbody></table>{salesInvoices.length === 0 && <div className="p-16 text-center text-slate-600 italic">No outdoor sales records.</div>}</div>
+                    <div className="flex justify-between items-center border-b border-slate-700 pb-3"><h2 className="text-xl font-bold text-emerald-400 flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-emerald-400"></span> Direct Outdoor Sales (৳{totalOutdoor.toLocaleString()})</h2><button onClick={() => {const newId = `SL-${Date.now()}`; setSalesFormData({invoiceId: newId, invoiceDate: new Date().toISOString().split('T')[0], customerName: '', customerMobile: '', customerAge: '', customerGender: '', refDoctorName: '', items: [], totalAmount: 0, discount: 0, netPayable: 0, paidAmount: 0, dueAmount: 0, billCreatedBy: 'Admin', status: 'Saved', createdDate: ''}); setSellViewMode('add'); setErrors({}); setEditingInvoiceId(null);}} className="bg-emerald-600 text-white px-8 py-2 rounded-lg hover:bg-emerald-500 font-black shadow-2xl transition-all">+ New Sale</button></div>
+                    <div className="overflow-x-auto rounded-2xl border border-slate-700 shadow-2xl"><table className="w-full text-left border-collapse text-sm"><thead className="bg-slate-700 text-slate-100"><tr><th className="p-4 font-black">ID & Date</th><th className="p-4 font-black">Customer Name</th><th className="p-4 text-right font-black">Net Amount</th><th className="p-4 text-center font-black">Action</th></tr></thead><tbody>{filteredOutdoor.map(inv => (<tr key={inv.invoiceId} onClick={() => handlePrintSale(inv)} className="bg-slate-800 border-b border-slate-700 hover:bg-slate-750 transition-colors cursor-pointer group"><td className="p-4 text-slate-300 font-mono text-xs group-hover:text-emerald-400 transition-colors underline"><div>{inv.invoiceId}</div><div className="text-[10px] text-slate-500 font-bold">{inv.invoiceDate}</div></td><td className="p-4 text-white font-black">{inv.customerName}</td><td className="p-4 text-emerald-400 text-right font-black">৳{inv.netPayable.toFixed(2)}</td><td className="p-4 text-center space-x-2" onClick={e=>e.stopPropagation()}><button onClick={() => handlePrintSale(inv)} className="text-sky-400 hover:text-white font-black uppercase text-[10px] border border-sky-800 px-3 py-1 rounded">Voucher</button><button onClick={() => startEditSale(inv)} className="text-amber-400 hover:text-white font-black uppercase text-[10px] border border-amber-800 px-3 py-1 rounded">Correct</button><button onClick={() => handleReturnSale(inv)} className="bg-rose-900/50 text-rose-400 hover:bg-rose-600 hover:text-white font-black uppercase text-[10px] border border-rose-800 px-3 py-1 rounded transition-all">Return</button></td></tr>))}</tbody></table>{filteredOutdoor.length === 0 && <div className="p-16 text-center text-slate-600 italic">No outdoor sales records found.</div>}</div>
                 </>
             ) : (
                 <>
-                    <div className="flex justify-between items-center border-b border-slate-700 pb-3"><h2 className="text-xl font-bold text-purple-400 flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-purple-400"></span> Indoor Medicine Billing Records</h2></div>
-                    <div className="overflow-x-auto rounded-2xl border border-slate-700 shadow-2xl"><table className="w-full text-left border-collapse text-sm"><thead className="bg-slate-700 text-slate-100"><tr><th className="p-4 font-black">Invoice ID</th><th className="p-4 font-black">Patient Name</th><th className="p-4 font-black">Date</th><th className="p-4 text-right font-black">Medicine Bill</th><th className="p-4 text-center font-black">Details</th></tr></thead><tbody>{indoorInvoices.filter(inv => inv.items.some(it => it.service_type === 'Medicine')).map(inv => { const medTotal = inv.items.filter(it => it.service_type === 'Medicine').reduce((s, it) => s + it.payable_amount, 0); return (<tr key={inv.daily_id} className="bg-slate-800 border-b border-slate-700 hover:bg-slate-750 transition-colors"><td className="p-4 text-slate-300 font-mono text-xs">{inv.daily_id}</td><td className="p-4 text-white font-black">{inv.patient_name}</td><td className="p-4 text-slate-100">{inv.invoice_date}</td><td className="p-4 text-purple-400 text-right font-black">৳{medTotal.toFixed(2)}</td><td className="p-4 text-center"><span className="text-slate-500 text-xs italic">Billed to IPD</span></td></tr>); })}</tbody></table>{indoorInvoices.length === 0 && <div className="p-16 text-center text-slate-600 italic">No indoor medicine billing records.</div>}</div>
+                    <div className="flex justify-between items-center border-b border-slate-700 pb-3"><h2 className="text-xl font-bold text-purple-400 flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-purple-400"></span> Indoor Medicine Billing Records (৳{totalIndoor.toLocaleString()})</h2></div>
+                    <div className="overflow-x-auto rounded-2xl border border-slate-700 shadow-2xl"><table className="w-full text-left border-collapse text-sm"><thead className="bg-slate-700 text-slate-100"><tr><th className="p-4 font-black">Invoice ID</th><th className="p-4 font-black">Patient Name</th><th className="p-4 font-black">Date</th><th className="p-4 text-right font-black">Medicine Bill</th><th className="p-4 text-center font-black">Details</th></tr></thead><tbody>{filteredIndoor.map(inv => { const medTotal = inv.items.filter(it => it.service_type === 'Medicine').reduce((s, it) => s + it.payable_amount, 0); return (<tr key={inv.daily_id} className="bg-slate-800 border-b border-slate-700 hover:bg-slate-750 transition-colors"><td className="p-4 text-slate-300 font-mono text-xs">{inv.daily_id}</td><td className="p-4 text-white font-black">{inv.patient_name}</td><td className="p-4 text-slate-100">{inv.invoice_date}</td><td className="p-4 text-purple-400 text-right font-black">৳{medTotal.toFixed(2)}</td><td className="p-4 text-center"><span className="text-slate-500 text-xs italic">Billed to IPD</span></td></tr>); })}</tbody></table>{filteredIndoor.length === 0 && <div className="p-16 text-center text-slate-600 italic">No indoor medicine billing records found.</div>}</div>
                 </>
             )}
         </div>
