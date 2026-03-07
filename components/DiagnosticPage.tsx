@@ -277,7 +277,7 @@ const DiagnosticPage: React.FC<DiagnosticPageProps> = ({
 
   return (
     <div className="flex h-screen bg-slate-900 text-slate-100 overflow-hidden">
-      <aside className="w-64 bg-slate-950 border-r border-slate-800 flex flex-col z-20 shadow-2xl hidden md:flex pt-48">
+      <aside className="w-64 bg-slate-950 border-r border-slate-800 flex flex-col z-20 shadow-2xl hidden md:flex pt-4">
         <div className="flex-1 overflow-y-auto py-4">
             <div className="px-4 mb-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">
               Data Entry / Setup

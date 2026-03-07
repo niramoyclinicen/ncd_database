@@ -29,17 +29,80 @@ const monthOptions = [
     { value: 9, name: 'October' }, { value: 10, name: 'November' }, { value: 11, name: 'December' }
 ];
 
+const HistoryModal: React.FC<{ item: ExpenseItem, onClose: () => void }> = ({ item, onClose }) => (
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+        <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden">
+            <div className="p-4 border-b border-slate-700 flex justify-between items-center bg-slate-800">
+                <h3 className="font-black text-emerald-400 uppercase text-sm">Edit History: {item.category}</h3>
+                <button onClick={onClose} className="text-slate-400 hover:text-white text-xl">×</button>
+            </div>
+            <div className="p-4 max-h-[400px] overflow-y-auto space-y-3">
+                {(!item.editHistory || item.editHistory.length === 0) ? (
+                    <p className="text-center text-slate-500 italic py-8">No edit history found.</p>
+                ) : (
+                    item.editHistory.map((log, i) => (
+                        <div key={i} className="bg-slate-800/50 p-3 rounded-xl border border-slate-700/50 text-xs">
+                            <div className="flex justify-between text-[10px] text-slate-500 mb-1 font-bold uppercase">
+                                <span>{new Date(log.timestamp).toLocaleString()}</span>
+                                <span className="text-emerald-500">{log.field}</span>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div><p className="text-[9px] text-slate-500 uppercase">Old Value</p><p className="text-rose-400 font-bold">{String(log.oldValue)}</p></div>
+                                <div><p className="text-[9px] text-slate-500 uppercase">New Value</p><p className="text-emerald-400 font-bold">{String(log.newValue)}</p></div>
+                            </div>
+                        </div>
+                    ))
+                )}
+            </div>
+            <div className="p-4 bg-slate-800/50 border-t border-slate-700 text-right">
+                <button onClick={onClose} className="bg-slate-700 px-6 py-2 rounded-xl text-xs font-black uppercase hover:bg-slate-600">Close</button>
+            </div>
+        </div>
+    </div>
+);
+
 const DailyExpenseForm: React.FC<any> = ({ selectedDate, onDateChange, items: initialItems, onSave, onPrint, employees }) => {
-    const [items, setItems] = useState<ExpenseItem[]>(() => 
-        initialItems.length > 0 ? initialItems : [{ id: Date.now(), category: clinicExpenseCategories[0], subCategory: '', description: '', billAmount: 0, paidAmount: 0 }]
-    );
+    const [items, setItems] = useState<ExpenseItem[]>([]);
+    const [historyItem, setHistoryItem] = useState<ExpenseItem | null>(null);
+
+    const [prevInitialItems, setPrevInitialItems] = useState(initialItems);
+
+    if (initialItems !== prevInitialItems) {
+        setPrevInitialItems(initialItems);
+        setItems(initialItems.length > 0 ? initialItems : [{ id: 1, category: clinicExpenseCategories[0], subCategory: '', description: '', billAmount: 0, paidAmount: 0, dept: 'Clinic' }]);
+    }
     
-    const handleItemChange = (id: number, field: keyof ExpenseItem, value: any) => setItems(prev => prev.map(item => item.id === id ? { ...item, [field]: value } : item));
+    const handleItemChange = (id: number, field: keyof ExpenseItem, value: any) => {
+        setItems(prev => prev.map(item => {
+            if (item.id === id) {
+                const oldValue = item[field];
+                if (oldValue === value) return item;
+
+                const history = item.editHistory || [];
+                const newLog = {
+                    timestamp: new Date().toISOString(),
+                    field,
+                    oldValue,
+                    newValue: value
+                };
+
+                return { 
+                    ...item, 
+                    [field]: value, 
+                    isEdited: true, 
+                    lastEditedAt: new Date().toISOString(),
+                    editHistory: [...history, newLog]
+                };
+            }
+            return item;
+        }));
+    };
     const totals = items.reduce((acc, item) => { acc.cost += Number(item.billAmount) || 0; acc.paid += Number(item.paidAmount) || 0; return acc; }, { cost: 0, paid: 0 });
     const inputClass = "w-full bg-slate-700 border border-slate-600 rounded p-1.5 text-white text-sm outline-none";
 
     return (
         <div className="bg-emerald-950/40 rounded-xl p-6 border border-emerald-800/50 shadow-xl no-print">
+            {historyItem && <HistoryModal item={historyItem} onClose={() => setHistoryItem(null)} />}
             <div className="flex justify-between items-center mb-6 border-b border-emerald-800/50 pb-4">
                 <div className="flex items-center gap-4">
                     <h3 className="text-xl font-bold text-emerald-100 flex items-center gap-2"><Activity className="w-5 h-5" /> Clinic Daily Expense</h3>
@@ -47,9 +110,9 @@ const DailyExpenseForm: React.FC<any> = ({ selectedDate, onDateChange, items: in
                 </div>
                 <input type="date" value={selectedDate} onChange={e => onDateChange(e.target.value)} className="bg-slate-800 border border-slate-700 rounded p-2 text-white" />
             </div>
-            <div className="overflow-x-auto"><table className="w-full text-left"><thead><tr className="text-xs text-emerald-400 uppercase tracking-widest"><th className="pb-3">Category</th><th className="pb-3">Details</th><th className="pb-3 text-right">Bill</th><th className="pb-3 text-right">Paid</th><th className="pb-3 text-center">X</th></tr></thead><tbody>{items.map(item => (<tr key={item.id} className="border-t border-emerald-900/30"><td className="py-2 pr-2"><select value={item.category} onChange={e => handleItemChange(item.id, 'category', e.target.value)} className={inputClass}>{clinicExpenseCategories.map(c => <option key={c} value={c}>{c}</option>)}</select></td><td className="py-2 pr-2"><input value={item.description} onChange={e => handleItemChange(item.id, 'description', e.target.value)} className={inputClass} placeholder="Details..."/></td><td className="py-2 pr-2"><input type="number" value={item.billAmount} onChange={e => handleItemChange(item.id, 'billAmount', parseFloat(e.target.value) || 0)} className={`${inputClass} text-right`} /></td><td className="py-2 pr-2"><input type="number" value={item.paidAmount} onChange={e => handleItemChange(item.id, 'paidAmount', parseFloat(e.target.value) || 0)} className={`${inputClass} text-right`} /></td><td className="py-2 text-center"><button onClick={() => setItems(items.filter(i=>i.id!==item.id))} className="text-red-400 font-bold">×</button></td></tr>))}</tbody></table></div>
+            <div className="overflow-x-auto"><table className="w-full text-left"><thead><tr className="text-xs text-emerald-400 uppercase tracking-widest"><th className="pb-3">Category</th><th className="pb-3">Details</th><th className="pb-3 text-right">Bill</th><th className="pb-3 text-right">Paid</th><th className="pb-3 text-center">History</th><th className="pb-3 text-center">X</th></tr></thead><tbody>{items.map(item => (<tr key={item.id} className="border-t border-emerald-900/30"><td className="py-2 pr-2"><select value={item.category} onChange={e => handleItemChange(item.id, 'category', e.target.value)} className={inputClass}>{clinicExpenseCategories.map(c => <option key={c} value={c}>{c}</option>)}</select></td><td className="py-2 pr-2"><input value={item.description} onChange={e => handleItemChange(item.id, 'description', e.target.value)} className={inputClass} placeholder="Details..."/></td><td className="py-2 pr-2"><input type="number" value={item.billAmount} onChange={e => handleItemChange(item.id, 'billAmount', parseFloat(e.target.value) || 0)} className={`${inputClass} text-right`} /></td><td className="py-2 pr-2"><input type="number" value={item.paidAmount} onChange={e => handleItemChange(item.id, 'paidAmount', parseFloat(e.target.value) || 0)} className={`${inputClass} text-right`} /></td><td className="py-2 text-center"><button onClick={() => setHistoryItem(item)} className={`text-[10px] font-black uppercase px-2 py-1 rounded ${item.isEdited ? 'bg-amber-600 text-white' : 'bg-slate-700 text-slate-400'}`}>History</button></td><td className="py-2 text-center"><button onClick={() => setItems(items.filter(i=>i.id!==item.id))} className="text-red-400 font-bold">×</button></td></tr>))}</tbody></table></div>
             <div className="flex justify-between items-center mt-6">
-                <button onClick={() => setItems([...items, { id: Date.now(), category: clinicExpenseCategories[0], subCategory: '', description: '', billAmount: 0, paidAmount: 0 }])} className="bg-blue-600 text-white px-4 py-2 rounded font-bold hover:bg-blue-500">+ Add</button>
+                <button onClick={() => setItems([...items, { id: Date.now(), category: clinicExpenseCategories[0], subCategory: '', description: '', billAmount: 0, paidAmount: 0, dept: 'Clinic' }])} className="bg-blue-600 text-white px-4 py-2 rounded font-bold hover:bg-blue-500">+ Add</button>
                 <div className="flex gap-6 items-center"><div className="text-slate-400">Total Paid: <span className="text-emerald-400 font-bold text-lg">{totals.paid.toLocaleString()}</span></div><button onClick={() => onSave(selectedDate, items)} className="bg-green-600 text-white px-8 py-2 rounded font-black shadow-lg hover:bg-green-500">SAVE DATA</button></div>
             </div>
         </div>
@@ -65,12 +128,21 @@ const ClinicAccountsPage: React.FC<any> = ({
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
     const [isTodayFilter, setIsTodayFilter] = useState(false);
     const [invoiceSearch, setInvoiceSearch] = useState('');
+    const [invoiceDateSearch, setInvoiceDateSearch] = useState('');
+    const [invoiceMonthSearch, setInvoiceMonthSearch] = useState<number | ''>('');
+    const [invoiceYearSearch, setInvoiceYearSearch] = useState<number | ''>('');
     const [successMsg, setSuccessMsg] = useState('');
 
     useEffect(() => { if(successMsg) setTimeout(() => setSuccessMsg(''), 3000); }, [successMsg]);
 
     const handleSave = (date: string, items: ExpenseItem[]) => {
-        setDetailedExpenses((prev:any) => ({ ...prev, [date]: items }));
+        setDetailedExpenses((prev: any) => {
+            const existingItems = prev[date] || [];
+            // Keep Diagnostic items, replace Clinic items
+            const otherDeptItems = existingItems.filter((it: any) => it.dept !== 'Clinic');
+            const clinicItems = items.map(it => ({ ...it, dept: 'Clinic' as const }));
+            return { ...prev, [date]: [...otherDeptItems, ...clinicItems] };
+        });
         setSuccessMsg("Clinic Expense Saved!");
     };
 
@@ -176,9 +248,13 @@ const ClinicAccountsPage: React.FC<any> = ({
         const expensesByCategory: Record<string, number> = {};
         clinicExpenseCategories.forEach(cat => expensesByCategory[cat] = 0);
         Object.entries(detailedExpenses).forEach(([date, items]:any) => {
-            const d = new Date(date);
-            if(d.getMonth() === selectedMonth && d.getFullYear() === selectedYear) {
-                items.forEach((it:any) => expensesByCategory[it.category] = (expensesByCategory[it.category] || 0) + it.paidAmount);
+            const [y, m] = date.split('-').map(Number);
+            if(m - 1 === selectedMonth && y === selectedYear) {
+                items.forEach((it:any) => {
+                    if (it.dept === 'Clinic') {
+                        expensesByCategory[it.category] = (expensesByCategory[it.category] || 0) + it.paidAmount;
+                    }
+                });
             }
         });
         const totalExpense = Object.values(expensesByCategory).reduce((s, v) => s + v, 0);
@@ -216,7 +292,7 @@ const ClinicAccountsPage: React.FC<any> = ({
         }, 0);
 
         const totalCollection = totalClinicRevenueOnly + dayDueRecov - collectionByCategory.totalPC;
-        const dayExpenses = detailedExpenses[selectedDate] || [];
+        const dayExpenses = (detailedExpenses[selectedDate] || []).filter((it: any) => it.dept === 'Clinic');
         const totalExpense = dayExpenses.reduce((s: number, it: any) => s + it.paidAmount, 0);
         
         const expensesByCategory: Record<string, number> = {};
@@ -259,6 +335,37 @@ const ClinicAccountsPage: React.FC<any> = ({
         });
     }, [invoices, isTodayFilter, selectedDate, selectedMonth, selectedYear, invoiceSearch, categorizeInvoiceData]);
 
+    const indoorJournalData = useMemo(() => {
+        const filtered = invoices.filter((inv: any) => {
+            const dateToUse = inv.admission_date || inv.invoice_date;
+            const d = new Date(dateToUse);
+            
+            const matchesName = inv.patient_name.toLowerCase().includes(invoiceSearch.toLowerCase()) || 
+                               (inv.admission_id && inv.admission_id.toLowerCase().includes(invoiceSearch.toLowerCase()));
+            
+            const matchesDate = invoiceDateSearch ? dateToUse === invoiceDateSearch : true;
+            const matchesMonth = invoiceMonthSearch !== '' ? d.getMonth() === invoiceMonthSearch : true;
+            const matchesYear = invoiceYearSearch !== '' ? d.getFullYear() === invoiceYearSearch : true;
+            
+            // If no specific search criteria, default to selectedDate
+            if (!invoiceSearch && !invoiceDateSearch && invoiceMonthSearch === '' && invoiceYearSearch === '') {
+                return dateToUse === selectedDate;
+            }
+
+            return matchesName && matchesDate && matchesMonth && matchesYear;
+        });
+
+        const totals = filtered.reduce((acc, inv) => {
+            if (inv.status !== 'Cancelled' && inv.status !== 'Returned') {
+                acc.totalBill += inv.total_bill || 0;
+                acc.totalPaid += inv.paid_amount || 0;
+                acc.totalDue += inv.due_bill || 0;
+            }
+            return acc;
+        }, { totalBill: 0, totalPaid: 0, totalDue: 0 });
+
+        return { filtered, totals };
+    }, [invoices, invoiceSearch, invoiceDateSearch, invoiceMonthSearch, invoiceYearSearch, selectedDate]);
     const reportTotals = useMemo(() => {
         return collectionReportData.reduce((acc, curr) => {
             if (curr.status !== 'Cancelled' && curr.status !== 'Returned') {
@@ -589,13 +696,59 @@ const ClinicAccountsPage: React.FC<any> = ({
                             employees={employees} 
                         />
                         <div className="bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-2xl">
-                            <h3 className="text-lg font-black text-sky-400 uppercase mb-6 flex justify-between items-center">
+                            <h3 className="text-lg font-black text-sky-400 uppercase mb-6 flex flex-wrap justify-between items-center gap-4">
                                 <span>Indoor Invoices Journal</span>
-                                <input type="text" placeholder="Search Patient..." value={invoiceSearch} onChange={e=>setInvoiceSearch(e.target.value)} className="bg-slate-950 border border-slate-700 rounded-full px-5 py-1.5 text-xs text-white outline-none focus:ring-1 focus:ring-sky-500 w-64"/>
+                                <div className="flex flex-wrap gap-2">
+                                    <input type="text" placeholder="Name/ID..." value={invoiceSearch} onChange={e=>setInvoiceSearch(e.target.value)} className="bg-slate-950 border border-slate-700 rounded-full px-4 py-1.5 text-xs text-white outline-none focus:ring-1 focus:ring-sky-500 w-40"/>
+                                    <input type="date" value={invoiceDateSearch} onChange={e=>setInvoiceDateSearch(e.target.value)} className="bg-slate-950 border border-slate-700 rounded-full px-4 py-1.5 text-xs text-white outline-none focus:ring-1 focus:ring-sky-500 w-36"/>
+                                    <select value={invoiceMonthSearch} onChange={e=>setInvoiceMonthSearch(e.target.value === '' ? '' : parseInt(e.target.value))} className="bg-slate-950 border border-slate-700 rounded-full px-4 py-1.5 text-xs text-white outline-none focus:ring-1 focus:ring-sky-500">
+                                        <option value="">Month</option>
+                                        {monthOptions.map(m => <option key={m.value} value={m.value}>{m.name}</option>)}
+                                    </select>
+                                    <select value={invoiceYearSearch} onChange={e=>setInvoiceYearSearch(e.target.value === '' ? '' : parseInt(e.target.value))} className="bg-slate-950 border border-slate-700 rounded-full px-4 py-1.5 text-xs text-white outline-none focus:ring-1 focus:ring-sky-500">
+                                        <option value="">Year</option>
+                                        {[2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
+                                    </select>
+                                    {(invoiceSearch || invoiceDateSearch || invoiceMonthSearch !== '' || invoiceYearSearch !== '') && (
+                                        <button onClick={() => { setInvoiceSearch(''); setInvoiceDateSearch(''); setInvoiceMonthSearch(''); setInvoiceYearSearch(''); }} className="text-rose-400 text-[10px] font-black uppercase hover:underline">Clear</button>
+                                    )}
+                                </div>
                             </h3>
                             <div className="overflow-x-auto rounded-xl border border-slate-700">
-                                <table className="w-full text-left text-sm"><thead className="bg-slate-950 text-slate-500 text-[10px] uppercase font-black"><tr><th className="p-4">ID</th><th className="p-4">Patient Name</th><th className="p-4 text-center">Status</th><th className="p-4 text-right">Total Bill</th><th className="p-4 text-right">Paid</th><th className="p-4 text-right">Due</th></tr></thead>
-                                <tbody className="divide-y divide-slate-800">{invoices.filter((inv:any)=>inv.patient_name.toLowerCase().includes(invoiceSearch.toLowerCase()) && (inv.admission_date || inv.invoice_date) === selectedDate).map((inv:any) => (<tr key={inv.daily_id} className={`hover:bg-slate-700/40 transition-colors ${inv.status === 'Cancelled' ? 'opacity-30 line-through' : ''}`}><td className="p-4 font-mono text-cyan-400 text-xs">{inv.daily_id}</td><td className="p-4 font-bold">{inv.patient_name}</td><td className="p-4 text-center"><span className="text-[8px] font-black uppercase px-2 py-0.5 rounded bg-slate-900">{inv.status}</span></td><td className="p-4 text-right">৳{inv.total_bill.toLocaleString()}</td><td className="p-4 text-right text-emerald-400 font-bold">৳{(inv.status === 'Cancelled' || inv.status === 'Returned') ? '0' : inv.paid_amount.toLocaleString()}</td><td className="p-4 text-right text-rose-500 font-bold">৳{inv.due_bill.toLocaleString()}</td></tr>))}</tbody></table>
+                                <table className="w-full text-left text-sm">
+                                    <thead className="bg-slate-950 text-slate-500 text-[10px] uppercase font-black">
+                                        <tr>
+                                            <th className="p-4">SL</th>
+                                            <th className="p-4">ID</th>
+                                            <th className="p-4">Date</th>
+                                            <th className="p-4">Patient Name</th>
+                                            <th className="p-4 text-center">Status</th>
+                                            <th className="p-4 text-right">Total Bill</th>
+                                            <th className="p-4 text-right">Paid</th>
+                                            <th className="p-4 text-right">Due</th>
+                                        </tr>
+                                        <tr className="bg-slate-900 border-b border-slate-700">
+                                            <th colSpan={5} className="p-2 text-right text-slate-400">Totals:</th>
+                                            <th className="p-2 text-right text-sky-400">৳{indoorJournalData.totals.totalBill.toLocaleString()}</th>
+                                            <th className="p-2 text-right text-emerald-400">৳{indoorJournalData.totals.totalPaid.toLocaleString()}</th>
+                                            <th className="p-2 text-right text-rose-400">৳{indoorJournalData.totals.totalDue.toLocaleString()}</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-800">
+                                        {indoorJournalData.filtered.map((inv:any, idx: number) => (
+                                            <tr key={inv.daily_id} className={`hover:bg-slate-700/40 transition-colors ${inv.status === 'Cancelled' ? 'opacity-30 line-through' : ''}`}>
+                                                <td className="p-4 text-slate-500 text-xs">{idx + 1}</td>
+                                                <td className="p-4 font-mono text-cyan-400 text-xs">{inv.daily_id}</td>
+                                                <td className="p-4 text-xs">{inv.admission_date || inv.invoice_date}</td>
+                                                <td className="p-4 font-bold">{inv.patient_name}</td>
+                                                <td className="p-4 text-center"><span className="text-[8px] font-black uppercase px-2 py-0.5 rounded bg-slate-900">{inv.status}</span></td>
+                                                <td className="p-4 text-right">৳{inv.total_bill.toLocaleString()}</td>
+                                                <td className="p-4 text-right text-emerald-400 font-bold">৳{(inv.status === 'Cancelled' || inv.status === 'Returned') ? '0' : inv.paid_amount.toLocaleString()}</td>
+                                                <td className="p-4 text-right text-rose-500 font-bold">৳{inv.due_bill.toLocaleString()}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
                     </div>
@@ -675,16 +828,16 @@ const ClinicAccountsPage: React.FC<any> = ({
                                                 <td className="p-3 border-r border-slate-800/50 whitespace-nowrap">{inv.admission_date || inv.invoice_date}</td>
                                                 <td className="p-3 font-black text-slate-200 border-r border-slate-800/50 uppercase whitespace-nowrap">{inv.patient_name}</td>
                                                 <td className="p-3 text-sky-400 font-bold border-r border-slate-800/50 truncate max-w-[120px]" title={inv.subCategory}>{inv.subCategory || '-'}</td>
-                                                <td className="p-3 text-right border-r border-slate-800/50">৳${inv.admFeeCol.toLocaleString()}</td>
-                                                <td className="p-3 text-right border-r border-slate-800/50">৳${inv.lscsOtCol.toLocaleString()}</td>
-                                                <td className="p-3 text-right border-r border-slate-800/50">৳${inv.gbCol.toLocaleString()}</td>
-                                                <td className="p-3 text-right border-r border-slate-800/50">৳${inv.othersOtCol.toLocaleString()}</td>
-                                                <td className="p-3 text-right border-r border-slate-800/50">৳${inv.nvdCol.toLocaleString()}</td>
-                                                <td className="p-3 text-right border-r border-slate-800/50">৳${inv.dcCol.toLocaleString()}</td>
-                                                <td className="p-3 text-right border-r border-slate-800/50">৳${inv.consCol.toLocaleString()}</td>
-                                                <td className="p-3 text-right border-r border-slate-800/50">৳${inv.o2NebCol.toLocaleString()}</td>
-                                                <td className="p-3 text-right border-r border-slate-800/50">৳${inv.dressCol.toLocaleString()}</td>
-                                                <td className="p-3 text-right border-r border-slate-800/50">৳${inv.othersCol.toLocaleString()}</td>
+                                                <td className="p-3 text-right border-r border-slate-800/50">৳{inv.admFeeCol.toLocaleString()}</td>
+                                                <td className="p-3 text-right border-r border-slate-800/50">৳{inv.lscsOtCol.toLocaleString()}</td>
+                                                <td className="p-3 text-right border-r border-slate-800/50">৳{inv.gbCol.toLocaleString()}</td>
+                                                <td className="p-3 text-right border-r border-slate-800/50">৳{inv.othersOtCol.toLocaleString()}</td>
+                                                <td className="p-3 text-right border-r border-slate-800/50">৳{inv.nvdCol.toLocaleString()}</td>
+                                                <td className="p-3 text-right border-r border-slate-800/50">৳{inv.dcCol.toLocaleString()}</td>
+                                                <td className="p-3 text-right border-r border-slate-800/50">৳{inv.consCol.toLocaleString()}</td>
+                                                <td className="p-3 text-right border-r border-slate-800/50">৳{inv.o2NebCol.toLocaleString()}</td>
+                                                <td className="p-3 text-right border-r border-slate-800/50">৳{inv.dressCol.toLocaleString()}</td>
+                                                <td className="p-3 text-right border-r border-slate-800/50">৳{inv.othersCol.toLocaleString()}</td>
                                                 <td className="p-3 text-right font-black text-emerald-400 bg-emerald-900/10">৳ {(inv.status === 'Cancelled' || inv.status === 'Returned') ? '0' : inv.paid_amount.toLocaleString()}</td>
                                                 <td className="p-3 text-right font-black text-rose-400 bg-rose-900/10 border-l-2 border-rose-800/30">৳ {inv.pcCol.toLocaleString()}</td>
                                                 <td className="p-3 text-right font-black text-sky-300 bg-blue-900/10 border-l-2 border-blue-800/30">৳ {inv.netClinicCol.toLocaleString()}</td>
@@ -698,16 +851,16 @@ const ClinicAccountsPage: React.FC<any> = ({
                                         <tfoot className="bg-slate-900 text-slate-200 font-black border-t-2 border-slate-700 sticky bottom-0">
                                             <tr>
                                                 <td colSpan={4} className="p-4 text-right uppercase tracking-widest text-[11px]">Grand Summary Totals (Active Only):</td>
-                                                <td className="p-4 text-right">৳${reportTotals.admFee.toLocaleString()}</td>
-                                                <td className="p-4 text-right">৳${reportTotals.lscs_ot.toLocaleString()}</td>
-                                                <td className="p-4 text-right">৳${reportTotals.gb.toLocaleString()}</td>
-                                                <td className="p-4 text-right">৳${reportTotals.others_ot.toLocaleString()}</td>
-                                                <td className="p-4 text-right">৳${reportTotals.nvd.toLocaleString()}</td>
-                                                <td className="p-4 text-right">৳${reportTotals.dc.toLocaleString()}</td>
-                                                <td className="p-4 text-right">৳${reportTotals.cons.toLocaleString()}</td>
-                                                <td className="p-4 text-right">৳${reportTotals.o2neb.toLocaleString()}</td>
-                                                <td className="p-4 text-right">৳${reportTotals.dress.toLocaleString()}</td>
-                                                <td className="p-4 text-right">৳${reportTotals.others.toLocaleString()}</td>
+                                                <td className="p-4 text-right">৳{reportTotals.admFee.toLocaleString()}</td>
+                                                <td className="p-4 text-right">৳{reportTotals.lscs_ot.toLocaleString()}</td>
+                                                <td className="p-4 text-right">৳{reportTotals.gb.toLocaleString()}</td>
+                                                <td className="p-4 text-right">৳{reportTotals.others_ot.toLocaleString()}</td>
+                                                <td className="p-4 text-right">৳{reportTotals.nvd.toLocaleString()}</td>
+                                                <td className="p-4 text-right">৳{reportTotals.dc.toLocaleString()}</td>
+                                                <td className="p-4 text-right">৳{reportTotals.cons.toLocaleString()}</td>
+                                                <td className="p-4 text-right">৳{reportTotals.o2neb.toLocaleString()}</td>
+                                                <td className="p-4 text-right">৳{reportTotals.dress.toLocaleString()}</td>
+                                                <td className="p-4 text-right">৳{reportTotals.others.toLocaleString()}</td>
                                                 <td className="p-4 text-right text-emerald-400 text-lg">৳ {reportTotals.paidTotal.toLocaleString()}</td>
                                                 <td className="p-4 text-right text-rose-400 text-lg">৳ {reportTotals.pc.toLocaleString()}</td>
                                                 <td className="p-4 text-right text-sky-400 text-2xl underline decoration-double">৳ {reportTotals.netClinic.toLocaleString()}</td>
@@ -736,34 +889,34 @@ const ClinicAccountsPage: React.FC<any> = ({
                             <div className="bg-slate-800 p-6 rounded-3xl border border-slate-700 shadow-xl">
                                 <h3 className="text-emerald-400 font-black uppercase text-sm mb-4 border-b border-slate-700 pb-2">Daily Income (Clinic Fund Only)</h3>
                                 <div className="space-y-2 text-xs">
-                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>Admission Fee:</span> <span className="font-black">৳${dailySummaryData.collectionByCategory.admFee.toLocaleString()}</span></div>
-                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>Oxygen / Nebulization:</span> <span className="font-black">৳${dailySummaryData.collectionByCategory.oxygen.toLocaleString()}</span></div>
-                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>Conservative Treatment:</span> <span className="font-black">৳${dailySummaryData.collectionByCategory.conservative.toLocaleString()}</span></div>
-                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>Normal Delivery (NVD):</span> <span className="font-black">৳${dailySummaryData.collectionByCategory.nvd.toLocaleString()}</span></div>
-                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>D&C / Minor Surgery:</span> <span className="font-black">৳${dailySummaryData.collectionByCategory.dc.toLocaleString()}</span></div>
-                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>LSCS_OT / Major Surgery:</span> <span className="font-black">৳${dailySummaryData.collectionByCategory.lscs_ot.toLocaleString()}</span></div>
-                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>GB (Gallbladder) OT:</span> <span className="font-black">৳${dailySummaryData.collectionByCategory.gb_ot.toLocaleString()}</span></div>
-                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>Others OT / Services:</span> <span className="font-black">৳${dailySummaryData.collectionByCategory.others_ot.toLocaleString()}</span></div>
-                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>Dressing:</span> <span className="font-black">৳${dailySummaryData.collectionByCategory.dressing.toLocaleString()}</span></div>
-                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>Miscellaneous (Others):</span> <span className="font-black">৳${dailySummaryData.collectionByCategory.others.toLocaleString()}</span></div>
-                                    <div className="flex justify-between italic text-slate-400 pb-1"><span>Due Recovery (বকেয়া আদায়):</span> <span className="font-black">৳${dailySummaryData.dayDueRecov.toLocaleString()}</span></div>
-                                    <div className="flex justify-between text-xl border-t-2 border-emerald-500/50 pt-3 text-white font-black"><span>Total Net Revenue:</span> <span>৳${dailySummaryData.totalCollection.toLocaleString()}</span></div>
+                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>Admission Fee:</span> <span className="font-black">৳{dailySummaryData.collectionByCategory.admFee.toLocaleString()}</span></div>
+                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>Oxygen / Nebulization:</span> <span className="font-black">৳{dailySummaryData.collectionByCategory.oxygen.toLocaleString()}</span></div>
+                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>Conservative Treatment:</span> <span className="font-black">৳{dailySummaryData.collectionByCategory.conservative.toLocaleString()}</span></div>
+                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>Normal Delivery (NVD):</span> <span className="font-black">৳{dailySummaryData.collectionByCategory.nvd.toLocaleString()}</span></div>
+                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>D&C / Minor Surgery:</span> <span className="font-black">৳{dailySummaryData.collectionByCategory.dc.toLocaleString()}</span></div>
+                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>LSCS_OT / Major Surgery:</span> <span className="font-black">৳{dailySummaryData.collectionByCategory.lscs_ot.toLocaleString()}</span></div>
+                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>GB (Gallbladder) OT:</span> <span className="font-black">৳{dailySummaryData.collectionByCategory.gb_ot.toLocaleString()}</span></div>
+                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>Others OT / Services:</span> <span className="font-black">৳{dailySummaryData.collectionByCategory.others_ot.toLocaleString()}</span></div>
+                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>Dressing:</span> <span className="font-black">৳{dailySummaryData.collectionByCategory.dressing.toLocaleString()}</span></div>
+                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>Miscellaneous (Others):</span> <span className="font-black">৳{dailySummaryData.collectionByCategory.others.toLocaleString()}</span></div>
+                                    <div className="flex justify-between italic text-slate-400 pb-1"><span>Due Recovery (বকেয়া আদায়):</span> <span className="font-black">৳{dailySummaryData.dayDueRecov.toLocaleString()}</span></div>
+                                    <div className="flex justify-between text-xl border-t-2 border-emerald-500/50 pt-3 text-white font-black"><span>Total Net Revenue:</span> <span>৳{dailySummaryData.totalCollection.toLocaleString()}</span></div>
                                 </div>
                             </div>
                             <div className="bg-slate-800 p-6 rounded-3xl border border-slate-700 shadow-xl">
                                 <h3 className="text-rose-400 font-black uppercase text-sm mb-4 border-b border-slate-700 pb-2">Daily Operating Cost (B)</h3>
                                 <div className="space-y-2 text-xs pr-2">
                                     {clinicExpenseCategories.map(cat => (
-                                        <div key={cat} className="flex justify-between border-b border-slate-700/30 pb-1"><span>{expenseCategoryBanglaMap[cat] || cat}:</span> <span className="font-black">৳${(dailySummaryData.expensesByCategory[cat] || 0).toLocaleString()}</span></div>
+                                        <div key={cat} className="flex justify-between border-b border-slate-700/30 pb-1"><span>{expenseCategoryBanglaMap[cat] || cat}:</span> <span className="font-black">৳{(dailySummaryData.expensesByCategory[cat] || 0).toLocaleString()}</span></div>
                                     ))}
                                 </div>
-                                <div className="flex justify-between text-lg border-t-2 border-rose-500/50 pt-3 text-white font-black mt-2"><span>Total Expense:</span> <span>৳${dailySummaryData.totalExpense.toLocaleString()}</span></div>
+                                <div className="flex justify-between text-lg border-t-2 border-rose-500/50 pt-3 text-white font-black mt-2"><span>Total Expense:</span> <span>৳{dailySummaryData.totalExpense.toLocaleString()}</span></div>
                             </div>
                         </div>
                         <div className="flex justify-center mt-4 no-print">
                             <div className="bg-gradient-to-br from-slate-900 to-indigo-900 p-6 rounded-3xl text-center shadow-2xl border-2 border-amber-500/20">
                                 <p className="text-slate-400 text-xs font-black uppercase mb-2">Daily Net Profit/Loss (A - B)</p>
-                                <h4 className={`text-5xl font-black ${dailySummaryData.balance >= 0 ? 'text-green-400' : 'text-rose-500'}`}>৳${dailySummaryData.balance.toLocaleString()}</h4>
+                                <h4 className={`text-5xl font-black ${dailySummaryData.balance >= 0 ? 'text-green-400' : 'text-rose-500'}`}>৳{dailySummaryData.balance.toLocaleString()}</h4>
                             </div>
                         </div>
                     </div>
@@ -783,34 +936,34 @@ const ClinicAccountsPage: React.FC<any> = ({
                             <div className="bg-slate-800 p-6 rounded-3xl border border-slate-700 shadow-xl">
                                 <h3 className="text-blue-400 font-black uppercase text-sm mb-4 border-b border-slate-700 pb-2">Monthly Income (Clinic Fund Only)</h3>
                                 <div className="space-y-2 text-xs">
-                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>Admission Fee:</span> <span className="font-black">৳${summaryData.collectionByCategory.admFee.toLocaleString()}</span></div>
-                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>Oxygen / Nebulization:</span> <span className="font-black">৳${summaryData.collectionByCategory.oxygen.toLocaleString()}</span></div>
-                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>Conservative Treatment:</span> <span className="font-black">৳${summaryData.collectionByCategory.conservative.toLocaleString()}</span></div>
-                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>Normal Delivery (NVD):</span> <span className="font-black">৳${summaryData.collectionByCategory.nvd.toLocaleString()}</span></div>
-                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>D&C / Minor Surgery:</span> <span className="font-black">৳${summaryData.collectionByCategory.dc.toLocaleString()}</span></div>
-                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>LSCS_OT / Major Surgery:</span> <span className="font-black">৳${summaryData.collectionByCategory.lscs_ot.toLocaleString()}</span></div>
-                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>GB (Gallbladder) OT:</span> <span className="font-black">৳${summaryData.collectionByCategory.gb_ot.toLocaleString()}</span></div>
-                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>Others OT / Services:</span> <span className="font-black">৳${summaryData.collectionByCategory.others_ot.toLocaleString()}</span></div>
-                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>Dressing:</span> <span className="font-black">৳${summaryData.collectionByCategory.dressing.toLocaleString()}</span></div>
-                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>Miscellaneous (Others):</span> <span className="font-black">৳${summaryData.collectionByCategory.others.toLocaleString()}</span></div>
-                                    <div className="flex justify-between italic text-slate-400 pb-1"><span>Due Recovery (বকেয়া আদায়):</span> <span className="font-black">৳${summaryData.monthDueRecov.toLocaleString()}</span></div>
-                                    <div className="flex justify-between text-xl border-t-2 border-blue-500/50 pt-3 text-white font-black"><span>Total Net Revenue:</span> <span>৳${summaryData.totalCollection.toLocaleString()}</span></div>
+                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>Admission Fee:</span> <span className="font-black">৳{summaryData.collectionByCategory.admFee.toLocaleString()}</span></div>
+                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>Oxygen / Nebulization:</span> <span className="font-black">৳{summaryData.collectionByCategory.oxygen.toLocaleString()}</span></div>
+                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>Conservative Treatment:</span> <span className="font-black">৳{summaryData.collectionByCategory.conservative.toLocaleString()}</span></div>
+                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>Normal Delivery (NVD):</span> <span className="font-black">৳{summaryData.collectionByCategory.nvd.toLocaleString()}</span></div>
+                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>D&C / Minor Surgery:</span> <span className="font-black">৳{summaryData.collectionByCategory.dc.toLocaleString()}</span></div>
+                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>LSCS_OT / Major Surgery:</span> <span className="font-black">৳{summaryData.collectionByCategory.lscs_ot.toLocaleString()}</span></div>
+                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>GB (Gallbladder) OT:</span> <span className="font-black">৳{summaryData.collectionByCategory.gb_ot.toLocaleString()}</span></div>
+                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>Others OT / Services:</span> <span className="font-black">৳{summaryData.collectionByCategory.others_ot.toLocaleString()}</span></div>
+                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>Dressing:</span> <span className="font-black">৳{summaryData.collectionByCategory.dressing.toLocaleString()}</span></div>
+                                    <div className="flex justify-between border-b border-slate-700/30 pb-1"><span>Miscellaneous (Others):</span> <span className="font-black">৳{summaryData.collectionByCategory.others.toLocaleString()}</span></div>
+                                    <div className="flex justify-between italic text-slate-400 pb-1"><span>Due Recovery (বকেয়া আদায়):</span> <span className="font-black">৳{summaryData.monthDueRecov.toLocaleString()}</span></div>
+                                    <div className="flex justify-between text-xl border-t-2 border-blue-500/50 pt-3 text-white font-black"><span>Total Net Revenue:</span> <span>৳{summaryData.totalCollection.toLocaleString()}</span></div>
                                 </div>
                             </div>
                             <div className="bg-slate-800 p-6 rounded-3xl border border-slate-700 shadow-xl">
                                 <h3 className="text-rose-400 font-black uppercase text-sm mb-4 border-b border-slate-700 pb-2">Monthly Operating Cost (B)</h3>
                                 <div className="space-y-2 text-xs pr-2">
                                     {clinicExpenseCategories.map(cat => (
-                                        <div key={cat} className="flex justify-between border-b border-slate-700/30 pb-1"><span>{expenseCategoryBanglaMap[cat] || cat}:</span> <span className="font-black">৳${(summaryData.expensesByCategory[cat] || 0).toLocaleString()}</span></div>
+                                        <div key={cat} className="flex justify-between border-b border-slate-700/30 pb-1"><span>{expenseCategoryBanglaMap[cat] || cat}:</span> <span className="font-black">৳{(summaryData.expensesByCategory[cat] || 0).toLocaleString()}</span></div>
                                     ))}
                                 </div>
-                                <div className="flex justify-between text-lg border-t-2 border-rose-500/50 pt-3 text-white font-black mt-2"><span>Total Expense:</span> <span>৳${summaryData.totalExpense.toLocaleString()}</span></div>
+                                <div className="flex justify-between text-lg border-t-2 border-rose-500/50 pt-3 text-white font-black mt-2"><span>Total Expense:</span> <span>৳{summaryData.totalExpense.toLocaleString()}</span></div>
                             </div>
                         </div>
                         <div className="flex justify-center mt-4 no-print">
                             <div className="bg-gradient-to-br from-indigo-700 to-slate-900 p-6 rounded-3xl text-center shadow-2xl border-2 border-white/10">
                                 <p className="text-slate-400 text-xs font-black uppercase mb-2">Monthly Net Profit (A - B)</p>
-                                <h4 className={`text-5xl font-black ${summaryData.balance >= 0 ? 'text-green-400' : 'text-rose-500'}`}>৳${summaryData.balance.toLocaleString()}</h4>
+                                <h4 className={`text-5xl font-black ${summaryData.balance >= 0 ? 'text-green-400' : 'text-rose-500'}`}>৳{summaryData.balance.toLocaleString()}</h4>
                             </div>
                         </div>
                     </div>

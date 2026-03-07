@@ -191,7 +191,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                 // Mapping Diagnostic & Clinic categories to Consolidated keys
                 if (catName === 'Clinic development' || catName === 'Diagnostic development') catName = 'Clinic_Dev';
                 if (catName === 'Electricity bill' || catName === 'Paper / Dish / Wifi Bill') catName = 'Bills';
-                if (catName === 'Doctor donation & Vehicle service') catName = 'Doctor donation';
+                if (catName === 'Doctor donation & Vehicle service' || catName === 'Doctor donation') catName = 'Doctor donation';
                 if (catName === 'Instruments buy/ repair' || catName === 'Repair/Instruments') {
                     if (exp.subCategory === 'Stationary' || exp.subCategory === 'Stationery') catName = 'Stationery';
                     else catName = 'Instruments';
@@ -199,11 +199,17 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                 if (catName === 'Maintenance') catName = 'Maintenance';
                 if (catName === 'License cost' || catName === 'License/Official') catName = 'License';
                 if (catName === 'X-ray Film buy') catName = 'X-Ray';
-                if (catName === 'Mobile buy/ Flexiload') catName = 'Mobile';
+                if (catName === 'Mobile buy/ Flexiload' || catName === 'Mobile') catName = 'Mobile';
                 if (catName === 'Press Cost') catName = 'Press';
                 if (catName === 'Food/Meal Cost' || catName === 'Food/Refreshment') catName = 'Food';
                 if (catName === 'Bank/NGO Installment' || catName === 'Interest/Loan') catName = 'Installment';
-                if (catName === 'Stationery') catName = 'Stationery'; // Ensure direct match if any
+                if (catName === 'Stationery') catName = 'Stationery';
+                if (catName === 'Stuff salary') catName = 'Stuff salary';
+                if (catName === 'Generator') catName = 'Generator';
+                if (catName === 'Marketing') catName = 'Marketing';
+                if (catName === 'Motorcycle') catName = 'Motorcycle';
+                if (catName === 'Reagent buy') catName = 'Reagent buy';
+                if (catName === 'House rent') catName = 'House rent';
 
                 const matched = expenseMapSequence.find(e => e.key === catName);
                 if (matched) categorySums[matched.key] += exp.paidAmount;
@@ -410,7 +416,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                 // Mapping Diagnostic categories to Consolidated keys
                 if (catName === 'Clinic development' || catName === 'Diagnostic development') catName = 'Clinic_Dev';
                 if (catName === 'Electricity bill' || catName === 'Paper / Dish / Wifi Bill') catName = 'Bills';
-                if (catName === 'Doctor donation & Vehicle service') catName = 'Doctor donation';
+                if (catName === 'Doctor donation & Vehicle service' || catName === 'Doctor donation') catName = 'Doctor donation';
                 if (catName === 'Instruments buy/ repair' || catName === 'Repair/Instruments') {
                     if (it.subCategory === 'Stationary' || it.subCategory === 'Stationery') catName = 'Stationery';
                     else catName = 'Instruments';
@@ -418,10 +424,16 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                 if (catName === 'Maintenance') catName = 'Maintenance';
                 if (catName === 'License cost' || catName === 'License/Official') catName = 'License';
                 if (catName === 'X-ray Film buy') catName = 'X-Ray';
-                if (catName === 'Mobile buy/ Flexiload') catName = 'Mobile';
+                if (catName === 'Mobile buy/ Flexiload' || catName === 'Mobile') catName = 'Mobile';
                 if (catName === 'Press Cost') catName = 'Press';
                 if (catName === 'Food/Meal Cost' || catName === 'Food/Refreshment') catName = 'Food';
                 if (catName === 'Bank/NGO Installment' || catName === 'Interest/Loan') catName = 'Installment';
+                if (catName === 'Stuff salary') catName = 'Stuff salary';
+                if (catName === 'Generator') catName = 'Generator';
+                if (catName === 'Marketing') catName = 'Marketing';
+                if (catName === 'Motorcycle') catName = 'Motorcycle';
+                if (catName === 'Reagent buy') catName = 'Reagent buy';
+                if (catName === 'House rent') catName = 'House rent';
 
                 const mapping = expenseMapSequence.find(e => e.key === catName);
                 const key = mapping ? mapping.key : 'Others';

@@ -151,8 +151,15 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
             setCurrentReportData(null);
         }
     };
-    const currentInvoice = useMemo(() => invoices.find((inv: Invoice) => inv.invoice_id === selectedInvoiceId), [selectedInvoiceId, invoices]);
-    const patient = useMemo(() => patients.find((p: Patient) => p.pt_id === currentInvoice?.patient_id), [currentInvoice, patients]);
+    const currentInvoice = useMemo(() => {
+        if (!Array.isArray(invoices)) return null;
+        return invoices.find((inv: Invoice) => inv.invoice_id === selectedInvoiceId);
+    }, [selectedInvoiceId, invoices]);
+
+    const patient = useMemo(() => {
+        if (!Array.isArray(patients) || !currentInvoice) return null;
+        return patients.find((p: Patient) => p.pt_id === currentInvoice.patient_id);
+    }, [currentInvoice, patients]);
 
     // Clear success message quickly (1s)
     useEffect(() => {

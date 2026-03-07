@@ -39,7 +39,8 @@ const MarketingSetup: React.FC<{
 
     // Filter active employees. 
     const activeEmployees = useMemo(() => {
-        let list = employees.filter(e => e.status === 'Active');
+        if (!Array.isArray(employees)) return [];
+        let list = employees.filter(e => e && e.status === 'Active');
         if (!showAllEmployees) {
             list = list.filter(e => 
                 (e.job_position && e.job_position.toLowerCase().includes('marketing')) || 

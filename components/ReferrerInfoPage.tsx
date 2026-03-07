@@ -19,10 +19,13 @@ const ReferrarInfoPage: React.FC<ReferrarInfoPageProps> = ({ referrars, setRefer
     const [successMessage, setSuccessMessage] = useState('');
 
     const filteredReferrars = React.useMemo(() => {
+        if (!Array.isArray(referrars)) return [];
         if (isEmbedded) return referrars;
         return referrars.filter(referrar =>
-            referrar.ref_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            referrar.ref_id.toLowerCase().includes(searchTerm.toLowerCase())
+            referrar && (
+                (referrar.ref_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                (referrar.ref_id || '').toLowerCase().includes(searchTerm.toLowerCase())
+            )
         );
     }, [searchTerm, referrars, isEmbedded]);
 

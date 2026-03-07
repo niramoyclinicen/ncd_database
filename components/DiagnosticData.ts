@@ -217,6 +217,14 @@ export const emptyEmployee: Employee = {
   emp_id: '', emp_name: '', machine_id: '', gender: '', job_position: '', department: '', joining_date: '', status: 'Active', mobile: '', address: '', salary: 0, is_current_month: false
 };
 
+export interface EditLog {
+  timestamp: string;
+  field: string;
+  oldValue: any;
+  newValue: any;
+  editedBy?: string;
+}
+
 export interface ExpenseItem {
   id: number; 
   category: string; 
@@ -224,9 +232,11 @@ export interface ExpenseItem {
   description: string; 
   billAmount: number; 
   paidAmount: number;
+  dept?: 'Clinic' | 'Diagnostic';
   metadata?: any; 
   isEdited?: boolean;
   lastEditedAt?: string;
+  editHistory?: EditLog[];
 }
 
 export interface Medicine {

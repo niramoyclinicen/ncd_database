@@ -128,35 +128,38 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
 
   // Calculation Logic
   const totals = useMemo(() => {
-    const totalAmount = formData.items.reduce((sum, item) => sum + item.price * item.quantity, 0);
-    const netPayable = totalAmount - formData.discount_amount;
-    const dueAmount = netPayable - formData.paid_amount;
+    if (!formData || !Array.isArray(formData.items)) return { totalAmount: 0, netPayable: 0, dueAmount: 0, status: 'Paid' as const, tComm100: 0, commAfterDisc: 0, payableComm: 0, commDue: 0 };
+    const totalAmount = formData.items.reduce((sum, item) => sum + (item.price || 0) * (item.quantity || 0), 0);
+    const netPayable = totalAmount - (formData.discount_amount || 0);
+    const dueAmount = netPayable - (formData.paid_amount || 0);
     const status: LabInvoice['status'] = formData.status === 'Returned' ? 'Returned' : (dueAmount > 0.005 ? 'Due' : 'Paid');
 
-    const tComm100 = applyPC ? formData.items.reduce((sum, item) => sum + (item.test_commission * item.quantity), 0) : 0;
-    const commAfterDisc = applyPC ? tComm100 - formData.discount_amount : 0;
-    const payableComm = applyPC ? (commAfterDisc + formData.special_commission) - dueAmount : 0;
-    const commDue = applyPC ? payableComm - formData.commission_paid : 0;
+    const tComm100 = applyPC ? formData.items.reduce((sum, item) => sum + ((item.test_commission || 0) * (item.quantity || 0)), 0) : 0;
+    const commAfterDisc = applyPC ? tComm100 - (formData.discount_amount || 0) : 0;
+    const payableComm = applyPC ? (commAfterDisc + (formData.special_commission || 0)) - dueAmount : 0;
+    const commDue = applyPC ? payableComm - (formData.commission_paid || 0) : 0;
 
     return { totalAmount, netPayable, dueAmount, status, tComm100, commAfterDisc, payableComm, commDue };
-  }, [formData.items, formData.paid_amount, formData.discount_amount, formData.special_commission, formData.commission_paid, applyPC, formData.status]);
+  }, [formData, applyPC]);
   
   // Filter invoices when search term or invoices state changes
   const filteredInvoices = useMemo(() => {
+    if (!Array.isArray(invoices)) return [];
     return invoices.filter(invoice => {
-      const matchesSearch = invoice.invoice_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        invoice.patient_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      if (!invoice) return false;
+      const matchesSearch = (invoice.invoice_id || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (invoice.patient_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
         (invoice.doctor_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
         (invoice.referrar_name || '').toLowerCase().includes(searchTerm.toLowerCase());
 
       const matchesDate = !tableFilterDate || invoice.invoice_date === tableFilterDate;
       
-      const invDateObj = new Date(invoice.invoice_date);
-      const matchesMonth = !tableFilterMonth || (String(invDateObj.getMonth() + 1).padStart(2, '0')) === tableFilterMonth;
-      const matchesYear = !tableFilterYear || String(invDateObj.getFullYear()) === tableFilterYear;
+      const invDateObj = invoice.invoice_date ? new Date(invoice.invoice_date) : null;
+      const matchesMonth = !tableFilterMonth || (invDateObj && (String(invDateObj.getMonth() + 1).padStart(2, '0')) === tableFilterMonth);
+      const matchesYear = !tableFilterYear || (invDateObj && String(invDateObj.getFullYear()) === tableFilterYear);
       
       const matchesDoctor = !tableFilterDoctorId || invoice.doctor_id === tableFilterDoctorId;
-      const matchesPatient = !tableFilterPatientName || invoice.patient_name.toLowerCase().includes(tableFilterPatientName.toLowerCase());
+      const matchesPatient = !tableFilterPatientName || (invoice.patient_name || '').toLowerCase().includes(tableFilterPatientName.toLowerCase());
 
       return matchesSearch && matchesDate && matchesMonth && matchesYear && matchesDoctor && matchesPatient;
     });
@@ -648,10 +651,11 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
   }, [invoices, today]);
 
   const tableTotals = useMemo(() => {
+    if (!Array.isArray(filteredInvoices)) return { total: 0, paid: 0, due: 0 };
     return filteredInvoices.reduce((acc, inv) => {
-      acc.total += inv.total_amount;
-      acc.paid += inv.paid_amount;
-      acc.due += inv.due_amount;
+      acc.total += (inv.total_amount || 0);
+      acc.paid += (inv.paid_amount || 0);
+      acc.due += (inv.due_amount || 0);
       return acc;
     }, { total: 0, paid: 0, due: 0 });
   }, [filteredInvoices]);

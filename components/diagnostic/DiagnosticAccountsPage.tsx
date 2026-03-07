@@ -63,54 +63,101 @@ const SummaryBox = ({ title, items, totalLabel, totalValue, colorClass }: any) =
     </div>
 );
 
+const HistoryModal: React.FC<{ item: ExpenseItem, onClose: () => void }> = ({ item, onClose }) => (
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+        <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden">
+            <div className="p-4 border-b border-slate-700 flex justify-between items-center bg-slate-800">
+                <h3 className="font-black text-sky-400 uppercase text-sm">Edit History: {item.category}</h3>
+                <button onClick={onClose} className="text-slate-400 hover:text-white text-xl">×</button>
+            </div>
+            <div className="p-4 max-h-[400px] overflow-y-auto space-y-3">
+                {(!item.editHistory || item.editHistory.length === 0) ? (
+                    <p className="text-center text-slate-500 italic py-8 text-slate-500">No edit history found.</p>
+                ) : (
+                    item.editHistory.map((log, i) => (
+                        <div key={i} className="bg-slate-800/50 p-3 rounded-xl border border-slate-700/50 text-xs">
+                            <div className="flex justify-between text-[10px] text-slate-500 mb-1 font-bold uppercase">
+                                <span>{new Date(log.timestamp).toLocaleString()}</span>
+                                <span className="text-sky-500">{log.field}</span>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div><p className="text-[9px] text-slate-500 uppercase">Old Value</p><p className="text-rose-400 font-bold">{String(log.oldValue)}</p></div>
+                                <div><p className="text-[9px] text-slate-500 uppercase">New Value</p><p className="text-emerald-400 font-bold">{String(log.newValue)}</p></div>
+                            </div>
+                        </div>
+                    ))
+                )}
+            </div>
+            <div className="p-4 bg-slate-800/50 border-t border-slate-700 text-right">
+                <button onClick={onClose} className="bg-slate-700 px-6 py-2 rounded-xl text-xs font-black uppercase hover:bg-slate-600 text-white">Close</button>
+            </div>
+        </div>
+    </div>
+);
+
 const DailyExpenseForm: React.FC<any> = ({ selectedDate, onDateChange, dailyExpenseItems, onSave, employees, monthlyRoster }) => {
     const [items, setItems] = useState<ExpenseItem[]>(() => [{
-        id: Date.now(), category: expenseCategories[0], subCategory: '', description: '', billAmount: 0, paidAmount: 0
+        id: Date.now(), category: expenseCategories[0], subCategory: '', description: '', billAmount: 0, paidAmount: 0, dept: 'Diagnostic'
     }]);
     const [savedSearchTerm, setSavedSearchTerm] = useState('');
+    const [historyItem, setHistoryItem] = useState<ExpenseItem | null>(null);
 
     const periodKey = selectedDate.substring(0, 7); // YYYY-MM
     const activeEmpIds = monthlyRoster[periodKey] || [];
     const filteredEmployees = employees.filter((e: any) => activeEmpIds.includes(e.emp_id));
 
     const handleItemChange = (id: number, field: keyof ExpenseItem, value: any) => {
-        setItems(prev => prev.map(item => item.id === id ? { ...item, [field]: value } : item));
+        setItems(prev => prev.map(item => {
+            if (item.id === id) {
+                const oldValue = item[field];
+                if (oldValue === value) return item;
+
+                const history = item.editHistory || [];
+                const newLog = {
+                    timestamp: new Date().toISOString(),
+                    field,
+                    oldValue,
+                    newValue: value
+                };
+
+                return { 
+                    ...item, 
+                    [field]: value, 
+                    isEdited: true, 
+                    lastEditedAt: new Date().toISOString(),
+                    editHistory: [...history, newLog]
+                };
+            }
+            return item;
+        }));
     };
 
-    const addItem = () => setItems(prev => [...prev, { id: Date.now(), category: expenseCategories[0], subCategory: '', description: '', billAmount: 0, paidAmount: 0 }]);
+    const addItem = () => setItems(prev => [...prev, { id: Date.now(), category: expenseCategories[0], subCategory: '', description: '', billAmount: 0, paidAmount: 0, dept: 'Diagnostic' }]);
     const removeItem = (id: number) => setItems(prev => prev.filter(i => i.id !== id));
 
     const handleEditSavedItem = (savedItem: ExpenseItem) => {
-        // Load the saved item into the form for editing
-        // We replace the current items with this one to focus on editing it
         setItems([{ ...savedItem }]);
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
     const handleSave = () => {
-        // When saving, we need to merge the current 'items' in the form with the 'dailyExpenseItems'
-        // If an item in 'items' has an ID that already exists in 'dailyExpenseItems', it's an update.
         const updatedDailyItems = [...dailyExpenseItems];
         
         items.forEach(formItem => {
             const existingIdx = updatedDailyItems.findIndex(di => di.id === formItem.id);
             if (existingIdx !== -1) {
-                // It's an edit
                 updatedDailyItems[existingIdx] = { 
                     ...formItem, 
-                    isEdited: true, 
-                    lastEditedAt: new Date().toLocaleString() 
+                    dept: 'Diagnostic'
                 };
             } else {
-                // It's a new item
-                updatedDailyItems.push(formItem);
+                updatedDailyItems.push({ ...formItem, dept: 'Diagnostic' });
             }
         });
 
         onSave(selectedDate, updatedDailyItems);
-        // Reset form after save
         setItems([{
-            id: Date.now(), category: expenseCategories[0], subCategory: '', description: '', billAmount: 0, paidAmount: 0
+            id: Date.now(), category: expenseCategories[0], subCategory: '', description: '', billAmount: 0, paidAmount: 0, dept: 'Diagnostic'
         }]);
     };
 
@@ -125,6 +172,7 @@ const DailyExpenseForm: React.FC<any> = ({ selectedDate, onDateChange, dailyExpe
     return (
         <div className="space-y-10">
             <div className="bg-sky-950/40 rounded-[2rem] p-8 border border-sky-800 shadow-xl no-print">
+                {historyItem && <HistoryModal item={historyItem} onClose={() => setHistoryItem(null)} />}
                 <div className="flex justify-between items-center mb-6 border-b border-sky-800 pb-4">
                     <h3 className="text-xl font-black text-sky-100 flex items-center gap-3"><Activity className="w-6 h-6 text-sky-400" /> Daily Expense Entry</h3>
                     <input type="date" value={selectedDate} onChange={(e) => onDateChange(e.target.value)} className="bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white text-sm font-black" />
@@ -231,7 +279,13 @@ const DailyExpenseForm: React.FC<any> = ({ selectedDate, onDateChange, dailyExpe
                                             <span className="bg-emerald-900/30 text-emerald-400 px-2 py-1 rounded text-[9px] font-black uppercase border border-emerald-500/20">Original</span>
                                         )}
                                     </td>
-                                    <td className="py-4 text-center">
+                                    <td className="py-4 text-center space-x-2">
+                                        <button 
+                                            onClick={() => setHistoryItem(it)} 
+                                            className="text-emerald-400 hover:text-emerald-300 font-black uppercase text-[10px] tracking-widest border border-emerald-500/30 px-3 py-1 rounded-lg hover:bg-emerald-600/10 transition-all"
+                                        >
+                                            History
+                                        </button>
                                         <button 
                                             onClick={() => handleEditSavedItem(it)} 
                                             className="text-blue-400 hover:text-blue-300 font-black uppercase text-[10px] tracking-widest border border-blue-500/30 px-3 py-1 rounded-lg hover:bg-blue-600/10 transition-all"
@@ -273,7 +327,13 @@ const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollection
     }, [successMessage]);
 
     const handleSaveExpense = (date: string, items: ExpenseItem[]) => {
-        setDetailedExpenses((prev: any) => ({ ...prev, [date]: items }));
+        setDetailedExpenses((prev: any) => {
+            const existingItems = prev[date] || [];
+            // Keep Clinic items, replace Diagnostic items
+            const otherDeptItems = existingItems.filter((it: any) => it.dept !== 'Diagnostic');
+            const diagnosticItems = items.map(it => ({ ...it, dept: 'Diagnostic' as const }));
+            return { ...prev, [date]: [...otherDeptItems, ...diagnosticItems] };
+        });
         setSuccessMessage("Expense data saved successfully!");
     };
 
@@ -398,7 +458,7 @@ const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollection
             expenseCategories.forEach(c => expenseMap[c] = 0);
 
             if (rangeType === 'daily') {
-                (detailedExpenses[selectedDate] || []).forEach((it: any) => {
+                (detailedExpenses[selectedDate] || []).filter((it: any) => it.dept === 'Diagnostic').forEach((it: any) => {
                     expenseMap[it.category] = (expenseMap[it.category] || 0) + it.paidAmount;
                     exp.total += it.paidAmount;
                 });
@@ -406,7 +466,7 @@ const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollection
                 Object.entries(detailedExpenses).forEach(([date, items]) => {
                     const d = new Date(date);
                     if ((rangeType === 'monthly' && d.getMonth() === selectedMonth && d.getFullYear() === selectedYear) || (rangeType === 'yearly' && d.getFullYear() === selectedYear)) {
-                        (items as any[]).forEach((it: any) => {
+                        (items as any[]).filter((it: any) => it.dept === 'Diagnostic').forEach((it: any) => {
                             expenseMap[it.category] = (expenseMap[it.category] || 0) + it.paidAmount;
                             exp.total += it.paidAmount;
                         });

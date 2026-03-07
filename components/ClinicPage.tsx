@@ -301,7 +301,7 @@ const GenericManagerPage: React.FC<{
     
     const handleSave = () => {
         if (!name.trim()) return;
-        const newItem = { id: Date.now().toString(), name: name.trim() };
+        const newItem = { id: new Date().getTime().toString(), name: name.trim() };
         setItems([...items, newItem]);
         onSaveAndSelect(newItem.id, newItem.name);
     };
@@ -361,9 +361,8 @@ const CertificateModal: React.FC<{
 
     const handleSave = () => {
         if(!selectedAdmissionId) return alert("প্রথমে পেশেন্ট সিলেক্ট করুন");
-        const currentTime = Date.now();
         const newCert: ClinicCertificate = {
-            id: `CERT-${currentTime}`,
+            id: `CERT-${new Date().getTime()}`,
             type,
             admissionId: selectedAdmissionId,
             patientName: selectedPatient?.pt_name || '',

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Patient, Doctor, Referrar, LabInvoice, Appointment } from './DiagnosticData'; 
 import { formatDateTime } from '../utils/dateUtils'; 
 import SearchableSelect from './SearchableSelect';
@@ -110,27 +110,29 @@ const DoctorAppointmentPage: React.FC<DoctorAppointmentPageProps> = ({
 
   // Updated List Filtering Logic
   const filteredAppointments = useMemo(() => {
+    if (!Array.isArray(appointments)) return [];
     return appointments.filter(appt => {
+      if (!appt) return false;
       // 1. General Search Term (matches Pt Name, Doc Name, Ref Name, ID)
       const matchesSearch = searchTerm === '' || 
-        appt.patient_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        appt.doctor_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (appt.patient_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (appt.doctor_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
         (appt.referrar_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-        appt.appointment_id.toLowerCase().includes(searchTerm.toLowerCase());
+        (appt.appointment_id || '').toLowerCase().includes(searchTerm.toLowerCase());
 
       // 2. Specific Doctor Search
       const matchesDoctor = listSearchDoctor === '' || 
-        appt.doctor_name.toLowerCase().includes(listSearchDoctor.toLowerCase());
+        (appt.doctor_name || '').toLowerCase().includes(listSearchDoctor.toLowerCase());
 
       // 2b. Specific Patient Search
       const matchesPatient = listSearchPatient === '' ||
-        appt.patient_name.toLowerCase().includes(listSearchPatient.toLowerCase());
+        (appt.patient_name || '').toLowerCase().includes(listSearchPatient.toLowerCase());
 
       // 3. Specific Date Filter
       const matchesDate = listFilterDate === '' || appt.appointment_date === listFilterDate;
 
       // 4. Specific Month Filter
-      const matchesMonth = listFilterMonth === '' || appt.appointment_date.startsWith(listFilterMonth);
+      const matchesMonth = listFilterMonth === '' || (appt.appointment_date && appt.appointment_date.startsWith(listFilterMonth));
 
       return matchesSearch && matchesDoctor && matchesPatient && matchesDate && matchesMonth;
     });
@@ -140,6 +142,7 @@ const DoctorAppointmentPage: React.FC<DoctorAppointmentPageProps> = ({
 
   useEffect(() => {
     const calculateTotals = () => {
+      if (!Array.isArray(appointments)) return;
       let currentDoctorDailySum = 0;
       let currentDoctorMonthlySum = 0;
       let allDoctorsDailySum = 0;
@@ -152,41 +155,41 @@ const DoctorAppointmentPage: React.FC<DoctorAppointmentPageProps> = ({
       const selectedDoctorId = formData.doctor_id;
 
       appointments.forEach(appt => {
-        const apptDateStr = appt.appointment_date;
+        if (!appt) return;
+        const apptDateStr = appt.appointment_date || '';
         const apptDateObj = new Date(apptDateStr);
 
         if (apptDateStr === selectedDateForDailyReport && (appt.status === 'Completed' || appt.status === 'Scheduled')) {
-            allDoctorsDailySum += appt.doctor_fee;
+            allDoctorsDailySum += (appt.doctor_fee || 0);
         }
         if (appt.return_date === selectedDateForDailyReport && appt.status === 'Returned') {
-            allDoctorsDailySum -= appt.doctor_fee;
+            allDoctorsDailySum -= (appt.doctor_fee || 0);
         }
 
         if (apptDateObj.getMonth() === selectedMonth && apptDateObj.getFullYear() === selectedYear && (appt.status === 'Completed' || appt.status === 'Scheduled')) {
-            allDoctorsMonthlySum += appt.doctor_fee;
+            allDoctorsMonthlySum += (appt.doctor_fee || 0);
         }
         if (appt.return_date) {
             const retDate = new Date(appt.return_date);
             if (retDate.getMonth() === selectedMonth && retDate.getFullYear() === selectedYear && appt.status === 'Returned') {
-                allDoctorsMonthlySum -= appt.doctor_fee;
+                allDoctorsMonthlySum -= (appt.doctor_fee || 0);
             }
         }
         
         if (selectedDoctorId && appt.doctor_id === selectedDoctorId) {
             if (apptDateStr === selectedDateForDailyReport && (appt.status === 'Completed' || appt.status === 'Scheduled')) {
-                currentDoctorDailySum += appt.doctor_fee;
+                currentDoctorDailySum += (appt.doctor_fee || 0);
             }
             if (appt.return_date === selectedDateForDailyReport && appt.status === 'Returned') {
-                currentDoctorDailySum -= appt.doctor_fee;
+                currentDoctorDailySum -= (appt.doctor_fee || 0);
             }
-
             if (apptDateObj.getMonth() === selectedMonth && apptDateObj.getFullYear() === selectedYear && (appt.status === 'Completed' || appt.status === 'Scheduled')) {
-                currentDoctorMonthlySum += appt.doctor_fee;
+                currentDoctorMonthlySum += (appt.doctor_fee || 0);
             }
             if (appt.return_date) {
                 const retDate = new Date(appt.return_date);
                 if (retDate.getMonth() === selectedMonth && retDate.getFullYear() === selectedYear && appt.status === 'Returned') {
-                    currentDoctorMonthlySum -= appt.doctor_fee;
+                    currentDoctorMonthlySum -= (appt.doctor_fee || 0);
                 }
             }
         }

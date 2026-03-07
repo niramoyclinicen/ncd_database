@@ -20,10 +20,11 @@ const PrevDueCollectionPage: React.FC<Props> = ({ invoices, setInvoices, dueColl
     const [successMessage, setSuccessMessage] = useState('');
 
     const filteredInvoices = useMemo(() => {
+        if (!Array.isArray(invoices)) return [];
         return invoices.filter(inv => 
-            inv.due_amount > 0.5 && 
-            (inv.invoice_id.toLowerCase().includes(searchTerm.toLowerCase()) || 
-             inv.patient_name.toLowerCase().includes(searchTerm.toLowerCase()))
+            inv && inv.due_amount > 0.5 && 
+            ((inv.invoice_id || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
+             (inv.patient_name || '').toLowerCase().includes(searchTerm.toLowerCase()))
         );
     }, [searchTerm, invoices]);
 

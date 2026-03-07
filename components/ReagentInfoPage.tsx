@@ -20,21 +20,25 @@ const ReagentInfoPage: React.FC<ReagentInfoPageProps> = ({ reagents, setReagents
     const [requisitionItems, setRequisitionItems] = useState<string[]>([]); // Array of reagent IDs
 
     const filteredReagents = useMemo(() => {
+        if (!Array.isArray(reagents)) return [];
         return reagents.filter(r =>
-            r.reagent_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            r.reagent_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            (r.company && r.company.toLowerCase().includes(searchTerm.toLowerCase()))
+            r && (
+                (r.reagent_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                (r.reagent_id || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                (r.company && r.company.toLowerCase().includes(searchTerm.toLowerCase()))
+            )
         );
     }, [searchTerm, reagents]);
 
     const stats = useMemo(() => {
+        if (!Array.isArray(reagents)) return { expiringSoon: [], expired: [], lowStock: [] };
         const today = new Date();
         const threeMonthsFromNow = new Date();
         threeMonthsFromNow.setMonth(today.getMonth() + 3);
 
-        const expiringSoon = reagents.filter(r => r.expiry_date && new Date(r.expiry_date) <= threeMonthsFromNow && new Date(r.expiry_date) >= today);
-        const expired = reagents.filter(r => r.expiry_date && new Date(r.expiry_date) < today);
-        const lowStock = reagents.filter(r => r.quantity < 5);
+        const expiringSoon = reagents.filter(r => r && r.expiry_date && new Date(r.expiry_date) <= threeMonthsFromNow && new Date(r.expiry_date) >= today);
+        const expired = reagents.filter(r => r && r.expiry_date && new Date(r.expiry_date) < today);
+        const lowStock = reagents.filter(r => r && r.quantity < 5);
 
         return { expiringSoon, expired, lowStock };
     }, [reagents]);

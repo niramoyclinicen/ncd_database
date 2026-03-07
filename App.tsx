@@ -77,30 +77,30 @@ const App: React.FC = () => {
   // --- DATA LOADING ---
   useEffect(() => {
     const loadData = async () => {
-      const loadedData = await dbService.loadFromCloud({});
+      const loadedData = await dbService.loadFromCloud(null);
       
-      if (loadedData) {
-        setPatients(loadedData.patients || []);
-        setDoctors(loadedData.doctors || []);
-        setReferrars(loadedData.referrars || []);
-        setTests(loadedData.tests || []);
-        setReagents(loadedData.reagents || []);
-        setLabInvoices(loadedData.labInvoices || []);
-        setDueCollections(loadedData.dueCollections || []);
-        setReports(loadedData.reports || []);
-        setEmployees(loadedData.employees || []);
-        setMedicines(loadedData.medicines || []);
-        setClinicalDrugs(loadedData.clinicalDrugs || []);
-        setPurchaseInvoices(loadedData.purchaseInvoices || []);
-        setSalesInvoices(loadedData.salesInvoices || []);
-        setAdmissions(loadedData.admissions || []);
-        setIndoorInvoices(loadedData.indoorInvoices || []);
-        setDetailedExpenses(loadedData.detailedExpenses || {});
-        setPrescriptions(loadedData.prescriptions || []);
-        setAppointments(loadedData.appointments || []);
-        setAttendanceLog(loadedData.attendanceLog || {});
-        setLeaveLog(loadedData.leaveLog || {});
-        setMonthlyRoster(loadedData.monthlyRoster || {});
+      if (loadedData && Object.keys(loadedData).length > 0) {
+        if (loadedData.patients) setPatients(loadedData.patients);
+        if (loadedData.doctors) setDoctors(loadedData.doctors);
+        if (loadedData.referrars) setReferrars(loadedData.referrars);
+        if (loadedData.tests) setTests(loadedData.tests);
+        if (loadedData.reagents) setReagents(loadedData.reagents);
+        if (loadedData.labInvoices) setLabInvoices(loadedData.labInvoices);
+        if (loadedData.dueCollections) setDueCollections(loadedData.dueCollections);
+        if (loadedData.reports) setReports(loadedData.reports);
+        if (loadedData.employees) setEmployees(loadedData.employees);
+        if (loadedData.medicines) setMedicines(loadedData.medicines);
+        if (loadedData.clinicalDrugs) setClinicalDrugs(loadedData.clinicalDrugs);
+        if (loadedData.purchaseInvoices) setPurchaseInvoices(loadedData.purchaseInvoices);
+        if (loadedData.salesInvoices) setSalesInvoices(loadedData.salesInvoices);
+        if (loadedData.admissions) setAdmissions(loadedData.admissions);
+        if (loadedData.indoorInvoices) setIndoorInvoices(loadedData.indoorInvoices);
+        if (loadedData.detailedExpenses) setDetailedExpenses(loadedData.detailedExpenses);
+        if (loadedData.prescriptions) setPrescriptions(loadedData.prescriptions);
+        if (loadedData.appointments) setAppointments(loadedData.appointments);
+        if (loadedData.attendanceLog) setAttendanceLog(loadedData.attendanceLog);
+        if (loadedData.leaveLog) setLeaveLog(loadedData.leaveLog);
+        if (loadedData.monthlyRoster) setMonthlyRoster(loadedData.monthlyRoster);
       }
       setIsDataLoaded(true);
     };
@@ -134,7 +134,10 @@ const App: React.FC = () => {
 
   // --- HANDLERS ---
   const handleDepartmentLogin = (password: string, dept: keyof DepartmentPasswords, role: UserRole, targetView: ViewState) => {
-    if (password === passwords[dept]) {
+    const enteredPwd = password.trim();
+    const storedPwd = (passwords[dept] || '').trim();
+    
+    if (enteredPwd === storedPwd) {
       if (dept === 'ADMIN') {
         setIsAdminLoggedIn(true);
       }

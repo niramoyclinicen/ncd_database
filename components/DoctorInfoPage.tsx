@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Doctor, emptyDoctor } from './DiagnosticData';
 
 interface DoctorInfoPageProps {
@@ -27,10 +27,13 @@ const DoctorInfoPage: React.FC<DoctorInfoPageProps> = ({ doctors, setDoctors, is
   }, [successMessage]);
 
   const filteredDoctors = useMemo(() => {
+    if (!Array.isArray(doctors)) return [];
     if (isEmbedded) return doctors;
     return doctors.filter(doctor =>
-      doctor.doctor_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      doctor.doctor_id.toLowerCase().includes(searchTerm.toLowerCase())
+      doctor && (
+        (doctor.doctor_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (doctor.doctor_id || '').toLowerCase().includes(searchTerm.toLowerCase())
+      )
     );
   }, [searchTerm, doctors, isEmbedded]);
 

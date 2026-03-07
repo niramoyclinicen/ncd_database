@@ -86,8 +86,9 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
   const currentPeriodKey = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}`;
 
   const periodEmployees = useMemo(() => {
+    if (!Array.isArray(employees)) return [];
     const activeIds = monthlyRoster[currentPeriodKey] || [];
-    return employees.filter(e => activeIds.includes(e.emp_id) && e.status === 'Active');
+    return employees.filter(e => e && activeIds.includes(e.emp_id) && e.status === 'Active');
   }, [employees, monthlyRoster, currentPeriodKey]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -418,7 +419,7 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
                     <tr><th className="p-5 text-left">ID & Machine</th><th className="p-5 text-left">Full Name</th><th className="p-5 text-left">Dept & Position</th><th className="p-5 text-right">Basic Salary</th><th className="p-5 text-center">Status</th></tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {employees.filter(e => e.emp_name.toLowerCase().includes(searchTerm.toLowerCase())).map((e) => (
+                    {Array.isArray(employees) && employees.filter(e => e && (e.emp_name || '').toLowerCase().includes(searchTerm.toLowerCase())).map((e) => (
                     <tr key={e.emp_id} onClick={() => handleRowClick(e)} className={`cursor-pointer hover:bg-slate-50 dark:hover:bg-blue-900/10 transition-all ${selectedEmployeeId === e.emp_id ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}>
                         <td className="p-5 font-mono text-xs text-blue-600">#{e.emp_id}<div className="text-[10px] text-amber-600 font-bold mt-1">HID: {e.machine_id || '---'}</div></td>
                         <td className="p-5 font-bold text-slate-700 dark:text-slate-200 text-base">{e.emp_name}<div className="text-[10px] text-slate-400 font-medium uppercase mt-1">{e.mobile} | {e.gender}</div></td>
@@ -458,7 +459,7 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
                         <tr><th className="p-5 text-center w-20">Active</th><th className="p-5">ID</th><th className="p-5">Staff Member</th><th className="p-5">Job Position</th><th className="p-5 text-right">Basic Salary</th></tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                        {employees.filter(e => e.status === 'Active' && e.emp_name.toLowerCase().includes(searchTerm.toLowerCase())).map((emp) => {
+                        {Array.isArray(employees) && employees.filter(e => e && e.status === 'Active' && (e.emp_name || '').toLowerCase().includes(searchTerm.toLowerCase())).map((emp) => {
                             const isSelected = (monthlyRoster[currentPeriodKey] || []).includes(emp.emp_id);
                             return (
                                 <tr key={emp.emp_id} className={`hover:bg-slate-50 dark:hover:bg-blue-900/10 transition-all ${isSelected ? 'bg-blue-50/50 dark:bg-blue-900/5' : ''}`}>

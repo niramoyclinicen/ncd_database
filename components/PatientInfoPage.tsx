@@ -14,8 +14,10 @@ interface PatientInfoPageProps {
 // --- Simple Pie Chart Component ---
 const AddressPieChart: React.FC<{ patients: Patient[] }> = ({ patients }) => {
     const addressCounts = useMemo(() => {
+        if (!Array.isArray(patients)) return {};
         const counts: Record<string, number> = {};
         patients.forEach(p => {
+            if (!p) return;
             const addr = p.address ? p.address.trim() : 'Unknown';
             counts[addr] = (counts[addr] || 0) + 1;
         });

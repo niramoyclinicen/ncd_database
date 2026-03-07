@@ -28,9 +28,11 @@ const TestInfoPage: React.FC<Props> = ({ reagents, tests, setTests }) => {
   }, [successMessage]);
 
   const filteredTests = useMemo(() => {
+    if (!Array.isArray(tests)) return [];
     return tests.filter(test => {
-      const matchesSearch = test.test_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          test.test_id.toLowerCase().includes(searchTerm.toLowerCase());
+      if (!test) return false;
+      const matchesSearch = (test.test_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          (test.test_id || '').toLowerCase().includes(searchTerm.toLowerCase());
       const matchesCategory = selectedFilterCategory === 'All' || test.category === selectedFilterCategory;
       return matchesSearch && matchesCategory;
     });
