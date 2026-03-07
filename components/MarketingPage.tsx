@@ -2,10 +2,11 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { 
   UsersIcon, SearchIcon, ChartIcon, MapPinIcon, BackIcon, DiagnosticIcon, 
-  ClinicIcon, PhoneIcon, Activity, TrendingUpIcon, PieChartIcon, MoneyIcon, SaveIcon, PlusIcon, ClipboardIcon
+  ClinicIcon, PhoneIcon, Activity, TrendingUpIcon, PieChartIcon, MoneyIcon, SaveIcon, PlusIcon, ClipboardIcon, BarChart3
 } from './Icons';
 // Importing IndoorInvoice from its correct source: DiagnosticData.ts
 import { Referrar, LabInvoice, Patient, Employee, MarketingTarget, CommissionPayment, FieldVisitLog, IndoorInvoice } from './DiagnosticData';
+import ContributionReportPage from './ContributionReportPage';
 
 interface MarketingPageProps {
   onBack: () => void;
@@ -29,7 +30,7 @@ const MarketingPage: React.FC<MarketingPageProps> = ({
   onBack, referrars, labInvoices, indoorInvoices, patients, employees,
   employeeReferrerMap, setEmployeeReferrerMap
 }) => {
-  const [activeTab, setActiveTab] = useState<'analytics' | 'commission' | 'targets' | 'visits'>('analytics');
+  const [activeTab, setActiveTab] = useState<'marketing_management' | 'analytics' | 'commission' | 'targets' | 'visits'>('marketing_management');
   const [searchTerm, setSearchTerm] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [setupView, setSetupView] = useState<'mapping' | 'targets'>('mapping');
@@ -520,6 +521,7 @@ const MarketingPage: React.FC<MarketingPageProps> = ({
           </div>
           
           <div className="flex bg-slate-800 p-1.5 rounded-[1.5rem] border border-slate-700 shadow-inner">
+            <button onClick={() => setActiveTab('marketing_management')} className={`px-6 py-2.5 rounded-2xl font-black text-[10px] uppercase transition-all ${activeTab === 'marketing_management' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500'}`}>Marketing Management</button>
             <button onClick={() => setActiveTab('analytics')} className={`px-6 py-2.5 rounded-2xl font-black text-[10px] uppercase transition-all ${activeTab === 'analytics' ? 'bg-cyan-600 text-white shadow-lg' : 'text-slate-500'}`}>Analytics</button>
             <button onClick={() => setActiveTab('commission')} className={`px-6 py-2.5 rounded-2xl font-black text-[10px] uppercase transition-all ${activeTab === 'commission' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-500'}`}>Commission</button>
             <button onClick={() => setActiveTab('targets')} className={`px-6 py-2.5 rounded-2xl font-black text-[10px] uppercase transition-all ${activeTab === 'targets' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500'}`}>Targets</button>
@@ -529,6 +531,15 @@ const MarketingPage: React.FC<MarketingPageProps> = ({
       </header>
 
       <main className="flex-1 p-6 md:p-10 max-w-7xl mx-auto w-full space-y-10">
+        {activeTab === 'marketing_management' && (
+          <ContributionReportPage 
+            employees={employees}
+            referrars={referrars}
+            invoices={labInvoices}
+            employeeReferrerMap={employeeReferrerMap}
+            setEmployeeReferrerMap={setEmployeeReferrerMap}
+          />
+        )}
         {activeTab === 'analytics' && renderAnalytics()}
         {activeTab === 'commission' && renderCommissionLedger()}
         {activeTab === 'targets' && renderTargetSystem()}

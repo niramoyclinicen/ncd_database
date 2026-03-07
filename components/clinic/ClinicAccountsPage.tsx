@@ -321,22 +321,40 @@ const ClinicAccountsPage: React.FC<any> = ({
     }, [detailedExpenses, expSearch, expDateSearch, expMonthSearch, expYearSearch, expCategorySearch]);
 
     const clinicMonthlyExpenseSheetData = useMemo(() => {
-        const expensesByCategory: Record<string, number> = {};
-        clinicExpenseCategories.forEach(cat => expensesByCategory[cat] = 0);
-        
-        Object.entries(detailedExpenses).forEach(([date, items]: any) => {
-            const [y, m] = date.split('-').map(Number);
-            if (m - 1 === selectedMonth && y === selectedYear) {
-                items.forEach((it: any) => {
-                    if (it.dept === 'Clinic') {
-                        expensesByCategory[it.category] = (expensesByCategory[it.category] || 0) + it.paidAmount;
-                    }
-                });
-            }
-        });
+        const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
+        const rows = [];
+        const columnTotals: Record<string, number> = {};
+        clinicExpenseCategories.forEach(cat => columnTotals[cat] = 0);
 
-        const totalExpense = Object.values(expensesByCategory).reduce((s, v) => s + v, 0);
-        return { expensesByCategory, totalExpense };
+        for (let day = 1; day <= daysInMonth; day++) {
+            const dateStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            const dailyExps = (detailedExpenses[dateStr] || []).filter((it: any) => it.dept === 'Clinic');
+            
+            const rowCategories: Record<string, number> = {};
+            clinicExpenseCategories.forEach(cat => rowCategories[cat] = 0);
+            
+            let dayTotal = 0;
+            dailyExps.forEach((exp: any) => {
+                if (clinicExpenseCategories.includes(exp.category)) {
+                    rowCategories[exp.category] += exp.paidAmount;
+                    columnTotals[exp.category] += exp.paidAmount;
+                    dayTotal += exp.paidAmount;
+                } else {
+                    rowCategories['Others'] = (rowCategories['Others'] || 0) + exp.paidAmount;
+                    columnTotals['Others'] = (columnTotals['Others'] || 0) + exp.paidAmount;
+                    dayTotal += exp.paidAmount;
+                }
+            });
+
+            rows.push({
+                date: dateStr,
+                categories: rowCategories,
+                total: dayTotal
+            });
+        }
+
+        const grandTotal = Object.values(columnTotals).reduce((a, b) => a + b, 0);
+        return { rows, columnTotals, grandTotal };
     }, [selectedMonth, selectedYear, detailedExpenses]);
 
     const dailySummaryData = useMemo(() => {
@@ -665,61 +683,132 @@ const ClinicAccountsPage: React.FC<any> = ({
         const win = window.open('', '_blank');
         if(!win) return;
         const monthName = monthOptions[selectedMonth].name;
-        const { expensesByCategory, totalExpense } = clinicMonthlyExpenseSheetData;
+        const { rows, columnTotals, grandTotal } = clinicMonthlyExpenseSheetData;
 
         const html = `
+            <!DOCTYPE html>
             <html>
                 <head>
-                    <title>Monthly Clinic Expense Sheet - ${monthName} ${selectedYear}</title>
-                    <script src="https://cdn.tailwindcss.com"></script>
+                    <title>Clinic Expense Sheet - ${monthName} ${selectedYear}</title>
                     <style>
-                        @page { size: A4; margin: 10mm; }
-                        body { font-family: 'Segoe UI', sans-serif; }
-                        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-                        th, td { border: 1px solid black; padding: 8px; text-align: left; }
-                        th { background: #f3f4f6; font-weight: bold; text-transform: uppercase; }
-                        .text-right { text-align: right; }
+                        @page { 
+                            size: A4 landscape; 
+                            margin: 3mm; 
+                        }
+                        body { 
+                            font-family: 'Arial Narrow', sans-serif; 
+                            background: white; 
+                            color: black; 
+                            margin: 0; 
+                            padding: 0; 
+                            width: 100%;
+                        }
+                        .header {
+                            display: flex;
+                            justify-content: space-between;
+                            align-items: flex-end;
+                            border-bottom: 1px solid black;
+                            margin-bottom: 2px;
+                            padding-bottom: 1px;
+                        }
+                        .header h1 {
+                            margin: 0;
+                            font-size: 12pt;
+                            color: #1e3a8a;
+                            text-transform: uppercase;
+                        }
+                        .header p {
+                            margin: 0;
+                            font-size: 7.5pt;
+                            font-weight: bold;
+                            text-transform: uppercase;
+                        }
+                        table { 
+                            width: 100%; 
+                            border-collapse: collapse; 
+                            table-layout: fixed; 
+                        }
+                        th, td { 
+                            border: 1px solid black; 
+                            padding: 1px; 
+                            text-align: center; 
+                            font-size: 7.5pt; 
+                            word-wrap: break-word; 
+                            line-height: 1;
+                            height: 13.8pt;
+                        }
+                        th { 
+                            background: #f3f4f6; 
+                            font-weight: bold; 
+                            text-transform: uppercase; 
+                            font-size: 6.5pt; 
+                        }
+                        .total-row {
+                            background: #f3f4f6;
+                            font-weight: bold;
+                        }
+                        .grand-total {
+                            color: #047857;
+                            background: #ecfdf5;
+                            font-size: 8.5pt;
+                        }
+                        .footer {
+                            margin-top: 3mm;
+                            display: flex;
+                            justify-content: space-between;
+                            padding: 0 60px;
+                            font-size: 7.5pt;
+                            font-weight: bold;
+                            text-transform: uppercase;
+                            color: #6b7280;
+                        }
+                        .sig-box {
+                            width: 150px;
+                            border-top: 1px solid black;
+                            text-align: center;
+                            padding-top: 2px;
+                        }
                     </style>
                 </head>
-                <body class="p-6">
-                    <div class="text-center mb-8 border-b-2 border-black pb-4">
-                        <h1 class="text-2xl font-black uppercase text-blue-900">Niramoy Clinic & Diagnostic</h1>
-                        <p class="text-sm font-bold">Monthly Clinic Operating Expense Sheet</p>
-                        <p class="text-lg font-black mt-2 underline uppercase">${monthName} ${selectedYear}</p>
+                <body>
+                    <div class="header">
+                        <h1>Niramoy Clinic & Diagnostic</h1>
+                        <p>Monthly Clinic Expense Ledger - ${monthName} ${selectedYear}</p>
                     </div>
                     <table>
                         <thead>
                             <tr>
-                                <th style="width: 10%">SL</th>
-                                <th style="width: 60%">Expense Category</th>
-                                <th style="width: 30%" class="text-right">Total Amount</th>
+                                <th style="width: 35px">Date</th>
+                                ${clinicExpenseCategories.map(cat => `<th title="${cat}">${expenseCategoryBanglaMap[cat] || cat}</th>`).join('')}
+                                <th style="width: 55px" style="background: #e5e7eb">Total</th>
                             </tr>
                         </thead>
                         <tbody>
-                            ${clinicExpenseCategories.map((cat, idx) => `
+                            ${rows.map(row => `
                                 <tr>
-                                    <td>${idx + 1}</td>
-                                    <td class="font-bold">${expenseCategoryBanglaMap[cat] || cat}</td>
-                                    <td class="text-right font-black">৳${(expensesByCategory[cat] || 0).toLocaleString()}</td>
+                                    <td style="font-weight: bold">${row.date.split('-')[2]} ${monthName.substring(0,3)}</td>
+                                    ${clinicExpenseCategories.map(cat => `<td>${row.categories[cat] > 0 ? row.categories[cat].toLocaleString() : '-'}</td>`).join('')}
+                                    <td style="font-weight: 900; background: #f9fafb">৳${row.total > 0 ? row.total.toLocaleString() : '-'}</td>
                                 </tr>
                             `).join('')}
                         </tbody>
-                        <tfoot class="bg-gray-100 font-black">
+                        <tfoot class="total-row">
                             <tr>
-                                <td colspan="2" class="text-right uppercase">Grand Total Monthly Expense:</td>
-                                <td class="text-right text-xl">৳${totalExpense.toLocaleString()}</td>
+                                <td style="text-transform: uppercase">TOTAL:</td>
+                                ${clinicExpenseCategories.map(cat => `<td>${columnTotals[cat] > 0 ? columnTotals[cat].toLocaleString() : '-'}</td>`).join('')}
+                                <td class="grand-total">৳${grandTotal.toLocaleString()}</td>
                             </tr>
                         </tfoot>
                     </table>
-                    <div class="mt-20 flex justify-between px-10 text-xs font-bold uppercase text-gray-400">
-                        <div class="text-center w-40 border-t border-black pt-1">Accountant</div>
-                        <div class="text-center w-56 border-t border-black pt-1">Managing Director</div>
+                    <div class="footer">
+                        <div class="sig-box">Accountant</div>
+                        <div class="sig-box">Managing Director</div>
                     </div>
                 </body>
             </html>
         `;
         win.document.write(html); win.document.close();
-        setTimeout(() => { win.print(); win.close(); }, 750);
+        setTimeout(() => { win.print(); win.close(); }, 500);
     };
 
     const handlePrintSummary = () => {
@@ -1019,37 +1108,52 @@ const ClinicAccountsPage: React.FC<any> = ({
                 )}
 
                 {viewMode === 'monthly_expense' && (
-                    <div className="max-w-4xl mx-auto space-y-8 animate-fade-in">
+                    <div className="w-full space-y-8 animate-fade-in">
                         <div className="flex justify-between items-center bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-xl no-print">
                             <h2 className="text-xl font-black text-white uppercase">Monthly Clinic Expense Sheet: {monthOptions[selectedMonth].name} {selectedYear}</h2>
                             <div className="flex gap-4">
-                                <button onClick={handlePrintMonthlyExpenseSheet} className="bg-rose-600 text-white px-6 py-2 rounded-xl text-xs font-black uppercase flex items-center gap-2 transition-all shadow-lg active:scale-95"><PrinterIcon size={14}/> Print Expense Sheet</button>
+                                <button onClick={handlePrintMonthlyExpenseSheet} className="bg-rose-600 text-white px-6 py-2 rounded-xl text-xs font-black uppercase flex items-center gap-2 transition-all shadow-lg active:scale-95"><PrinterIcon size={14}/> Print A4 Landscape</button>
                                 <select value={selectedMonth} onChange={e => setSelectedMonth(parseInt(e.target.value))} className="bg-slate-900 border border-slate-700 p-2 rounded text-white text-xs font-bold">{monthOptions.map(m => <option key={m.value} value={m.value}>{m.name}</option>)}</select>
                                 <select value={selectedYear} onChange={e => setSelectedYear(parseInt(e.target.value))} className="bg-slate-900 border border-slate-700 p-2 rounded text-white text-xs font-bold">{[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}</select>
                             </div>
                         </div>
-                        <div className="bg-slate-800 p-8 rounded-3xl border border-slate-700 shadow-2xl">
-                            <table className="w-full text-left border-collapse">
-                                <thead className="bg-slate-900 text-slate-500 text-[10px] uppercase font-black tracking-widest border-b border-slate-700">
+                        <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-2xl overflow-x-auto">
+                            <table className="w-full text-left border-collapse min-w-[1200px]">
+                                <thead className="bg-slate-50 text-slate-500 text-[10px] uppercase font-black tracking-widest border-b border-slate-200">
                                     <tr>
-                                        <th className="p-4">SL</th>
-                                        <th className="p-4">Expense Category</th>
-                                        <th className="p-4 text-right">Total Amount</th>
+                                        <th className="p-2 border border-slate-200 w-20">Date</th>
+                                        {clinicExpenseCategories.map(cat => (
+                                            <th key={cat} className="p-2 border border-slate-200 text-center">{expenseCategoryBanglaMap[cat] || cat}</th>
+                                        ))}
+                                        <th className="p-2 border border-slate-200 text-right bg-slate-100">Total</th>
                                     </tr>
                                 </thead>
-                                <tbody className="divide-y divide-slate-800 text-sm">
-                                    {clinicExpenseCategories.map((cat, idx) => (
-                                        <tr key={cat} className="hover:bg-slate-700/30 transition-colors">
-                                            <td className="p-4 text-slate-500 font-mono">{idx + 1}</td>
-                                            <td className="p-4 font-bold text-slate-200">{expenseCategoryBanglaMap[cat] || cat}</td>
-                                            <td className="p-4 text-right font-black text-rose-400">৳{(clinicMonthlyExpenseSheetData.expensesByCategory[cat] || 0).toLocaleString()}</td>
+                                <tbody className="text-[11px]">
+                                    {clinicMonthlyExpenseSheetData.rows.map((row) => (
+                                        <tr key={row.date} className="hover:bg-slate-50 transition-colors border-b border-slate-100">
+                                            <td className="p-2 border border-slate-200 font-bold text-slate-700">{row.date.split('-')[2]} {monthOptions[selectedMonth].name.substring(0,3)}</td>
+                                            {clinicExpenseCategories.map(cat => (
+                                                <td key={cat} className="p-2 border border-slate-200 text-center text-slate-600">
+                                                    {row.categories[cat] > 0 ? row.categories[cat].toLocaleString() : '-'}
+                                                </td>
+                                            ))}
+                                            <td className="p-2 border border-slate-200 text-right font-black text-rose-600 bg-rose-50/30">
+                                                ৳{row.total > 0 ? row.total.toLocaleString() : '-'}
+                                            </td>
                                         </tr>
                                     ))}
                                 </tbody>
                                 <tfoot className="bg-slate-900 text-white font-black border-t-2 border-slate-700">
                                     <tr>
-                                        <td colSpan={2} className="p-6 text-right uppercase tracking-widest text-xs">Grand Total Monthly Clinic Expense:</td>
-                                        <td className="p-6 text-right text-2xl text-rose-500 underline decoration-double">৳{clinicMonthlyExpenseSheetData.totalExpense.toLocaleString()}</td>
+                                        <td className="p-4 border border-slate-700 uppercase text-[10px]">Total:</td>
+                                        {clinicExpenseCategories.map(cat => (
+                                            <td key={cat} className="p-4 border border-slate-700 text-center">
+                                                ৳{clinicMonthlyExpenseSheetData.columnTotals[cat].toLocaleString()}
+                                            </td>
+                                        ))}
+                                        <td className="p-4 border border-slate-700 text-right text-xl text-emerald-400">
+                                            ৳{clinicMonthlyExpenseSheetData.grandTotal.toLocaleString()}
+                                        </td>
                                     </tr>
                                 </tfoot>
                             </table>

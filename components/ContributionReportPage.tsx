@@ -701,7 +701,7 @@ const ContributionReportPage: React.FC<ContributionReportPageProps> = ({
       <div className="flex justify-between items-center mb-6 border-b border-slate-700 pb-4 shrink-0">
         <h2 className="text-2xl font-bold text-slate-100 flex items-center gap-2">
             <BarChart3 className="w-7 h-7 text-cyan-400" />
-            Marketing Analytics
+            Marketing Management
         </h2>
         <div className="flex bg-slate-800 rounded-lg p-1">
             <button

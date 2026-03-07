@@ -361,7 +361,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
 
             const prevClinicDue = dueCollections.filter(dc => isBeforeSelectedMonth(dc.collection_date) && !dc.invoice_id.startsWith('INV')).reduce((s, dc) => s + dc.amount_collected, 0);
             
-            const prevMedSalesOutdoor = salesInvoices.filter(inv => isBeforeSelectedMonth(inv.invoiceDate)).reduce((s, i) => s + i.netPayable, 0);
+            const prevMedSalesOutdoor = salesInvoices.filter(inv => isBeforeSelectedMonth(inv.invoiceDate) && inv.status !== 'Cancelled' && inv.status !== 'Returned').reduce((s, i) => s + i.netPayable, 0);
             const prevMedSalesIndoor = indoorInvoices.filter(inv => {
                 const dateToUse = inv.admission_date || inv.invoice_date;
                 return isBeforeSelectedMonth(dateToUse) && inv.status !== 'Cancelled' && inv.status !== 'Returned';
@@ -401,7 +401,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
         const clinicCurrent = clinicRevenueCurrent;
         const clinicDue = dueCollections.filter(dc => isSelectedMonth(dc.collection_date) && !dc.invoice_id.startsWith('INV')).reduce((s, dc) => s + dc.amount_collected, 0);
         
-        const medSalesOutdoor = salesInvoices.filter(inv => isSelectedMonth(inv.invoiceDate)).reduce((s, i) => s + i.netPayable, 0);
+        const medSalesOutdoor = salesInvoices.filter(inv => isSelectedMonth(inv.invoiceDate) && inv.status !== 'Cancelled' && inv.status !== 'Returned').reduce((s, i) => s + i.netPayable, 0);
         const medSalesIndoor = indoorInvoices.filter(inv => {
             const dateToUse = inv.admission_date || inv.invoice_date;
             return isSelectedMonth(dateToUse) && inv.status !== 'Cancelled' && inv.status !== 'Returned';

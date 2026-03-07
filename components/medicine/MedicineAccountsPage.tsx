@@ -24,22 +24,35 @@ const MedicineAccountsPage: React.FC<MedicineAccountsPageProps> = ({
     const [manualProfitDistAmount, setManualProfitDistAmount] = useState<number>(0); 
 
     const stats = useMemo(() => {
+        const isSelectedMonth = (dateStr: string) => {
+            if (!dateStr) return false;
+            const [y, m] = dateStr.split('-').map(Number);
+            return m - 1 === selectedMonth && y === selectedYear;
+        };
+
+        const isBeforeSelectedMonth = (dateStr: string) => {
+            if (!dateStr) return false;
+            const [y, m] = dateStr.split('-').map(Number);
+            return y < selectedYear || (y === selectedYear && m - 1 < selectedMonth);
+        };
+
         // Calculate Current Month Stats
         // Exclude 'Initial' status from current expenses (Opening stock fix)
         const currentInvoices = purchaseInvoices.filter(inv => {
             if (inv.status === 'Initial' || inv.status === 'Cancelled') return false;
-            const d = new Date(inv.invoiceDate);
-            return d.getMonth() === selectedMonth && d.getFullYear() === selectedYear;
+            return isSelectedMonth(inv.invoiceDate);
         });
 
         const currentOutdoorSales = salesInvoices.filter(inv => {
-            const d = new Date(inv.invoiceDate);
-            return d.getMonth() === selectedMonth && d.getFullYear() === selectedYear;
+            // @ts-expect-error - status might exist even if not in type
+            if (inv.status === 'Cancelled' || inv.status === 'Returned') return false;
+            return isSelectedMonth(inv.invoiceDate);
         });
 
         const currentIndoorSales = indoorInvoices.filter(inv => {
-            const d = new Date(inv.invoice_date);
-            return d.getMonth() === selectedMonth && d.getFullYear() === selectedYear;
+            if (inv.status === 'Cancelled' || inv.status === 'Returned') return false;
+            const dateToUse = inv.admission_date || inv.invoice_date;
+            return isSelectedMonth(dateToUse);
         });
 
         // Summing values
@@ -57,18 +70,19 @@ const MedicineAccountsPage: React.FC<MedicineAccountsPageProps> = ({
         // Cumulative Stats (Previous Months)
         const prevPurchaseTotal = purchaseInvoices.filter(inv => {
             if (inv.status === 'Cancelled' || inv.status === 'Initial') return false;
-            const d = new Date(inv.invoiceDate);
-            return d.getFullYear() < selectedYear || (d.getFullYear() === selectedYear && d.getMonth() < selectedMonth);
+            return isBeforeSelectedMonth(inv.invoiceDate);
         }).reduce((sum, inv) => sum + inv.netPayable, 0);
 
         const prevOutdoorTotal = salesInvoices.filter(inv => {
-            const d = new Date(inv.invoiceDate);
-            return d.getFullYear() < selectedYear || (d.getFullYear() === selectedYear && d.getMonth() < selectedMonth);
+            // @ts-expect-error - status property is missing in SalesInvoice type but present in runtime data
+            if (inv.status === 'Cancelled' || inv.status === 'Returned') return false;
+            return isBeforeSelectedMonth(inv.invoiceDate);
         }).reduce((sum, inv) => sum + inv.netPayable, 0);
 
         const prevIndoorTotal = indoorInvoices.filter(inv => {
-            const d = new Date(inv.invoice_date);
-            return d.getFullYear() < selectedYear || (d.getFullYear() === selectedYear && d.getMonth() < selectedMonth);
+            if (inv.status === 'Cancelled' || inv.status === 'Returned') return false;
+            const dateToUse = inv.admission_date || inv.invoice_date;
+            return isBeforeSelectedMonth(dateToUse);
         }).reduce((sum, inv) => {
              const medItemsTotal = inv.items
                 .filter(it => it.service_type === 'Medicine')
@@ -84,20 +98,31 @@ const MedicineAccountsPage: React.FC<MedicineAccountsPageProps> = ({
 
         // Monthly List Generation for Chart
         const monthlyData: Record<string, { buy: number, sell: number }> = {};
-        [...purchaseInvoices, ...salesInvoices].forEach(inv => {
+        purchaseInvoices.forEach(inv => {
             if (inv.status === 'Cancelled' || inv.status === 'Initial') return;
-            const d = new Date(inv.invoiceDate);
-            if (d.getFullYear() === selectedYear) {
-                const monthName = monthOptions[d.getMonth()].name;
+            const [y, m] = inv.invoiceDate.split('-').map(Number);
+            if (y === selectedYear) {
+                const monthName = monthOptions[m - 1].name;
                 if (!monthlyData[monthName]) monthlyData[monthName] = { buy: 0, sell: 0 };
-                if ('invoiceId' in inv && inv.invoiceId.startsWith('PUR')) monthlyData[monthName].buy += inv.netPayable;
-                else if ('invoiceId' in inv) monthlyData[monthName].sell += inv.netPayable;
+                monthlyData[monthName].buy += inv.netPayable;
+            }
+        });
+        salesInvoices.forEach(inv => {
+            // @ts-expect-error - status property is missing in SalesInvoice type but present in runtime data
+            if (inv.status === 'Cancelled' || inv.status === 'Returned') return;
+            const [y, m] = inv.invoiceDate.split('-').map(Number);
+            if (y === selectedYear) {
+                const monthName = monthOptions[m - 1].name;
+                if (!monthlyData[monthName]) monthlyData[monthName] = { buy: 0, sell: 0 };
+                monthlyData[monthName].sell += inv.netPayable;
             }
         });
         indoorInvoices.forEach(inv => {
-            const d = new Date(inv.invoice_date);
-            if (d.getFullYear() === selectedYear) {
-                const monthName = monthOptions[d.getMonth()].name;
+            if (inv.status === 'Cancelled' || inv.status === 'Returned') return;
+            const dateToUse = inv.admission_date || inv.invoice_date;
+            const [y, m] = dateToUse.split('-').map(Number);
+            if (y === selectedYear) {
+                const monthName = monthOptions[m - 1].name;
                 if (!monthlyData[monthName]) monthlyData[monthName] = { buy: 0, sell: 0 };
                 monthlyData[monthName].sell += inv.items.filter(it => it.service_type === 'Medicine').reduce((s, it) => s + it.payable_amount, 0);
             }

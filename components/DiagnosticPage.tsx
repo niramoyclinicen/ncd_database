@@ -13,7 +13,6 @@ import DoctorAppointmentPage from './DoctorAppointmentPage';
 import LabInvoicingPage from './LabInvoicingPage';
 import PrevDueCollectionPage from './PrevDueCollectionPage';
 import LabReportingPage from './LabReportingPage';
-import ContributionReportPage from './ContributionReportPage';
 import EmployeeInfoPage from './EmployeeInfoPage';
 import { Patient, Doctor, Referrar, Reagent, Test, LabInvoice, Employee, DueCollection, DiagnosticSubPage, ExpenseItem, LabReport, Appointment } from './DiagnosticData';
 import { UserRole } from '../types';
@@ -221,25 +220,6 @@ const DiagnosticPage: React.FC<DiagnosticPageProps> = ({
              />
           </div>
         );
-      case 'contribution_report':
-        return (
-          <div className="animate-fade-in h-full relative">
-             {isLabReporter && (
-               <div className="absolute inset-0 bg-slate-900/40 z-50 backdrop-blur-[1px] flex items-center justify-center">
-                 <div className="bg-slate-800 p-6 rounded-3xl border border-blue-500/30 text-blue-400 font-bold shadow-2xl">
-                   Access Restriction: View Only Mode
-                 </div>
-               </div>
-             )}
-            <ContributionReportPage 
-                employees={employees}
-                referrars={referrars}
-                invoices={labInvoices}
-                employeeReferrerMap={employeeReferrerMap}
-                setEmployeeReferrerMap={setEmployeeReferrerMap}
-            />
-          </div>
-        );
       case 'patient_info':
         return <div className="animate-fade-in"><PatientInfoPage patients={patients} setPatients={setPatients} /></div>;
       case 'doctor_info':
@@ -342,7 +322,7 @@ const DiagnosticPage: React.FC<DiagnosticPageProps> = ({
         </header>
 
         <div className="bg-slate-900/50 backdrop-blur-sm border-b border-slate-800 z-20 p-2">
-           <div className="grid grid-cols-5 gap-2 md:gap-4 w-full px-2">
+           <div className="grid grid-cols-4 gap-2 md:gap-4 w-full px-2">
               <TopBarButton 
                 label="Doctor Appointment" 
                 icon={<CalendarIcon className="w-5 h-5" />} 
@@ -370,13 +350,6 @@ const DiagnosticPage: React.FC<DiagnosticPageProps> = ({
                 isActive={activeTab === 'lab_reporting'} 
                 onClick={() => setActiveTab('lab_reporting')} 
                 disabled={isDiagAdmin}
-              />
-              <TopBarButton 
-                label="Contribution Report" 
-                icon={<ChartIcon className="w-5 h-5" />} 
-                isActive={activeTab === 'contribution_report'} 
-                onClick={() => setActiveTab('contribution_report')} 
-                disabled={isLabReporter}
               />
            </div>
         </div>

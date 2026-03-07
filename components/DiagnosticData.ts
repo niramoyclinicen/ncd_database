@@ -4,7 +4,6 @@ export type DiagnosticSubPage =
   | 'lab_invoice' 
   | 'due_collection' 
   | 'lab_reporting' 
-  | 'contribution_report' 
   | 'patient_info' 
   | 'doctor_info' 
   | 'referrer_info' 

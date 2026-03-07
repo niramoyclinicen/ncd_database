@@ -95,11 +95,16 @@ const HistoryModal: React.FC<{ item: ExpenseItem, onClose: () => void }> = ({ it
     </div>
 );
 
-const DailyExpenseForm: React.FC<any> = ({ selectedDate, onDateChange, dailyExpenseItems, onSave, employees, monthlyRoster }) => {
+const DailyExpenseForm: React.FC<any> = ({ selectedDate, onDateChange, allDetailedExpenses, onSave, employees, monthlyRoster }) => {
+    const dailyExpenseItems = allDetailedExpenses[selectedDate] || [];
     const [items, setItems] = useState<ExpenseItem[]>(() => [{
         id: Date.now(), category: expenseCategories[0], subCategory: '', description: '', billAmount: 0, paidAmount: 0, dept: 'Diagnostic'
     }]);
     const [savedSearchTerm, setSavedSearchTerm] = useState('');
+    const [searchDate, setSearchDate] = useState(selectedDate);
+    const [searchMonth, setSearchMonth] = useState(new Date().getMonth());
+    const [searchYear, setSearchYear] = useState(new Date().getFullYear());
+    const [searchMode, setSearchMode] = useState<'date' | 'month' | 'year' | 'all'>('date');
     const [historyItem, setHistoryItem] = useState<ExpenseItem | null>(null);
 
     const periodKey = selectedDate.substring(0, 7); // YYYY-MM
@@ -163,11 +168,30 @@ const DailyExpenseForm: React.FC<any> = ({ selectedDate, onDateChange, dailyExpe
 
     const totalPaid = items.reduce((acc, item) => acc + (Number(item.paidAmount) || 0), 0);
 
-    const filteredSavedItems = dailyExpenseItems.filter((it: ExpenseItem) => 
-        it.category.toLowerCase().includes(savedSearchTerm.toLowerCase()) ||
-        it.subCategory.toLowerCase().includes(savedSearchTerm.toLowerCase()) ||
-        it.description.toLowerCase().includes(savedSearchTerm.toLowerCase())
-    );
+    const filteredSavedItems = useMemo(() => {
+        const allItems: any[] = [];
+        Object.entries(allDetailedExpenses).forEach(([date, items]: [string, any]) => {
+            const [y, m] = date.split('-').map(Number);
+            
+            let matchesTime = false;
+            if (searchMode === 'date') matchesTime = date === searchDate;
+            else if (searchMode === 'month') matchesTime = (m - 1 === searchMonth && y === searchYear);
+            else if (searchMode === 'year') matchesTime = y === searchYear;
+            else if (searchMode === 'all') matchesTime = true;
+
+            if (matchesTime) {
+                items.filter((it: any) => it.dept === 'Diagnostic').forEach((it: any) => {
+                    allItems.push({ ...it, date });
+                });
+            }
+        });
+
+        return allItems.filter((it: any) => 
+            it.category.toLowerCase().includes(savedSearchTerm.toLowerCase()) ||
+            it.subCategory.toLowerCase().includes(savedSearchTerm.toLowerCase()) ||
+            it.description.toLowerCase().includes(savedSearchTerm.toLowerCase())
+        ).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    }, [allDetailedExpenses, searchDate, searchMonth, searchYear, searchMode, savedSearchTerm]);
 
     return (
         <div className="space-y-10">
@@ -240,24 +264,55 @@ const DailyExpenseForm: React.FC<any> = ({ selectedDate, onDateChange, dailyExpe
 
             {/* Saved Expenses List */}
             <div className="bg-slate-900 rounded-[2rem] p-8 border border-slate-800 shadow-xl">
-                <div className="flex justify-between items-center mb-6 border-b border-slate-800 pb-4">
-                    <h3 className="text-xl font-black text-white flex items-center gap-3"><FileTextIcon className="w-6 h-6 text-blue-400" /> Saved Expenses for {selectedDate}</h3>
-                    <div className="relative w-64">
-                        <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
-                        <input 
-                            type="text" 
-                            placeholder="Search saved..." 
-                            value={savedSearchTerm} 
-                            onChange={e => setSavedSearchTerm(e.target.value)} 
-                            className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-10 pr-4 py-2 text-xs text-white outline-none focus:border-blue-500" 
-                        />
+                <div className="flex flex-wrap justify-between items-center mb-6 border-b border-slate-800 pb-4 gap-4">
+                    <h3 className="text-xl font-black text-white flex items-center gap-3"><FileTextIcon className="w-6 h-6 text-blue-400" /> Saved Expenses Explorer</h3>
+                    
+                    <div className="flex flex-wrap gap-3 items-center">
+                        <div className="flex bg-slate-800 p-1 rounded-xl border border-slate-700">
+                            <button onClick={() => setSearchMode('date')} className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all ${searchMode === 'date' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500'}`}>Date</button>
+                            <button onClick={() => setSearchMode('month')} className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all ${searchMode === 'month' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500'}`}>Month</button>
+                            <button onClick={() => setSearchMode('year')} className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all ${searchMode === 'year' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500'}`}>Year</button>
+                            <button onClick={() => setSearchMode('all')} className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all ${searchMode === 'all' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500'}`}>All</button>
+                        </div>
+
+                        {searchMode === 'date' && (
+                            <input type="date" value={searchDate} onChange={e => setSearchDate(e.target.value)} className="bg-slate-800 border border-slate-700 rounded-xl p-2 text-white text-xs font-bold outline-none focus:border-blue-500" />
+                        )}
+                        {searchMode === 'month' && (
+                            <div className="flex gap-2">
+                                <select value={searchMonth} onChange={e => setSearchMonth(parseInt(e.target.value))} className="bg-slate-800 border border-slate-700 rounded-xl p-2 text-white text-xs font-bold outline-none focus:border-blue-500">
+                                    {monthOptions.map(m => <option key={m.value} value={m.value}>{m.name}</option>)}
+                                </select>
+                                <select value={searchYear} onChange={e => setSearchYear(parseInt(e.target.value))} className="bg-slate-800 border border-slate-700 rounded-xl p-2 text-white text-xs font-bold outline-none focus:border-blue-500">
+                                    {[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}
+                                </select>
+                            </div>
+                        )}
+                        {searchMode === 'year' && (
+                            <select value={searchYear} onChange={e => setSearchYear(parseInt(e.target.value))} className="bg-slate-800 border border-slate-700 rounded-xl p-2 text-white text-xs font-bold outline-none focus:border-blue-500">
+                                {[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}
+                            </select>
+                        )}
+
+                        <div className="relative w-64">
+                            <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
+                            <input 
+                                type="text" 
+                                placeholder="Search by item/desc..." 
+                                value={savedSearchTerm} 
+                                onChange={e => setSavedSearchTerm(e.target.value)} 
+                                className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-10 pr-4 py-2 text-xs text-white outline-none focus:border-blue-500" 
+                            />
+                        </div>
                     </div>
                 </div>
                 <div className="overflow-x-auto">
                     <table className="w-full text-left text-xs">
                         <thead>
                             <tr className="text-[10px] text-slate-500 uppercase font-black tracking-widest border-b border-slate-800">
-                                <th className="pb-3 pl-2">Category</th>
+                                <th className="pb-3 pl-2 w-12">SL</th>
+                                <th className="pb-3">Date</th>
+                                <th className="pb-3">Category</th>
                                 <th className="pb-3">Sub-Category</th>
                                 <th className="pb-3">Description</th>
                                 <th className="pb-3 text-right">Amount</th>
@@ -266,9 +321,11 @@ const DailyExpenseForm: React.FC<any> = ({ selectedDate, onDateChange, dailyExpe
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-800/50">
-                            {filteredSavedItems.length > 0 ? filteredSavedItems.map((it: ExpenseItem) => (
+                            {filteredSavedItems.length > 0 ? filteredSavedItems.map((it: any, idx: number) => (
                                 <tr key={it.id} className="hover:bg-slate-800/30 transition-colors">
-                                    <td className="py-4 pl-2 font-bold text-slate-300">{it.category}</td>
+                                    <td className="py-4 pl-2 text-slate-500 font-mono">{idx + 1}</td>
+                                    <td className="py-4 text-slate-400 font-bold">{it.date}</td>
+                                    <td className="py-4 font-bold text-slate-300">{it.category}</td>
                                     <td className="py-4 text-slate-400">{it.subCategory}</td>
                                     <td className="py-4 text-slate-500 italic">{it.description}</td>
                                     <td className="py-4 text-right font-black text-white">৳{it.paidAmount.toLocaleString()}</td>
@@ -296,7 +353,7 @@ const DailyExpenseForm: React.FC<any> = ({ selectedDate, onDateChange, dailyExpe
                                 </tr>
                             )) : (
                                 <tr>
-                                    <td colSpan={6} className="py-10 text-center text-slate-600 font-bold italic">No saved expenses found for this date.</td>
+                                    <td colSpan={8} className="py-10 text-center text-slate-600 font-bold italic">No saved expenses found for the selected criteria.</td>
                                 </tr>
                             )}
                         </tbody>
@@ -336,6 +393,39 @@ const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollection
         });
         setSuccessMessage("Expense data saved successfully!");
     };
+
+    const diagnosticExpenseSheetData = useMemo(() => {
+        const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
+        const rows = [];
+        const categories = expenseCategories;
+
+        for (let d = 1; d <= daysInMonth; d++) {
+            const dateStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+            const dailyExps = (detailedExpenses[dateStr] || []).filter((it: any) => it.dept === 'Diagnostic');
+            
+            const categorySums: Record<string, number> = {};
+            categories.forEach(cat => categorySums[cat] = 0);
+            
+            dailyExps.forEach(exp => {
+                if (categories.includes(exp.category)) {
+                    categorySums[exp.category] += exp.paidAmount;
+                } else {
+                    categorySums['Others'] = (categorySums['Others'] || 0) + exp.paidAmount;
+                }
+            });
+            
+            const totalDay = Object.values(categorySums).reduce((a, b) => a + b, 0);
+            rows.push({ date: dateStr, categories: categorySums, total: totalDay });
+        }
+
+        const columnTotals: Record<string, number> = {};
+        categories.forEach(cat => {
+            columnTotals[cat] = rows.reduce((sum, row) => sum + row.categories[cat], 0);
+        });
+        const grandTotal = rows.reduce((sum, row) => sum + row.total, 0);
+
+        return { rows, columnTotals, grandTotal };
+    }, [detailedExpenses, selectedMonth, selectedYear]);
 
     const diagnosticMonthlyExpenseSheetData = useMemo(() => {
         const expensesByCategory: Record<string, number> = {};
@@ -504,61 +594,132 @@ const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollection
         const win = window.open('', '_blank');
         if(!win) return;
         const monthName = monthOptions[selectedMonth].name;
-        const { expensesByCategory, totalExpense } = diagnosticMonthlyExpenseSheetData;
+        const { rows, columnTotals, grandTotal } = diagnosticExpenseSheetData;
 
         const html = `
+            <!DOCTYPE html>
             <html>
                 <head>
                     <title>Diagnostic Expense Sheet - ${monthName} ${selectedYear}</title>
-                    <script src="https://cdn.tailwindcss.com"></script>
                     <style>
-                        @page { size: A4; margin: 10mm; }
-                        body { font-family: 'Segoe UI', sans-serif; }
-                        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-                        th, td { border: 1px solid black; padding: 8px; text-align: left; }
-                        th { background: #f3f4f6; font-weight: bold; text-transform: uppercase; }
-                        .text-right { text-align: right; }
+                        @page { 
+                            size: A4 landscape; 
+                            margin: 3mm; 
+                        }
+                        body { 
+                            font-family: 'Arial Narrow', sans-serif; 
+                            background: white; 
+                            color: black; 
+                            margin: 0; 
+                            padding: 0; 
+                            width: 100%;
+                        }
+                        .header {
+                            display: flex;
+                            justify-content: space-between;
+                            align-items: flex-end;
+                            border-bottom: 1px solid black;
+                            margin-bottom: 2px;
+                            padding-bottom: 1px;
+                        }
+                        .header h1 {
+                            margin: 0;
+                            font-size: 12pt;
+                            color: #1e3a8a;
+                            text-transform: uppercase;
+                        }
+                        .header p {
+                            margin: 0;
+                            font-size: 7.5pt;
+                            font-weight: bold;
+                            text-transform: uppercase;
+                        }
+                        table { 
+                            width: 100%; 
+                            border-collapse: collapse; 
+                            table-layout: fixed; 
+                        }
+                        th, td { 
+                            border: 1px solid black; 
+                            padding: 1px; 
+                            text-align: center; 
+                            font-size: 7.5pt; 
+                            word-wrap: break-word; 
+                            line-height: 1;
+                            height: 13.8pt;
+                        }
+                        th { 
+                            background: #f3f4f6; 
+                            font-weight: bold; 
+                            text-transform: uppercase; 
+                            font-size: 6.5pt; 
+                        }
+                        .total-row {
+                            background: #f3f4f6;
+                            font-weight: bold;
+                        }
+                        .grand-total {
+                            color: #047857;
+                            background: #ecfdf5;
+                            font-size: 8.5pt;
+                        }
+                        .footer {
+                            margin-top: 3mm;
+                            display: flex;
+                            justify-content: space-between;
+                            padding: 0 60px;
+                            font-size: 7.5pt;
+                            font-weight: bold;
+                            text-transform: uppercase;
+                            color: #6b7280;
+                        }
+                        .sig-box {
+                            width: 150px;
+                            border-top: 1px solid black;
+                            text-align: center;
+                            padding-top: 2px;
+                        }
                     </style>
                 </head>
-                <body class="p-6">
-                    <div class="text-center mb-8 border-b-2 border-black pb-4">
-                        <h1 class="text-2xl font-black uppercase text-blue-900">Niramoy Clinic & Diagnostic</h1>
-                        <p class="text-sm font-bold">Monthly Diagnostic Operating Expense Sheet</p>
-                        <p class="text-lg font-black mt-2 underline uppercase">${monthName} ${selectedYear}</p>
+                <body>
+                    <div class="header">
+                        <h1>Niramoy Clinic & Diagnostic</h1>
+                        <p>Monthly Diagnostic Expense Ledger - ${monthName} ${selectedYear}</p>
                     </div>
                     <table>
                         <thead>
                             <tr>
-                                <th style="width: 10%">SL</th>
-                                <th style="width: 60%">Expense Category</th>
-                                <th style="width: 30%" class="text-right">Total Amount</th>
+                                <th style="width: 35px">Date</th>
+                                ${expenseCategories.map(cat => `<th title="${cat}">${expenseCategoryBanglaMap[cat] || cat}</th>`).join('')}
+                                <th style="width: 55px" style="background: #e5e7eb">Total</th>
                             </tr>
                         </thead>
                         <tbody>
-                            ${expenseCategories.map((cat, idx) => `
+                            ${rows.map(row => `
                                 <tr>
-                                    <td>${idx + 1}</td>
-                                    <td class="font-bold">${expenseCategoryBanglaMap[cat] || cat}</td>
-                                    <td class="text-right font-black">৳${(expensesByCategory[cat] || 0).toLocaleString()}</td>
+                                    <td style="font-weight: bold">${row.date.split('-')[2]} ${monthName.substring(0,3)}</td>
+                                    ${expenseCategories.map(cat => `<td>${row.categories[cat] > 0 ? row.categories[cat].toLocaleString() : '-'}</td>`).join('')}
+                                    <td style="font-weight: 900; background: #f9fafb">৳${row.total > 0 ? row.total.toLocaleString() : '-'}</td>
                                 </tr>
                             `).join('')}
                         </tbody>
-                        <tfoot class="bg-gray-100 font-black">
+                        <tfoot class="total-row">
                             <tr>
-                                <td colspan="2" class="text-right uppercase">Grand Total Monthly Expense:</td>
-                                <td class="text-right text-xl">৳${totalExpense.toLocaleString()}</td>
+                                <td style="text-transform: uppercase">TOTAL:</td>
+                                ${expenseCategories.map(cat => `<td>${columnTotals[cat] > 0 ? columnTotals[cat].toLocaleString() : '-'}</td>`).join('')}
+                                <td class="grand-total">৳${grandTotal.toLocaleString()}</td>
                             </tr>
                         </tfoot>
                     </table>
-                    <div class="mt-20 flex justify-between px-10 text-xs font-bold uppercase text-gray-400">
-                        <div class="text-center w-40 border-t border-black pt-1">Accountant</div>
-                        <div class="text-center w-56 border-t border-black pt-1">Managing Director</div>
+                    <div class="footer">
+                        <div class="sig-box">Accountant</div>
+                        <div class="sig-box">Managing Director</div>
                     </div>
                 </body>
             </html>
         `;
         win.document.write(html); win.document.close();
-        setTimeout(() => { win.print(); win.close(); }, 750);
+        setTimeout(() => { win.print(); win.close(); }, 500);
     };
 
     const dueList = useMemo(() => {
@@ -599,45 +760,64 @@ const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollection
             <main className="flex-1 p-8 space-y-10 container mx-auto overflow-y-auto">
                 {activeTab === 'entry' && (
                     <div className="animate-fade-in space-y-10">
-                        <DailyExpenseForm key={selectedDate} selectedDate={selectedDate} onDateChange={setSelectedDate} dailyExpenseItems={detailedExpenses[selectedDate] || []} onSave={handleSaveExpense} employees={employees} monthlyRoster={monthlyRoster} />
+                        <DailyExpenseForm key={selectedDate} selectedDate={selectedDate} onDateChange={setSelectedDate} allDetailedExpenses={detailedExpenses} onSave={handleSaveExpense} employees={employees} monthlyRoster={monthlyRoster} />
                     </div>
                 )}
 
                 {activeTab === 'diagnostic_expense' && (
-                    <div className="animate-fade-in space-y-10 max-w-4xl mx-auto">
-                        <div className="flex justify-between items-center bg-slate-900 p-6 rounded-[2.5rem] border border-slate-800 shadow-xl no-print">
+                    <div className="animate-fade-in space-y-6">
+                        <div className="flex justify-between items-center bg-slate-900 p-6 rounded-[2rem] border border-slate-800 shadow-xl no-print">
                              <h2 className="text-xl font-black text-white uppercase tracking-tighter">
                                 Monthly Diagnostic Expense Sheet: {monthOptions[selectedMonth].name} {selectedYear}
                              </h2>
                              <div className="flex gap-4">
-                                <button onClick={handlePrintDiagnosticExpenseSheet} className="bg-rose-600 text-white px-6 py-2 rounded-xl text-xs font-black uppercase flex items-center gap-2 transition-all shadow-lg active:scale-95"><PrinterIcon size={14}/> Print Expense Sheet</button>
+                                <button onClick={handlePrintDiagnosticExpenseSheet} className="bg-rose-600 text-white px-6 py-2 rounded-xl text-xs font-black uppercase flex items-center gap-2 transition-all shadow-lg active:scale-95"><PrinterIcon size={14}/> Print Landscape</button>
                                 <select value={selectedMonth} onChange={e => setSelectedMonth(parseInt(e.target.value))} className="bg-slate-800 border-none rounded-xl p-3 text-white font-black text-sm">{monthOptions.map(m => <option key={m.value} value={m.value}>{m.name}</option>)}</select>
                                 <select value={selectedYear} onChange={e => setSelectedYear(parseInt(e.target.value))} className="bg-slate-800 border-none rounded-xl p-3 text-white font-black text-sm">{[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}</select>
                              </div>
                         </div>
 
-                        <div className="bg-slate-900 p-10 rounded-[3rem] border border-slate-800 shadow-2xl">
-                            <table className="w-full text-left border-collapse">
-                                <thead className="bg-slate-950 text-slate-500 text-[10px] uppercase font-black tracking-widest border-b border-slate-800">
+                        <div className="bg-white p-4 rounded-[1.5rem] border border-slate-300 shadow-2xl overflow-x-auto">
+                            <table className="w-full text-left border-collapse table-fixed min-w-[1200px]">
+                                <thead className="bg-slate-100 text-slate-800 text-[9px] uppercase font-black tracking-widest border-b-2 border-slate-300">
                                     <tr>
-                                        <th className="p-5">SL</th>
-                                        <th className="p-5">Expense Category</th>
-                                        <th className="p-5 text-right">Total Amount</th>
+                                        <th className="p-2 border border-slate-300 w-[60px]">Date</th>
+                                        {expenseCategories.map(cat => (
+                                            <th key={cat} className="p-2 border border-slate-300 text-center leading-tight break-words" title={cat}>
+                                                {expenseCategoryBanglaMap[cat] || cat}
+                                            </th>
+                                        ))}
+                                        <th className="p-2 border border-slate-300 text-right bg-slate-200 w-[100px]">Total</th>
                                     </tr>
                                 </thead>
-                                <tbody className="divide-y divide-slate-800 text-sm">
-                                    {expenseCategories.map((cat, idx) => (
-                                        <tr key={cat} className="hover:bg-slate-800/50 transition-colors">
-                                            <td className="p-5 text-slate-500 font-mono">{idx + 1}</td>
-                                            <td className="p-5 font-bold text-slate-200">{expenseCategoryBanglaMap[cat] || cat}</td>
-                                            <td className="p-5 text-right font-black text-rose-400">৳{(diagnosticMonthlyExpenseSheetData.expensesByCategory[cat] || 0).toLocaleString()}</td>
+                                <tbody className="text-[11px]">
+                                    {diagnosticExpenseSheetData.rows.map(row => (
+                                        <tr key={row.date} className="hover:bg-blue-50 transition-colors border-b border-slate-200">
+                                            <td className="p-2 border border-slate-300 text-center font-mono font-bold bg-slate-50">
+                                                {row.date.split('-')[2]} {monthOptions[selectedMonth].name.substring(0,3)}
+                                            </td>
+                                            {expenseCategories.map(cat => (
+                                                <td key={cat} className="p-2 border border-slate-300 text-center font-medium">
+                                                    {row.categories[cat] > 0 ? row.categories[cat].toLocaleString() : '-'}
+                                                </td>
+                                            ))}
+                                            <td className="p-2 border border-slate-300 text-right font-black bg-slate-50 text-slate-900">
+                                                ৳{row.total > 0 ? row.total.toLocaleString() : '-'}
+                                            </td>
                                         </tr>
                                     ))}
                                 </tbody>
-                                <tfoot className="bg-slate-950 text-white font-black border-t-4 border-slate-800">
+                                <tfoot className="bg-slate-100 text-slate-900 font-black border-t-2 border-slate-400">
                                     <tr>
-                                        <td colSpan={2} className="p-8 text-right uppercase tracking-widest text-xs">Grand Total Monthly Diagnostic Expense:</td>
-                                        <td className="p-8 text-right text-3xl text-rose-500 underline decoration-double">৳{diagnosticMonthlyExpenseSheetData.totalExpense.toLocaleString()}</td>
+                                        <td className="p-3 border border-slate-300 text-center uppercase text-[10px]">TOTAL:</td>
+                                        {expenseCategories.map(cat => (
+                                            <td key={cat} className="p-3 border border-slate-300 text-center text-blue-700">
+                                                {diagnosticExpenseSheetData.columnTotals[cat] > 0 ? diagnosticExpenseSheetData.columnTotals[cat].toLocaleString() : '-'}
+                                            </td>
+                                        ))}
+                                        <td className="p-3 border border-slate-300 text-right text-lg text-emerald-700 bg-emerald-50">
+                                            ৳{diagnosticExpenseSheetData.grandTotal.toLocaleString()}
+                                        </td>
                                     </tr>
                                 </tfoot>
                             </table>

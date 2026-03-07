@@ -567,8 +567,9 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
         const isMed = inv.items.some(it => it.service_type === 'Medicine');
         if (!isMed) return false;
         const matchesName = inv.patient_name.toLowerCase().includes(sellSearchName.toLowerCase());
-        const matchesDate = !sellSearchDate || inv.invoice_date === sellSearchDate;
-        const [y, m] = inv.invoice_date.split('-').map(Number);
+        const dateToUse = inv.admission_date || inv.invoice_date;
+        const matchesDate = !sellSearchDate || dateToUse === sellSearchDate;
+        const [y, m] = dateToUse.split('-').map(Number);
         const matchesMonth = sellSearchMonth === 'all' || (m - 1) === parseInt(sellSearchMonth);
         const matchesYear = y === parseInt(sellSearchYear);
         return matchesName && matchesDate && matchesMonth && matchesYear;
