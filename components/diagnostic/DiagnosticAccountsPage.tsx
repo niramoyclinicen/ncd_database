@@ -312,7 +312,7 @@ const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollection
     const [selectedDate, setSelectedDate] = useState(todayStr);
     const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-    const [activeTab, setActiveTab] = useState<'entry' | 'daily' | 'monthly' | 'yearly' | 'detail' | 'due'>('entry');
+    const [activeTab, setActiveTab] = useState<'entry' | 'diagnostic_expense' | 'daily' | 'monthly' | 'yearly' | 'detail' | 'due'>('entry');
     
     // Detailed Collection States
     const [detailViewMode, setDetailViewMode] = useState<'today' | 'month' | 'year' | 'date'>('today');
@@ -336,6 +336,25 @@ const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollection
         });
         setSuccessMessage("Expense data saved successfully!");
     };
+
+    const diagnosticMonthlyExpenseSheetData = useMemo(() => {
+        const expensesByCategory: Record<string, number> = {};
+        expenseCategories.forEach(cat => expensesByCategory[cat] = 0);
+        
+        Object.entries(detailedExpenses).forEach(([date, items]: any) => {
+            const [y, m] = date.split('-').map(Number);
+            if (m - 1 === selectedMonth && y === selectedYear) {
+                items.forEach((it: any) => {
+                    if (it.dept === 'Diagnostic') {
+                        expensesByCategory[it.category] = (expensesByCategory[it.category] || 0) + it.paidAmount;
+                    }
+                });
+            }
+        });
+
+        const totalExpense = Object.values(expensesByCategory).reduce((s, v) => s + v, 0);
+        return { expensesByCategory, totalExpense };
+    }, [selectedMonth, selectedYear, detailedExpenses]);
 
     const detailTableData = useMemo(() => {
         const filtered = invoices.filter((inv: any) => {
@@ -481,6 +500,67 @@ const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollection
         return { daily: getRangeStats('daily'), monthly: getRangeStats('monthly'), yearly: getRangeStats('yearly') };
     }, [invoices, dueCollections, detailedExpenses, selectedDate, selectedMonth, selectedYear]);
 
+    const handlePrintDiagnosticExpenseSheet = () => {
+        const win = window.open('', '_blank');
+        if(!win) return;
+        const monthName = monthOptions[selectedMonth].name;
+        const { expensesByCategory, totalExpense } = diagnosticMonthlyExpenseSheetData;
+
+        const html = `
+            <html>
+                <head>
+                    <title>Diagnostic Expense Sheet - ${monthName} ${selectedYear}</title>
+                    <script src="https://cdn.tailwindcss.com"></script>
+                    <style>
+                        @page { size: A4; margin: 10mm; }
+                        body { font-family: 'Segoe UI', sans-serif; }
+                        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                        th, td { border: 1px solid black; padding: 8px; text-align: left; }
+                        th { background: #f3f4f6; font-weight: bold; text-transform: uppercase; }
+                        .text-right { text-align: right; }
+                    </style>
+                </head>
+                <body class="p-6">
+                    <div class="text-center mb-8 border-b-2 border-black pb-4">
+                        <h1 class="text-2xl font-black uppercase text-blue-900">Niramoy Clinic & Diagnostic</h1>
+                        <p class="text-sm font-bold">Monthly Diagnostic Operating Expense Sheet</p>
+                        <p class="text-lg font-black mt-2 underline uppercase">${monthName} ${selectedYear}</p>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th style="width: 10%">SL</th>
+                                <th style="width: 60%">Expense Category</th>
+                                <th style="width: 30%" class="text-right">Total Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${expenseCategories.map((cat, idx) => `
+                                <tr>
+                                    <td>${idx + 1}</td>
+                                    <td class="font-bold">${expenseCategoryBanglaMap[cat] || cat}</td>
+                                    <td class="text-right font-black">৳${(expensesByCategory[cat] || 0).toLocaleString()}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                        <tfoot class="bg-gray-100 font-black">
+                            <tr>
+                                <td colspan="2" class="text-right uppercase">Grand Total Monthly Expense:</td>
+                                <td class="text-right text-xl">৳${totalExpense.toLocaleString()}</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                    <div class="mt-20 flex justify-between px-10 text-xs font-bold uppercase text-gray-400">
+                        <div class="text-center w-40 border-t border-black pt-1">Accountant</div>
+                        <div class="text-center w-56 border-t border-black pt-1">Managing Director</div>
+                    </div>
+                </body>
+            </html>
+        `;
+        win.document.write(html); win.document.close();
+        setTimeout(() => { win.print(); win.close(); }, 750);
+    };
+
     const dueList = useMemo(() => {
         return invoices.filter((inv: any) => inv.due_amount > 1 && (inv.patient_name.toLowerCase().includes(dueSearch.toLowerCase()) || inv.invoice_id.includes(dueSearch))).sort((a,b) => new Date(b.invoice_date).getTime() - new Date(a.invoice_date).getTime());
     }, [invoices, dueSearch]);
@@ -495,6 +575,7 @@ const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollection
                 <div className="flex bg-slate-800 rounded-2xl p-1 shadow-inner border border-slate-700 overflow-x-auto max-w-full">
                     {[
                         { id: 'entry', label: 'Data Entry' }, 
+                        { id: 'diagnostic_expense', label: 'Diagnostic Expense Sheet' },
                         { id: 'daily', label: 'Daily Hishab' }, 
                         { id: 'monthly', label: 'Monthly Hishab' }, 
                         { id: 'yearly', label: 'Yearly Hishab' },
@@ -519,6 +600,48 @@ const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollection
                 {activeTab === 'entry' && (
                     <div className="animate-fade-in space-y-10">
                         <DailyExpenseForm key={selectedDate} selectedDate={selectedDate} onDateChange={setSelectedDate} dailyExpenseItems={detailedExpenses[selectedDate] || []} onSave={handleSaveExpense} employees={employees} monthlyRoster={monthlyRoster} />
+                    </div>
+                )}
+
+                {activeTab === 'diagnostic_expense' && (
+                    <div className="animate-fade-in space-y-10 max-w-4xl mx-auto">
+                        <div className="flex justify-between items-center bg-slate-900 p-6 rounded-[2.5rem] border border-slate-800 shadow-xl no-print">
+                             <h2 className="text-xl font-black text-white uppercase tracking-tighter">
+                                Monthly Diagnostic Expense Sheet: {monthOptions[selectedMonth].name} {selectedYear}
+                             </h2>
+                             <div className="flex gap-4">
+                                <button onClick={handlePrintDiagnosticExpenseSheet} className="bg-rose-600 text-white px-6 py-2 rounded-xl text-xs font-black uppercase flex items-center gap-2 transition-all shadow-lg active:scale-95"><PrinterIcon size={14}/> Print Expense Sheet</button>
+                                <select value={selectedMonth} onChange={e => setSelectedMonth(parseInt(e.target.value))} className="bg-slate-800 border-none rounded-xl p-3 text-white font-black text-sm">{monthOptions.map(m => <option key={m.value} value={m.value}>{m.name}</option>)}</select>
+                                <select value={selectedYear} onChange={e => setSelectedYear(parseInt(e.target.value))} className="bg-slate-800 border-none rounded-xl p-3 text-white font-black text-sm">{[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}</select>
+                             </div>
+                        </div>
+
+                        <div className="bg-slate-900 p-10 rounded-[3rem] border border-slate-800 shadow-2xl">
+                            <table className="w-full text-left border-collapse">
+                                <thead className="bg-slate-950 text-slate-500 text-[10px] uppercase font-black tracking-widest border-b border-slate-800">
+                                    <tr>
+                                        <th className="p-5">SL</th>
+                                        <th className="p-5">Expense Category</th>
+                                        <th className="p-5 text-right">Total Amount</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-800 text-sm">
+                                    {expenseCategories.map((cat, idx) => (
+                                        <tr key={cat} className="hover:bg-slate-800/50 transition-colors">
+                                            <td className="p-5 text-slate-500 font-mono">{idx + 1}</td>
+                                            <td className="p-5 font-bold text-slate-200">{expenseCategoryBanglaMap[cat] || cat}</td>
+                                            <td className="p-5 text-right font-black text-rose-400">৳{(diagnosticMonthlyExpenseSheetData.expensesByCategory[cat] || 0).toLocaleString()}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                                <tfoot className="bg-slate-950 text-white font-black border-t-4 border-slate-800">
+                                    <tr>
+                                        <td colSpan={2} className="p-8 text-right uppercase tracking-widest text-xs">Grand Total Monthly Diagnostic Expense:</td>
+                                        <td className="p-8 text-right text-3xl text-rose-500 underline decoration-double">৳{diagnosticMonthlyExpenseSheetData.totalExpense.toLocaleString()}</td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
                     </div>
                 )}
 

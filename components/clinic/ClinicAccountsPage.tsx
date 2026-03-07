@@ -22,6 +22,26 @@ const expenseCategoryBanglaMap: Record<string, string> = {
     'Others': 'অন্যান্য', 'Old Loan Repay': 'পূর্বের ঋণ পরিশোধ'
 };
 
+const expenseSubCategoryMap: Record<string, string[]> = {
+    'Stuff salary': [], // Populated from employees
+    'House rent': ['Main Building', 'Annex Building', 'Staff Quarter'],
+    'Marketing': ['Social Media', 'Newspaper', 'Local Campaign', 'Doctor Referral'],
+    'Generator': ['Fuel', 'Maintenance', 'Repair'],
+    'Motorcycle': ['Fuel', 'Maintenance', 'Repair'],
+    'Clinic development': ['Construction', 'Interior', 'Equipment'],
+    'Stationery': ['Office', 'Medical', 'Printing'],
+    'Food/Refreshment': ['Staff Food', 'Guest Refreshment', 'Patient Food'],
+    'Doctor donation': ['Regular', 'Special Event'],
+    'Repair/Instruments': ['Medical Equipment', 'Electrical', 'Plumbing'],
+    'Press': ['Leaflet', 'Poster', 'Banner'],
+    'License/Official': ['Trade License', 'Health License', 'Tax'],
+    'Bank/NGO Installment': ['Bank Loan', 'NGO Loan'],
+    'Mobile': ['Bill', 'Recharge'],
+    'Interest/Loan': ['Bank Interest', 'Private Loan Interest'],
+    'Old Loan Repay': ['Bank', 'Private'],
+    'Others': ['Misc']
+};
+
 const monthOptions = [
     { value: 0, name: 'January' }, { value: 1, name: 'February' }, { value: 2, name: 'March' },
     { value: 3, name: 'April' }, { value: 4, name: 'May' }, { value: 5, name: 'June' },
@@ -100,6 +120,12 @@ const DailyExpenseForm: React.FC<any> = ({ selectedDate, onDateChange, items: in
     const totals = items.reduce((acc, item) => { acc.cost += Number(item.billAmount) || 0; acc.paid += Number(item.paidAmount) || 0; return acc; }, { cost: 0, paid: 0 });
     const inputClass = "w-full bg-slate-700 border border-slate-600 rounded p-1.5 text-white text-sm outline-none";
 
+    const subCategories = useMemo(() => {
+        const map = { ...expenseSubCategoryMap };
+        map['Stuff salary'] = employees.map((e: any) => e.name);
+        return map;
+    }, [employees]);
+
     return (
         <div className="bg-emerald-950/40 rounded-xl p-6 border border-emerald-800/50 shadow-xl no-print">
             {historyItem && <HistoryModal item={historyItem} onClose={() => setHistoryItem(null)} />}
@@ -110,7 +136,7 @@ const DailyExpenseForm: React.FC<any> = ({ selectedDate, onDateChange, items: in
                 </div>
                 <input type="date" value={selectedDate} onChange={e => onDateChange(e.target.value)} className="bg-slate-800 border border-slate-700 rounded p-2 text-white" />
             </div>
-            <div className="overflow-x-auto"><table className="w-full text-left"><thead><tr className="text-xs text-emerald-400 uppercase tracking-widest"><th className="pb-3">Category</th><th className="pb-3">Details</th><th className="pb-3 text-right">Bill</th><th className="pb-3 text-right">Paid</th><th className="pb-3 text-center">History</th><th className="pb-3 text-center">X</th></tr></thead><tbody>{items.map(item => (<tr key={item.id} className="border-t border-emerald-900/30"><td className="py-2 pr-2"><select value={item.category} onChange={e => handleItemChange(item.id, 'category', e.target.value)} className={inputClass}>{clinicExpenseCategories.map(c => <option key={c} value={c}>{c}</option>)}</select></td><td className="py-2 pr-2"><input value={item.description} onChange={e => handleItemChange(item.id, 'description', e.target.value)} className={inputClass} placeholder="Details..."/></td><td className="py-2 pr-2"><input type="number" value={item.billAmount} onChange={e => handleItemChange(item.id, 'billAmount', parseFloat(e.target.value) || 0)} className={`${inputClass} text-right`} /></td><td className="py-2 pr-2"><input type="number" value={item.paidAmount} onChange={e => handleItemChange(item.id, 'paidAmount', parseFloat(e.target.value) || 0)} className={`${inputClass} text-right`} /></td><td className="py-2 text-center"><button onClick={() => setHistoryItem(item)} className={`text-[10px] font-black uppercase px-2 py-1 rounded ${item.isEdited ? 'bg-amber-600 text-white' : 'bg-slate-700 text-slate-400'}`}>History</button></td><td className="py-2 text-center"><button onClick={() => setItems(items.filter(i=>i.id!==item.id))} className="text-red-400 font-bold">×</button></td></tr>))}</tbody></table></div>
+            <div className="overflow-x-auto"><table className="w-full text-left"><thead><tr className="text-xs text-emerald-400 uppercase tracking-widest"><th className="pb-3">Category</th><th className="pb-3">Sub-Category</th><th className="pb-3">Details</th><th className="pb-3 text-right">Bill</th><th className="pb-3 text-right">Paid</th><th className="pb-3 text-center">History</th><th className="pb-3 text-center">X</th></tr></thead><tbody>{items.map(item => (<tr key={item.id} className="border-t border-emerald-900/30"><td className="py-2 pr-2"><select value={item.category} onChange={e => { handleItemChange(item.id, 'category', e.target.value); handleItemChange(item.id, 'subCategory', ''); }} className={inputClass}>{clinicExpenseCategories.map(c => <option key={c} value={c}>{c}</option>)}</select></td><td className="py-2 pr-2">{subCategories[item.category] && subCategories[item.category].length > 0 ? (<select value={item.subCategory} onChange={e => handleItemChange(item.id, 'subCategory', e.target.value)} className={inputClass}><option value="">Select...</option>{subCategories[item.category].map(sc => <option key={sc} value={sc}>{sc}</option>)}</select>) : (<input value={item.subCategory} onChange={e => handleItemChange(item.id, 'subCategory', e.target.value)} className={inputClass} placeholder="Sub-category..."/>)}</td><td className="py-2 pr-2"><input value={item.description} onChange={e => handleItemChange(item.id, 'description', e.target.value)} className={inputClass} placeholder="Details..."/></td><td className="py-2 pr-2"><input type="number" value={item.billAmount} onChange={e => handleItemChange(item.id, 'billAmount', parseFloat(e.target.value) || 0)} className={`${inputClass} text-right`} /></td><td className="py-2 pr-2"><input type="number" value={item.paidAmount} onChange={e => handleItemChange(item.id, 'paidAmount', parseFloat(e.target.value) || 0)} className={`${inputClass} text-right`} /></td><td className="py-2 text-center"><button onClick={() => setHistoryItem(item)} className={`text-[10px] font-black uppercase px-2 py-1 rounded ${item.isEdited ? 'bg-amber-600 text-white' : 'bg-slate-700 text-slate-400'}`}>History</button></td><td className="py-2 text-center"><button onClick={() => setItems(items.filter(i=>i.id!==item.id))} className="text-red-400 font-bold">×</button></td></tr>))}</tbody></table></div>
             <div className="flex justify-between items-center mt-6">
                 <button onClick={() => setItems([...items, { id: Date.now(), category: clinicExpenseCategories[0], subCategory: '', description: '', billAmount: 0, paidAmount: 0, dept: 'Clinic' }])} className="bg-blue-600 text-white px-4 py-2 rounded font-bold hover:bg-blue-500">+ Add</button>
                 <div className="flex gap-6 items-center"><div className="text-slate-400">Total Paid: <span className="text-emerald-400 font-bold text-lg">{totals.paid.toLocaleString()}</span></div><button onClick={() => onSave(selectedDate, items)} className="bg-green-600 text-white px-8 py-2 rounded font-black shadow-lg hover:bg-green-500">SAVE DATA</button></div>
@@ -122,7 +148,7 @@ const DailyExpenseForm: React.FC<any> = ({ selectedDate, onDateChange, items: in
 const ClinicAccountsPage: React.FC<any> = ({ 
   onBack, invoices, dueCollections, employees, detailedExpenses, setDetailedExpenses 
 }) => {
-    const [viewMode, setViewMode] = useState<'detailed' | 'summary' | 'collection' | 'daily_summary'>('detailed');
+    const [viewMode, setViewMode] = useState<'detailed' | 'summary' | 'collection' | 'daily_summary' | 'monthly_expense'>('detailed');
     const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
     const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
@@ -131,6 +157,13 @@ const ClinicAccountsPage: React.FC<any> = ({
     const [invoiceDateSearch, setInvoiceDateSearch] = useState('');
     const [invoiceMonthSearch, setInvoiceMonthSearch] = useState<number | ''>('');
     const [invoiceYearSearch, setInvoiceYearSearch] = useState<number | ''>('');
+
+    const [expSearch, setExpSearch] = useState('');
+    const [expDateSearch, setExpDateSearch] = useState('');
+    const [expMonthSearch, setExpMonthSearch] = useState<number | ''>('');
+    const [expYearSearch, setExpYearSearch] = useState<number | ''>('');
+    const [expCategorySearch, setExpCategorySearch] = useState('');
+
     const [successMsg, setSuccessMsg] = useState('');
 
     useEffect(() => { if(successMsg) setTimeout(() => setSuccessMsg(''), 3000); }, [successMsg]);
@@ -260,6 +293,51 @@ const ClinicAccountsPage: React.FC<any> = ({
         const totalExpense = Object.values(expensesByCategory).reduce((s, v) => s + v, 0);
         return { totalCollection: totalCollectionIncludingDue, collectionByCategory, monthDueRecov, expensesByCategory, totalExpense, balance: totalCollectionIncludingDue - totalExpense };
     }, [selectedMonth, selectedYear, invoices, dueCollections, detailedExpenses, categorizeInvoiceData]);
+
+    const clinicExpenseJournalData = useMemo(() => {
+        const allClinicExpenses: any[] = [];
+        Object.entries(detailedExpenses).forEach(([date, items]: any) => {
+            items.forEach((it: any) => {
+                if (it.dept === 'Clinic') {
+                    allClinicExpenses.push({ ...it, date });
+                }
+            });
+        });
+
+        const filtered = allClinicExpenses.filter(ex => {
+            const matchesSearch = !expSearch || (ex.description || '').toLowerCase().includes(expSearch.toLowerCase()) || (ex.subCategory || '').toLowerCase().includes(expSearch.toLowerCase());
+            const matchesDate = !expDateSearch || ex.date === expDateSearch;
+            const [y, m] = ex.date.split('-').map(Number);
+            const matchesMonth = expMonthSearch === '' || (m - 1) === expMonthSearch;
+            const matchesYear = expYearSearch === '' || y === expYearSearch;
+            const matchesCategory = !expCategorySearch || ex.category === expCategorySearch;
+            return matchesSearch && matchesDate && matchesMonth && matchesYear && matchesCategory;
+        }).sort((a, b) => b.date.localeCompare(a.date));
+
+        const totalPaid = filtered.reduce((s, ex) => s + ex.paidAmount, 0);
+        const totalBill = filtered.reduce((s, ex) => s + ex.billAmount, 0);
+
+        return { filtered, totals: { totalPaid, totalBill } };
+    }, [detailedExpenses, expSearch, expDateSearch, expMonthSearch, expYearSearch, expCategorySearch]);
+
+    const clinicMonthlyExpenseSheetData = useMemo(() => {
+        const expensesByCategory: Record<string, number> = {};
+        clinicExpenseCategories.forEach(cat => expensesByCategory[cat] = 0);
+        
+        Object.entries(detailedExpenses).forEach(([date, items]: any) => {
+            const [y, m] = date.split('-').map(Number);
+            if (m - 1 === selectedMonth && y === selectedYear) {
+                items.forEach((it: any) => {
+                    if (it.dept === 'Clinic') {
+                        expensesByCategory[it.category] = (expensesByCategory[it.category] || 0) + it.paidAmount;
+                    }
+                });
+            }
+        });
+
+        const totalExpense = Object.values(expensesByCategory).reduce((s, v) => s + v, 0);
+        return { expensesByCategory, totalExpense };
+    }, [selectedMonth, selectedYear, detailedExpenses]);
 
     const dailySummaryData = useMemo(() => {
         const dayInvoices = invoices.filter((inv: any) => (inv.admission_date || inv.invoice_date) === selectedDate);
@@ -583,6 +661,67 @@ const ClinicAccountsPage: React.FC<any> = ({
         setTimeout(() => { win.print(); win.close(); }, 750);
     };
 
+    const handlePrintMonthlyExpenseSheet = () => {
+        const win = window.open('', '_blank');
+        if(!win) return;
+        const monthName = monthOptions[selectedMonth].name;
+        const { expensesByCategory, totalExpense } = clinicMonthlyExpenseSheetData;
+
+        const html = `
+            <html>
+                <head>
+                    <title>Monthly Clinic Expense Sheet - ${monthName} ${selectedYear}</title>
+                    <script src="https://cdn.tailwindcss.com"></script>
+                    <style>
+                        @page { size: A4; margin: 10mm; }
+                        body { font-family: 'Segoe UI', sans-serif; }
+                        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                        th, td { border: 1px solid black; padding: 8px; text-align: left; }
+                        th { background: #f3f4f6; font-weight: bold; text-transform: uppercase; }
+                        .text-right { text-align: right; }
+                    </style>
+                </head>
+                <body class="p-6">
+                    <div class="text-center mb-8 border-b-2 border-black pb-4">
+                        <h1 class="text-2xl font-black uppercase text-blue-900">Niramoy Clinic & Diagnostic</h1>
+                        <p class="text-sm font-bold">Monthly Clinic Operating Expense Sheet</p>
+                        <p class="text-lg font-black mt-2 underline uppercase">${monthName} ${selectedYear}</p>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th style="width: 10%">SL</th>
+                                <th style="width: 60%">Expense Category</th>
+                                <th style="width: 30%" class="text-right">Total Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${clinicExpenseCategories.map((cat, idx) => `
+                                <tr>
+                                    <td>${idx + 1}</td>
+                                    <td class="font-bold">${expenseCategoryBanglaMap[cat] || cat}</td>
+                                    <td class="text-right font-black">৳${(expensesByCategory[cat] || 0).toLocaleString()}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                        <tfoot class="bg-gray-100 font-black">
+                            <tr>
+                                <td colspan="2" class="text-right uppercase">Grand Total Monthly Expense:</td>
+                                <td class="text-right text-xl">৳${totalExpense.toLocaleString()}</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                    <div class="mt-20 flex justify-between px-10 text-xs font-bold uppercase text-gray-400">
+                        <div class="text-center w-40 border-t border-black pt-1">Accountant</div>
+                        <div class="text-center w-56 border-t border-black pt-1">Managing Director</div>
+                    </div>
+                </body>
+            </html>
+        `;
+        win.document.write(html); win.document.close();
+        setTimeout(() => { win.print(); win.close(); }, 750);
+    };
+
     const handlePrintSummary = () => {
         const win = window.open('', '_blank');
         if(!win) return;
@@ -678,6 +817,7 @@ const ClinicAccountsPage: React.FC<any> = ({
                 <div className="flex bg-slate-900 rounded-lg p-1 overflow-x-auto max-w-full">
                     <button onClick={() => setViewMode('detailed')} className={`px-6 py-2 rounded-md font-bold text-xs uppercase transition-all whitespace-nowrap ${viewMode === 'detailed' ? 'bg-emerald-600 text-white shadow' : 'text-slate-500 hover:text-white'}`}>Daily Journal</button>
                     <button onClick={() => setViewMode('collection')} className={`px-6 py-2 rounded-md font-bold text-xs uppercase transition-all whitespace-nowrap ${viewMode === 'collection' ? 'bg-blue-600 text-white shadow' : 'text-slate-500 hover:text-white'}`}>Collection Report</button>
+                    <button onClick={() => setViewMode('monthly_expense')} className={`px-6 py-2 rounded-md font-bold text-xs uppercase transition-all whitespace-nowrap ${viewMode === 'monthly_expense' ? 'bg-rose-600 text-white shadow' : 'text-slate-500 hover:text-white'}`}>Monthly Clinic Expense Sheet</button>
                     <button onClick={() => setViewMode('daily_summary')} className={`px-6 py-2 rounded-md font-bold text-xs uppercase transition-all whitespace-nowrap ${viewMode === 'daily_summary' ? 'bg-amber-600 text-white shadow' : 'text-slate-500 hover:text-white'}`}>Daily Summary</button>
                     <button onClick={() => setViewMode('summary')} className={`px-6 py-2 rounded-md font-bold text-xs uppercase transition-all whitespace-nowrap ${viewMode === 'summary' ? 'bg-purple-600 text-white shadow' : 'text-slate-500 hover:text-white'}`}>Monthly Summary</button>
                 </div>
@@ -697,20 +837,24 @@ const ClinicAccountsPage: React.FC<any> = ({
                         />
                         <div className="bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-2xl">
                             <h3 className="text-lg font-black text-sky-400 uppercase mb-6 flex flex-wrap justify-between items-center gap-4">
-                                <span>Indoor Invoices Journal</span>
+                                <span>Clinic Expense Ledger Journal</span>
                                 <div className="flex flex-wrap gap-2">
-                                    <input type="text" placeholder="Name/ID..." value={invoiceSearch} onChange={e=>setInvoiceSearch(e.target.value)} className="bg-slate-950 border border-slate-700 rounded-full px-4 py-1.5 text-xs text-white outline-none focus:ring-1 focus:ring-sky-500 w-40"/>
-                                    <input type="date" value={invoiceDateSearch} onChange={e=>setInvoiceDateSearch(e.target.value)} className="bg-slate-950 border border-slate-700 rounded-full px-4 py-1.5 text-xs text-white outline-none focus:ring-1 focus:ring-sky-500 w-36"/>
-                                    <select value={invoiceMonthSearch} onChange={e=>setInvoiceMonthSearch(e.target.value === '' ? '' : parseInt(e.target.value))} className="bg-slate-950 border border-slate-700 rounded-full px-4 py-1.5 text-xs text-white outline-none focus:ring-1 focus:ring-sky-500">
+                                    <input type="text" placeholder="Search Expense..." value={expSearch} onChange={e=>setExpSearch(e.target.value)} className="bg-slate-950 border border-slate-700 rounded-full px-4 py-1.5 text-xs text-white outline-none focus:ring-1 focus:ring-sky-500 w-40"/>
+                                    <select value={expCategorySearch} onChange={e=>setExpCategorySearch(e.target.value)} className="bg-slate-950 border border-slate-700 rounded-full px-4 py-1.5 text-xs text-white outline-none focus:ring-1 focus:ring-sky-500">
+                                        <option value="">Category</option>
+                                        {clinicExpenseCategories.map(c => <option key={c} value={c}>{c}</option>)}
+                                    </select>
+                                    <input type="date" value={expDateSearch} onChange={e=>setExpDateSearch(e.target.value)} className="bg-slate-950 border border-slate-700 rounded-full px-4 py-1.5 text-xs text-white outline-none focus:ring-1 focus:ring-sky-500 w-36"/>
+                                    <select value={expMonthSearch} onChange={e=>setExpMonthSearch(e.target.value === '' ? '' : parseInt(e.target.value))} className="bg-slate-950 border border-slate-700 rounded-full px-4 py-1.5 text-xs text-white outline-none focus:ring-1 focus:ring-sky-500">
                                         <option value="">Month</option>
                                         {monthOptions.map(m => <option key={m.value} value={m.value}>{m.name}</option>)}
                                     </select>
-                                    <select value={invoiceYearSearch} onChange={e=>setInvoiceYearSearch(e.target.value === '' ? '' : parseInt(e.target.value))} className="bg-slate-950 border border-slate-700 rounded-full px-4 py-1.5 text-xs text-white outline-none focus:ring-1 focus:ring-sky-500">
+                                    <select value={expYearSearch} onChange={e=>setExpYearSearch(e.target.value === '' ? '' : parseInt(e.target.value))} className="bg-slate-950 border border-slate-700 rounded-full px-4 py-1.5 text-xs text-white outline-none focus:ring-1 focus:ring-sky-500">
                                         <option value="">Year</option>
                                         {[2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
                                     </select>
-                                    {(invoiceSearch || invoiceDateSearch || invoiceMonthSearch !== '' || invoiceYearSearch !== '') && (
-                                        <button onClick={() => { setInvoiceSearch(''); setInvoiceDateSearch(''); setInvoiceMonthSearch(''); setInvoiceYearSearch(''); }} className="text-rose-400 text-[10px] font-black uppercase hover:underline">Clear</button>
+                                    {(expSearch || expDateSearch || expMonthSearch !== '' || expYearSearch !== '' || expCategorySearch) && (
+                                        <button onClick={() => { setExpSearch(''); setExpDateSearch(''); setExpMonthSearch(''); setExpYearSearch(''); setExpCategorySearch(''); }} className="text-rose-400 text-[10px] font-black uppercase hover:underline">Clear</button>
                                     )}
                                 </div>
                             </h3>
@@ -719,34 +863,34 @@ const ClinicAccountsPage: React.FC<any> = ({
                                     <thead className="bg-slate-950 text-slate-500 text-[10px] uppercase font-black">
                                         <tr>
                                             <th className="p-4">SL</th>
-                                            <th className="p-4">ID</th>
                                             <th className="p-4">Date</th>
-                                            <th className="p-4">Patient Name</th>
-                                            <th className="p-4 text-center">Status</th>
-                                            <th className="p-4 text-right">Total Bill</th>
+                                            <th className="p-4">Category</th>
+                                            <th className="p-4">Sub-Category</th>
+                                            <th className="p-4">Description</th>
+                                            <th className="p-4 text-right">Bill</th>
                                             <th className="p-4 text-right">Paid</th>
-                                            <th className="p-4 text-right">Due</th>
                                         </tr>
                                         <tr className="bg-slate-900 border-b border-slate-700">
-                                            <th colSpan={5} className="p-2 text-right text-slate-400">Totals:</th>
-                                            <th className="p-2 text-right text-sky-400">৳{indoorJournalData.totals.totalBill.toLocaleString()}</th>
-                                            <th className="p-2 text-right text-emerald-400">৳{indoorJournalData.totals.totalPaid.toLocaleString()}</th>
-                                            <th className="p-2 text-right text-rose-400">৳{indoorJournalData.totals.totalDue.toLocaleString()}</th>
+                                            <th colSpan={5} className="p-2 text-right text-slate-400 uppercase tracking-widest">Filtered Totals:</th>
+                                            <th className="p-2 text-right text-sky-400">৳{clinicExpenseJournalData.totals.totalBill.toLocaleString()}</th>
+                                            <th className="p-2 text-right text-emerald-400">৳{clinicExpenseJournalData.totals.totalPaid.toLocaleString()}</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-800">
-                                        {indoorJournalData.filtered.map((inv:any, idx: number) => (
-                                            <tr key={inv.daily_id} className={`hover:bg-slate-700/40 transition-colors ${inv.status === 'Cancelled' ? 'opacity-30 line-through' : ''}`}>
+                                        {clinicExpenseJournalData.filtered.map((ex:any, idx: number) => (
+                                            <tr key={idx} className="hover:bg-slate-700/40 transition-colors">
                                                 <td className="p-4 text-slate-500 text-xs">{idx + 1}</td>
-                                                <td className="p-4 font-mono text-cyan-400 text-xs">{inv.daily_id}</td>
-                                                <td className="p-4 text-xs">{inv.admission_date || inv.invoice_date}</td>
-                                                <td className="p-4 font-bold">{inv.patient_name}</td>
-                                                <td className="p-4 text-center"><span className="text-[8px] font-black uppercase px-2 py-0.5 rounded bg-slate-900">{inv.status}</span></td>
-                                                <td className="p-4 text-right">৳{inv.total_bill.toLocaleString()}</td>
-                                                <td className="p-4 text-right text-emerald-400 font-bold">৳{(inv.status === 'Cancelled' || inv.status === 'Returned') ? '0' : inv.paid_amount.toLocaleString()}</td>
-                                                <td className="p-4 text-right text-rose-500 font-bold">৳{inv.due_bill.toLocaleString()}</td>
+                                                <td className="p-4 text-xs font-mono text-slate-400">{ex.date}</td>
+                                                <td className="p-4 font-bold text-emerald-400">{expenseCategoryBanglaMap[ex.category] || ex.category}</td>
+                                                <td className="p-4 text-sky-400 font-black uppercase text-[10px]">{ex.subCategory || '-'}</td>
+                                                <td className="p-4 text-slate-300">{ex.description || '-'}</td>
+                                                <td className="p-4 text-right text-slate-400">৳{ex.billAmount.toLocaleString()}</td>
+                                                <td className="p-4 text-right text-emerald-400 font-black">৳{ex.paidAmount.toLocaleString()}</td>
                                             </tr>
                                         ))}
+                                        {clinicExpenseJournalData.filtered.length === 0 && (
+                                            <tr><td colSpan={7} className="p-10 text-center text-slate-600 italic">No clinic expenses found for the selected filters.</td></tr>
+                                        )}
                                     </tbody>
                                 </table>
                             </div>
@@ -870,6 +1014,45 @@ const ClinicAccountsPage: React.FC<any> = ({
                                     )}
                                 </table>
                             </div>
+                        </div>
+                    </div>
+                )}
+
+                {viewMode === 'monthly_expense' && (
+                    <div className="max-w-4xl mx-auto space-y-8 animate-fade-in">
+                        <div className="flex justify-between items-center bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-xl no-print">
+                            <h2 className="text-xl font-black text-white uppercase">Monthly Clinic Expense Sheet: {monthOptions[selectedMonth].name} {selectedYear}</h2>
+                            <div className="flex gap-4">
+                                <button onClick={handlePrintMonthlyExpenseSheet} className="bg-rose-600 text-white px-6 py-2 rounded-xl text-xs font-black uppercase flex items-center gap-2 transition-all shadow-lg active:scale-95"><PrinterIcon size={14}/> Print Expense Sheet</button>
+                                <select value={selectedMonth} onChange={e => setSelectedMonth(parseInt(e.target.value))} className="bg-slate-900 border border-slate-700 p-2 rounded text-white text-xs font-bold">{monthOptions.map(m => <option key={m.value} value={m.value}>{m.name}</option>)}</select>
+                                <select value={selectedYear} onChange={e => setSelectedYear(parseInt(e.target.value))} className="bg-slate-900 border border-slate-700 p-2 rounded text-white text-xs font-bold">{[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}</select>
+                            </div>
+                        </div>
+                        <div className="bg-slate-800 p-8 rounded-3xl border border-slate-700 shadow-2xl">
+                            <table className="w-full text-left border-collapse">
+                                <thead className="bg-slate-900 text-slate-500 text-[10px] uppercase font-black tracking-widest border-b border-slate-700">
+                                    <tr>
+                                        <th className="p-4">SL</th>
+                                        <th className="p-4">Expense Category</th>
+                                        <th className="p-4 text-right">Total Amount</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-800 text-sm">
+                                    {clinicExpenseCategories.map((cat, idx) => (
+                                        <tr key={cat} className="hover:bg-slate-700/30 transition-colors">
+                                            <td className="p-4 text-slate-500 font-mono">{idx + 1}</td>
+                                            <td className="p-4 font-bold text-slate-200">{expenseCategoryBanglaMap[cat] || cat}</td>
+                                            <td className="p-4 text-right font-black text-rose-400">৳{(clinicMonthlyExpenseSheetData.expensesByCategory[cat] || 0).toLocaleString()}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                                <tfoot className="bg-slate-900 text-white font-black border-t-2 border-slate-700">
+                                    <tr>
+                                        <td colSpan={2} className="p-6 text-right uppercase tracking-widest text-xs">Grand Total Monthly Clinic Expense:</td>
+                                        <td className="p-6 text-right text-2xl text-rose-500 underline decoration-double">৳{clinicMonthlyExpenseSheetData.totalExpense.toLocaleString()}</td>
+                                    </tr>
+                                </tfoot>
+                            </table>
                         </div>
                     </div>
                 )}
