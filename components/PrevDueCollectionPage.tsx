@@ -78,7 +78,7 @@ const PrevDueCollectionPage: React.FC<Props> = ({ invoices, setInvoices, dueColl
                     <tbody className="divide-y divide-slate-800">
                         {filteredInvoices.map((inv) => (
                             <tr key={inv.invoice_id} className="hover:bg-slate-800/50 transition-colors">
-                                <td className="p-4 text-sm">{inv.invoice_date}</td><td className="p-4 font-mono text-sky-400">{inv.invoice_id}</td><td className="p-4 font-bold">{inv.patient_name}</td><td className="p-4 text-right">{inv.total_amount.toFixed(2)}</td><td className="p-4 text-right text-green-400">{inv.paid_amount.toFixed(2)}</td><td className="p-4 text-right text-red-500 font-black">৳{inv.due_amount.toFixed(2)}</td>
+                                <td className="p-4 text-sm">{inv.invoice_date}</td><td className="p-4 font-mono text-sky-400">{inv.invoice_id}</td><td className="p-4 font-bold">{inv.patient_name}</td><td className="p-4 text-right">{(inv.total_amount || 0).toFixed(2)}</td><td className="p-4 text-right text-green-400">{(inv.paid_amount || 0).toFixed(2)}</td><td className="p-4 text-right text-red-500 font-black">৳{(inv.due_amount || 0).toFixed(2)}</td>
                                 <td className="p-4 text-center"><button onClick={() => { setSelectedInvoice(inv); setShowModal(true); setCollectionAmount(0); }} className="bg-green-600 px-4 py-1.5 rounded-md text-xs font-bold text-white">Collect</button></td>
                             </tr>
                         ))}
@@ -89,7 +89,7 @@ const PrevDueCollectionPage: React.FC<Props> = ({ invoices, setInvoices, dueColl
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
                     <div className="bg-slate-800 border border-slate-700 rounded-xl w-full max-w-md p-6">
                         <h3 className="text-xl font-bold mb-4">বকেয়া টাকা আদায়</h3>
-                        <div className="bg-slate-900 p-4 rounded mb-6 flex justify-between items-center"><span className="text-slate-400">Current Due:</span><span className="text-red-400 text-2xl font-black">৳{selectedInvoice.due_amount.toFixed(2)}</span></div>
+                        <div className="bg-slate-900 p-4 rounded mb-6 flex justify-between items-center"><span className="text-slate-400">Current Due:</span><span className="text-red-400 text-2xl font-black">৳{(selectedInvoice.due_amount || 0).toFixed(2)}</span></div>
                         <div className="space-y-4">
                             <div><label className="text-xs text-slate-500 uppercase font-black">Amount to Pay</label><input type="number" value={collectionAmount || ''} onChange={e => setCollectionAmount(parseFloat(e.target.value))} className="w-full bg-slate-900 border border-slate-700 p-3 rounded text-white text-xl font-bold" autoFocus /></div>
                             <SearchableSelect label="Collected By" theme="dark" options={employees.filter(e=>e.is_current_month).map(e=>({id: e.emp_name, name: e.emp_name}))} value={collectedBy} onChange={(id, name)=>setCollectedBy(name)} />

@@ -122,6 +122,7 @@ const DiagnosticPage: React.FC<DiagnosticPageProps> = ({
   const isDiagAdmin = userRole === 'DIAGNOSTIC_ADMIN';
   
   const [activeTab, setActiveTab] = useState<DiagnosticSubPage>(() => isLabReporter ? 'lab_reporting' : 'doctor_appointment');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   
   const renderContent = () => {
     switch (activeTab) {
@@ -257,39 +258,52 @@ const DiagnosticPage: React.FC<DiagnosticPageProps> = ({
 
   return (
     <div className="flex h-screen bg-slate-900 text-slate-100 overflow-hidden">
-      <aside className="w-64 bg-slate-950 border-r border-slate-800 flex flex-col z-20 shadow-2xl hidden md:flex pt-4">
+      {/* Sidebar Toggle Button for Mobile/Collapsed */}
+      <button 
+        onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+        className={`fixed bottom-6 left-6 z-50 p-3 rounded-full bg-cyan-600 text-white shadow-2xl transition-all duration-300 md:hidden ${isSidebarOpen ? 'rotate-180' : ''}`}
+      >
+        <SettingsIcon className="w-6 h-6" />
+      </button>
+
+      <aside className={`
+        ${isSidebarOpen ? 'w-64' : 'w-0 md:w-16'} 
+        bg-slate-950 border-r border-slate-800 flex flex-col z-20 shadow-2xl transition-all duration-300 ease-in-out overflow-hidden pt-4
+      `}>
         <div className="flex-1 overflow-y-auto py-4">
-            <div className="px-4 mb-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+            <div className={`px-4 mb-2 text-xs font-semibold text-slate-500 uppercase tracking-wider transition-opacity duration-300 ${!isSidebarOpen ? 'md:opacity-0' : 'opacity-100'}`}>
               Data Entry / Setup
             </div>
             <div className="space-y-1">
-              <SidebarItem id="patient_info" label="Patient Information" icon={<UsersIcon className="w-5 h-5" />} activeTab={activeTab} onClick={setActiveTab} disabled={isLabReporter} />
-              <SidebarItem id="doctor_info" label="Doctor Information" icon={<StethoscopeIcon className="w-5 h-5" />} activeTab={activeTab} onClick={setActiveTab} disabled={isLabReporter} />
-              <SidebarItem id="referrer_info" label="Referrer Information" icon={<UserPlusIcon className="w-5 h-5" />} activeTab={activeTab} onClick={setActiveTab} disabled={isLabReporter} />
-              <SidebarItem id="test_info" label="Test Information" icon={<DnaIcon className="w-5 h-5" />} activeTab={activeTab} onClick={setActiveTab} disabled={isLabReporter} />
-              <SidebarItem id="reagent_info" label="Reagent Information" icon={<TestTubeIcon className="w-5 h-5" />} activeTab={activeTab} onClick={setActiveTab} disabled={isLabReporter} />
+              <SidebarItem id="patient_info" label={isSidebarOpen ? "Patient Information" : ""} icon={<UsersIcon className="w-5 h-5" />} activeTab={activeTab} onClick={setActiveTab} disabled={isLabReporter} />
+              <SidebarItem id="doctor_info" label={isSidebarOpen ? "Doctor Information" : ""} icon={<StethoscopeIcon className="w-5 h-5" />} activeTab={activeTab} onClick={setActiveTab} disabled={isLabReporter} />
+              <SidebarItem id="referrer_info" label={isSidebarOpen ? "Referrer Information" : ""} icon={<UserPlusIcon className="w-5 h-5" />} activeTab={activeTab} onClick={setActiveTab} disabled={isLabReporter} />
+              <SidebarItem id="test_info" label={isSidebarOpen ? "Test Information" : ""} icon={<DnaIcon className="w-5 h-5" />} activeTab={activeTab} onClick={setActiveTab} disabled={isLabReporter} />
+              <SidebarItem id="reagent_info" label={isSidebarOpen ? "Reagent Information" : ""} icon={<TestTubeIcon className="w-5 h-5" />} activeTab={activeTab} onClick={setActiveTab} disabled={isLabReporter} />
             </div>
 
-            <div className="mt-8 px-4 mb-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+            <div className={`mt-8 px-4 mb-2 text-xs font-semibold text-slate-500 uppercase tracking-wider transition-opacity duration-300 ${!isSidebarOpen ? 'md:opacity-0' : 'opacity-100'}`}>
               System
             </div>
             <div className="space-y-1">
                <button onClick={onBack} className="w-full flex items-center px-4 py-3 text-sm font-medium text-red-400 hover:bg-red-900/20 border-l-4 border-transparent transition-colors">
                   <BackIcon className="w-5 h-5 mr-3" />
-                  Logout / Exit
+                  {isSidebarOpen && "Logout / Exit"}
                </button>
             </div>
         </div>
 
         <div className="p-4 border-t border-slate-800 bg-slate-900/50 mt-auto">
            <div className="flex items-center">
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs ${isLabReporter ? 'bg-blue-900 text-blue-300' : 'bg-cyan-900 text-cyan-300'}`}>
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${isLabReporter ? 'bg-blue-900 text-blue-300' : 'bg-cyan-900 text-cyan-300'}`}>
                 {isLabReporter ? 'LR' : 'AD'}
               </div>
-              <div className="ml-3">
-                 <p className="text-sm font-medium text-slate-200">{isLabReporter ? 'Lab Reporter' : 'Admin'}</p>
-                 <p className="text-xs text-slate-500">Diagnostic Dept</p>
-              </div>
+              {isSidebarOpen && (
+                <div className="ml-3 overflow-hidden">
+                   <p className="text-sm font-medium text-slate-200 truncate">{isLabReporter ? 'Lab Reporter' : 'Admin'}</p>
+                   <p className="text-xs text-slate-500 truncate">Diagnostic Dept</p>
+                </div>
+              )}
            </div>
         </div>
       </aside>
@@ -301,11 +315,20 @@ const DiagnosticPage: React.FC<DiagnosticPageProps> = ({
 
         <header className="bg-slate-900/90 backdrop-blur-md border-b border-slate-800 p-4 shrink-0 shadow-sm z-20 relative">
           <div className="flex flex-col md:flex-row items-center justify-between relative w-full px-4">
-             <div className="flex flex-col items-center md:items-start z-10">
-                <h1 className="text-2xl md:text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-white to-cyan-100 leading-tight tracking-tight mb-1">
-                  Niramoy Clinic and Diagnostic
-                </h1>
-                <p className="text-sm md:text-base text-slate-400 font-medium">Enayetpur, Sirajgonj | Phone: 01730 923007</p>
+             <div className="flex items-center gap-4 z-10">
+                <button 
+                  onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                  className="p-2 rounded-lg bg-slate-800 text-slate-400 hover:text-cyan-400 hover:bg-slate-700 transition-all hidden md:block"
+                  title={isSidebarOpen ? "Collapse Sidebar" : "Expand Sidebar"}
+                >
+                  <SettingsIcon className={`w-5 h-5 transition-transform duration-500 ${isSidebarOpen ? 'rotate-90' : ''}`} />
+                </button>
+                <div className="flex flex-col items-center md:items-start">
+                  <h1 className="text-2xl md:text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-white to-cyan-100 leading-tight tracking-tight mb-1">
+                    Niramoy Clinic and Diagnostic
+                  </h1>
+                  <p className="text-sm md:text-base text-slate-400 font-medium">Enayetpur, Sirajgonj | Phone: 01730 923007</p>
+                </div>
              </div>
              <div className="flex items-center mt-3 md:mt-0 z-10">
                 <DiagnosticIcon className="w-8 h-8 text-cyan-400 mr-2 drop-shadow-[0_0_5px_rgba(34,211,238,0.5)]" />

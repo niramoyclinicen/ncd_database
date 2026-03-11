@@ -1481,9 +1481,10 @@ const IndoorInvoicePage: React.FC<{
             let hospitalNet = 0;
 
             indoorInvoices.forEach(inv => {
-                const isMatch = type === 'day' ? inv.invoice_date === period 
-                              : type === 'month' ? inv.invoice_date.startsWith(period)
-                              : inv.invoice_date.startsWith(period);
+                const dateToUse = inv.admission_date || inv.invoice_date;
+                const isMatch = type === 'day' ? dateToUse === period 
+                              : type === 'month' ? dateToUse.startsWith(period)
+                              : dateToUse.startsWith(period);
 
                 if (isMatch && inv.status !== 'Cancelled') {
                     // Logic: Gain = Paid - NonFundedItems - PC
@@ -2145,7 +2146,13 @@ const ClinicDueCollectionPage: React.FC<{
 
     const handleCollect = () => {
         if (!selectedInvoice || amount <= 0) return;
-        const newCollection: ClinicDueCollection = { collection_id: Date.now().toString(), invoice_id: selectedInvoice.daily_id, patient_name: selectedInvoice.patient_name, collection_date: new Date().toISOString().split('T')[0], amount_collected: amount };
+        const newCollection: ClinicDueCollection = { 
+            collection_id: Date.now().toString(), 
+            invoice_id: selectedInvoice.daily_id, 
+            patient_name: selectedInvoice.patient_name, 
+            collection_date: selectedInvoice.admission_date || new Date().toISOString().split('T')[0], 
+            amount_collected: amount 
+        };
         const updatedInvoice = { ...selectedInvoice, paid_amount: selectedInvoice.paid_amount + amount, due_bill: selectedInvoice.due_bill - amount };
         setClinicDueCollections((prev: ClinicDueCollection[]) => [...prev, newCollection]);
         setIndoorInvoices((prev: IndoorInvoice[]) => prev.map((inv: IndoorInvoice) => inv.daily_id === updatedInvoice.daily_id ? updatedInvoice : inv));

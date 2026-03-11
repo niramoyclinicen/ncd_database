@@ -104,24 +104,37 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
     }
   }, [successMessage]);
 
+  const todayInvoiceCount = useMemo(() => {
+    return invoices.filter(inv => inv.invoice_date === todayDateString && inv.status !== 'Cancelled').length;
+  }, [invoices, todayDateString]);
+
+  const monthlyInvoiceCount = useMemo(() => {
+    const currentMonth = today.getMonth();
+    const currentYear = today.getFullYear();
+    return invoices.filter(inv => {
+      const invDate = new Date(inv.invoice_date);
+      return invDate.getMonth() === currentMonth && invDate.getFullYear() === currentYear && inv.status !== 'Cancelled';
+    }).length;
+  }, [invoices, today]);
+
   // Effect to synchronize `displayPaidAmount` with `formData.paid_amount`
   useEffect(() => {
     const timer = setTimeout(() => {
-      setDisplayPaidAmount(formData.paid_amount.toFixed(2));
+      setDisplayPaidAmount((formData.paid_amount || 0).toFixed(2));
     }, 0);
     return () => clearTimeout(timer);
   }, [formData.paid_amount]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      setDisplayDiscountPercentage(formData.discount_percentage.toFixed(2));
+      setDisplayDiscountPercentage((formData.discount_percentage || 0).toFixed(2));
     }, 0);
     return () => clearTimeout(timer);
   }, [formData.discount_percentage]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      setDisplayDiscountAmount(formData.discount_amount.toFixed(2));
+      setDisplayDiscountAmount((formData.discount_amount || 0).toFixed(2));
     }, 0);
     return () => clearTimeout(timer);
   }, [formData.discount_amount]);
@@ -779,7 +792,19 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
       )}
 
     <div className="bg-sky-950 text-sky-200 p-6 rounded-xl mb-8 border border-sky-800">
-      <h2 className="text-2xl font-bold text-sky-100 mb-6 border-b border-sky-800 pb-2">Lab Invoice</h2>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 border-b border-sky-800 pb-4">
+        <h2 className="text-2xl font-bold text-sky-100">Lab Invoice</h2>
+        <div className="flex flex-wrap gap-3">
+            <div className="bg-sky-900/50 px-3 py-1.5 rounded-lg border border-sky-700 flex items-center gap-2">
+                <span className="text-[10px] font-bold text-sky-400 uppercase tracking-wider">Today Invoices:</span>
+                <span className="text-sm font-black text-white">{todayInvoiceCount}</span>
+            </div>
+            <div className="bg-indigo-900/50 px-3 py-1.5 rounded-lg border border-indigo-700 flex items-center gap-2">
+                <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider">Monthly Invoices:</span>
+                <span className="text-sm font-black text-white">{monthlyInvoiceCount}</span>
+            </div>
+        </div>
+      </div>
       <form id="invoice-form" onSubmit={handleSaveInvoice}>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-x-4 gap-y-5">
           <div>
@@ -882,10 +907,10 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
                     <tr key={item.test_id}>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-400">{idx + 1}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-200 font-medium">{item.test_name}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300 text-right">{item.price.toFixed(2)}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300 text-right">{applyPC ? item.test_commission.toFixed(2) : '0.00'}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300 text-right">{(item.price || 0).toFixed(2)}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300 text-right">{applyPC ? (item.test_commission || 0).toFixed(2) : '0.00'}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300 text-right">{item.quantity}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-200 font-medium text-right">{item.subtotal.toFixed(2)}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-200 font-medium text-right">{(item.subtotal || 0).toFixed(2)}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium"><button type="button" onClick={() => handleRemoveItem(item.test_id)} className="text-red-400 hover:text-red-300 transition-colors">Remove</button></td>
                     </tr>
                   ))}
@@ -940,22 +965,22 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
              <div><label htmlFor="payment_method" className={commonLabelClasses}>Payment Method</label><select id="payment_method" name="payment_method" value={formData.payment_method} onChange={handleInputChange} className={commonInputClasses}><option value="Cash">Cash</option><option value="Card">Card</option><option value="Mobile Banking">Mobile Banking</option></select></div>
           </div>
           <div className="space-y-2 bg-slate-800 p-4 rounded-lg border border-slate-700 text-slate-300">
-            <div className="flex justify-between items-center text-md font-medium"><span>Total Amount:</span><span>{totals.totalAmount.toFixed(2)} BDT</span></div>
+            <div className="flex justify-between items-center text-md font-medium"><span>Total Amount:</span><span>{(totals.totalAmount || 0).toFixed(2)} BDT</span></div>
             <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
                 <div className="flex items-center gap-2"><label htmlFor="discount_percentage" className="text-sm font-medium">Discount (%):</label><input type="text" id="discount_percentage" name="discount_percentage" value={displayDiscountPercentage} onChange={handleDiscountPercentageChange} onBlur={handleDiscountPercentageBlur} onFocus={handleFocusSelect} className={totalsInputClasses} /></div>
                 <div className="flex items-center gap-2 justify-end flex-grow"><label htmlFor="discount_amount" className="text-sm font-medium">Discount Amount:</label><input type="text" id="discount_amount" name="discount_amount" value={displayDiscountAmount} onChange={handleDiscountAmountChange} onBlur={handleDiscountAmountBlur} onFocus={handleFocusSelect} className={totalsInputClasses} /></div>
             </div>
-            <div className="flex justify-between items-center text-xl font-bold text-slate-100 mt-2 pt-2 border-t border-slate-600"><span>Net Payable:</span><span className="text-blue-400">{totals.netPayable.toFixed(2)} BDT</span></div>
+            <div className="flex justify-between items-center text-xl font-bold text-slate-100 mt-2 pt-2 border-t border-slate-600"><span>Net Payable:</span><span className="text-blue-400">{(totals.netPayable || 0).toFixed(2)} BDT</span></div>
              <div className="flex justify-between items-center mt-4"><label htmlFor="paid_amount" className="text-sm font-medium">Paid Amount (BDT):</label><input type="text" id="paid_amount" name="paid_amount" value={displayPaidAmount} onChange={handlePaidAmountChange} onFocus={handlePaidAmountInputFocus} onBlur={handlePaidAmountInputBlur} className={totalsInputClasses} /></div>
-            <div className="flex justify-between items-center text-lg font-semibold mt-1"><span>Due Amount:</span><span className={`${totals.dueAmount > 0 ? 'text-red-400' : 'text-green-400'}`}>{totals.dueAmount.toFixed(2)} BDT</span></div>
+            <div className="flex justify-between items-center text-lg font-semibold mt-1"><span>Due Amount:</span><span className={`${totals.dueAmount > 0 ? 'text-red-400' : 'text-green-400'}`}>{(totals.dueAmount || 0).toFixed(2)} BDT</span></div>
             {applyPC && (
                 <div className="mt-4 pt-4 border-t border-slate-600 space-y-2">
-                    <div className="flex justify-between items-center text-sm"><span>Commission (If 100% paid):</span><input type="text" readOnly value={totals.tComm100.toFixed(2)} className={`${totalsInputClasses} !bg-slate-800 border-0`} /></div>
-                    <div className="flex justify-between items-center text-sm"><span>Commission (After Discount):</span><input type="text" readOnly value={totals.commAfterDisc.toFixed(2)} className={`${totalsInputClasses} !bg-slate-800 border-0`} /></div>
+                    <div className="flex justify-between items-center text-sm"><span>Commission (If 100% paid):</span><input type="text" readOnly value={(totals.tComm100 || 0).toFixed(2)} className={`${totalsInputClasses} !bg-slate-800 border-0`} /></div>
+                    <div className="flex justify-between items-center text-sm"><span>Commission (After Discount):</span><input type="text" readOnly value={(totals.commAfterDisc || 0).toFixed(2)} className={`${totalsInputClasses} !bg-slate-800 border-0`} /></div>
                     <div className="flex justify-between items-center text-sm"><label htmlFor="special_commission" className="font-medium">special commission:</label><input type="number" id="special_commission" name="special_commission" value={formData.special_commission} onChange={handleInputChange} onFocus={handleFocusSelect} className={totalsInputClasses} placeholder="Enter amount" /></div>
-                    <div className="flex justify-between items-center text-sm"><span>Payable Commission:</span><input type="text" id="payable_commission" readOnly value={totals.payableComm.toFixed(2)} className={`${totalsInputClasses} !bg-slate-800 border-0 transition-colors duration-500 ${totals.payableComm < 0 ? 'text-red-400 font-bold' : ''}`} /></div>
+                    <div className="flex justify-between items-center text-sm"><span>Payable Commission:</span><input type="text" id="payable_commission" readOnly value={(totals.payableComm || 0).toFixed(2)} className={`${totalsInputClasses} !bg-slate-800 border-0 transition-colors duration-500 ${totals.payableComm < 0 ? 'text-red-400 font-bold' : ''}`} /></div>
                     <div className="flex justify-between items-center text-sm"><label htmlFor="commission_paid" className="font-medium">Commission Paid:</label><input type="number" id="commission_paid" name="commission_paid" value={formData.commission_paid} onChange={handleInputChange} onFocus={handleFocusSelect} className={totalsInputClasses} placeholder="Enter amount" /></div>
-                    <div className="flex justify-between items-center text-sm"><span>Commission Due:</span><input type="text" readOnly value={totals.commDue.toFixed(2)} className={`${totalsInputClasses} !bg-slate-800 border-0 font-bold transition-colors duration-500 ${totals.commDue < 0 ? 'text-red-400' : 'text-green-400'}`} /></div>
+                    <div className="flex justify-between items-center text-sm"><span>Commission Due:</span><input type="text" readOnly value={(totals.commDue || 0).toFixed(2)} className={`${totalsInputClasses} !bg-slate-800 border-0 font-bold transition-colors duration-500 ${totals.commDue < 0 ? 'text-red-400' : 'text-green-400'}`} /></div>
                 </div>
             )}
           </div>
@@ -970,21 +995,21 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
           <div className="bg-white text-gray-800 rounded-lg p-5 shadow-md border border-gray-200">
             <div className="flex justify-center items-center mb-3"><input type="date" value={reportDate} onChange={(e) => setReportDate(e.target.value)} className="py-1 px-2 border border-gray-300 rounded-md shadow-sm sm:text-sm bg-gray-50 text-gray-900" /></div>
             <div className="space-y-2">
-                <div className="flex justify-between items-center"><span className="font-medium text-gray-600">Total Bill:</span> <span className="font-bold">{dailyReport.totalBill.toFixed(2)}</span></div>
-                <div className="flex justify-between items-center"><span className="font-medium text-gray-600">Total Discount:</span> <span className="font-bold">{dailyReport.totalDiscount.toFixed(2)}</span></div>
-                <div className="flex justify-between items-center"><span className="font-medium text-gray-600">Net Payable:</span> <span className="font-bold">{dailyReport.netPayable.toFixed(2)}</span></div>
-                <div className="flex justify-between items-center"><span className="font-medium text-green-600">Paid Amount:</span> <span className="font-bold text-green-600">{dailyReport.paidAmount.toFixed(2)}</span></div>
-                <div className="flex justify-between items-center"><span className="font-medium text-red-600">Due Amount:</span> <span className="font-bold text-red-600">{dailyReport.dueAmount.toFixed(2)}</span></div>
+                <div className="flex justify-between items-center"><span className="font-medium text-gray-600">Total Bill:</span> <span className="font-bold">{(dailyReport.totalBill || 0).toFixed(2)}</span></div>
+                <div className="flex justify-between items-center"><span className="font-medium text-gray-600">Total Discount:</span> <span className="font-bold">{(dailyReport.totalDiscount || 0).toFixed(2)}</span></div>
+                <div className="flex justify-between items-center"><span className="font-medium text-gray-600">Net Payable:</span> <span className="font-bold">{(dailyReport.netPayable || 0).toFixed(2)}</span></div>
+                <div className="flex justify-between items-center"><span className="font-medium text-green-600">Paid Amount:</span> <span className="font-bold text-green-600">{(dailyReport.paidAmount || 0).toFixed(2)}</span></div>
+                <div className="flex justify-between items-center"><span className="font-medium text-red-600">Due Amount:</span> <span className="font-bold text-red-600">{(dailyReport.dueAmount || 0).toFixed(2)}</span></div>
             </div>
           </div>
           <div className="bg-white text-gray-800 rounded-lg p-5 shadow-md border border-gray-200">
             <p className="text-base font-semibold text-gray-700 mb-3 text-center">For {new Date().toLocaleString('default', { month: 'long', year: 'numeric' })}</p>
             <div className="space-y-2">
-                <div className="flex justify-between items-center"><span className="font-medium text-gray-600">Total Bill:</span> <span className="font-bold">{monthlyReport.totalBill.toFixed(2)}</span></div>
-                <div className="flex justify-between items-center"><span className="font-medium text-gray-600">Total Discount:</span> <span className="font-bold">{monthlyReport.totalDiscount.toFixed(2)}</span></div>
-                <div className="flex justify-between items-center"><span className="font-medium text-gray-600">Net Payable:</span> <span className="font-bold">{monthlyReport.netPayable.toFixed(2)}</span></div>
-                <div className="flex justify-between items-center"><span className="font-medium text-green-600">Paid Amount:</span> <span className="font-bold text-green-600">{monthlyReport.paidAmount.toFixed(2)}</span></div>
-                <div className="flex justify-between items-center"><span className="font-medium text-red-600">Due Amount:</span> <span className="font-bold text-red-600">{monthlyReport.dueAmount.toFixed(2)}</span></div>
+                <div className="flex justify-between items-center"><span className="font-medium text-gray-600">Total Bill:</span> <span className="font-bold">{(monthlyReport.totalBill || 0).toFixed(2)}</span></div>
+                <div className="flex justify-between items-center"><span className="font-medium text-gray-600">Total Discount:</span> <span className="font-bold">{(monthlyReport.totalDiscount || 0).toFixed(2)}</span></div>
+                <div className="flex justify-between items-center"><span className="font-medium text-gray-600">Net Payable:</span> <span className="font-bold">{(monthlyReport.netPayable || 0).toFixed(2)}</span></div>
+                <div className="flex justify-between items-center"><span className="font-medium text-green-600">Paid Amount:</span> <span className="font-bold text-green-600">{(monthlyReport.paidAmount || 0).toFixed(2)}</span></div>
+                <div className="flex justify-between items-center"><span className="font-medium text-red-600">Due Amount:</span> <span className="font-bold text-red-600">{(monthlyReport.dueAmount || 0).toFixed(2)}</span></div>
             </div>
           </div>
         </div>
@@ -1060,15 +1085,15 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4 no-print">
             <div className="bg-slate-800/60 border border-slate-700 p-3 rounded-xl flex justify-between items-center">
                 <span className="text-xs font-black text-slate-400 uppercase tracking-widest">Total Amount:</span>
-                <span className="text-sm font-black text-white">৳ {tableTotals.total.toFixed(2)}</span>
+                <span className="text-sm font-black text-white">৳ {(tableTotals.total || 0).toFixed(2)}</span>
             </div>
             <div className="bg-emerald-900/30 border border-emerald-800/50 p-3 rounded-xl flex justify-between items-center">
                 <span className="text-xs font-black text-emerald-400 uppercase tracking-widest">Total Paid:</span>
-                <span className="text-sm font-black text-emerald-400">৳ {tableTotals.paid.toFixed(2)}</span>
+                <span className="text-sm font-black text-emerald-400">৳ {(tableTotals.paid || 0).toFixed(2)}</span>
             </div>
             <div className="bg-rose-900/30 border border-rose-800/50 p-3 rounded-xl flex justify-between items-center">
                 <span className="text-xs font-black text-rose-400 uppercase tracking-widest">Total Due:</span>
-                <span className="text-sm font-black text-rose-400">৳ {tableTotals.due.toFixed(2)}</span>
+                <span className="text-sm font-black text-rose-400">৳ {(tableTotals.due || 0).toFixed(2)}</span>
             </div>
         </div>
 
@@ -1098,9 +1123,9 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-100 font-black uppercase">{invoice.patient_name}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300 font-medium">{invoice.doctor_name || 'N/A'}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-400 italic">{invoice.referrar_name || 'N/A'}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300 text-right">{invoice.total_amount.toFixed(2)}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300 text-right font-bold text-emerald-400">{invoice.paid_amount.toFixed(2)}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300 text-right font-bold text-rose-400">{invoice.due_amount.toFixed(2)}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300 text-right">{(invoice.total_amount || 0).toFixed(2)}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300 text-right font-bold text-emerald-400">{(invoice.paid_amount || 0).toFixed(2)}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300 text-right font-bold text-rose-400">{(invoice.due_amount || 0).toFixed(2)}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300"><span className={`px-2 inline-flex text-xs leading-5 font-black uppercase rounded-full ${invoice.status === 'Paid' ? 'bg-green-900/50 text-green-300' : invoice.status === 'Due' ? 'bg-orange-900/50 text-orange-300' : invoice.status === 'Returned' ? 'bg-blue-900/50 text-blue-300' : 'bg-red-900/50 text-red-300'}`}>{invoice.status}</span></td>
                   <td className="px-6 py-4 whitespace-nowrap text-xs text-slate-500">{invoice.last_modified}</td>
                 </tr>
@@ -1117,9 +1142,9 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
               <tfoot className="bg-slate-700/80 border-t-2 border-slate-600">
                 <tr>
                   <td colSpan={6} className="px-6 py-4 text-right text-xs font-black text-slate-100 uppercase tracking-wider">Total:</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-100 text-right font-black border-l border-slate-600/50">{tableTotals.total.toFixed(2)}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-emerald-400 text-right font-black border-l border-slate-600/50">{tableTotals.paid.toFixed(2)}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-rose-400 text-right font-black border-l border-slate-600/50">{tableTotals.due.toFixed(2)}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-100 text-right font-black border-l border-slate-600/50">{(tableTotals.total || 0).toFixed(2)}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-emerald-400 text-right font-black border-l border-slate-600/50">{(tableTotals.paid || 0).toFixed(2)}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-rose-400 text-right font-black border-l border-slate-600/50">{(tableTotals.due || 0).toFixed(2)}</td>
                   <td colSpan={2} className="px-6 py-4 border-l border-slate-600/50"></td>
                 </tr>
               </tfoot>

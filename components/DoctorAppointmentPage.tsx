@@ -138,7 +138,9 @@ const DoctorAppointmentPage: React.FC<DoctorAppointmentPageProps> = ({
     });
   }, [searchTerm, listSearchDoctor, listSearchPatient, listFilterDate, listFilterMonth, appointments]);
 
-  const totalFilteredFees = filteredAppointments.reduce((sum, appt) => sum + appt.doctor_fee, 0);
+  const totalFilteredFees = filteredAppointments
+    .filter(appt => appt.status !== 'Cancelled' && appt.status !== 'Returned')
+    .reduce((sum, appt) => sum + (appt.doctor_fee || 0), 0);
 
   useEffect(() => {
     const calculateTotals = () => {
@@ -357,7 +359,7 @@ const DoctorAppointmentPage: React.FC<DoctorAppointmentPageProps> = ({
                     <tr><td class="label">Patient:</td><td class="val name-val">${apptToPrint.patient_name} ${apptToPrint.status === 'Returned' ? '(REFUNDED)' : ''}</td></tr>
                     <tr><td class="label">Age/Sex:</td><td class="val">${patient?.ageY}Y / ${patient?.gender}</td></tr>
                     <tr><td class="label">Reason:</td><td class="val">${apptToPrint.reason}</td></tr>
-                    <tr><td class="label">Fee:</td><td class="val">${apptToPrint.status === 'Returned' ? '৳ 0.00 (Refunded)' : `BDT ${apptToPrint.doctor_fee.toFixed(2)}`}</td></tr>
+                    <tr><td class="label">Fee:</td><td class="val">${apptToPrint.status === 'Returned' ? '৳ 0.00 (Refunded)' : `BDT ${(apptToPrint.doctor_fee || 0).toFixed(2)}`}</td></tr>
                 </table>
                 <div style="margin-left: 10px; text-align: right; min-width: 90px; padding-top: 5px;"><img src="https://bwipjs-api.metafloor.com/?bcid=code128&text=${encodeURIComponent(apptToPrint.patient_id)}&scale=1&height=10&incltext=false" alt="BC" style="height: 35px; width: auto; max-width: 100%;"/><div style="font-size: 8px; font-family: monospace; margin-top: 2px; font-weight: bold;">${apptToPrint.patient_id}</div></div>
             </div>
@@ -451,7 +453,7 @@ const DoctorAppointmentPage: React.FC<DoctorAppointmentPageProps> = ({
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Selected Date:</label>
                 <input type="date" value={selectedDateForDailyReport} onChange={(e) => setSelectedDateForDailyReport(e.target.value)} className="w-28 py-1 px-2 border border-sky-700 rounded-lg text-[10px] font-bold bg-sky-950 text-sky-200 outline-none focus:ring-1 focus:ring-sky-400" />
             </div>
-            {formData.doctor_id ? ( <p className="text-3xl font-black text-white drop-shadow-md">৳ {selectedDoctorDailyFeeTotal.toFixed(2)}</p> ) : ( <p className="text-xs text-sky-400 italic font-bold">Select a Doctor Above</p> )}
+            {formData.doctor_id ? ( <p className="text-3xl font-black text-white drop-shadow-md">৳ {(selectedDoctorDailyFeeTotal || 0).toFixed(2)}</p> ) : ( <p className="text-xs text-sky-400 italic font-bold">Select a Doctor Above</p> )}
           </div>
 
           <div className="bg-emerald-900/60 rounded-2xl p-5 border border-emerald-700 shadow-xl backdrop-blur-sm group hover:scale-105 transition-all">
@@ -462,7 +464,7 @@ const DoctorAppointmentPage: React.FC<DoctorAppointmentPageProps> = ({
             <p className="text-[10px] text-slate-400 mb-4 uppercase font-bold tracking-widest">
                 Cycle: {new Date(selectedDateForDailyReport).toLocaleString('default', { month: 'long', year: 'numeric' })}
             </p>
-            {formData.doctor_id ? ( <p className="text-3xl font-black text-white drop-shadow-md">৳ {selectedDoctorMonthlyFeeTotal.toFixed(2)}</p> ) : ( <p className="text-xs text-emerald-400 italic font-bold">Select a Doctor Above</p> )}
+            {formData.doctor_id ? ( <p className="text-3xl font-black text-white drop-shadow-md">৳ {(selectedDoctorMonthlyFeeTotal || 0).toFixed(2)}</p> ) : ( <p className="text-xs text-emerald-400 italic font-bold">Select a Doctor Above</p> )}
           </div>
 
           <div className="bg-purple-900/60 rounded-2xl p-5 border border-purple-700 shadow-xl backdrop-blur-sm group hover:scale-105 transition-all">
@@ -471,7 +473,7 @@ const DoctorAppointmentPage: React.FC<DoctorAppointmentPageProps> = ({
                 <div className="p-2 bg-purple-500/20 rounded-lg"><UsersIcon size={16} className="text-purple-400" /></div>
             </div>
             <p className="text-[10px] text-slate-400 mb-4 uppercase font-bold tracking-widest">Target Date: {selectedDateForDailyReport}</p>
-            <p className="text-3xl font-black text-white drop-shadow-md">৳ {allDoctorsDailyFeeTotal.toFixed(2)}</p>
+            <p className="text-3xl font-black text-white drop-shadow-md">৳ {(allDoctorsDailyFeeTotal || 0).toFixed(2)}</p>
           </div>
 
           <div className="bg-amber-900/60 rounded-2xl p-5 border border-amber-700 shadow-xl backdrop-blur-sm group hover:scale-105 transition-all">
@@ -482,7 +484,7 @@ const DoctorAppointmentPage: React.FC<DoctorAppointmentPageProps> = ({
             <p className="text-[10px] text-slate-400 mb-4 uppercase font-bold tracking-widest">
                 Cycle: {new Date(selectedDateForDailyReport).toLocaleString('default', { month: 'long', year: 'numeric' })}
             </p>
-            <p className="text-3xl font-black text-white drop-shadow-md">৳ {allDoctorsMonthlyFeeTotal.toFixed(2)}</p>
+            <p className="text-3xl font-black text-white drop-shadow-md">৳ {(allDoctorsMonthlyFeeTotal || 0).toFixed(2)}</p>
           </div>
         </div>
       </div>
@@ -542,7 +544,7 @@ const DoctorAppointmentPage: React.FC<DoctorAppointmentPageProps> = ({
                 </div>
                 <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-900/40 border border-emerald-700/50 rounded-lg shadow-inner">
                     <span className="text-[10px] font-black text-emerald-300 uppercase tracking-widest">Total Fee:</span>
-                    <span className="text-xs font-black text-white">৳ {totalFilteredFees.toFixed(2)}</span>
+                    <span className="text-xs font-black text-white">৳ {(totalFilteredFees || 0).toFixed(2)}</span>
                 </div>
                 <button 
                     onClick={() => { setListSearchDoctor(''); setListSearchPatient(''); setListFilterDate(''); setListFilterMonth(''); }}
@@ -585,7 +587,7 @@ const DoctorAppointmentPage: React.FC<DoctorAppointmentPageProps> = ({
                                 <div className="text-[10px] text-slate-400 italic">Reason: {appt.reason}</div>
                             </td>
                             <td className="px-6 py-4 text-sm font-medium text-slate-300">Dr. {appt.doctor_name}</td>
-                            <td className="px-6 py-4 text-right font-black text-slate-100">৳ {appt.doctor_fee.toFixed(2)}</td>
+                            <td className="px-6 py-4 text-right font-black text-slate-100">৳ {(appt.doctor_fee || 0).toFixed(2)}</td>
                             <td className="px-6 py-4 whitespace-nowrap text-center">
                                 {/* Fix: Line 562 - Fixed the unintentional comparison by removing 'appt.status ===' prefix for the fallback class string */}
                                 <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase shadow-inner ${appt.status === 'Completed' ? 'bg-emerald-900/40 text-emerald-400' : appt.status === 'Scheduled' ? 'bg-blue-900/40 text-blue-400' : appt.status === 'Returned' ? 'bg-amber-900/40 text-amber-500' : 'bg-rose-900/40 text-rose-400'}`}>
