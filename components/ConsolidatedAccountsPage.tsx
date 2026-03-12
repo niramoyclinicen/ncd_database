@@ -271,8 +271,9 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                 return dateToUse === dateStr && inv.status !== 'Cancelled' && inv.status !== 'Returned';
             }).reduce((s, inv) => {
                 const fundedRevenue = inv.items.filter(it => it.isClinicFund).reduce((ss, ii) => ss + ii.payable_amount, 0);
-                const pcAmount = inv.commission_paid || 0;
-                return s + (fundedRevenue - pcAmount);
+                const pcAmount = (inv.commission_paid || 0) + (inv.special_commission || 0);
+                const specialDiscount = inv.special_discount_amount || 0;
+                return s + (fundedRevenue - pcAmount - specialDiscount);
             }, 0);
             const clinicDue = dueCollections.filter(dc => dc.collection_date === dateStr && !dc.invoice_id.startsWith('INV')).reduce((s, dc) => s + dc.amount_collected, 0);
             const clinicTotal = clinicToday + clinicDue;
@@ -367,8 +368,9 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                 return dateToUse === dateStr && inv.status !== 'Cancelled' && inv.status !== 'Returned';
             }).reduce((s, inv) => {
                 const fundedRevenue = inv.items.filter(it => it.isClinicFund).reduce((ss, ii) => ss + ii.payable_amount, 0);
-                const pcAmount = inv.commission_paid || 0;
-                return s + (fundedRevenue - pcAmount);
+                const pcAmount = (inv.commission_paid || 0) + (inv.special_commission || 0);
+                const specialDiscount = inv.special_discount_amount || 0;
+                return s + (fundedRevenue - pcAmount - specialDiscount);
             }, 0) + dueCollections.filter(dc => dc.collection_date === dateStr && !dc.invoice_id.startsWith('INV')).reduce((s, dc) => s + dc.amount_collected, 0);
 
             const totalColl = diagColl + clinicColl;
@@ -429,8 +431,9 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                 return isBeforeSelectedMonth(dateToUse) && inv.status !== 'Cancelled' && inv.status !== 'Returned';
             }).reduce((acc, inv) => {
                 const netIncomeForInv = inv.items.filter((it: any) => it.isClinicFund).reduce((s: number, i: any) => s + i.payable_amount, 0);
-                const pcAmount = inv.commission_paid || 0;
-                return acc + (netIncomeForInv - pcAmount);
+                const pcAmount = (inv.commission_paid || 0) + (inv.special_commission || 0);
+                const specialDiscount = inv.special_discount_amount || 0;
+                return acc + (netIncomeForInv - pcAmount - specialDiscount);
             }, 0);
 
             const prevClinicDue = dueCollections.filter(dc => isBeforeSelectedMonth(dc.collection_date) && !dc.invoice_id.startsWith('INV')).reduce((s, dc) => s + dc.amount_collected, 0);
@@ -472,8 +475,9 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
             return isSelectedMonth(dateToUse) && inv.status !== 'Cancelled' && inv.status !== 'Returned';
         }).reduce((acc, inv) => {
             const netIncomeForInv = inv.items.filter((it: any) => it.isClinicFund).reduce((s: number, i: any) => s + i.payable_amount, 0);
-            const pcAmount = inv.commission_paid || 0;
-            return acc + (netIncomeForInv - pcAmount);
+            const pcAmount = (inv.commission_paid || 0) + (inv.special_commission || 0);
+            const specialDiscount = inv.special_discount_amount || 0;
+            return acc + (netIncomeForInv - pcAmount - specialDiscount);
         }, 0);
 
         const clinicCurrent = clinicRevenueCurrent;
