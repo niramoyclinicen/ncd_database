@@ -180,7 +180,7 @@ const DailyExpenseForm: React.FC<any> = ({ selectedDate, onDateChange, allDetail
             else if (searchMode === 'all') matchesTime = true;
 
             if (matchesTime) {
-                items.filter((it: any) => it.dept === 'Diagnostic').forEach((it: any) => {
+                items.filter((it: any) => it.dept === 'Diagnostic' || (!it.dept && expenseCategories.includes(it.category))).forEach((it: any) => {
                     allItems.push({ ...it, date });
                 });
             }
@@ -401,7 +401,7 @@ const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollection
 
         for (let d = 1; d <= daysInMonth; d++) {
             const dateStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-            const dailyExps = (detailedExpenses[dateStr] || []).filter((it: any) => it.dept === 'Diagnostic');
+            const dailyExps = (detailedExpenses[dateStr] || []).filter((it: any) => it.dept === 'Diagnostic' || (!it.dept && categories.includes(it.category)));
             
             const categorySums: Record<string, number> = {};
             categories.forEach(cat => categorySums[cat] = 0);
@@ -435,7 +435,7 @@ const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollection
             const [y, m] = date.split('-').map(Number);
             if (m - 1 === selectedMonth && y === selectedYear) {
                 items.forEach((it: any) => {
-                    if (it.dept === 'Diagnostic') {
+                    if (it.dept === 'Diagnostic' || (!it.dept && expenseCategories.includes(it.category))) {
                         expensesByCategory[it.category] = (expensesByCategory[it.category] || 0) + it.paidAmount;
                     }
                 });
@@ -567,7 +567,7 @@ const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollection
             expenseCategories.forEach(c => expenseMap[c] = 0);
 
             if (rangeType === 'daily') {
-                (detailedExpenses[selectedDate] || []).filter((it: any) => it.dept === 'Diagnostic').forEach((it: any) => {
+                (detailedExpenses[selectedDate] || []).filter((it: any) => it.dept === 'Diagnostic' || (!it.dept && expenseCategories.includes(it.category))).forEach((it: any) => {
                     expenseMap[it.category] = (expenseMap[it.category] || 0) + it.paidAmount;
                     exp.total += it.paidAmount;
                 });
@@ -575,7 +575,7 @@ const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollection
                 Object.entries(detailedExpenses).forEach(([date, items]) => {
                     const d = new Date(date);
                     if ((rangeType === 'monthly' && d.getMonth() === selectedMonth && d.getFullYear() === selectedYear) || (rangeType === 'yearly' && d.getFullYear() === selectedYear)) {
-                        (items as any[]).filter((it: any) => it.dept === 'Diagnostic').forEach((it: any) => {
+                        (items as any[]).filter((it: any) => it.dept === 'Diagnostic' || (!it.dept && expenseCategories.includes(it.category))).forEach((it: any) => {
                             expenseMap[it.category] = (expenseMap[it.category] || 0) + it.paidAmount;
                             exp.total += it.paidAmount;
                         });

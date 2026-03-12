@@ -126,6 +126,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
     const [activeTab, setActiveTab] = useState<'monthly_expense_sheet' | 'daily_collection' | 'daily_expense' | 'accounts' | 'shareholders' | 'money_mgmt' | 'final_status' | 'future_plans' | 'shareholder_mgmt' | 'company_collection'>('accounts');
     const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth());
     const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
+    const [deptFilter, setDeptFilter] = useState<'All' | 'Diagnostic' | 'Clinic'>('All');
     
     const [dynamicShareholders, setDynamicShareholders] = useState<Shareholder[]>(() => JSON.parse(localStorage.getItem('ncd_shareholders') || JSON.stringify(initialShareholders)));
     const [loans, setLoans] = useState<LoanRecord[]>(() => JSON.parse(localStorage.getItem('ncd_loans') || '[]'));
@@ -182,10 +183,29 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
         const rows = [];
         for (let d = 1; d <= daysInMonth; d++) {
             const dateStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-            const dailyExps = detailedExpenses[dateStr] || [];
+            const dailyExps = (detailedExpenses[dateStr] || []).filter(ex => {
+                if (deptFilter === 'All') return true;
+                if (deptFilter === 'Diagnostic') {
+                    return ex.dept === 'Diagnostic' || (!ex.dept && diagExpenseCategories.includes(ex.category));
+                }
+                if (deptFilter === 'Clinic') {
+                    // For Clinic, we include it if it's tagged Clinic OR if it's untagged and in clinic categories
+                    // To avoid double counting untagged shared categories, we could prioritize one, 
+                    // but usually these were separate in the user's mind even if categories overlapped.
+                    return ex.dept === 'Clinic' || (!ex.dept && clinicExpenseCategories.includes(ex.category));
+                }
+                return false;
+            });
             const categorySums: Record<string, number> = {};
             expenseMapSequence.forEach(e => categorySums[e.key] = 0);
             dailyExps.forEach(exp => {
+                // Only process if it belongs to the intended department or has no department assigned
+                // For the consolidated sheet, we might want to show everything, but the user specifically
+                // complained about Diagnostic expenses appearing in Clinic reports.
+                // However, 'expenseSheetData' seems to be a combined ledger.
+                // If the user wants to see ONLY Clinic expenses in a "Monthly Clinic Expense Sheet",
+                // we should check how this data is used.
+                
                 let catName = exp.category;
                 
                 // Mapping Diagnostic & Clinic categories to Consolidated keys
@@ -222,13 +242,14 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
         expenseMapSequence.forEach(e => { columnTotals[e.key] = rows.reduce((sum, row) => sum + row.categories[e.key], 0); });
         const grandTotal = rows.reduce((sum, row) => sum + row.total, 0);
         return { rows, columnTotals, grandTotal };
-    }, [detailedExpenses, selectedMonth, selectedYear]);
+    }, [detailedExpenses, selectedMonth, selectedYear, deptFilter]);
 
     const dailyCollectionData = useMemo(() => {
         const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
-        const rows = [];
+        const rawRows = [];
         let diagUpto = 0;
         let clinicUpto = 0;
+        let lastDayWithData = -1;
 
         const getNetDiagCash = (inv: LabInvoice) => {
             const usgFee = inv.items.reduce((s, it) => s + (it.usg_exam_charge * it.quantity), 0);
@@ -257,39 +278,75 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
             const clinicTotal = clinicToday + clinicDue;
             clinicUpto += clinicTotal;
 
+            if (diagTotal > 0 || clinicTotal > 0) {
+                lastDayWithData = d - 1;
+            }
+
             const displayDate = `${dayStr}-${monthOptions[selectedMonth].name.substring(0, 3)}-${String(selectedYear).substring(2)}`;
-            rows.push({ date: displayDate, diag: { today: diagToday, due: diagDue, total: diagTotal, upto: diagUpto }, clinic: { today: clinicToday, due: clinicDue, total: clinicTotal, upto: clinicUpto } });
+            rawRows.push({ 
+                date: displayDate, 
+                diag: { today: diagToday, due: diagDue, total: diagTotal, upto: diagUpto }, 
+                clinic: { today: clinicToday, due: clinicDue, total: clinicTotal, upto: clinicUpto } 
+            });
         }
-        return rows;
+
+        // Hide upto values after the last day with data
+        return rawRows.map((row, idx) => {
+            if (idx > lastDayWithData) {
+                return {
+                    ...row,
+                    diag: { ...row.diag, upto: null },
+                    clinic: { ...row.clinic, upto: null }
+                };
+            }
+            return row;
+        });
     }, [labInvoices, indoorInvoices, dueCollections, selectedMonth, selectedYear]);
 
     const dailyExpenseReportData = useMemo(() => {
         const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
-        const rows = [];
+        const rawRows = [];
         let diagUpto = 0;
         let clinicUpto = 0;
+        let lastDayWithData = -1;
 
         for (let d = 1; d <= daysInMonth; d++) {
             const dayStr = String(d).padStart(2, '0');
             const dateStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${dayStr}`;
             const dailyExps = detailedExpenses[dateStr] || [];
 
-            const diagToday = dailyExps.filter(ex => diagExpenseCategories.includes(ex.category)).reduce((s, ex) => s + ex.paidAmount, 0);
+            const diagToday = dailyExps.filter(ex => ex.dept === 'Diagnostic' || (!ex.dept && diagExpenseCategories.includes(ex.category))).reduce((s, ex) => s + ex.paidAmount, 0);
             diagUpto += diagToday;
 
-            const clinicToday = dailyExps.filter(ex => clinicExpenseCategories.includes(ex.category)).reduce((s, ex) => s + ex.paidAmount, 0);
+            const clinicToday = dailyExps.filter(ex => ex.dept === 'Clinic' || (!ex.dept && clinicExpenseCategories.includes(ex.category) && !diagExpenseCategories.includes(ex.category))).reduce((s, ex) => s + ex.paidAmount, 0);
             clinicUpto += clinicToday;
 
+            if (diagToday > 0 || clinicToday > 0) {
+                lastDayWithData = d - 1;
+            }
+
             const displayDate = `${dayStr}-${monthOptions[selectedMonth].name.substring(0, 3)}-${String(selectedYear).substring(2)}`;
-            rows.push({ date: displayDate, diag: { today: diagToday, upto: diagUpto }, clinic: { today: clinicToday, upto: clinicUpto }, total: diagToday + clinicToday });
+            rawRows.push({ date: displayDate, diag: { today: diagToday, upto: diagUpto }, clinic: { today: clinicToday, upto: clinicUpto }, total: diagToday + clinicToday });
         }
-        return rows;
+
+        // Hide upto values after the last day with data
+        return rawRows.map((row, idx) => {
+            if (idx > lastDayWithData) {
+                return {
+                    ...row,
+                    diag: { ...row.diag, upto: null },
+                    clinic: { ...row.clinic, upto: null }
+                };
+            }
+            return row;
+        });
     }, [detailedExpenses, selectedMonth, selectedYear]);
 
     const statusReportData = useMemo(() => {
         const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
-        const rows = [];
+        const rawRows = [];
         let runningBalance = 0;
+        let lastDayWithData = -1;
 
         const getNetDiagCash = (inv: LabInvoice) => {
             const usgFee = inv.items.reduce((s, it) => s + (it.usg_exam_charge * it.quantity), 0);
@@ -318,20 +375,31 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
 
             // Expenses
             const dailyExps = detailedExpenses[dateStr] || [];
-            const diagExp = dailyExps.filter(ex => diagExpenseCategories.includes(ex.category)).reduce((s, ex) => s + ex.paidAmount, 0);
-            const clinicExp = dailyExps.filter(ex => clinicExpenseCategories.includes(ex.category)).reduce((s, ex) => s + ex.paidAmount, 0);
+            const diagExp = dailyExps.filter(ex => ex.dept === 'Diagnostic' || (!ex.dept && diagExpenseCategories.includes(ex.category))).reduce((s, ex) => s + ex.paidAmount, 0);
+            const clinicExp = dailyExps.filter(ex => ex.dept === 'Clinic' || (!ex.dept && clinicExpenseCategories.includes(ex.category) && !diagExpenseCategories.includes(ex.category))).reduce((s, ex) => s + ex.paidAmount, 0);
             const totalExp = diagExp + clinicExp;
+
+            if (totalColl > 0 || totalExp > 0) {
+                lastDayWithData = d - 1;
+            }
 
             runningBalance += (totalColl - totalExp);
 
-            rows.push({
+            rawRows.push({
                 date: `${dayStr}-${monthOptions[selectedMonth].name.substring(0, 3)}-${String(selectedYear).substring(2)}`,
                 diagColl, clinicColl, totalColl,
                 diagExp, clinicExp, totalExp,
                 balance: runningBalance
             });
         }
-        return rows;
+
+        // Hide balance values after the last day with data
+        return rawRows.map((row, idx) => {
+            if (idx > lastDayWithData) {
+                return { ...row, balance: null };
+            }
+            return row;
+        });
     }, [labInvoices, indoorInvoices, dueCollections, detailedExpenses, selectedMonth, selectedYear]);
 
     const summary = useMemo(() => {
@@ -392,7 +460,11 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
         
         let totalMonthlyOperatingExpenses = 0;
         Object.entries(detailedExpenses).forEach(([date, items]) => {
-            if (isSelectedMonth(date)) (items as ExpenseItem[]).forEach(it => totalMonthlyOperatingExpenses += it.paidAmount);
+            if (isSelectedMonth(date)) (items as ExpenseItem[]).forEach(it => {
+                // For the Accounts Sheet summary, we should also be careful about overlap if we ever separate them here.
+                // Currently, totalMonthlyOperatingExpenses is a sum of ALL expenses.
+                totalMonthlyOperatingExpenses += it.paidAmount;
+            });
         });
 
         const clinicRevenueCurrent = indoorInvoices.filter(inv => {
@@ -474,15 +546,26 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
         const win = window.open('', '', 'width=1200,height=800');
         if(!win) return;
         const isLandscape = elementId === 'section-monthly-expense';
-        const html = `<html><head><title>Print Report</title><script src="https://cdn.tailwindcss.com"></script><style>@page { size: A4 landscape; margin: 3mm; } body { background: white; font-family: 'Segoe UI', Tahoma, sans-serif; padding: 0; margin: 0; color: black; box-sizing: border-box; -webkit-print-color-adjust: exact; } table { width: 100% !important; border-collapse: collapse !important; border: 1px solid #000 !important; table-layout: fixed; } th, td { border: 1px solid #000 !important; padding: 1px 2px; text-align: center; overflow: hidden; font-size: 8.5pt; line-height: 1.1; word-break: break-all; } .no-print { display: none !important; } .font-bengali { font-family: 'Arial', sans-serif !important; } h1 { font-size: 15pt !important; margin-bottom: 2pt !important; } p { font-size: 9pt !important; margin: 0 !important; }</style></head><body>${content.innerHTML}<script>setTimeout(() => { window.print(); window.close(); }, 850);</script></body></html>`;
+        const html = `<html><head><title>Print Report</title><script src="https://cdn.tailwindcss.com"></script><style>
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700;800&family=Hind+Siliguri:wght@400;500;600;700&display=swap');
+            @page { size: A4 landscape; margin: 3mm; } 
+            body { background: white; font-family: 'Inter', 'Hind Siliguri', sans-serif; padding: 0; margin: 0; color: black; box-sizing: border-box; -webkit-print-color-adjust: exact; } 
+            table { width: 100% !important; border-collapse: collapse !important; border: 1px solid #000 !important; table-layout: fixed; } 
+            th, td { border: 1px solid #000 !important; padding: 1px 2px; text-align: center; overflow: hidden; font-size: 8.5pt; line-height: 1.1; word-break: break-all; } 
+            .no-print { display: none !important; } 
+            .font-bengali { font-family: 'Hind Siliguri', sans-serif !important; } 
+            .font-mono { font-family: 'JetBrains Mono', monospace !important; }
+            h1 { font-size: 15pt !important; margin-bottom: 2pt !important; font-weight: 900 !important; } 
+            p { font-size: 9pt !important; margin: 0 !important; }
+        </style></head><body>${content.innerHTML}<script>setTimeout(() => { window.print(); window.close(); }, 850);</script></body></html>`;
         win.document.write(html); win.document.close();
     };
 
-    const commonTableCellClass = "p-1.5 border border-black font-bold text-[10pt] font-bengali h-8 text-center";
-    const commonAmtCellClass = "p-1.5 border border-black text-right font-black text-[10pt] w-[100px] h-8";
+    const commonTableCellClass = "p-1.5 border border-black font-bold text-[10pt] font-['Hind_Siliguri'] h-8 text-center";
+    const commonAmtCellClass = "p-1.5 border border-black text-right font-black text-[10pt] w-[100px] h-8 font-['JetBrains_Mono']";
 
     return (
-        <div className="min-h-screen bg-slate-100 flex flex-col font-sans">
+        <div className="min-h-screen bg-slate-100 flex flex-col font-['Inter']">
             <header className="bg-slate-800 p-4 border-b border-slate-700 sticky top-0 z-[100] no-print flex flex-col md:flex-row justify-between items-center text-white gap-4 shadow-xl">
                 <div className="flex items-center gap-4">
                     <button onClick={onBack} className="p-2 bg-slate-700 rounded-full hover:bg-slate-600 transition-all"><BackIcon className="w-5 h-5" /></button>
@@ -512,10 +595,15 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                 {activeTab === 'monthly_expense_sheet' && (
                     <div id="section-monthly-expense" className="relative animate-fade-in">
                         <button onClick={() => handlePrintSpecific('section-monthly-expense')} className="no-print absolute top-2 right-2 p-2 bg-emerald-600 text-white rounded-full shadow-lg hover:bg-emerald-500 z-50 flex items-center gap-2"><PrinterIcon size={18} /> <span className="text-xs font-bold">Print Landscape</span></button>
-                        <main className="p-4 max-w-[1600px] mx-auto w-full bg-white text-black shadow-2xl flex flex-col border border-gray-300 font-sans overflow-x-auto">
+                        <main className="p-4 max-w-[1600px] mx-auto w-full bg-white text-black shadow-2xl flex flex-col border border-gray-300 font-['Inter'] overflow-x-auto">
                             <div className="flex justify-between items-end mb-2 border-b-2 border-black pb-1">
                                 <h1 className="text-2xl font-black uppercase text-blue-900 leading-none">Niramoy Clinic & Diagnostic</h1>
                                 <p className="text-sm font-bold uppercase tracking-tight text-slate-700">Monthly Expense Ledger - {monthOptions[selectedMonth].name} {selectedYear}</p>
+                                <div className="no-print flex bg-slate-100 p-1 rounded-lg border border-slate-300 ml-4">
+                                    <button onClick={() => setDeptFilter('All')} className={`px-3 py-1 rounded-md text-[10px] font-bold transition-all ${deptFilter === 'All' ? 'bg-slate-800 text-white shadow-md' : 'text-slate-500 hover:text-slate-800'}`}>All</button>
+                                    <button onClick={() => setDeptFilter('Diagnostic')} className={`px-3 py-1 rounded-md text-[10px] font-bold transition-all ${deptFilter === 'Diagnostic' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-500 hover:text-indigo-600'}`}>Diagnostic</button>
+                                    <button onClick={() => setDeptFilter('Clinic')} className={`px-3 py-1 rounded-md text-[10px] font-bold transition-all ${deptFilter === 'Clinic' ? 'bg-emerald-600 text-white shadow-md' : 'text-slate-500 hover:text-emerald-600'}`}>Clinic</button>
+                                </div>
                             </div>
                             <table className="w-full text-[9pt] border-collapse border border-black table-fixed">
                                 <thead>
@@ -528,7 +616,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                 <tbody>
                                     {expenseSheetData.rows.map(row => (
                                         <tr key={row.date} className="hover:bg-blue-50 transition-colors h-[21px]">
-                                            <td className="border border-black p-0.5 text-center font-mono font-bold text-[8.5pt] whitespace-nowrap">{row.date.split('-')[2]} {monthOptions[parseInt(row.date.split('-')[1])-1].name.substring(0,3)}</td>
+                                            <td className="border border-black p-0.5 text-center font-['JetBrains_Mono'] font-bold text-[8.5pt] whitespace-nowrap">{row.date.split('-')[2]} {monthOptions[parseInt(row.date.split('-')[1])-1].name.substring(0,3)}</td>
                                             {expenseMapSequence.map(e => <td key={e.key} className="border border-black p-0.5 text-center font-medium text-[9pt]">{row.categories[e.key] > 0 ? row.categories[e.key].toLocaleString() : '-'}</td>)}
                                             <td className="border border-black p-0.5 text-center font-black bg-gray-50 text-[9.5pt]">৳{row.total > 0 ? row.total.toLocaleString() : '-'}</td>
                                         </tr>
@@ -567,15 +655,15 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                 <tbody>
                                     {dailyCollectionData.map((row, idx) => (
                                         <tr key={idx} className="h-7 hover:bg-slate-50 transition-colors">
-                                            <td className="border border-black p-1 font-mono font-bold">{row.date}</td>
+                                            <td className="border border-black p-1 font-['JetBrains_Mono'] font-bold">{row.date}</td>
                                             <td className="border border-black p-1 text-right">{row.diag.today > 0 ? row.diag.today.toLocaleString() : ''}</td>
                                             <td className="border border-black p-1 text-right">{row.diag.due > 0 ? row.diag.due.toLocaleString() : ''}</td>
                                             <td className="border border-black p-1 text-right font-black">{row.diag.total > 0 ? row.diag.total.toLocaleString() : ''}</td>
-                                            <td className="border border-black p-1 text-right font-black bg-blue-50/50">{row.diag.upto > 0 ? row.diag.upto.toLocaleString() : ''}</td>
+                                            <td className="border border-black p-1 text-right font-black bg-blue-50/50">{row.diag.upto !== null ? row.diag.upto.toLocaleString() : ''}</td>
                                             <td className="border border-black p-1 text-right">{row.clinic.today > 0 ? row.clinic.today.toLocaleString() : ''}</td>
                                             <td className="border border-black p-1 text-right">{row.clinic.due > 0 ? row.clinic.due.toLocaleString() : ''}</td>
                                             <td className="border border-black p-1 text-right font-black">{row.clinic.total > 0 ? row.clinic.total.toLocaleString() : ''}</td>
-                                            <td className="border border-black p-1 text-right font-black bg-emerald-50/50">{row.clinic.upto > 0 ? row.clinic.upto.toLocaleString() : ''}</td>
+                                            <td className="border border-black p-1 text-right font-black bg-emerald-50/50">{row.clinic.upto !== null ? row.clinic.upto.toLocaleString() : ''}</td>
                                         </tr>
                                     ))}
                                 </tbody>
@@ -606,11 +694,11 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                 <tbody>
                                     {dailyExpenseReportData.map((row, idx) => (
                                         <tr key={idx} className="h-7 hover:bg-slate-50 transition-colors">
-                                            <td className="border border-black p-1 font-mono font-bold">{row.date}</td>
+                                            <td className="border border-black p-1 font-['JetBrains_Mono'] font-bold">{row.date}</td>
                                             <td className="border border-black p-1 text-right">{row.diag.today > 0 ? row.diag.today.toLocaleString() : ''}</td>
-                                            <td className="border border-black p-1 text-right font-black bg-blue-50/50">{row.diag.upto > 0 ? row.diag.upto.toLocaleString() : ''}</td>
+                                            <td className="border border-black p-1 text-right font-black bg-blue-50/50">{row.diag.upto !== null ? row.diag.upto.toLocaleString() : ''}</td>
                                             <td className="border border-black p-1 text-right">{row.clinic.today > 0 ? row.clinic.today.toLocaleString() : ''}</td>
-                                            <td className="border border-black p-1 text-right font-black bg-emerald-50/50">{row.clinic.upto > 0 ? row.clinic.upto.toLocaleString() : ''}</td>
+                                            <td className="border border-black p-1 text-right font-black bg-emerald-50/50">{row.clinic.upto !== null ? row.clinic.upto.toLocaleString() : ''}</td>
                                             <td className="border border-black p-1 text-right font-black bg-slate-100">{row.total > 0 ? row.total.toLocaleString() : ''}</td>
                                         </tr>
                                     ))}
@@ -624,19 +712,19 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                 {activeTab === 'accounts' && (
                     <div id="section-accounts" className="relative animate-fade-in h-full">
                         <button onClick={() => handlePrintSpecific('section-accounts')} className="no-print absolute top-2 right-2 p-2 bg-blue-600 text-white rounded-full shadow-lg"><FileTextIcon className="w-5 h-5" /></button>
-                        <main className="p-8 max-w-[210mm] mx-auto w-full bg-white text-black shadow-2xl flex flex-col border border-gray-300 font-serif min-h-full">
+                        <main className="p-8 max-w-[210mm] mx-auto w-full bg-white text-black shadow-2xl flex flex-col border border-gray-300 font-['Inter'] min-h-full">
                             <div className="flex justify-between items-end mb-6 border-b-2 border-black pb-3 shrink-0">
                                 <div>
                                     <h1 className="text-2xl font-black uppercase text-blue-900 leading-none">Niramoy Clinic & Diagnostic</h1>
                                     <p className="text-sm font-bold mt-2">Enayetpur, Sirajgonj | Mobile: 01730 923007</p>
                                 </div>
-                                <h3 className="text-lg font-bold underline uppercase tracking-widest bg-gray-100 px-4 py-2 border border-black font-bengali">অ্যাকাউন্টস শিট : {monthOptions[selectedMonth].name}, {selectedYear}</h3>
+                                <h3 className="text-lg font-bold underline uppercase tracking-widest bg-gray-100 px-4 py-2 border border-black font-['Hind_Siliguri']">অ্যাকাউন্টস শিট : {monthOptions[selectedMonth].name}, {selectedYear}</h3>
                             </div>
                             <div className="grid grid-cols-2 gap-8 flex-1">
                                 <div className="space-y-4">
-                                    <div className="bg-slate-800 text-white border border-black p-1.5 text-center font-bold text-xs font-bengali uppercase shadow-md">কালেকশন এর হিসাব</div>
+                                    <div className="bg-slate-800 text-white border border-black p-1.5 text-center font-bold text-xs font-['Hind_Siliguri'] uppercase shadow-md">কালেকশন এর হিসাব</div>
                                     <div className="space-y-1">
-                                        <div className="text-[11px] font-black font-bengali underline mb-0.5">ক) ডায়াগনস্টিক হইতে :</div>
+                                        <div className="text-[11px] font-black font-['Hind_Siliguri'] underline mb-0.5">ক) ডায়াগনস্টিক হইতে :</div>
                                         <table className="w-full border border-black">
                                             <tbody>
                                                 <tr className="h-8"><td className="p-1 border border-black text-center w-8">১</td><td className={commonTableCellClass}>বর্তমান মাসের ক্যাশ</td><td className={commonAmtCellClass}>{summary.diagCurrent.toLocaleString()}</td></tr>
@@ -646,7 +734,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                         </table>
                                     </div>
                                     <div className="space-y-1">
-                                        <div className="text-[11px] font-black font-bengali underline mb-0.5">খ) ক্লিনিক হইতে :</div>
+                                        <div className="text-[11px] font-black font-['Hind_Siliguri'] underline mb-0.5">খ) ক্লিনিক হইতে :</div>
                                         <table className="w-full border border-black">
                                             <tbody>
                                                 <tr className="h-8"><td className="p-1 border border-black text-center w-8">১</td><td className={commonTableCellClass}>বর্তমান মাসের ক্যাশ</td><td className={commonAmtCellClass}>{summary.clinicCurrent.toLocaleString()}</td></tr>
@@ -656,7 +744,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                         </table>
                                     </div>
                                     <div className="space-y-1">
-                                        <div className="text-[11px] font-black font-bengali underline mb-0.5">গ) ঔষধ হইতে (নিট মুনাফা) :</div>
+                                        <div className="text-[11px] font-black font-['Hind_Siliguri'] underline mb-0.5">গ) ঔষধ হইতে (নিট মুনাফা) :</div>
                                         <table className="w-full border border-black">
                                             <tbody>
                                                 <tr className="h-8"><td className="p-1 border border-black text-center w-8">১</td><td className={commonTableCellClass}>মোট ঔষধ বিক্রয়</td><td className={commonAmtCellClass}>{summary.medSalesCurrent.toLocaleString()}</td></tr>
@@ -666,7 +754,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                         </table>
                                     </div>
                                     <div className="space-y-1">
-                                        <div className="text-[11px] font-black font-bengali underline mb-0.5">ঘ) কোম্পানি হইতে প্রাপ্তি :</div>
+                                        <div className="text-[11px] font-black font-['Hind_Siliguri'] underline mb-0.5">ঘ) কোম্পানি হইতে প্রাপ্তি :</div>
                                         <table className="w-full border border-black">
                                             <tbody>
                                                 <tr className="bg-gray-50 font-black h-8"><td colSpan={2} className="p-1 text-right text-[10px]">কোম্পানি মোট :</td><td className={commonAmtCellClass}>{summary.companyCurrent.toLocaleString()}</td></tr>
@@ -684,7 +772,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                     </div>
                                 </div>
                                 <div className="space-y-4 flex flex-col">
-                                    <div className="bg-slate-800 text-white border border-black p-1.5 text-center font-bold text-xs font-bengali uppercase shadow-md">খরচের হিসাব</div>
+                                    <div className="bg-slate-800 text-white border border-black p-1.5 text-center font-bold text-xs font-['Hind_Siliguri'] uppercase shadow-md">খরচের হিসাব</div>
                                     <table className="w-full border-2 border-black flex-1">
                                         <thead><tr className="bg-gray-100"><th className="p-1 border border-black w-8 text-[10px]">ক্র.</th><th className="p-1 border border-black text-left text-[10px]">বিবরণ</th><th className="p-1 border border-black w-[100px] text-[10px]">টাকা</th></tr></thead>
                                         <tbody>
@@ -704,13 +792,13 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                 {activeTab === 'final_status' && (
                     <div id="section-status" className="relative animate-fade-in h-full">
                         <button onClick={() => handlePrintSpecific('section-status')} className="no-print absolute top-2 right-2 p-2 bg-amber-600 text-white rounded-full shadow-lg flex items-center gap-2"><PrinterIcon size={18} /><span className="text-xs font-bold">Print A4 Portrait</span></button>
-                        <main className="p-4 sm:p-5 max-w-[210mm] mx-auto w-full bg-white text-black shadow-2xl flex flex-col border border-gray-300 font-sans min-h-[292mm]">
+                        <main className="p-4 sm:p-5 max-w-[210mm] mx-auto w-full bg-white text-black shadow-2xl flex flex-col border border-gray-300 font-['Inter'] min-h-[292mm]">
                             
                             {/* COMPACT HEADER */}
                             <div className="flex justify-between items-start mb-3 border-b-2 border-black pb-1 shrink-0">
                                 <div className="text-left flex-1">
                                     <h1 className="text-2xl font-black text-blue-900 uppercase tracking-tighter leading-none mb-1.5">Niramoy Clinic & Diagnostic</h1>
-                                    <h2 className="text-sm font-black underline uppercase tracking-widest font-bengali">মাসিক চূড়ান্ত রিপোর্ট (Closing Status) : {monthOptions[selectedMonth].name}, {selectedYear}</h2>
+                                    <h2 className="text-sm font-black underline uppercase tracking-widest font-['Hind_Siliguri']">মাসিক চূড়ান্ত রিপোর্ট (Closing Status) : {monthOptions[selectedMonth].name}, {selectedYear}</h2>
                                 </div>
                                 <div className="w-[270px] border border-black text-[8.5pt] font-bold">
                                     <div className="flex justify-between border-b border-black p-1"><span className="text-blue-900">সর্বমোট জমা (Total Gross Cash) :</span> <span className="border-l border-black pl-3 w-18 text-right">{summary.grandTotalCollection.toLocaleString()}</span></div>
@@ -720,13 +808,13 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                             </div>
 
                             {/* MAIN TABLE (TIGHTENED FOR SINGLE PAGE) */}
-                            <table className="w-full border-collapse border-2 border-black text-[8.2pt] font-sans">
+                            <table className="w-full border-collapse border-2 border-black text-[8.2pt] font-['Inter']">
                                 <thead>
                                     <tr className="h-6.5">
                                         <th className="border-2 border-black w-[75px]"></th> 
-                                        <th className="border-2 border-black text-purple-700 font-black uppercase text-xs py-0.5" colSpan={3}>Collection</th>
-                                        <th className="border-2 border-black text-fuchsia-700 font-black uppercase text-xs py-0.5" colSpan={3}>Expense</th>
-                                        <th className="border-2 border-black text-fuchsia-600 font-black uppercase text-xs py-0.5">Balance</th>
+                                        <th className="border-2 border-black text-purple-700 font-black uppercase text-xs py-0.5 font-['Inter']" colSpan={3}>Collection</th>
+                                        <th className="border-2 border-black text-fuchsia-700 font-black uppercase text-xs py-0.5 font-['Inter']" colSpan={3}>Expense</th>
+                                        <th className="border-2 border-black text-fuchsia-600 font-black uppercase text-xs py-0.5 font-['Inter']">Balance</th>
                                     </tr>
                                     <tr className="bg-gray-100 uppercase text-[7.8pt] font-black h-6.5">
                                         <th className="border-2 border-black text-blue-700">Date</th>
@@ -742,14 +830,14 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                 <tbody>
                                     {statusReportData.map((row, idx) => (
                                         <tr key={idx} className="h-[25.5px] hover:bg-slate-50 transition-colors leading-tight">
-                                            <td className="border-2 border-black text-center font-mono font-bold text-[7.5pt]">{row.date}</td>
+                                            <td className="border-2 border-black text-center font-['JetBrains_Mono'] font-bold text-[7.5pt]">{row.date}</td>
                                             <td className="border-2 border-black text-center">{row.diagColl > 0 ? row.diagColl.toLocaleString() : ''}</td>
                                             <td className="border-2 border-black text-center">{row.clinicColl > 0 ? row.clinicColl.toLocaleString() : ''}</td>
                                             <td className="border-2 border-black text-center font-black bg-slate-50">{row.totalColl > 0 ? row.totalColl.toLocaleString() : ''}</td>
                                             <td className="border-2 border-black text-center">{row.diagExp > 0 ? row.diagExp.toLocaleString() : ''}</td>
                                             <td className="border-2 border-black text-center">{row.clinicExp > 0 ? row.clinicExp.toLocaleString() : ''}</td>
                                             <td className="border-2 border-black text-center font-black bg-slate-50">{row.totalExp > 0 ? row.totalExp.toLocaleString() : ''}</td>
-                                            <td className="border-2 border-black text-center font-black text-slate-900 bg-gray-50">{row.balance > 0 ? row.balance.toLocaleString() : ''}</td>
+                                            <td className="border-2 border-black text-center font-black text-slate-900 bg-gray-50">{row.balance !== null ? row.balance.toLocaleString() : ''}</td>
                                         </tr>
                                     ))}
                                     {/* Calculated padding empty rows */}
@@ -826,7 +914,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                 {activeTab === 'future_plans' && (
                     <div className="max-w-4xl mx-auto space-y-8 animate-fade-in no-print">
                         <div className="bg-white p-8 rounded-[2.5rem] shadow-2xl border border-slate-200">
-                             <h3 className="text-xl font-black text-indigo-600 mb-6 font-bengali border-b pb-4 flex items-center gap-3"><PlusIcon size={24}/> ভবিষ্যৎ পরিকল্পনা ও লক্ষ্যমাত্রা</h3>
+                             <h3 className="text-xl font-black text-indigo-600 mb-6 font-['Hind_Siliguri'] border-b pb-4 flex items-center gap-3"><PlusIcon size={24}/> ভবিষ্যৎ পরিকল্পনা ও লক্ষ্যমাত্রা</h3>
                              <div className="grid grid-cols-2 gap-6">
                                  <div><label className="text-[10px] font-black text-slate-500 uppercase ml-2 mb-1 block">পরিকল্পনার শিরোনাম</label><input value={newPlan.title} onChange={e=>setNewPlan({...newPlan, title: e.target.value})} className="w-full p-4 bg-slate-50 border border-slate-300 rounded-2xl font-bold" placeholder="যেমন: নতুন USG মেশিন ক্রয়"/></div>
                                  <div><label className="text-[10px] font-black text-slate-500 uppercase ml-2 mb-1 block">সম্ভাব্য খরচ</label><input type="number" value={newPlan.estimatedCost} onChange={e=>setNewPlan({...newPlan, estimatedCost: parseFloat(e.target.value)})} className="w-full p-4 bg-slate-50 border border-slate-300 rounded-2xl font-black" /></div>
@@ -859,7 +947,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                             {dynamicShareholders.map((s, i) => (
                                 <tr key={s.id} className="hover:bg-blue-50 transition-colors">
                                     <td className="p-5 font-bold text-slate-400">{i+1}</td>
-                                    <td className="p-5 font-black text-slate-800 uppercase font-bengali">{s.name}</td>
+                                    <td className="p-5 font-black text-slate-800 uppercase font-['Hind_Siliguri']">{s.name}</td>
                                     <td className="p-5 text-center font-black text-blue-600">{s.shares}</td>
                                     <td className="p-5 text-slate-500 text-sm">{s.description}</td>
                                     <td className="p-5 text-center"><button onClick={() => setDynamicShareholders(dynamicShareholders.filter(x=>x.id!==s.id))} className="text-rose-400 hover:text-rose-600 p-2"><TrashIcon size={18}/></button></td>
@@ -873,7 +961,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                 {activeTab === 'company_collection' && (
                     <div className="max-w-4xl mx-auto space-y-8 animate-fade-in no-print">
                         <div className="bg-white p-8 rounded-[2.5rem] shadow-2xl border border-slate-200">
-                             <h3 className="text-xl font-black text-cyan-600 mb-6 font-bengali border-b pb-4 flex items-center gap-3"><ClinicIcon className="w-6 h-6" /> কোম্পানি কালেকশন ডাটা এন্ট্রি</h3>
+                             <h3 className="text-xl font-black text-cyan-600 mb-6 font-['Hind_Siliguri'] border-b pb-4 flex items-center gap-3"><ClinicIcon className="w-6 h-6" /> কোম্পানি কালেকশন ডাটা এন্ট্রি</h3>
                              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                  <div><label className="text-[10px] font-black text-slate-500 uppercase ml-2 mb-1 block">কোম্পানি</label><input value={newCompanyEntry.companyName} onChange={e=>setNewCompanyEntry({...newCompanyEntry, companyName: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl font-bold" placeholder="কোম্পানির নাম..."/></div>
                                  <div><label className="text-[10px] font-black text-slate-500 uppercase ml-2 mb-1 block">টাকার পরিমাণ (৳)</label><input type="number" value={newCompanyEntry.amount} onChange={e=>setNewCompanyEntry({...newCompanyEntry, amount: parseFloat(e.target.value) || 0})} className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl font-black" /></div>
@@ -891,7 +979,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                             <button onClick={() => handlePrintSpecific('section-profit-share')} className="no-print absolute top-8 right-8 p-3 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-500 transition-all"><PrinterIcon size={20}/></button>
                             <div className="text-center mb-8 border-b pb-6">
                                 <h1 className="text-3xl font-black text-blue-900 uppercase tracking-tighter leading-none mb-2">Niramoy Clinic & Diagnostic</h1>
-                                <h2 className="text-xl font-black text-slate-700 font-bengali">অংশীদারদের লভ্যাংশ বন্টন রিপোর্ট</h2>
+                                <h2 className="text-xl font-black text-slate-700 font-['Hind_Siliguri']">অংশীদারদের লভ্যাংশ বন্টন রিপোর্ট</h2>
                                 <p className="text-sm font-bold text-slate-500 uppercase tracking-widest mt-2">{monthOptions[selectedMonth].name} {selectedYear}</p>
                             </div>
 
@@ -932,7 +1020,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                         {dynamicShareholders.map((s, i) => (
                                             <tr key={s.id} className="hover:bg-blue-50 transition-colors">
                                                 <td className="p-5 text-center font-bold text-slate-400">{i+1}</td>
-                                                <td className="p-5 font-black text-slate-800 uppercase font-bengali">{s.name}</td>
+                                                <td className="p-5 font-black text-slate-800 uppercase font-['Hind_Siliguri']">{s.name}</td>
                                                 <td className="p-5 text-center font-black text-blue-600">{s.shares}</td>
                                                 <td className="p-5 text-right font-black text-emerald-600">৳{(s.shares * summary.profitPerShare).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
                                             </tr>

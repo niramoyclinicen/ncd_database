@@ -284,7 +284,7 @@ const ClinicAccountsPage: React.FC<any> = ({
             const [y, m] = date.split('-').map(Number);
             if(m - 1 === selectedMonth && y === selectedYear) {
                 items.forEach((it:any) => {
-                    if (it.dept === 'Clinic') {
+                    if (it.dept === 'Clinic' || (!it.dept && clinicExpenseCategories.includes(it.category))) {
                         expensesByCategory[it.category] = (expensesByCategory[it.category] || 0) + it.paidAmount;
                     }
                 });
@@ -298,7 +298,7 @@ const ClinicAccountsPage: React.FC<any> = ({
         const allClinicExpenses: any[] = [];
         Object.entries(detailedExpenses).forEach(([date, items]: any) => {
             items.forEach((it: any) => {
-                if (it.dept === 'Clinic') {
+                if (it.dept === 'Clinic' || (!it.dept && clinicExpenseCategories.includes(it.category))) {
                     allClinicExpenses.push({ ...it, date });
                 }
             });
@@ -328,7 +328,7 @@ const ClinicAccountsPage: React.FC<any> = ({
 
         for (let day = 1; day <= daysInMonth; day++) {
             const dateStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-            const dailyExps = (detailedExpenses[dateStr] || []).filter((it: any) => it.dept === 'Clinic');
+            const dailyExps = (detailedExpenses[dateStr] || []).filter((it: any) => it.dept === 'Clinic' || (!it.dept && clinicExpenseCategories.includes(it.category)));
             
             const rowCategories: Record<string, number> = {};
             clinicExpenseCategories.forEach(cat => rowCategories[cat] = 0);
@@ -388,7 +388,7 @@ const ClinicAccountsPage: React.FC<any> = ({
         }, 0);
 
         const totalCollection = totalClinicRevenueOnly + dayDueRecov - collectionByCategory.totalPC;
-        const dayExpenses = (detailedExpenses[selectedDate] || []).filter((it: any) => it.dept === 'Clinic');
+        const dayExpenses = (detailedExpenses[selectedDate] || []).filter((it: any) => it.dept === 'Clinic' || (!it.dept && clinicExpenseCategories.includes(it.category)));
         const totalExpense = dayExpenses.reduce((s: number, it: any) => s + it.paidAmount, 0);
         
         const expensesByCategory: Record<string, number> = {};

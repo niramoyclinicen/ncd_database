@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { ReportTemplate, ReportField, testCategories } from './DiagnosticData';
 import { SaveIcon, BackIcon, PlusIcon, FileTextIcon, SettingsIcon, Activity } from './Icons';
 
