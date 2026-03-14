@@ -729,6 +729,14 @@ const AdmissionAndTreatmentPage: React.FC<{
     const [activeSubTab, setActiveSubTab] = useState<'orders' | 'rounds' | 'nurse' | 'demands'>('orders');
     const [searchTerm, setSearchTerm] = useState('');
 
+    const filteredAdmissions = useMemo(() => {
+        return admissions.filter(a => !a.discharge_date && (
+            a.patient_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            a.admission_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (a.bed_no && a.bed_no.toLowerCase().includes(searchTerm.toLowerCase()))
+        ));
+    }, [admissions, searchTerm]);
+
     const [currentOrder, setCurrentOrder] = useState<Partial<ClinicalOrderBlock>>({
         category: 'Conservative', diet: 'Regular', medications: [], note: '',
         date: new Date().toISOString().split('T')[0],
@@ -1080,8 +1088,18 @@ const AdmissionAndTreatmentPage: React.FC<{
                     </div>
 
                     <div className="bg-slate-800 p-8 rounded-[2.5rem] border border-slate-700 shadow-2xl overflow-hidden">
-                        <div className="flex justify-between items-center mb-8 border-b border-slate-700 pb-4">
+                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-700 pb-4 gap-4">
                             <h3 className="text-xl font-black text-white uppercase tracking-tighter flex items-center gap-3"><Activity className="text-emerald-400"/> Current Admitted Patients</h3>
+                            <div className="flex flex-1 max-w-md w-full relative">
+                                <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
+                                <input 
+                                    type="text" 
+                                    placeholder="Search by Name, ID or Bed..." 
+                                    className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-10 pr-4 py-2 text-sm text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                    value={searchTerm}
+                                    onChange={e => setSearchTerm(e.target.value)}
+                                />
+                            </div>
                             <button onClick={handlePrintAdmissionList} className="bg-slate-700 hover:bg-slate-600 text-white px-5 py-2 rounded-xl font-bold text-xs uppercase transition-all flex items-center gap-2"><PrinterIcon size={14}/> Print Active List</button>
                         </div>
                         <div className="overflow-x-auto rounded-2xl border border-slate-700">
@@ -1090,7 +1108,7 @@ const AdmissionAndTreatmentPage: React.FC<{
                                     <tr><th className="p-5">Adm ID</th><th className="p-5">Patient Name</th><th className="p-5">Doctor</th><th className="p-5">Bed</th><th className="p-5">Indication</th><th className="p-5 text-center">Action</th></tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-700/50">
-                                    {admissions.filter(a => !a.discharge_date).map(adm => (
+                                    {filteredAdmissions.map(adm => (
                                         <tr key={adm.admission_id} className="hover:bg-slate-700/30 transition-colors">
                                             <td className="p-5 font-mono text-xs text-blue-400 font-bold">{adm.admission_id}</td>
                                             <td className="p-5 font-black text-white uppercase">{adm.patient_name}</td>
@@ -1103,7 +1121,7 @@ const AdmissionAndTreatmentPage: React.FC<{
                                             </td>
                                         </tr>
                                     ))}
-                                    {admissions.filter(a=>!a.discharge_date).length === 0 && <tr><td colSpan={6} className="p-20 text-center text-slate-600 italic font-black uppercase opacity-20 text-xl tracking-[0.2em]">No Active Inpatients</td></tr>}
+                                    {filteredAdmissions.length === 0 && <tr><td colSpan={6} className="p-20 text-center text-slate-600 italic font-black uppercase opacity-20 text-xl tracking-[0.2em]">{searchTerm ? "No Matching Patients" : "No Active Inpatients"}</td></tr>}
                                 </tbody>
                              </table>
                         </div>

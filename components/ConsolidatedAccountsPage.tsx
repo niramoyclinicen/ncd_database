@@ -134,9 +134,22 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
     const [futurePlans, setFuturePlans] = useState<FuturePlan[]>(() => JSON.parse(localStorage.getItem('ncd_future_plans') || '[]'));
     const [companyCollections, setCompanyCollections] = useState<CompanyCollection[]>(() => JSON.parse(localStorage.getItem('ncd_company_collections') || '[]'));
     
-    const [houseRentDeduction, setHouseRentDeduction] = useState<number>(0);
-    const [profitDistAmount, setProfitDistAmount] = useState<number>(0);
-    const [manualLoanInstallment, setManualLoanInstallment] = useState<number>(0);
+    const [monthlyAdjustments, setMonthlyAdjustments] = useState<Record<string, { profitDist: number; houseRent: number; loanInstallment: number }>>(() => 
+        JSON.parse(localStorage.getItem('ncd_monthly_adjustments') || '{}')
+    );
+
+    const currentMonthKey = `${selectedYear}-${selectedMonth}`;
+    const adj = monthlyAdjustments[currentMonthKey] || { profitDist: 0, houseRent: 0, loanInstallment: 0 };
+
+    const updateAdjustment = (field: 'profitDist' | 'houseRent' | 'loanInstallment', val: number) => {
+        setMonthlyAdjustments(prev => ({
+            ...prev,
+            [currentMonthKey]: {
+                ...(prev[currentMonthKey] || { profitDist: 0, houseRent: 0, loanInstallment: 0 }),
+                [field]: val
+            }
+        }));
+    };
 
     const [newPlan, setNewPlan] = useState<Partial<FuturePlan>>({ title: '', estimatedCost: 0, status: 'Pending', targetDate: '' });
     const [newCompanyEntry, setNewCompanyEntry] = useState({ companyName: '', amount: 0, date: new Date().toISOString().split('T')[0] });
@@ -147,7 +160,8 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
         localStorage.setItem('ncd_loan_repayments', JSON.stringify(repayments));
         localStorage.setItem('ncd_future_plans', JSON.stringify(futurePlans));
         localStorage.setItem('ncd_company_collections', JSON.stringify(companyCollections));
-    }, [dynamicShareholders, loans, repayments, futurePlans, companyCollections]);
+        localStorage.setItem('ncd_monthly_adjustments', JSON.stringify(monthlyAdjustments));
+    }, [dynamicShareholders, loans, repayments, futurePlans, companyCollections, monthlyAdjustments]);
 
     const addFuturePlan = () => {
         if (!newPlan.title) return alert("শিরোনাম দিন।");
@@ -453,7 +467,17 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
             Object.entries(detailedExpenses).forEach(([date, items]) => {
                 if (isBeforeSelectedMonth(date)) (items as ExpenseItem[]).forEach(it => prevExp += it.paidAmount);
             });
-            const net = (prevLab + prevLabDue + prevClinic + prevClinicDue + prevMedSales + prevCompany) - (prevExp + prevMedPurch);
+
+            // Subtract all previous manual adjustments (profit distributions and house rent)
+            let prevAdjustments = 0;
+            Object.entries(monthlyAdjustments).forEach(([key, val]) => {
+                const [y, m] = key.split('-').map(Number);
+                if (y < selectedYear || (y === selectedYear && m < selectedMonth)) {
+                    prevAdjustments += (val.profitDist || 0) + (val.houseRent || 0);
+                }
+            });
+
+            const net = (prevLab + prevLabDue + prevClinic + prevClinicDue + prevMedSales + prevCompany) - (prevExp + prevMedPurch + prevAdjustments);
             return net > 0 ? net : 0;
         };
 
@@ -464,8 +488,6 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
         let totalMonthlyOperatingExpenses = 0;
         Object.entries(detailedExpenses).forEach(([date, items]) => {
             if (isSelectedMonth(date)) (items as ExpenseItem[]).forEach(it => {
-                // For the Accounts Sheet summary, we should also be careful about overlap if we ever separate them here.
-                // Currently, totalMonthlyOperatingExpenses is a sum of ALL expenses.
                 totalMonthlyOperatingExpenses += it.paidAmount;
             });
         });
@@ -499,7 +521,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
         const totalClinic = clinicCurrent + clinicDue;
         const totalMedNet = medSalesCurrent - medPurchCurrent;
         
-        const grandTotalCollection = totalDiag + totalClinic + totalMedNet + companyCurrent + prevJer - houseRentDeduction;
+        const grandTotalCollection = totalDiag + totalClinic + totalMedNet + companyCurrent + prevJer - adj.houseRent;
         
         const groupedExp: Record<string, number> = {};
         expenseMapSequence.forEach(e => groupedExp[e.key] = 0);
@@ -535,14 +557,14 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
             });
         });
         const monthlyLoanRepayments = repayments.filter(r => isSelectedMonth(r.date)).reduce((s, r) => s + r.amount, 0);
-        const totalExpenseTableOnly = Object.values(groupedExp).reduce((s, v) => s + (v as number), 0) + monthlyLoanRepayments + manualLoanInstallment;
-        const netProfit = grandTotalCollection - (monthlyLoanRepayments + manualLoanInstallment);
-        const finalClosingJer = netProfit - profitDistAmount;
+        const totalExpenseTableOnly = Object.values(groupedExp).reduce((s, v) => s + (v as number), 0) + monthlyLoanRepayments + adj.loanInstallment;
+        const netProfit = grandTotalCollection - totalExpenseTableOnly;
+        const finalClosingJer = netProfit - adj.profitDist;
         const totalShares = dynamicShareholders.reduce((s, h) => s + h.shares, 0);
-        const profitPerShare = totalShares > 0 ? profitDistAmount / totalShares : 0;
+        const profitPerShare = totalShares > 0 ? adj.profitDist / totalShares : 0;
         
         return { prevJer, diagCurrent, diagDue, totalDiag, clinicCurrent, clinicDue, totalClinic, medSalesCurrent, medPurchCurrent, totalMedNet, companyCurrent, grandTotalCollection, groupedExp, totalExpense: totalExpenseTableOnly, netProfit, finalClosingJer, profitPerShare, totalShares };
-    }, [labInvoices, dueCollections, indoorInvoices, salesInvoices, purchaseInvoices, companyCollections, detailedExpenses, selectedMonth, selectedYear, houseRentDeduction, profitDistAmount, manualLoanInstallment, dynamicShareholders, repayments]);
+    }, [labInvoices, dueCollections, indoorInvoices, salesInvoices, purchaseInvoices, companyCollections, detailedExpenses, selectedMonth, selectedYear, monthlyAdjustments, dynamicShareholders, repayments]);
 
     const handlePrintSpecific = (elementId: string) => {
         const content = document.getElementById(elementId);
@@ -768,9 +790,17 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                     <div className="mt-4 border-t-2 border-black pt-2">
                                         <table className="w-full border-2 border-black">
                                             <tbody>
-                                                <tr className="bg-gray-50 h-8"><td className={commonTableCellClass}>বাড়ী ভাড়া কর্তন</td><td className="no-print"><input type="number" value={houseRentDeduction || ''} onChange={e=>setHouseRentDeduction(parseFloat(e.target.value)||0)} className="w-16 text-right border border-gray-400 rounded" /></td><td className={commonAmtCellClass}>({houseRentDeduction.toLocaleString()})</td></tr>
+                                                <tr className="bg-gray-50 h-8"><td className={commonTableCellClass}>বাড়ী ভাড়া কর্তন</td><td className="no-print"><input type="number" value={adj.houseRent || ''} onChange={e=>updateAdjustment('houseRent', parseFloat(e.target.value)||0)} className="w-16 text-right border border-gray-400 rounded" /></td><td className={commonAmtCellClass}>({adj.houseRent.toLocaleString()})</td></tr>
                                                 <tr className="bg-blue-50 h-8"><td colSpan={2} className={`${commonTableCellClass} text-blue-900`}>পূর্বের জের (CF)</td><td className={`${commonAmtCellClass} text-blue-900`}>{summary.prevJer.toLocaleString()}</td></tr>
                                                 <tr className="bg-slate-900 text-white font-black h-10"><td colSpan={2} className="p-1 text-right text-[12px]">মোট কালেকশন (A) =</td><td className="p-1 text-right text-lg">{summary.grandTotalCollection.toLocaleString()}</td></tr>
+                                                
+                                                <tr className="bg-rose-50 h-8"><td colSpan={2} className={`${commonTableCellClass} text-rose-900`}>মোট খরচ (B)</td><td className={`${commonAmtCellClass} text-rose-900`}>({summary.totalExpense.toLocaleString()})</td></tr>
+                                                <tr className="bg-amber-50 h-8">
+                                                    <td className={`${commonTableCellClass} text-amber-900`}>লভ্যাংশ বন্টন</td>
+                                                    <td className="no-print"><input type="number" value={adj.profitDist || ''} onChange={e=>updateAdjustment('profitDist', parseFloat(e.target.value)||0)} className="w-24 text-right border border-amber-400 rounded font-bold" /></td>
+                                                    <td className={`${commonAmtCellClass} text-amber-900`}>({adj.profitDist.toLocaleString()})</td>
+                                                </tr>
+                                                <tr className="bg-emerald-900 text-white font-black h-10"><td colSpan={2} className="p-1 text-right text-[12px]">অবশিষ্ট বা জের =</td><td className="p-1 text-right text-lg">{summary.finalClosingJer.toLocaleString()}</td></tr>
                                             </tbody>
                                         </table>
                                     </div>
@@ -908,7 +938,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                             </div>
                             <div className="bg-slate-900 p-6 rounded-3xl text-white shadow-2xl">
                                 <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-4">Manual Month-end Adjustment</h4>
-                                <div className="flex justify-between items-center"><span className="text-sm font-bold">Manual Installment:</span><input type="number" value={manualLoanInstallment || ''} onChange={e=>setManualLoanInstallment(parseFloat(e.target.value)||0)} className="w-32 bg-slate-800 border-none rounded p-2 text-right font-black text-amber-400" /></div>
+                                <div className="flex justify-between items-center"><span className="text-sm font-bold">Manual Installment:</span><input type="number" value={adj.loanInstallment || ''} onChange={e=>updateAdjustment('loanInstallment', parseFloat(e.target.value)||0)} className="w-32 bg-slate-800 border-none rounded p-2 text-right font-black text-amber-400" /></div>
                             </div>
                         </div>
                     </div>
@@ -990,14 +1020,14 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                             <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
                                 <div className="bg-slate-50 p-6 rounded-3xl border border-slate-200 text-center">
                                     <p className="text-[10px] font-black text-slate-500 uppercase mb-1">মোট নিট মুনাফা</p>
-                                    <p className="text-2xl font-black text-slate-800">৳{summary.netProfit.toLocaleString()}</p>
+                                    <p className="text-2xl font-black text-slate-800">৳{adj.profitDist.toLocaleString()}</p>
                                 </div>
                                 <div className="bg-blue-50 p-6 rounded-3xl border border-blue-100 text-center">
                                     <p className="text-[10px] font-black text-blue-500 uppercase mb-1">বন্টনযোগ্য লভ্যাংশ</p>
                                     <div className="flex items-center justify-center gap-2">
                                         <span className="text-lg font-black text-blue-900">৳</span>
-                                        <input type="number" value={profitDistAmount || ''} onChange={e=>setProfitDistAmount(parseFloat(e.target.value)||0)} className="w-24 bg-transparent border-b-2 border-blue-300 text-center text-2xl font-black text-blue-900 outline-none no-print" />
-                                        <span className="text-2xl font-black text-blue-900 print-only">{profitDistAmount.toLocaleString()}</span>
+                                        <input type="number" value={adj.profitDist || ''} onChange={e=>updateAdjustment('profitDist', parseFloat(e.target.value)||0)} className="w-24 bg-transparent border-b-2 border-blue-300 text-center text-2xl font-black text-blue-900 outline-none no-print" />
+                                        <span className="text-2xl font-black text-blue-900 print-only">{adj.profitDist.toLocaleString()}</span>
                                     </div>
                                 </div>
                                 <div className="bg-indigo-50 p-6 rounded-3xl border border-indigo-100 text-center">
