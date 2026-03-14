@@ -180,6 +180,8 @@ export interface IndoorInvoice {
   discharge_date?: string;
   status?: string; 
   return_date?: string; // New: added for refund accounting
+  created_at?: string;
+  edit_history?: any[];
 }
 
 const emptyIndoorInvoice: IndoorInvoice = {
@@ -220,7 +222,9 @@ const emptyIndoorInvoice: IndoorInvoice = {
   net_payable: 0,
   admission_date: '',
   discharge_date: '',
-  status: 'Posted'
+  status: 'Posted',
+  created_at: '',
+  edit_history: []
 };
 
 interface ClinicDueCollection {
@@ -1435,6 +1439,8 @@ const IndoorInvoicePage: React.FC<{
     const [tableSearchTerm, setTableSearchTerm] = useState('');
     const [tableDateFilter, setTableDateFilter] = useState('');
     const [tableMonthFilter, setTableMonthFilter] = useState('');
+    const [showHistoryModal, setShowHistoryModal] = useState(false);
+    const [historyInvoice, setHistoryInvoice] = useState<IndoorInvoice | null>(null);
 
     const filteredInvoices = useMemo(() => {
         return indoorInvoices.filter(inv => {
@@ -1481,7 +1487,7 @@ const IndoorInvoicePage: React.FC<{
             let hospitalNet = 0;
 
             indoorInvoices.forEach(inv => {
-                const dateToUse = inv.admission_date || inv.invoice_date;
+                const dateToUse = inv.invoice_date || inv.admission_date;
                 const isMatch = type === 'day' ? dateToUse === period 
                               : type === 'month' ? dateToUse.startsWith(period)
                               : dateToUse.startsWith(period);
@@ -1578,10 +1584,40 @@ const IndoorInvoicePage: React.FC<{
 
     const handleGenerateId = () => {
         if (!selectedAdmission) return alert("Select Patient first.");
-        const todayStr = new Date().toISOString().split('T')[0];
-        const count = indoorInvoices.filter(i => i.invoice_date === todayStr).length + 1;
-        const newId = `CLIN-${todayStr}-${String(count).padStart(3, '0')}`;
-        setFormData(prev => ({ ...prev, daily_id: newId, invoice_date: todayStr, admission_id: selectedAdmission.admission_id, patient_id: selectedAdmission.patient_id, patient_name: selectedAdmission.patient_name, status: 'Posted' }));
+        const dateToUse = formData.invoice_date || new Date().toISOString().split('T')[0];
+        const count = indoorInvoices.filter(i => i.invoice_date === dateToUse).length + 1;
+        const newId = `CLIN-${dateToUse}-${String(count).padStart(3, '0')}`;
+        setFormData(prev => ({ 
+            ...prev, 
+            daily_id: newId, 
+            invoice_date: dateToUse, 
+            admission_id: selectedAdmission.admission_id, 
+            patient_id: selectedAdmission.patient_id, 
+            patient_name: selectedAdmission.patient_name, 
+            status: 'Posted' 
+        }));
+    };
+
+    const handleNewVisit = () => {
+        if (!formData.patient_id) return;
+        const dateToUse = formData.invoice_date || new Date().toISOString().split('T')[0];
+        const count = indoorInvoices.filter(i => i.invoice_date === dateToUse).length + 1;
+        const newId = `CLIN-${dateToUse}-${String(count).padStart(3, '0')}`;
+        
+        setFormData(prev => ({
+            ...emptyIndoorInvoice,
+            daily_id: newId,
+            invoice_date: dateToUse,
+            patient_id: prev.patient_id,
+            patient_name: prev.patient_name,
+            admission_id: prev.admission_id,
+            referrar_id: prev.referrar_id,
+            referrar_name: prev.referrar_name,
+            doctor_id: prev.doctor_id,
+            doctor_name: prev.doctor_name,
+            status: 'Posted'
+        }));
+        setSelectedInvoiceId(null);
     };
 
     const handleServiceChange = (id: number, field: keyof ServiceItem, value: any) => {
@@ -1657,12 +1693,39 @@ const IndoorInvoicePage: React.FC<{
 
         setIndoorInvoices((prev: IndoorInvoice[]) => {
             const idx = prev.findIndex((inv: IndoorInvoice) => inv.daily_id === formData.daily_id);
-            if (idx >= 0) { const newArr = [...prev]; newArr[idx] = formData; return newArr; }
-            return [...prev, formData];
+            const now = new Date().toISOString();
+            
+            if (idx >= 0) { 
+                const existingInvoice = prev[idx];
+                const historyEntry = {
+                    ...existingInvoice,
+                    snapshot_date: now,
+                    modified_by: formData.bill_created_by || 'System'
+                };
+                
+                const updatedInvoice = {
+                    ...formData,
+                    last_modified: now,
+                    edit_history: [...(existingInvoice.edit_history || []), historyEntry]
+                };
+                
+                const newArr = [...prev]; 
+                newArr[idx] = updatedInvoice; 
+                return newArr; 
+            }
+            
+            const newInvoice = {
+                ...formData,
+                created_at: now,
+                last_modified: now,
+                edit_history: []
+            };
+            return [...prev, newInvoice];
         });
         setSuccessMessage("Indoor Invoice Saved!");
         setFormData(emptyIndoorInvoice);
         setSelectedAdmission(null);
+        setSelectedInvoiceId(null);
     };
 
     const handleReturnInvoice = (inv: IndoorInvoice) => {
@@ -1864,8 +1927,8 @@ const IndoorInvoicePage: React.FC<{
 
             <div className="bg-[#20293a] p-6 rounded border border-[#374151]">
                 <h3 className="text-xl font-bold text-white mb-4 border-b border-gray-700 pb-2">Indoor Invoice</h3>
-                <div className="flex gap-4 mb-6">
-                    <div className="w-1/3">
+                <div className="flex flex-wrap gap-4 mb-6">
+                    <div className="w-full md:w-1/3">
                         <SearchableSelect 
                             label="" 
                             theme="dark" 
@@ -1890,12 +1953,48 @@ const IndoorInvoicePage: React.FC<{
                             }} 
                         />
                     </div>
-                    <button onClick={handleGenerateId} className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded font-bold shadow transition-all">Generate ID</button>
+                    <div className="flex flex-wrap gap-2">
+                        <button onClick={handleGenerateId} className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded font-bold shadow transition-all text-xs uppercase">Generate ID</button>
+                        {formData.daily_id && (
+                            <button 
+                                onClick={() => { 
+                                    setFormData(emptyIndoorInvoice); 
+                                    setSelectedAdmission(null); 
+                                    setSelectedInvoiceId(null); 
+                                }} 
+                                className="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded font-bold shadow transition-all text-xs uppercase"
+                            >
+                                Clear Form
+                            </button>
+                        )}
+                        {selectedInvoiceId && (
+                            <button 
+                                onClick={handleNewVisit} 
+                                className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded font-bold shadow transition-all text-xs uppercase"
+                            >
+                                New Visit for this Patient
+                            </button>
+                        )}
+                    </div>
                 </div>
                 {formData.daily_id && (
                     <form onSubmit={handleSaveInvoice} className="space-y-6">
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 bg-[#1f2937] p-4 rounded-xl border border-gray-600">
+                        <div className="flex justify-between items-center mb-2">
+                            <h4 className="text-xs font-bold text-gray-500 uppercase tracking-widest">Invoice Details & Timeline</h4>
+                            {formData.edit_history && formData.edit_history.length > 0 && (
+                                <button 
+                                    type="button"
+                                    onClick={() => { setHistoryInvoice(formData); setShowHistoryModal(true); }}
+                                    className="text-[10px] bg-blue-900/30 text-blue-400 px-2 py-1 rounded border border-blue-800 hover:bg-blue-800 hover:text-white transition-all font-bold uppercase"
+                                >
+                                    View Edit Logs ({formData.edit_history.length})
+                                </button>
+                            )}
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-6 gap-6 bg-[#1f2937] p-4 rounded-xl border border-gray-600">
                             <div><label className="block text-xs text-gray-400">Invoice ID</label><input type="text" value={formData.daily_id} disabled className="w-full p-2 bg-[#1a202c] border border-gray-600 rounded text-gray-300"/></div>
+                            <div><label className="block text-xs text-gray-400">Invoice Date</label><input type="date" name="invoice_date" value={formData.invoice_date} onChange={handleInputChange} className="w-full p-2 bg-[#374151] border border-gray-600 rounded text-white"/></div>
+                            <div><label className="block text-xs text-gray-400">Entry Date (System)</label><input type="text" value={formData.created_at ? new Date(formData.created_at).toLocaleString() : 'Not Saved Yet'} disabled className="w-full p-2 bg-[#1a202c] border border-gray-600 rounded text-gray-400 text-[10px]"/></div>
                             <div><label className="block text-xs text-gray-400">Admission Date</label><input type="date" name="admission_date" value={formData.admission_date} onChange={handleInputChange} className="w-full p-2 bg-[#374151] border border-gray-600 rounded text-white"/></div>
                             <div><label className="block text-xs text-gray-400">Discharge Date</label><input type="date" name="discharge_date" value={formData.discharge_date} onChange={handleInputChange} className="w-full p-2 bg-[#374151] border border-gray-600 rounded text-white"/></div>
                             <div className="flex flex-col justify-center items-center bg-slate-800 rounded border border-slate-600 p-2">
@@ -2032,6 +2131,55 @@ const IndoorInvoicePage: React.FC<{
                             setShowSubCategoryManager(false);
                         }} 
                     />
+                )}
+
+                {showHistoryModal && historyInvoice && (
+                    <div className="fixed inset-0 bg-black/90 flex justify-center items-center z-[60] p-4 overflow-y-auto">
+                        <div className="bg-[#1f2937] w-full max-w-4xl rounded-xl border border-gray-600 shadow-2xl p-6">
+                            <div className="flex justify-between items-center mb-6 border-b border-gray-700 pb-4">
+                                <h3 className="text-xl font-bold text-white uppercase tracking-widest">Invoice Edit History: {historyInvoice.daily_id}</h3>
+                                <button onClick={() => setShowHistoryModal(false)} className="text-gray-400 hover:text-white text-2xl">&times;</button>
+                            </div>
+                            
+                            <div className="space-y-6">
+                                {historyInvoice.edit_history?.map((snapshot: any, idx: number) => (
+                                    <div key={idx} className="bg-slate-800/50 border border-slate-700 rounded-lg p-4">
+                                        <div className="flex justify-between items-center mb-4">
+                                            <div className="text-sm">
+                                                <span className="text-gray-400">Version {idx + 1} - Captured on: </span>
+                                                <span className="text-blue-400 font-bold">{new Date(snapshot.snapshot_date).toLocaleString()}</span>
+                                                <span className="text-gray-400 ml-4">By: </span>
+                                                <span className="text-emerald-400 font-bold">{snapshot.modified_by}</span>
+                                            </div>
+                                            <button 
+                                                onClick={() => handlePrintInvoice(snapshot)}
+                                                className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded text-[10px] font-bold uppercase"
+                                            >
+                                                Print This Version
+                                            </button>
+                                        </div>
+                                        <div className="grid grid-cols-3 gap-4 text-xs text-gray-300 border-t border-slate-700 pt-4">
+                                            <div><span className="text-gray-500">Invoice Date:</span> {snapshot.invoice_date}</div>
+                                            <div><span className="text-gray-500">Total Bill:</span> ৳{snapshot.total_bill.toFixed(2)}</div>
+                                            <div><span className="text-gray-500">Paid:</span> ৳{snapshot.paid_amount.toFixed(2)}</div>
+                                            <div className="col-span-3">
+                                                <span className="text-gray-500">Items:</span> {snapshot.items.map((it: any) => `${it.service_type} (৳${it.payable_amount})`).join(', ')}
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                                
+                                <div className="bg-emerald-900/20 border border-emerald-800/50 rounded-lg p-4">
+                                    <h4 className="text-emerald-400 font-bold text-sm mb-2 uppercase tracking-widest">Current Active Version</h4>
+                                    <div className="grid grid-cols-3 gap-4 text-xs text-gray-300">
+                                        <div><span className="text-gray-500">Invoice Date:</span> {historyInvoice.invoice_date}</div>
+                                        <div><span className="text-gray-500">Total Bill:</span> ৳{historyInvoice.total_bill.toFixed(2)}</div>
+                                        <div><span className="text-gray-500">Paid:</span> ৳{historyInvoice.paid_amount.toFixed(2)}</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 )}
                 
                 <div className="mt-8">
