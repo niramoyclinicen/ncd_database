@@ -1064,7 +1064,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                         <tr>
                                             <td colSpan={2} className="p-5 text-right uppercase text-slate-500">Total Distribution:</td>
                                             <td className="p-5 text-center text-blue-900">{summary.totalShares}</td>
-                                            <td className="p-5 text-right text-emerald-700 text-lg">৳{profitDistAmount.toLocaleString()}</td>
+                                            <td className="p-5 text-right text-emerald-700 text-lg">৳{adj.profitDist.toLocaleString()}</td>
                                         </tr>
                                     </tfoot>
                                 </table>
