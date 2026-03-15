@@ -236,6 +236,8 @@ export interface ExpenseItem {
   isEdited?: boolean;
   lastEditedAt?: string;
   editHistory?: EditLog[];
+  isDeleted?: boolean;
+  deletedAt?: string;
 }
 
 export interface Medicine {

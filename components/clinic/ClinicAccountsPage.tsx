@@ -117,7 +117,23 @@ const DailyExpenseForm: React.FC<any> = ({ selectedDate, onDateChange, items: in
             return item;
         }));
     };
-    const totals = items.reduce((acc, item) => { acc.cost += Number(item.billAmount) || 0; acc.paid += Number(item.paidAmount) || 0; return acc; }, { cost: 0, paid: 0 });
+    const handleDeleteItem = (id: number) => {
+        setItems(prev => prev.map(item => {
+            if (item.id === id) {
+                const history = item.editHistory || [];
+                const newLog = {
+                    timestamp: new Date().toISOString(),
+                    field: 'DELETED',
+                    oldValue: 'Active',
+                    newValue: 'Deleted'
+                };
+                return { ...item, isDeleted: true, editHistory: [...history, newLog] };
+            }
+            return item;
+        }));
+    };
+
+    const totals = items.filter(i => !i.isDeleted).reduce((acc, item) => { acc.cost += Number(item.billAmount) || 0; acc.paid += Number(item.paidAmount) || 0; return acc; }, { cost: 0, paid: 0 });
     const inputClass = "w-full bg-slate-700 border border-slate-600 rounded p-1.5 text-white text-sm outline-none";
 
     const subCategories = useMemo(() => {
@@ -136,7 +152,7 @@ const DailyExpenseForm: React.FC<any> = ({ selectedDate, onDateChange, items: in
                 </div>
                 <input type="date" value={selectedDate} onChange={e => onDateChange(e.target.value)} className="bg-slate-800 border border-slate-700 rounded p-2 text-white" />
             </div>
-            <div className="overflow-x-auto"><table className="w-full text-left"><thead><tr className="text-xs text-emerald-400 uppercase tracking-widest"><th className="pb-3">Category</th><th className="pb-3">Sub-Category</th><th className="pb-3">Details</th><th className="pb-3 text-right">Bill</th><th className="pb-3 text-right">Paid</th><th className="pb-3 text-center">History</th><th className="pb-3 text-center">X</th></tr></thead><tbody>{items.map(item => (<tr key={item.id} className="border-t border-emerald-900/30"><td className="py-2 pr-2"><select value={item.category} onChange={e => { handleItemChange(item.id, 'category', e.target.value); handleItemChange(item.id, 'subCategory', ''); }} className={inputClass}>{clinicExpenseCategories.map(c => <option key={c} value={c}>{c}</option>)}</select></td><td className="py-2 pr-2">{subCategories[item.category] && subCategories[item.category].length > 0 ? (<select value={item.subCategory} onChange={e => handleItemChange(item.id, 'subCategory', e.target.value)} className={inputClass}><option value="">Select...</option>{subCategories[item.category].map(sc => <option key={sc} value={sc}>{sc}</option>)}</select>) : (<input value={item.subCategory} onChange={e => handleItemChange(item.id, 'subCategory', e.target.value)} className={inputClass} placeholder="Sub-category..."/>)}</td><td className="py-2 pr-2"><input value={item.description} onChange={e => handleItemChange(item.id, 'description', e.target.value)} className={inputClass} placeholder="Details..."/></td><td className="py-2 pr-2"><input type="number" value={item.billAmount} onChange={e => handleItemChange(item.id, 'billAmount', parseFloat(e.target.value) || 0)} className={`${inputClass} text-right`} /></td><td className="py-2 pr-2"><input type="number" value={item.paidAmount} onChange={e => handleItemChange(item.id, 'paidAmount', parseFloat(e.target.value) || 0)} className={`${inputClass} text-right`} /></td><td className="py-2 text-center"><button onClick={() => setHistoryItem(item)} className={`text-[10px] font-black uppercase px-2 py-1 rounded ${item.isEdited ? 'bg-amber-600 text-white' : 'bg-slate-700 text-slate-400'}`}>History</button></td><td className="py-2 text-center"><button onClick={() => setItems(items.filter(i=>i.id!==item.id))} className="text-red-400 font-bold">×</button></td></tr>))}</tbody></table></div>
+            <div className="overflow-x-auto"><table className="w-full text-left"><thead><tr className="text-xs text-emerald-400 uppercase tracking-widest"><th className="pb-3">Category</th><th className="pb-3">Sub-Category</th><th className="pb-3">Details</th><th className="pb-3 text-right">Bill</th><th className="pb-3 text-right">Paid</th><th className="pb-3 text-center">History</th><th className="pb-3 text-center">X</th></tr></thead><tbody>{items.filter(i => !i.isDeleted).map(item => (<tr key={item.id} className="border-t border-emerald-900/30"><td className="py-2 pr-2"><select value={item.category} onChange={e => { handleItemChange(item.id, 'category', e.target.value); handleItemChange(item.id, 'subCategory', ''); }} className={inputClass}>{clinicExpenseCategories.map(c => <option key={c} value={c}>{c}</option>)}</select></td><td className="py-2 pr-2">{subCategories[item.category] && subCategories[item.category].length > 0 ? (<select value={item.subCategory} onChange={e => handleItemChange(item.id, 'subCategory', e.target.value)} className={inputClass}><option value="">Select...</option>{subCategories[item.category].map(sc => <option key={sc} value={sc}>{sc}</option>)}</select>) : (<input value={item.subCategory} onChange={e => handleItemChange(item.id, 'subCategory', e.target.value)} className={inputClass} placeholder="Sub-category..."/>)}</td><td className="py-2 pr-2"><input value={item.description} onChange={e => handleItemChange(item.id, 'description', e.target.value)} className={inputClass} placeholder="Details..."/></td><td className="py-2 pr-2"><input type="number" value={item.billAmount} onChange={e => handleItemChange(item.id, 'billAmount', parseFloat(e.target.value) || 0)} className={`${inputClass} text-right`} /></td><td className="py-2 pr-2"><input type="number" value={item.paidAmount} onChange={e => handleItemChange(item.id, 'paidAmount', parseFloat(e.target.value) || 0)} className={`${inputClass} text-right`} /></td><td className="py-2 text-center"><button onClick={() => setHistoryItem(item)} className={`text-[10px] font-black uppercase px-2 py-1 rounded ${item.isEdited ? 'bg-amber-600 text-white' : 'bg-slate-700 text-slate-400'}`}>History</button></td><td className="py-2 text-center"><button onClick={() => handleDeleteItem(item.id)} className="text-red-400 font-bold">×</button></td></tr>))}</tbody></table></div>
             <div className="flex justify-between items-center mt-6">
                 <button onClick={() => setItems([...items, { id: Date.now(), category: clinicExpenseCategories[0], subCategory: '', description: '', billAmount: 0, paidAmount: 0, dept: 'Clinic' }])} className="bg-blue-600 text-white px-4 py-2 rounded font-bold hover:bg-blue-500">+ Add</button>
                 <div className="flex gap-6 items-center"><div className="text-slate-400">Total Paid: <span className="text-emerald-400 font-bold text-lg">{totals.paid.toLocaleString()}</span></div><button onClick={() => onSave(selectedDate, items)} className="bg-green-600 text-white px-8 py-2 rounded font-black shadow-lg hover:bg-green-500">SAVE DATA</button></div>
@@ -163,6 +179,7 @@ const ClinicAccountsPage: React.FC<any> = ({
     const [expMonthSearch, setExpMonthSearch] = useState<number | ''>('');
     const [expYearSearch, setExpYearSearch] = useState<number | ''>('');
     const [expCategorySearch, setExpCategorySearch] = useState('');
+    const [ledgerHistoryItem, setLedgerHistoryItem] = useState<ExpenseItem | null>(null);
 
     const [successMsg, setSuccessMsg] = useState('');
 
@@ -177,6 +194,34 @@ const ClinicAccountsPage: React.FC<any> = ({
             return { ...prev, [date]: [...otherDeptItems, ...clinicItems] };
         });
         setSuccessMsg("Clinic Expense Saved!");
+    };
+
+    const handleLedgerDelete = (date: string, itemId: number) => {
+        if (!window.confirm("Are you sure you want to delete this expense entry? It will be logged and removed from totals.")) return;
+
+        setDetailedExpenses((prev: any) => {
+            const dateItems = prev[date] || [];
+            const updatedItems = dateItems.map((it: any) => {
+                if (it.id === itemId) {
+                    const history = it.editHistory || [];
+                    const newLog = {
+                        timestamp: new Date().toISOString(),
+                        field: 'DELETED',
+                        oldValue: 'Active',
+                        newValue: 'Deleted'
+                    };
+                    return { 
+                        ...it, 
+                        isDeleted: true, 
+                        deletedAt: new Date().toISOString(),
+                        editHistory: [...history, newLog]
+                    };
+                }
+                return it;
+            });
+            return { ...prev, [date]: updatedItems };
+        });
+        setSuccessMsg("Expense Entry Deleted (Logged)");
     };
 
     // --- Helper function for keyword matching ---
@@ -284,7 +329,7 @@ const ClinicAccountsPage: React.FC<any> = ({
             const [y, m] = date.split('-').map(Number);
             if(m - 1 === selectedMonth && y === selectedYear) {
                 items.forEach((it:any) => {
-                    if (it.dept === 'Clinic' || (!it.dept && clinicExpenseCategories.includes(it.category))) {
+                    if (!it.isDeleted && (it.dept === 'Clinic' || (!it.dept && clinicExpenseCategories.includes(it.category)))) {
                         expensesByCategory[it.category] = (expensesByCategory[it.category] || 0) + it.paidAmount;
                     }
                 });
@@ -314,8 +359,8 @@ const ClinicAccountsPage: React.FC<any> = ({
             return matchesSearch && matchesDate && matchesMonth && matchesYear && matchesCategory;
         }).sort((a, b) => b.date.localeCompare(a.date));
 
-        const totalPaid = filtered.reduce((s, ex) => s + ex.paidAmount, 0);
-        const totalBill = filtered.reduce((s, ex) => s + ex.billAmount, 0);
+        const totalPaid = filtered.filter(ex => !ex.isDeleted).reduce((s, ex) => s + ex.paidAmount, 0);
+        const totalBill = filtered.filter(ex => !ex.isDeleted).reduce((s, ex) => s + ex.billAmount, 0);
 
         return { filtered, totals: { totalPaid, totalBill } };
     }, [detailedExpenses, expSearch, expDateSearch, expMonthSearch, expYearSearch, expCategorySearch]);
@@ -328,7 +373,7 @@ const ClinicAccountsPage: React.FC<any> = ({
 
         for (let day = 1; day <= daysInMonth; day++) {
             const dateStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-            const dailyExps = (detailedExpenses[dateStr] || []).filter((it: any) => it.dept === 'Clinic' || (!it.dept && clinicExpenseCategories.includes(it.category)));
+            const dailyExps = (detailedExpenses[dateStr] || []).filter((it: any) => !it.isDeleted && (it.dept === 'Clinic' || (!it.dept && clinicExpenseCategories.includes(it.category))));
             
             const rowCategories: Record<string, number> = {};
             clinicExpenseCategories.forEach(cat => rowCategories[cat] = 0);
@@ -388,7 +433,7 @@ const ClinicAccountsPage: React.FC<any> = ({
         }, 0);
 
         const totalCollection = totalClinicRevenueOnly + dayDueRecov - collectionByCategory.totalPC;
-        const dayExpenses = (detailedExpenses[selectedDate] || []).filter((it: any) => it.dept === 'Clinic' || (!it.dept && clinicExpenseCategories.includes(it.category)));
+        const dayExpenses = (detailedExpenses[selectedDate] || []).filter((it: any) => !it.isDeleted && (it.dept === 'Clinic' || (!it.dept && clinicExpenseCategories.includes(it.category))));
         const totalExpense = dayExpenses.reduce((s: number, it: any) => s + it.paidAmount, 0);
         
         const expensesByCategory: Record<string, number> = {};
@@ -915,6 +960,7 @@ const ClinicAccountsPage: React.FC<any> = ({
             <main className="flex-1 w-full px-4 sm:px-6 py-8 space-y-8">
                 {viewMode === 'detailed' && (
                     <div className="max-w-7xl mx-auto space-y-8 animate-fade-in">
+                        {ledgerHistoryItem && <HistoryModal item={ledgerHistoryItem} onClose={() => setLedgerHistoryItem(null)} />}
                         <DailyExpenseForm 
                             key={selectedDate}
                             selectedDate={selectedDate} 
@@ -958,6 +1004,7 @@ const ClinicAccountsPage: React.FC<any> = ({
                                             <th className="p-4">Description</th>
                                             <th className="p-4 text-right">Bill</th>
                                             <th className="p-4 text-right">Paid</th>
+                                            <th className="p-4 text-center">Actions</th>
                                         </tr>
                                         <tr className="bg-slate-900 border-b border-slate-700">
                                             <th colSpan={5} className="p-2 text-right text-slate-400 uppercase tracking-widest">Filtered Totals:</th>
@@ -975,10 +1022,43 @@ const ClinicAccountsPage: React.FC<any> = ({
                                                 <td className="p-4 text-slate-300">{ex.description || '-'}</td>
                                                 <td className="p-4 text-right text-slate-400">৳{ex.billAmount.toLocaleString()}</td>
                                                 <td className="p-4 text-right text-emerald-400 font-black">৳{ex.paidAmount.toLocaleString()}</td>
+                                                <td className="p-4 text-center">
+                                                    <div className="flex justify-center gap-2">
+                                                        <button 
+                                                            onClick={() => {
+                                                                setSelectedDate(ex.date);
+                                                                window.scrollTo({ top: 0, behavior: 'smooth' });
+                                                            }}
+                                                            className="p-1.5 bg-sky-600/20 text-sky-400 rounded hover:bg-sky-600 hover:text-white transition-all"
+                                                            title="Edit"
+                                                        >
+                                                            <FileTextIcon size={14} />
+                                                        </button>
+                                                        <button 
+                                                            onClick={() => setLedgerHistoryItem(ex)}
+                                                            className={`p-1.5 rounded transition-all text-[10px] font-black uppercase ${ex.isEdited ? 'bg-amber-600/20 text-amber-400 hover:bg-amber-600 hover:text-white' : 'bg-slate-700/50 text-slate-500 hover:bg-slate-700 hover:text-white'}`}
+                                                            title="History"
+                                                        >
+                                                            H
+                                                        </button>
+                                                        {!ex.isDeleted && (
+                                                            <button 
+                                                                onClick={() => handleLedgerDelete(ex.date, ex.id)}
+                                                                className="p-1.5 bg-rose-600/20 text-rose-400 rounded hover:bg-rose-600 hover:text-white transition-all"
+                                                                title="Delete"
+                                                            >
+                                                                <BackIcon size={14} className="rotate-45" />
+                                                            </button>
+                                                        )}
+                                                        {ex.isDeleted && (
+                                                            <span className="text-[10px] font-black text-rose-500 uppercase bg-rose-500/10 px-2 py-1 rounded">Deleted</span>
+                                                        )}
+                                                    </div>
+                                                </td>
                                             </tr>
                                         ))}
                                         {clinicExpenseJournalData.filtered.length === 0 && (
-                                            <tr><td colSpan={7} className="p-10 text-center text-slate-600 italic">No clinic expenses found for the selected filters.</td></tr>
+                                            <tr><td colSpan={8} className="p-10 text-center text-slate-600 italic">No clinic expenses found for the selected filters.</td></tr>
                                         )}
                                     </tbody>
                                 </table>
