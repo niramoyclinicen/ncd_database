@@ -238,12 +238,18 @@ const ClinicAccountsPage: React.FC<any> = ({
         }
 
         const incomeItems = inv.items.filter((it: any) => it.isClinicFund === true);
+        const totalRevenue = incomeItems.reduce((s, it) => s + it.payable_amount, 0);
+        const pcAmount = (inv.special_commission || 0) + (inv.commission_paid || 0);
+        const clinicNet = totalRevenue - (inv.special_discount_amount || 0) - pcAmount;
+
+        // Ratio to distribute deductions (commission + discount) proportionally across categories
+        const ratio = totalRevenue > 0 ? clinicNet / totalRevenue : 0;
 
         let admFee = 0, oxygen = 0, dressing = 0, conservative = 0, nvd = 0, dc = 0, lscs_ot = 0, gb_ot = 0, others_ot = 0, others = 0;
 
         incomeItems.forEach((it: any) => {
             const typeLower = (it.service_type || '').toLowerCase();
-            const amt = it.payable_amount;
+            const amt = it.payable_amount * ratio;
             const subCat = (inv.subCategory || '').toUpperCase();
             const mainCat = inv.serviceCategory;
 
@@ -277,12 +283,6 @@ const ClinicAccountsPage: React.FC<any> = ({
             }
         });
 
-        const totalRevenue = incomeItems.reduce((s, it) => s + it.payable_amount, 0);
-        // Deduct PC Amount: special_commission (YES) + commission_paid (NO)
-        const pcAmount = (inv.special_commission || 0) + (inv.commission_paid || 0);
-        // Hospital Profit: Net - Discounts - Commissions
-        const clinicNet = totalRevenue - (inv.special_discount_amount || 0) - pcAmount;
-
         return { admFee, oxygen, conservative, nvd, dc, lscs_ot, gb_ot, others_ot, dressing, others, pcAmount, clinicNet };
     }, []);
 
@@ -315,13 +315,13 @@ const ClinicAccountsPage: React.FC<any> = ({
             return acc;
         }, { admFee: 0, oxygen: 0, conservative: 0, nvd: 0, dc: 0, lscs_ot: 0, gb_ot: 0, others_ot: 0, dressing: 0, others: 0, totalPC: 0 });
 
-        const totalClinicRevenueOnly = monthInvoices.reduce((sum:any, inv:any) => {
+        const totalClinicNetOnly = monthInvoices.reduce((sum:any, inv:any) => {
             if (inv.status === 'Cancelled' || inv.status === 'Returned') return sum;
-            const netIncomeForInv = inv.items.filter((it:any) => it.isClinicFund).reduce((s:number, i:any) => s + i.payable_amount, 0);
-            return sum + netIncomeForInv;
+            const catData = categorizeInvoiceData(inv);
+            return sum + catData.clinicNet;
         }, 0);
 
-        const totalCollectionIncludingDue = totalClinicRevenueOnly + monthDueRecov - collectionByCategory.totalPC;
+        const totalCollectionIncludingDue = totalClinicNetOnly + monthDueRecov;
 
         const expensesByCategory: Record<string, number> = {};
         clinicExpenseCategories.forEach(cat => expensesByCategory[cat] = 0);
@@ -426,13 +426,13 @@ const ClinicAccountsPage: React.FC<any> = ({
             return acc;
         }, { admFee: 0, oxygen: 0, conservative: 0, nvd: 0, dc: 0, lscs_ot: 0, gb_ot: 0, others_ot: 0, dressing: 0, others: 0, totalPC: 0 });
 
-        const totalClinicRevenueOnly = dayInvoices.reduce((sum: any, inv: any) => {
+        const totalClinicNetOnly = dayInvoices.reduce((sum: any, inv: any) => {
              if (inv.status === 'Cancelled' || inv.status === 'Returned') return sum;
-             const netIncomeForInv = inv.items.filter((it:any) => it.isClinicFund).reduce((s:number, i:any) => s + i.payable_amount, 0);
-             return sum + netIncomeForInv;
+             const catData = categorizeInvoiceData(inv);
+             return sum + catData.clinicNet;
         }, 0);
 
-        const totalCollection = totalClinicRevenueOnly + dayDueRecov - collectionByCategory.totalPC;
+        const totalCollection = totalClinicNetOnly + dayDueRecov;
         const dayExpenses = (detailedExpenses[selectedDate] || []).filter((it: any) => !it.isDeleted && (it.dept === 'Clinic' || (!it.dept && clinicExpenseCategories.includes(it.category))));
         const totalExpense = dayExpenses.reduce((s: number, it: any) => s + it.paidAmount, 0);
         
