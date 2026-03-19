@@ -95,12 +95,17 @@ const HistoryModal: React.FC<{ item: ExpenseItem, onClose: () => void }> = ({ it
     </div>
 );
 
-const DailyExpenseForm: React.FC<any> = ({ selectedDate, onDateChange, allDetailedExpenses, onSave, employees, monthlyRoster }) => {
+const DailyExpenseForm: React.FC<any> = ({ selectedDate, onDateChange, allDetailedExpenses, onSave, onDelete, onEdit, employees, monthlyRoster, editingItem }) => {
     const dailyExpenseItems = allDetailedExpenses[selectedDate] || [];
-    const [items, setItems] = useState<ExpenseItem[]>(() => [{
-        id: Date.now(), category: expenseCategories[0], subCategory: '', description: '', billAmount: 0, paidAmount: 0, dept: 'Diagnostic'
-    }]);
+    const [items, setItems] = useState<ExpenseItem[]>(() => {
+        if (editingItem && editingItem.date === selectedDate) return [{ ...editingItem }];
+        return [{
+            id: Date.now(), category: expenseCategories[0], subCategory: '', description: '', billAmount: 0, paidAmount: 0, dept: 'Diagnostic'
+        }];
+    });
+
     const [savedSearchTerm, setSavedSearchTerm] = useState('');
+    const [savedCategoryFilter, setSavedCategoryFilter] = useState('All');
     const [searchDate, setSearchDate] = useState(selectedDate);
     const [searchMonth, setSearchMonth] = useState(new Date().getMonth());
     const [searchYear, setSearchYear] = useState(new Date().getFullYear());
@@ -140,14 +145,26 @@ const DailyExpenseForm: React.FC<any> = ({ selectedDate, onDateChange, allDetail
     const addItem = () => setItems(prev => [...prev, { id: Date.now(), category: expenseCategories[0], subCategory: '', description: '', billAmount: 0, paidAmount: 0, dept: 'Diagnostic' }]);
     const removeItem = (id: number) => setItems(prev => prev.filter(i => i.id !== id));
 
-    const handleEditSavedItem = (savedItem: ExpenseItem) => {
-        setItems([{ ...savedItem }]);
+    const handleEditSavedItem = (savedItem: any) => {
+        onDateChange(savedItem.date);
+        onEdit(savedItem);
         window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    const handleDeleteSavedItem = (savedItem: any) => {
+        if (window.confirm(`Are you sure you want to delete this expense entry (${savedItem.category}: ${savedItem.paidAmount}৳)?`)) {
+            onDelete(savedItem.date, savedItem.id);
+        }
     };
 
     const handleSave = () => {
         const updatedDailyItems = [...dailyExpenseItems];
         
+        // If we are editing and the date changed, we need to remove it from the old date
+        if (editingItem && editingItem.date !== selectedDate) {
+            onDelete(editingItem.date, editingItem.id);
+        }
+
         items.forEach(formItem => {
             const existingIdx = updatedDailyItems.findIndex(di => di.id === formItem.id);
             if (existingIdx !== -1) {
@@ -180,18 +197,23 @@ const DailyExpenseForm: React.FC<any> = ({ selectedDate, onDateChange, allDetail
             else if (searchMode === 'all') matchesTime = true;
 
             if (matchesTime) {
-                items.filter((it: any) => it.dept === 'Diagnostic' || (!it.dept && expenseCategories.includes(it.category))).forEach((it: any) => {
+                items.filter((it: any) => !it.isDeleted && (it.dept === 'Diagnostic' || (!it.dept && expenseCategories.includes(it.category)))).forEach((it: any) => {
                     allItems.push({ ...it, date });
                 });
             }
         });
 
-        return allItems.filter((it: any) => 
-            it.category.toLowerCase().includes(savedSearchTerm.toLowerCase()) ||
-            it.subCategory.toLowerCase().includes(savedSearchTerm.toLowerCase()) ||
-            it.description.toLowerCase().includes(savedSearchTerm.toLowerCase())
-        ).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    }, [allDetailedExpenses, searchDate, searchMonth, searchYear, searchMode, savedSearchTerm]);
+        return allItems.filter((it: any) => {
+            const matchesSearch = it.category.toLowerCase().includes(savedSearchTerm.toLowerCase()) ||
+                (expenseCategoryBanglaMap[it.category] || '').includes(savedSearchTerm) ||
+                it.subCategory.toLowerCase().includes(savedSearchTerm.toLowerCase()) ||
+                it.description.toLowerCase().includes(savedSearchTerm.toLowerCase());
+            
+            const matchesCategory = savedCategoryFilter === 'All' || it.category === savedCategoryFilter;
+            
+            return matchesSearch && matchesCategory;
+        }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    }, [allDetailedExpenses, searchDate, searchMonth, searchYear, searchMode, savedSearchTerm, savedCategoryFilter]);
 
     return (
         <div className="space-y-10">
@@ -205,10 +227,10 @@ const DailyExpenseForm: React.FC<any> = ({ selectedDate, onDateChange, allDetail
                     <table className="w-full text-left">
                         <thead>
                             <tr className="text-[11px] text-slate-500 uppercase font-black tracking-widest">
-                                <th className="pb-3 pl-2">Category</th>
-                                <th className="pb-3 pl-2">Employee / Details</th>
-                                <th className="pb-3 pl-2">Description</th>
-                                <th className="pb-3 text-right">Paid Amount</th>
+                                <th className="pb-3 pl-2">বিভাগ (Category)</th>
+                                <th className="pb-3 pl-2">কর্মচারী / বিবরণ (Employee / Details)</th>
+                                <th className="pb-3 pl-2">বর্ণনা (Description)</th>
+                                <th className="pb-3 text-right">পরিশোধিত টাকা (Paid Amount)</th>
                                 <th className="pb-3 text-center">X</th>
                             </tr>
                         </thead>
@@ -294,6 +316,15 @@ const DailyExpenseForm: React.FC<any> = ({ selectedDate, onDateChange, allDetail
                             </select>
                         )}
 
+                        <select 
+                            value={savedCategoryFilter} 
+                            onChange={e => setSavedCategoryFilter(e.target.value)} 
+                            className="bg-slate-800 border border-slate-700 rounded-xl p-2 text-white text-xs font-bold outline-none focus:border-blue-500"
+                        >
+                            <option value="All">All Categories</option>
+                            {expenseCategories.map(cat => <option key={cat} value={cat}>{expenseCategoryBanglaMap[cat] || cat}</option>)}
+                        </select>
+
                         <div className="relative w-64">
                             <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
                             <input 
@@ -311,13 +342,13 @@ const DailyExpenseForm: React.FC<any> = ({ selectedDate, onDateChange, allDetail
                         <thead>
                             <tr className="text-[10px] text-slate-500 uppercase font-black tracking-widest border-b border-slate-800">
                                 <th className="pb-3 pl-2 w-12">SL</th>
-                                <th className="pb-3">Date</th>
-                                <th className="pb-3">Category</th>
-                                <th className="pb-3">Sub-Category</th>
-                                <th className="pb-3">Description</th>
-                                <th className="pb-3 text-right">Amount</th>
-                                <th className="pb-3 text-center">Status</th>
-                                <th className="pb-3 text-center">Action</th>
+                                <th className="pb-3">তারিখ (Date)</th>
+                                <th className="pb-3">বিভাগ (Category)</th>
+                                <th className="pb-3">উপ-বিভাগ (Sub-Category)</th>
+                                <th className="pb-3">বিবরণ (Description)</th>
+                                <th className="pb-3 text-right">পরিমাণ (Amount)</th>
+                                <th className="pb-3 text-center">অবস্থা (Status)</th>
+                                <th className="pb-3 text-center">অ্যাকশন (Action)</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-800/50">
@@ -349,6 +380,12 @@ const DailyExpenseForm: React.FC<any> = ({ selectedDate, onDateChange, allDetail
                                         >
                                             Edit
                                         </button>
+                                        <button 
+                                            onClick={() => handleDeleteSavedItem(it)} 
+                                            className="text-rose-400 hover:text-rose-300 font-black uppercase text-[10px] tracking-widest border border-rose-500/30 px-3 py-1 rounded-lg hover:bg-rose-600/10 transition-all"
+                                        >
+                                            Delete
+                                        </button>
                                     </td>
                                 </tr>
                             )) : (
@@ -379,6 +416,8 @@ const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollection
     const [dueSearch, setDueSearch] = useState('');
     const [successMessage, setSuccessMessage] = useState('');
 
+    const [editingItem, setEditingItem] = useState<any>(null);
+
     useEffect(() => {
         if (successMessage) { const t = setTimeout(() => setSuccessMessage(''), 3000); return () => clearTimeout(t); }
     }, [successMessage]);
@@ -391,7 +430,29 @@ const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollection
             const diagnosticItems = items.map(it => ({ ...it, dept: 'Diagnostic' as const }));
             return { ...prev, [date]: [...otherDeptItems, ...diagnosticItems] };
         });
+        setEditingItem(null);
         setSuccessMessage("Expense data saved successfully!");
+    };
+
+    const handleDeleteExpense = (date: string, id: number) => {
+        setDetailedExpenses((prev: any) => {
+            const existingItems = prev[date] || [];
+            const updatedItems = existingItems.map((it: any) => {
+                if (it.id === id) {
+                    const history = it.editHistory || [];
+                    const newLog = {
+                        timestamp: new Date().toISOString(),
+                        field: 'DELETED',
+                        oldValue: 'Active',
+                        newValue: 'Deleted'
+                    };
+                    return { ...it, isDeleted: true, editHistory: [...history, newLog] };
+                }
+                return it;
+            });
+            return { ...prev, [date]: updatedItems };
+        });
+        setSuccessMessage("Expense item deleted successfully!");
     };
 
     const diagnosticExpenseSheetData = useMemo(() => {
@@ -575,7 +636,7 @@ const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollection
                 Object.entries(detailedExpenses).forEach(([date, items]) => {
                     const d = new Date(date);
                     if ((rangeType === 'monthly' && d.getMonth() === selectedMonth && d.getFullYear() === selectedYear) || (rangeType === 'yearly' && d.getFullYear() === selectedYear)) {
-                        (items as any[]).filter((it: any) => it.dept === 'Diagnostic' || (!it.dept && expenseCategories.includes(it.category))).forEach((it: any) => {
+                        (items as any[]).filter((it: any) => !it.isDeleted && (it.dept === 'Diagnostic' || (!it.dept && expenseCategories.includes(it.category)))).forEach((it: any) => {
                             expenseMap[it.category] = (expenseMap[it.category] || 0) + it.paidAmount;
                             exp.total += it.paidAmount;
                         });
@@ -584,7 +645,8 @@ const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollection
             }
 
             const totalColl = Object.values(coll).reduce((s, v) => s + v, 0);
-            return { coll, exp, totalColl, expenseMap, balance: totalColl - exp.total };
+            const totalCollExclDue = totalColl - coll.dueRecov;
+            return { coll, exp, totalColl, totalCollExclDue, expenseMap, balance: totalColl - exp.total };
         };
 
         return { daily: getRangeStats('daily'), monthly: getRangeStats('monthly'), yearly: getRangeStats('yearly') };
@@ -760,7 +822,18 @@ const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollection
             <main className="flex-1 p-8 space-y-10 container mx-auto overflow-y-auto">
                 {activeTab === 'entry' && (
                     <div className="animate-fade-in space-y-10">
-                        <DailyExpenseForm key={selectedDate} selectedDate={selectedDate} onDateChange={setSelectedDate} allDetailedExpenses={detailedExpenses} onSave={handleSaveExpense} employees={employees} monthlyRoster={monthlyRoster} />
+                        <DailyExpenseForm 
+                            key={`${selectedDate}-${editingItem?.id || 'new'}`} 
+                            selectedDate={selectedDate} 
+                            onDateChange={setSelectedDate} 
+                            allDetailedExpenses={detailedExpenses} 
+                            onSave={handleSaveExpense} 
+                            onDelete={handleDeleteExpense}
+                            onEdit={setEditingItem}
+                            editingItem={editingItem}
+                            employees={employees} 
+                            monthlyRoster={monthlyRoster} 
+                        />
                     </div>
                 )}
 
@@ -846,14 +919,15 @@ const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollection
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                            <SummaryBox title="Net Collection (নিট কালেকশন)" colorClass="text-blue-400" totalLabel="Total Net Collection" totalValue={activeTab === 'daily' ? stats.daily.totalColl : activeTab === 'monthly' ? stats.monthly.totalColl : stats.yearly.totalColl} 
+                            <SummaryBox title="Net Collection (নিট কালেকশন)" colorClass="text-blue-400" totalLabel="Total Collection (Excl. Due Recovery)" totalValue={activeTab === 'daily' ? stats.daily.totalCollExclDue : activeTab === 'monthly' ? stats.monthly.totalCollExclDue : stats.yearly.totalCollExclDue} 
                                 items={[
                                     { label: 'Pathology (Net)', value: activeTab === 'daily' ? stats.daily.coll.pathology : activeTab === 'monthly' ? stats.monthly.coll.pathology : stats.yearly.coll.pathology }, 
                                     { label: 'Hormone (Net)', value: activeTab === 'daily' ? stats.daily.coll.hormone : activeTab === 'monthly' ? stats.monthly.coll.hormone : stats.yearly.coll.hormone }, 
                                     { label: 'USG (Net)', value: activeTab === 'daily' ? stats.daily.coll.usg : activeTab === 'monthly' ? stats.monthly.coll.usg : stats.yearly.coll.usg }, 
                                     { label: 'X-Ray (Net)', value: activeTab === 'daily' ? stats.daily.coll.xray : activeTab === 'monthly' ? stats.monthly.coll.xray : stats.yearly.coll.xray }, 
                                     { label: 'ECG (Net)', value: activeTab === 'daily' ? stats.daily.coll.ecg : activeTab === 'monthly' ? stats.monthly.coll.ecg : stats.yearly.coll.ecg }, 
-                                    { label: 'Due Recovery', value: activeTab === 'daily' ? stats.daily.coll.dueRecov : activeTab === 'monthly' ? stats.monthly.coll.dueRecov : stats.yearly.coll.dueRecov }
+                                    { label: 'Due Recovery', value: activeTab === 'daily' ? stats.daily.coll.dueRecov : activeTab === 'monthly' ? stats.monthly.coll.dueRecov : stats.yearly.coll.dueRecov },
+                                    { label: 'Grand Total (Incl. Due)', value: activeTab === 'daily' ? stats.daily.totalColl : activeTab === 'monthly' ? stats.monthly.totalColl : stats.yearly.totalColl }
                                 ]} 
                             />
                             <SummaryBox title="Expenses (অন্যান্য খরচ)" colorClass="text-rose-400" totalLabel="Total Expense" totalValue={activeTab === 'daily' ? stats.daily.exp.total : activeTab === 'monthly' ? stats.monthly.exp.total : stats.yearly.exp.total} 
