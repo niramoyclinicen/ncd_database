@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Medicine, Employee, PurchaseInvoice, InvoiceItem, Doctor, SalesInvoice, SalesItem, DrugMonograph, IndoorInvoice } from './DiagnosticData';
-import { BackIcon, MapPinIcon, PhoneIcon, MedicineIcon, FileTextIcon, Pill, SearchIcon, Activity, SaveIcon, TrashIcon } from './Icons';
+import { BackIcon, MapPinIcon, PhoneIcon, MedicineIcon, FileTextIcon, Pill, SearchIcon, Activity, SaveIcon, TrashIcon, PlusIcon, TrendingDownIcon } from './Icons';
 import SearchableSelect from './SearchableSelect';
 
 interface MedicinePageProps {
@@ -66,6 +66,20 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
   });
   const [isEditingDrug, setIsEditingDrug] = useState(false);
   const [drugSearch, setDrugSearch] = useState('');
+
+  // Manual Stock Adjustment State
+  const [showAdjustmentModal, setShowAdjustmentModal] = useState(false);
+  const [adjustmentData, setAdjustmentData] = useState({
+    medicineId: '',
+    tradeName: '',
+    genericName: '',
+    strength: '',
+    formulation: '',
+    currentStock: 0,
+    adjustmentType: 'add' as 'add' | 'subtract',
+    adjustmentQty: '',
+    newSellingPrice: '',
+  });
 
   // Purchase Form State
   const [purchaseFormData, setPurchaseFormData] = useState<PurchaseInvoice>({
@@ -344,6 +358,36 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
     setClinicalDrugForm({ id: '', brandName: '', genericName: '', strength: '', formulation: 'Tab', company: '', pregnancyCategory: 'B', indications: [], sideEffects: [], adultDose: '' });
     setIsEditingDrug(false);
     setSuccessMessage("Drug Database updated!");
+  };
+
+  const handleManualAdjustment = () => {
+    const qty = parseFloat(adjustmentData.adjustmentQty);
+    const sellPrice = parseFloat(adjustmentData.newSellingPrice);
+    if (isNaN(qty) || qty <= 0) {
+      alert("Please enter a valid quantity.");
+      return;
+    }
+    if (isNaN(sellPrice) || sellPrice < 0) {
+      alert("Please enter a valid selling price.");
+      return;
+    }
+
+    setMedicines(prev => prev.map(m => {
+      if (m.id === adjustmentData.medicineId) {
+        const newStock = adjustmentData.adjustmentType === 'add' 
+          ? m.stock + qty 
+          : Math.max(0, m.stock - qty);
+        return {
+          ...m,
+          stock: newStock,
+          unitPriceSell: sellPrice,
+        };
+      }
+      return m;
+    }));
+
+    setSuccessMessage(`Stock adjusted for ${adjustmentData.tradeName}`);
+    setShowAdjustmentModal(false);
   };
 
   // --- PRINT FUNCTIONS ---
@@ -692,7 +736,7 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
       return (
           <div className="space-y-6 animate-fade-in">
               <div className="flex justify-between items-center border-b border-slate-700 pb-3"><h2 className="text-2xl font-black text-purple-400 flex items-center gap-2 uppercase tracking-tighter"><span className="w-3 h-3 bg-purple-500 rounded-full"></span> Live Stock Inventory</h2><button onClick={handlePrintStore} className="bg-purple-600 hover:bg-purple-500 text-white px-6 py-2 rounded-lg font-bold flex items-center gap-2 shadow-lg transition-all active:scale-95"><FileTextIcon className="w-4 h-4"/> Print Stock List</button></div>
-              <div className="overflow-x-auto rounded-2xl border border-slate-700 shadow-2xl"><table className="w-full text-left border-collapse text-sm"><thead className="bg-slate-700 text-slate-100"><tr><th className="p-4 uppercase text-xs font-black tracking-widest">Brand Name</th><th className="p-4 uppercase text-xs font-black tracking-widest">Generic</th><th className="p-4 uppercase text-xs font-black tracking-widest">Form</th><th className="p-4 text-right uppercase text-xs font-black tracking-widest">Expiry</th><th className="p-4 text-right uppercase text-xs font-black tracking-widest">Buy P.</th><th className="p-4 text-right uppercase text-xs font-black tracking-widest">Sell P.</th><th className="p-4 text-center uppercase text-xs font-black tracking-widest">Stock</th><th className="p-4 text-right uppercase text-xs font-black tracking-widest">Asset Value</th></tr></thead><tbody className="divide-y divide-slate-700">{medicines.map((m, i) => (<tr key={i} className="bg-slate-800 hover:bg-slate-750 transition-colors"><td className="p-4 font-black text-white text-base">{m.tradeName} <span className="text-xs font-bold text-slate-500">{m.strength}</span></td><td className="p-4 text-sky-400 text-sm font-bold italic">{m.genericName}</td><td className="p-4 text-slate-400 text-sm font-bold uppercase">{m.formulation}</td><td className="p-4 text-right text-xs font-mono">{m.expiryDate || 'N/A'}</td><td className="p-4 text-right text-slate-300 font-bold">৳{m.unitPriceBuy.toFixed(2)}</td><td className="p-4 text-right text-white font-black">৳{m.unitPriceSell.toFixed(2)}</td><td className={`p-4 text-center font-black text-xl ${m.stock < 10 ? 'text-red-500 animate-pulse' : 'text-emerald-400'}`}>{m.stock}</td><td className="p-4 text-right text-slate-400 font-bold">৳{(m.stock * m.unitPriceBuy).toFixed(2)}</td></tr>))}</tbody></table></div>
+              <div className="overflow-x-auto rounded-2xl border border-slate-700 shadow-2xl"><table className="w-full text-left border-collapse text-sm"><thead className="bg-slate-700 text-slate-100"><tr><th className="p-4 uppercase text-xs font-black tracking-widest">Brand Name</th><th className="p-4 uppercase text-xs font-black tracking-widest">Generic</th><th className="p-4 uppercase text-xs font-black tracking-widest">Form</th><th className="p-4 text-right uppercase text-xs font-black tracking-widest">Expiry</th><th className="p-4 text-right uppercase text-xs font-black tracking-widest">Buy P.</th><th className="p-4 text-right uppercase text-xs font-black tracking-widest">Sell P.</th><th className="p-4 text-center uppercase text-xs font-black tracking-widest">Stock</th><th className="p-4 text-right uppercase text-xs font-black tracking-widest">Asset Value</th><th className="p-4 text-center uppercase text-xs font-black tracking-widest">Adjust</th></tr></thead><tbody className="divide-y divide-slate-700">{medicines.map((m, i) => (<tr key={i} className="bg-slate-800 hover:bg-slate-750 transition-colors"><td className="p-4 font-black text-white text-base">{m.tradeName} <span className="text-xs font-bold text-slate-500">{m.strength}</span></td><td className="p-4 text-sky-400 text-sm font-bold italic">{m.genericName}</td><td className="p-4 text-slate-400 text-sm font-bold uppercase">{m.formulation}</td><td className="p-4 text-right text-xs font-mono">{m.expiryDate || 'N/A'}</td><td className="p-4 text-right text-slate-300 font-bold">৳{m.unitPriceBuy.toFixed(2)}</td><td className="p-4 text-right text-white font-black">৳{m.unitPriceSell.toFixed(2)}</td><td className={`p-4 text-center font-black text-xl ${m.stock < 10 ? 'text-red-500 animate-pulse' : 'text-emerald-400'}`}>{m.stock}</td><td className="p-4 text-right text-slate-400 font-bold">৳{(m.stock * m.unitPriceBuy).toFixed(2)}</td><td className="p-4 text-center"><button onClick={() => { setAdjustmentData({ medicineId: m.id, tradeName: m.tradeName, genericName: m.genericName, strength: m.strength, formulation: m.formulation, currentStock: m.stock, adjustmentType: 'add', adjustmentQty: '', newSellingPrice: m.unitPriceSell.toString() }); setShowAdjustmentModal(true); }} className="bg-slate-900 hover:bg-slate-700 text-purple-400 p-2 rounded-lg border border-purple-900/50 transition-all"><RefreshIcon className="w-4 h-4"/></button></td></tr>))}</tbody></table></div>
           </div>
       );
   };
@@ -789,7 +833,85 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
     <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col relative overflow-hidden font-sans">
       {successMessage && <div className="fixed top-24 right-8 z-[150] bg-green-600 border-2 border-green-400 text-white px-10 py-5 rounded-2xl shadow-2xl font-black text-xl animate-fade-in-down">✅ {successMessage}</div>}
       
-      {/* SUPPLIER PAYMENT MODAL */}
+      {/* MANUAL STOCK ADJUSTMENT MODAL */}
+      {showAdjustmentModal && (
+        <div className="fixed inset-0 z-[200] bg-black/90 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-slate-800 border-2 border-slate-600 p-8 rounded-[2.5rem] shadow-2xl w-full max-w-lg animate-scale-in">
+            <h3 className="text-3xl font-black text-white mb-2 uppercase text-center tracking-tighter">Manual Stock Adjustment</h3>
+            <p className="text-center text-slate-400 text-sm mb-6">Medicine: <span className="text-purple-400 font-black">{adjustmentData.tradeName} ({adjustmentData.strength})</span></p>
+            
+            <div className="space-y-6">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-slate-900 p-4 rounded-2xl border border-slate-700 flex flex-col items-center">
+                  <span className="text-slate-500 font-black uppercase text-[10px] tracking-widest">Generic</span>
+                  <span className="text-white font-bold text-sm italic">{adjustmentData.genericName}</span>
+                </div>
+                <div className="bg-slate-900 p-4 rounded-2xl border border-slate-700 flex flex-col items-center">
+                  <span className="text-slate-500 font-black uppercase text-[10px] tracking-widest">Current Stock</span>
+                  <span className="text-emerald-400 font-black text-2xl">{adjustmentData.currentStock}</span>
+                </div>
+              </div>
+
+              <div className="flex bg-slate-900 p-1 rounded-2xl border border-slate-700">
+                <button 
+                  onClick={() => setAdjustmentData({...adjustmentData, adjustmentType: 'add'})}
+                  className={`flex-1 py-3 rounded-xl font-black text-xs uppercase transition-all flex items-center justify-center gap-2 ${adjustmentData.adjustmentType === 'add' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-500'}`}
+                >
+                  <PlusIcon className="w-4 h-4"/> Add Stock
+                </button>
+                <button 
+                  onClick={() => setAdjustmentData({...adjustmentData, adjustmentType: 'subtract'})}
+                  className={`flex-1 py-3 rounded-xl font-black text-xs uppercase transition-all flex items-center justify-center gap-2 ${adjustmentData.adjustmentType === 'subtract' ? 'bg-rose-600 text-white shadow-lg' : 'text-slate-500'}`}
+                >
+                  <TrendingDownIcon className="w-4 h-4"/> Subtract Stock
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-[10px] font-black text-slate-500 mb-1 uppercase ml-2 tracking-widest">Adjustment Qty</label>
+                  <input 
+                    type="number" 
+                    value={adjustmentData.adjustmentQty} 
+                    onChange={e => setAdjustmentData({...adjustmentData, adjustmentQty: e.target.value})} 
+                    className="w-full bg-slate-900 border-2 border-slate-700 focus:border-purple-500 rounded-2xl p-4 text-white font-black text-2xl outline-none text-center" 
+                    placeholder="0"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black text-slate-500 mb-1 uppercase ml-2 tracking-widest">New Selling Price</label>
+                  <input 
+                    type="number" 
+                    value={adjustmentData.newSellingPrice} 
+                    onChange={e => setAdjustmentData({...adjustmentData, newSellingPrice: e.target.value})} 
+                    className="w-full bg-slate-900 border-2 border-slate-700 focus:border-emerald-500 rounded-2xl p-4 text-white font-black text-2xl outline-none text-center" 
+                    placeholder="0.00"
+                  />
+                </div>
+              </div>
+
+              <div className="bg-slate-900/50 p-4 rounded-2xl border border-slate-700 text-center">
+                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Note: Purchase Price for this adjustment is ৳0.00</p>
+              </div>
+
+              <div className="flex gap-4 pt-4">
+                <button 
+                  onClick={() => setShowAdjustmentModal(false)} 
+                  className="flex-1 py-4 bg-slate-700 text-white rounded-2xl font-black hover:bg-slate-600 transition-all uppercase text-xs tracking-widest"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={handleManualAdjustment} 
+                  className="flex-[2] py-4 bg-purple-600 text-white rounded-2xl font-black hover:bg-purple-500 shadow-2xl transition-all uppercase text-xs tracking-widest"
+                >
+                  Confirm Adjustment
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       {showPaymentModal && (
         <div className="fixed inset-0 z-[200] bg-black/90 backdrop-blur-md flex items-center justify-center p-4">
             <div className="bg-slate-800 border-2 border-slate-600 p-8 rounded-[2.5rem] shadow-2xl w-full max-w-md animate-scale-in">

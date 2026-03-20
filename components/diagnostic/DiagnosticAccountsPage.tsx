@@ -184,7 +184,7 @@ const DailyExpenseForm: React.FC<any> = ({ selectedDate, onDateChange, allDetail
     };
 
     const totalPaid = items.reduce((acc, item) => acc + (Number(item.paidAmount) || 0), 0);
-
+    
     const filteredSavedItems = useMemo(() => {
         const allItems: any[] = [];
         Object.entries(allDetailedExpenses).forEach(([date, items]: [string, any]) => {
@@ -214,6 +214,10 @@ const DailyExpenseForm: React.FC<any> = ({ selectedDate, onDateChange, allDetail
             return matchesSearch && matchesCategory;
         }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     }, [allDetailedExpenses, searchDate, searchMonth, searchYear, searchMode, savedSearchTerm, savedCategoryFilter]);
+
+    const totalFilteredSavedAmount = useMemo(() => {
+        return filteredSavedItems.reduce((acc, it) => acc + (Number(it.paidAmount) || 0), 0);
+    }, [filteredSavedItems]);
 
     return (
         <div className="space-y-10">
@@ -394,6 +398,15 @@ const DailyExpenseForm: React.FC<any> = ({ selectedDate, onDateChange, allDetail
                                 </tr>
                             )}
                         </tbody>
+                        {filteredSavedItems.length > 0 && (
+                            <tfoot className="bg-slate-950 border-t-2 border-slate-800 text-white font-black">
+                                <tr>
+                                    <td colSpan={5} className="py-4 text-right uppercase tracking-widest text-slate-500 pr-4">Total Filtered Amount:</td>
+                                    <td className="py-4 text-right text-emerald-400 text-lg pr-2">৳{totalFilteredSavedAmount.toLocaleString()}</td>
+                                    <td colSpan={2}></td>
+                                </tr>
+                            </tfoot>
+                        )}
                     </table>
                 </div>
             </div>
@@ -414,6 +427,7 @@ const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollection
     const [detailFilterCategory, setDetailFilterCategory] = useState('All');
     
     const [dueSearch, setDueSearch] = useState('');
+    const [dueViewMode, setDueViewMode] = useState<'all' | 'date' | 'month' | 'year'>('all');
     const [successMessage, setSuccessMessage] = useState('');
 
     const [editingItem, setEditingItem] = useState<any>(null);
@@ -578,6 +592,37 @@ const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollection
             return acc;
         }, { totalBill: 0, totalDiscount: 0, paidAmount: 0, fixedPC: 0, specialPC: 0, totalPC: 0, usgFee: 0, netInstProfit: 0, count: 0 });
     }, [detailTableData]);
+
+    const categoryCounts = useMemo(() => {
+        const baseFiltered = invoices.filter((inv: any) => {
+            if (detailViewMode === 'today') return inv.invoice_date === todayStr;
+            if (detailViewMode === 'date') return inv.invoice_date === selectedDate;
+            const d = new Date(inv.invoice_date);
+            if (detailViewMode === 'month') return d.getMonth() === selectedMonth && d.getFullYear() === selectedYear;
+            if (detailViewMode === 'year') return d.getFullYear() === selectedYear;
+            return true;
+        }).filter((inv: any) => {
+            return inv.patient_name.toLowerCase().includes(detailSearch.toLowerCase()) || 
+                   inv.invoice_id.toLowerCase().includes(detailSearch.toLowerCase()) ||
+                   (inv.referrar_name || '').toLowerCase().includes(detailSearch.toLowerCase());
+        });
+
+        const counts: Record<string, number> = { All: baseFiltered.length };
+        ['Pathology', 'USG', 'X-Ray', 'ECG', 'Hormone'].forEach(cat => {
+            counts[cat] = baseFiltered.filter(inv => {
+                return inv.items.some((it: any) => {
+                    const name = (it.test_name || '').toLowerCase();
+                    if (cat === 'USG') return name.includes('usg') || name.includes('ultra');
+                    if (cat === 'X-Ray') return name.includes('x-ray') || name.includes('xray');
+                    if (cat === 'ECG') return name.includes('ecg');
+                    if (cat === 'Hormone') return name.includes('hormone');
+                    if (cat === 'Pathology') return !name.includes('usg') && !name.includes('ultra') && !name.includes('x-ray') && !name.includes('xray') && !name.includes('ecg') && !name.includes('hormone');
+                    return false;
+                });
+            }).length;
+        });
+        return counts;
+    }, [invoices, detailSearch, selectedMonth, selectedYear, detailViewMode, selectedDate, todayStr]);
 
     const stats = useMemo(() => {
         const getRangeStats = (rangeType: 'daily' | 'monthly' | 'yearly') => {
@@ -784,9 +829,96 @@ const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollection
         setTimeout(() => { win.print(); win.close(); }, 500);
     };
 
-    const dueList = useMemo(() => {
-        return invoices.filter((inv: any) => inv.due_amount > 1 && (inv.patient_name.toLowerCase().includes(dueSearch.toLowerCase()) || inv.invoice_id.includes(dueSearch))).sort((a,b) => new Date(b.invoice_date).getTime() - new Date(a.invoice_date).getTime());
-    }, [invoices, dueSearch]);
+    const handlePrintDueList = () => {
+        const win = window.open('', '_blank');
+        if (!win) return;
+        const html = `
+            <html>
+                <head>
+                    <title>Outstanding Patient Dues</title>
+                    <style>
+                        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 40px; color: #1e293b; }
+                        .header { text-align: center; margin-bottom: 40px; border-bottom: 4px solid #0f172a; padding-bottom: 20px; }
+                        .header h1 { margin: 0; font-size: 32px; text-transform: uppercase; letter-spacing: 2px; color: #0f172a; }
+                        .header p { margin: 5px 0; color: #64748b; font-weight: bold; }
+                        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                        th { background: #0f172a; color: white; text-align: left; padding: 12px; text-transform: uppercase; font-size: 12px; letter-spacing: 1px; }
+                        td { padding: 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px; }
+                        tr:nth-child(even) { background: #f8fafc; }
+                        .text-right { text-align: right; }
+                        .total-row { background: #f1f5f9 !important; font-weight: 900; font-size: 16px; }
+                        .footer { margin-top: 60px; display: flex; justify-content: space-between; }
+                        .sig-box { border-top: 2px solid #0f172a; width: 200px; text-align: center; padding-top: 10px; font-weight: bold; font-size: 12px; }
+                        .date-info { font-size: 12px; color: #64748b; margin-bottom: 10px; }
+                    </style>
+                </head>
+                <body>
+                    <div class="header">
+                        <h1>Outstanding Patient Dues</h1>
+                        <p>Diagnostic Accounts Console</p>
+                    </div>
+                    <div class="date-info">
+                        Report Type: ${dueViewMode.toUpperCase()} | 
+                        Generated on: ${new Date().toLocaleString()}
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>SL</th>
+                                <th>Date</th>
+                                <th>Patient Name</th>
+                                <th class="text-right">Total Bill</th>
+                                <th class="text-right">Due Balance</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${dueList.map((inv, idx) => `
+                                <tr>
+                                    <td>${idx + 1}</td>
+                                    <td>${inv.invoice_date}</td>
+                                    <td>${inv.patient_name}</td>
+                                    <td class="text-right">${inv.total_amount.toLocaleString()}</td>
+                                    <td class="text-right">৳${inv.due_amount.toLocaleString()}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                        <tfoot>
+                            <tr class="total-row">
+                                <td colspan="4" class="text-right">Total Outstanding Due:</td>
+                                <td class="text-right">৳${dueList.reduce((s, i) => s + i.due_amount, 0).toLocaleString()}</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                    <div class="footer">
+                        <div class="sig-box">Accountant</div>
+                        <div class="sig-box">Managing Director</div>
+                    </div>
+                </body>
+            </html>
+        `;
+        win.document.write(html); win.document.close();
+        setTimeout(() => { win.print(); win.close(); }, 500);
+    };
+
+    const dueList = invoices.filter((inv: any) => {
+        if (inv.due_amount <= 1) return false;
+        
+        let matchesTime = true;
+        if (dueViewMode === 'date') matchesTime = inv.invoice_date === selectedDate;
+        else if (dueViewMode === 'month') {
+            const d = new Date(inv.invoice_date);
+            matchesTime = d.getMonth() === selectedMonth && d.getFullYear() === selectedYear;
+        }
+        else if (dueViewMode === 'year') {
+            const d = new Date(inv.invoice_date);
+            matchesTime = d.getFullYear() === selectedYear;
+        }
+        
+        const matchesSearch = inv.patient_name.toLowerCase().includes(dueSearch.toLowerCase()) || 
+                             inv.invoice_id.toLowerCase().includes(dueSearch.toLowerCase());
+        
+        return matchesTime && matchesSearch;
+    }).sort((a,b) => new Date(b.invoice_date).getTime() - new Date(a.invoice_date).getTime());
 
     return (
         <div className="min-h-screen bg-slate-950 flex flex-col font-sans">
@@ -982,13 +1114,24 @@ const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollection
                             
                             <div className="flex flex-wrap gap-3 no-print border-b border-slate-700 pb-6">
                                 {['All', 'Pathology', 'USG', 'X-Ray', 'ECG', 'Hormone'].map(cat => (
-                                    <button key={cat} onClick={()=>setDetailFilterCategory(cat)} className={`px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase border transition-all ${detailFilterCategory === cat ? 'bg-indigo-600 text-white border-indigo-400 shadow-lg' : 'bg-slate-900 text-slate-500 border-slate-700 hover:text-slate-300'}`}>{cat}</button>
+                                    <button key={cat} onClick={()=>setDetailFilterCategory(cat)} className={`px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase border transition-all ${detailFilterCategory === cat ? 'bg-indigo-600 text-white border-indigo-400 shadow-lg' : 'bg-slate-900 text-slate-500 border-slate-700 hover:text-slate-300'}`}>
+                                        {cat} <span className={`ml-2 px-2 py-0.5 rounded-full ${detailFilterCategory === cat ? 'bg-white/20' : 'bg-slate-800'}`}>{categoryCounts[cat] || 0}</span>
+                                    </button>
                                 ))}
                             </div>
 
                             <div className="overflow-x-auto rounded-2xl border border-slate-700 bg-slate-900/50">
                                 <table className="w-full text-left text-[11px] border-collapse">
                                     <thead className="bg-slate-950 text-slate-500 font-black uppercase tracking-widest border-b border-slate-800">
+                                        <tr className="bg-slate-900/80 text-white font-black border-b border-slate-700 no-print">
+                                            <td colSpan={4} className="p-4 text-right text-[10px] text-slate-500 uppercase tracking-widest">Summary Totals:</td>
+                                            <td className="p-4 text-right text-blue-400">৳{reportSummary.totalBill.toLocaleString()}</td>
+                                            <td className="p-4 text-right text-rose-400">৳{reportSummary.totalDiscount.toLocaleString()}</td>
+                                            <td className="p-4 text-right text-emerald-400 font-black">৳{reportSummary.paidAmount.toLocaleString()}</td>
+                                            <td className="p-4 text-right text-amber-500">৳{reportSummary.totalPC.toLocaleString()}</td>
+                                            <td className="p-4 text-right text-sky-400">৳{reportSummary.usgFee.toLocaleString()}</td>
+                                            <td className="p-4 text-right bg-blue-600 text-white text-sm">৳{reportSummary.netInstProfit.toLocaleString()}</td>
+                                        </tr>
                                         <tr>
                                             <th className="p-4">SL</th>
                                             <th className="p-4">Invoice ID</th>
@@ -1038,18 +1181,64 @@ const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollection
                 {activeTab === 'due' && (
                     <div className="animate-fade-in space-y-10">
                         <div className="bg-slate-900 rounded-[2.5rem] shadow-2xl border border-slate-800 overflow-hidden">
-                            <div className="p-8 bg-slate-900 border-b border-slate-800 flex justify-between items-center">
-                                <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Outstanding Patient Dues</h3>
-                                <input value={dueSearch} onChange={e=>setDueSearch(e.target.value)} placeholder="Search Patient..." className="p-3 w-96 bg-slate-950 border border-slate-800 rounded-2xl text-sm font-black text-white outline-none focus:ring-2 focus:ring-blue-500 shadow-inner" />
+                            <div className="p-8 bg-slate-900 border-b border-slate-800 flex flex-col lg:flex-row justify-between items-center gap-6">
+                                <div className="flex items-center gap-4">
+                                    <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Outstanding Patient Dues</h3>
+                                    <button onClick={handlePrintDueList} className="p-3 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl transition-all shadow-lg flex items-center gap-2 text-xs font-black uppercase">
+                                        <PrinterIcon className="w-4 h-4" /> Print
+                                    </button>
+                                </div>
+                                
+                                <div className="flex flex-wrap items-center gap-4">
+                                    <div className="flex bg-slate-950 p-1 rounded-2xl border border-slate-800 shadow-inner">
+                                        {(['all', 'date', 'month', 'year'] as const).map(mode => (
+                                            <button key={mode} onClick={() => setDueViewMode(mode)} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${dueViewMode === mode ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}>{mode}</button>
+                                        ))}
+                                    </div>
+
+                                    {dueViewMode === 'date' && <input type="date" value={selectedDate} onChange={e=>setSelectedDate(e.target.value)} className="p-3 bg-slate-950 border border-slate-800 rounded-2xl text-xs font-black text-white outline-none focus:ring-2 focus:ring-blue-500" />}
+                                    {dueViewMode === 'month' && (
+                                        <div className="flex gap-2">
+                                            <select value={selectedMonth} onChange={e=>setSelectedMonth(Number(e.target.value))} className="p-3 bg-slate-950 border border-slate-800 rounded-2xl text-xs font-black text-white outline-none focus:ring-2 focus:ring-blue-500">
+                                                {monthOptions.map(m => <option key={m.value} value={m.value}>{m.name}</option>)}
+                                            </select>
+                                            <select value={selectedYear} onChange={e=>setSelectedYear(Number(e.target.value))} className="p-3 bg-slate-950 border border-slate-800 rounded-2xl text-xs font-black text-white outline-none focus:ring-2 focus:ring-blue-500">
+                                                {[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}
+                                            </select>
+                                        </div>
+                                    )}
+                                    {dueViewMode === 'year' && (
+                                        <select value={selectedYear} onChange={e=>setSelectedYear(Number(e.target.value))} className="p-3 bg-slate-950 border border-slate-800 rounded-2xl text-xs font-black text-white outline-none focus:ring-2 focus:ring-blue-500">
+                                            {[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}
+                                        </select>
+                                    )}
+
+                                    <div className="relative">
+                                        <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                                        <input value={dueSearch} onChange={e=>setDueSearch(e.target.value)} placeholder="Search Patient..." className="pl-12 pr-4 py-3 w-64 bg-slate-950 border border-slate-800 rounded-2xl text-xs font-black text-white outline-none focus:ring-2 focus:ring-blue-500 shadow-inner" />
+                                    </div>
+                                </div>
                             </div>
                             <div className="overflow-x-auto">
-                                <table className="w-full text-left text-xs border-collapse">
+                                <table className="w-full text-left text-[11px] border-collapse">
                                     <thead className="bg-slate-950 text-slate-500 font-black uppercase tracking-widest border-b border-slate-800">
-                                        <tr><th className="p-5">Date</th><th className="p-5">Patient Name</th><th className="p-5 text-right">Total Bill</th><th className="p-5 text-right text-rose-500">Due Balance</th></tr>
+                                        <tr className="bg-slate-900/80 text-white font-black border-b border-slate-700 no-print">
+                                            <td colSpan={3} className="p-5 text-right text-[10px] text-slate-500 uppercase tracking-widest">Summary Totals:</td>
+                                            <td className="p-5 text-right text-blue-400">৳{dueList.reduce((s,i)=>s+i.total_amount, 0).toLocaleString()}</td>
+                                            <td className="p-5 text-right text-rose-500 font-black text-sm">৳{dueList.reduce((s,i)=>s+i.due_amount, 0).toLocaleString()}</td>
+                                        </tr>
+                                        <tr>
+                                            <th className="p-5 w-16">SL</th>
+                                            <th className="p-5">Date</th>
+                                            <th className="p-5">Patient Name</th>
+                                            <th className="p-5 text-right">Total Bill</th>
+                                            <th className="p-5 text-right text-rose-500">Due Balance</th>
+                                        </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-800/50">
                                         {dueList.map((inv, idx) => (
                                             <tr key={idx} className="hover:bg-slate-800/50 transition-colors">
+                                                <td className="p-5 text-slate-500 font-bold">{idx + 1}</td>
                                                 <td className="p-5 text-slate-400 font-bold">{inv.invoice_date}</td>
                                                 <td className="p-5 font-black text-white uppercase text-sm">{inv.patient_name}</td>
                                                 <td className="p-5 text-right text-slate-300 font-bold">{inv.total_amount.toLocaleString()}</td>
@@ -1059,7 +1248,7 @@ const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollection
                                     </tbody>
                                     <tfoot className="bg-slate-950 text-white font-black text-sm border-t-4 border-slate-800">
                                         <tr>
-                                            <td colSpan={3} className="p-8 text-right uppercase tracking-widest text-slate-500">Total Outstanding Due:</td>
+                                            <td colSpan={4} className="p-8 text-right uppercase tracking-widest text-slate-500">Total Outstanding Due:</td>
                                             <td className="p-8 text-right text-yellow-400 text-4xl">৳ {dueList.reduce((s,i)=>s+i.due_amount, 0).toLocaleString()}</td>
                                         </tr>
                                     </tfoot>

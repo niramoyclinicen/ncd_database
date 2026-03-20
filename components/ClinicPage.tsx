@@ -1444,7 +1444,8 @@ const IndoorInvoicePage: React.FC<{
     medicines: Medicine[];
     setAdmissions: React.Dispatch<React.SetStateAction<AdmissionRecord[]>>;
     detailedExpenses: Record<string, ExpenseItem[]>;
-}> = ({ admissions, doctors, referrars, employees, indoorInvoices, setIndoorInvoices, setSuccessMessage, medicines, setAdmissions, detailedExpenses }) => {
+    patients: Patient[];
+}> = ({ admissions, doctors, referrars, employees, indoorInvoices, setIndoorInvoices, setSuccessMessage, medicines, setAdmissions, detailedExpenses, patients }) => {
     const [formData, setFormData] = useState<IndoorInvoice>(emptyIndoorInvoice);
     const [selectedAdmission, setSelectedAdmission] = useState<AdmissionRecord | null>(null);
     const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
@@ -1461,10 +1462,18 @@ const IndoorInvoicePage: React.FC<{
     const [historyInvoice, setHistoryInvoice] = useState<IndoorInvoice | null>(null);
 
     const filteredInvoices = useMemo(() => {
+        const isDueSearch = tableSearchTerm.toLowerCase() === 'due';
         return indoorInvoices.filter(inv => {
+            if (isDueSearch) {
+                return inv.due_bill > 0;
+            }
+            const p = patients.find(pt => pt.pt_id === inv.patient_id);
             const matchesSearch = inv.patient_name.toLowerCase().includes(tableSearchTerm.toLowerCase()) ||
                 inv.daily_id.toLowerCase().includes(tableSearchTerm.toLowerCase()) ||
-                inv.patient_id.toLowerCase().includes(tableSearchTerm.toLowerCase());
+                inv.patient_id.toLowerCase().includes(tableSearchTerm.toLowerCase()) ||
+                inv.indication.toLowerCase().includes(tableSearchTerm.toLowerCase()) ||
+                (p?.mobile || '').includes(tableSearchTerm) ||
+                (p?.address || '').toLowerCase().includes(tableSearchTerm.toLowerCase());
             
             const matchesDate = !tableDateFilter || inv.invoice_date === tableDateFilter;
             
@@ -1472,7 +1481,7 @@ const IndoorInvoicePage: React.FC<{
 
             return matchesSearch && matchesDate && matchesMonth;
         });
-    }, [indoorInvoices, tableSearchTerm, tableDateFilter, tableMonthFilter]);
+    }, [indoorInvoices, tableSearchTerm, tableDateFilter, tableMonthFilter, patients]);
 
     const tableTotals = useMemo(() => {
         return filteredInvoices.reduce((acc, inv) => {
@@ -1951,11 +1960,14 @@ const IndoorInvoicePage: React.FC<{
                             label="" 
                             theme="dark" 
                             placeholder="Search Patient or Date..."
-                            options={admissions.map(a => ({
-                                id: a.admission_id, 
-                                name: a.patient_name, 
-                                details: `Date: ${a.admission_date} | ID: ${a.admission_id}`
-                            }))} 
+                            options={admissions.map(a => {
+                                const p = patients.find(pt => pt.pt_id === a.patient_id);
+                                return {
+                                    id: a.admission_id, 
+                                    name: a.patient_name, 
+                                    details: `ID: ${a.patient_id} | Indication: ${a.indication} | DOB: ${p?.dobY}-${p?.dobM}-${p?.dobD} | Addr: ${p?.address} | Mob: ${p?.mobile} | Adm: ${a.admission_date}`
+                                };
+                            })} 
                             value={selectedAdmission?.admission_id || ''} 
                             onChange={(id) => { 
                                 const adm = admissions.find(a => a.admission_id === id); 
@@ -2076,7 +2088,42 @@ const IndoorInvoicePage: React.FC<{
                         <div className="bg-[#1f2937] p-4 rounded border border-gray-600">
                             <div className="flex justify-between items-center mb-2">
                                 <h4 className="text-lg font-bold text-sky-300">Services</h4>
-                                <button type="button" onClick={handleAddServiceItem} className="text-xs bg-blue-600 text-white px-3 py-2 rounded hover:bg-blue-500 font-bold shadow">+ Add Service Row</button>
+                                <div className="flex gap-2">
+                                    <div className="w-64">
+                                        <SearchableSelect 
+                                            label=""
+                                            theme="dark"
+                                            placeholder="Search Medicine..."
+                                            options={medicines.map(m => ({
+                                                id: m.id,
+                                                name: m.name,
+                                                details: `Price: ৳${m.unitPriceSell} | Generic: ${m.genericName || 'N/A'}`
+                                            }))}
+                                            value=""
+                                            onChange={(id) => {
+                                                const med = medicines.find(m => m.id === id);
+                                                if (med) {
+                                                    const newItem: ServiceItem = { 
+                                                        id: Date.now(), 
+                                                        service_type: med.name, 
+                                                        service_provider: 'Medicine Store', 
+                                                        service_charge: med.unitPriceSell, 
+                                                        quantity: 1, 
+                                                        line_total: med.unitPriceSell, 
+                                                        discount: 0, 
+                                                        payable_amount: med.unitPriceSell, 
+                                                        note: `Medicine: ${med.name}`, 
+                                                        isClinicFund: false 
+                                                    };
+                                                    const updatedItems = [...formData.items, newItem];
+                                                    const totals = calculateTotals(updatedItems, 0, formData.paid_amount, formData.special_discount_amount || 0);
+                                                    setFormData(prev => ({ ...prev, items: updatedItems, ...totals }));
+                                                }
+                                            }}
+                                        />
+                                    </div>
+                                    <button type="button" onClick={handleAddServiceItem} className="text-xs bg-blue-600 text-white px-3 py-2 rounded hover:bg-blue-500 font-bold shadow">+ Add Service Row</button>
+                                </div>
                             </div>
                             <table className="w-full text-sm text-left text-gray-300 mb-2">
                                 <thead className="bg-[#111827]"><tr><th className="p-2">Type</th><th className="p-2">Provider</th><th className="p-2">Charge</th><th className="p-2">Qty</th><th className="p-2">Disc</th><th className="p-2">Payable</th><th className="p-2 text-center">A/C</th><th className="p-2">Note</th><th className="p-2">X</th></tr></thead>
@@ -2229,31 +2276,63 @@ const IndoorInvoicePage: React.FC<{
                         </div>
                     </div>
 
-                    {/* COLUMN-WISE TOTALS SUMMARY */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4 no-print">
-                        <div className="bg-slate-800/60 border border-slate-700 p-3 rounded-xl flex justify-between items-center">
-                            <span className="text-xs font-black text-slate-400 uppercase tracking-widest">Total Amount:</span>
-                            <span className="text-sm font-black text-white">৳ {tableTotals.total.toFixed(2)}</span>
+                    {/* COLUMN-WISE TOTALS SUMMARY - Aligned with Table Columns */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                        <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 text-center shadow-lg">
+                            <h4 className="text-slate-500 text-[10px] uppercase font-black tracking-widest mb-1">Total Bill Sum</h4>
+                            <p className="text-2xl font-black text-blue-400 font-mono">৳{tableTotals.total.toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
                         </div>
-                        <div className="bg-emerald-900/30 border border-emerald-800/50 p-3 rounded-xl flex justify-between items-center">
-                            <span className="text-xs font-black text-emerald-400 uppercase tracking-widest">Total Paid:</span>
-                            <span className="text-sm font-black text-emerald-400">৳ {tableTotals.paid.toFixed(2)}</span>
+                        <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 text-center shadow-lg">
+                            <h4 className="text-slate-500 text-[10px] uppercase font-black tracking-widest mb-1">Total Received Sum</h4>
+                            <p className="text-2xl font-black text-emerald-400 font-mono">৳{tableTotals.paid.toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
                         </div>
-                        <div className="bg-rose-900/30 border border-rose-800/50 p-3 rounded-xl flex justify-between items-center">
-                            <span className="text-xs font-black text-rose-400 uppercase tracking-widest">Total Due:</span>
-                            <span className="text-sm font-black text-rose-400">৳ {tableTotals.due.toFixed(2)}</span>
+                        <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 text-center shadow-lg">
+                            <h4 className="text-slate-500 text-[10px] uppercase font-black tracking-widest mb-1">Total Outstanding Due</h4>
+                            <p className="text-2xl font-black text-rose-500 font-mono">৳{tableTotals.due.toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
                         </div>
                     </div>
 
-                    {/* Fixed: Container expanded for continuous page view (removed fixed height/overflow) */}
-                    <div className="bg-[#111827] rounded-xl border border-gray-700 shadow-inner">
-                        <table className="w-full text-sm text-left text-gray-300">
-                            <thead className="bg-[#1f2937] text-gray-400 sticky top-0 z-10"><tr><th className="p-3 text-center">SL</th><th className="p-3">ID</th><th className="p-3">Date</th><th className="p-3">Patient</th><th className="p-3 text-right">Total</th><th className="p-3 text-right">Paid</th><th className="p-3 text-right">Due</th><th className="p-3 text-center">Status</th><th className="p-3 text-center">Action</th></tr></thead>
+                    <div className="bg-[#111827] rounded-xl border border-gray-700 shadow-inner overflow-hidden">
+                        <table className="w-full text-sm text-left text-gray-300 border-collapse">
+                            <thead className="bg-[#1f2937] text-gray-400 sticky top-0 z-10">
+                                <tr>
+                                    <th className="p-3 text-center w-12">SL</th>
+                                    <th className="p-3 w-24">ID</th>
+                                    <th className="p-3 w-28">Date</th>
+                                    <th className="p-3">Patient Details</th>
+                                    <th className="p-3 text-right w-32">Total</th>
+                                    <th className="p-3 text-right w-32">Paid</th>
+                                    <th className="p-3 text-right w-32">Due</th>
+                                    <th className="p-3 text-center w-24">Status</th>
+                                    <th className="p-3 text-center w-40">Action</th>
+                                </tr>
+                            </thead>
                             <tbody className="divide-y divide-gray-700">
                                 {filteredInvoices.map((inv, index) => (
                                     <tr key={inv.daily_id} onClick={() => handleLoadInvoice(inv)} className={`cursor-pointer hover:bg-slate-800 transition-all ${selectedInvoiceId === inv.daily_id ? 'bg-blue-900/30' : ''} ${inv.status === 'Returned' ? 'bg-rose-900/10' : inv.status === 'Cancelled' ? 'opacity-30 grayscale line-through' : ''}`}>
                                         <td className="p-3 text-center text-gray-500 font-mono text-xs">{index + 1}</td>
-                                        <td className="p-3 font-mono text-xs text-sky-400">{inv.daily_id}</td><td className="p-3">{inv.invoice_date}</td><td className="p-3 font-black uppercase">{inv.patient_name}</td><td className="p-3 text-right font-bold">৳{inv.total_bill.toFixed(2)}</td><td className="p-3 text-right text-emerald-400 font-black">৳{inv.paid_amount.toFixed(2)}</td><td className="p-3 text-right text-rose-500 font-black">৳{inv.due_bill.toFixed(2)}</td>
+                                        <td className="p-3 font-mono text-xs text-sky-400">{inv.daily_id}</td>
+                                        <td className="p-3 text-xs">{inv.invoice_date}</td>
+                                        <td className="p-3">
+                                            <div className="font-black uppercase text-white leading-tight">{inv.patient_name}</div>
+                                            <div className="text-[9px] text-gray-500 mt-1 flex flex-wrap gap-x-3 gap-y-1">
+                                                <span className="bg-slate-800 px-1 rounded">ID: {inv.patient_id}</span>
+                                                <span className="bg-blue-900/30 text-blue-300 px-1 rounded">Indication: {inv.indication}</span>
+                                                {(() => {
+                                                    const p = patients.find(pt => pt.pt_id === inv.patient_id);
+                                                    return p ? (
+                                                        <>
+                                                            <span>Age: {p.ageY}Y {p.ageM}M {p.ageD}D</span>
+                                                            <span>Addr: {p.address}</span>
+                                                            <span>Mob: {p.mobile}</span>
+                                                        </>
+                                                    ) : null;
+                                                })()}
+                                            </div>
+                                        </td>
+                                        <td className="p-3 text-right font-bold font-mono">৳{inv.total_bill.toFixed(2)}</td>
+                                        <td className="p-3 text-right text-emerald-400 font-black font-mono">৳{inv.paid_amount.toFixed(2)}</td>
+                                        <td className="p-3 text-right text-rose-500 font-black font-mono">৳{inv.due_bill.toFixed(2)}</td>
                                         <td className="p-3 text-center"><span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase ${inv.status==='Returned'?'bg-rose-600 text-white':inv.status==='Cancelled'?'bg-slate-700 text-slate-300':'bg-blue-600 text-white'}`}>{inv.status}</span></td>
                                         <td className="p-3 text-center space-x-3" onClick={e=>e.stopPropagation()}>
                                             <button onClick={(e) => { e.stopPropagation(); handlePrintInvoice(inv); }} className="text-sky-400 hover:text-white text-xs font-bold underline">Print</button>
@@ -2499,7 +2578,7 @@ const ClinicPage: React.FC<ClinicPageProps> = ({
                     </div>
 
                     <div className={activeTab === 'invoice' ? 'block' : 'hidden'}>
-                        <IndoorInvoicePage admissions={admissions} doctors={doctors} referrars={referrars} employees={employees} indoorInvoices={indoorInvoices} setIndoorInvoices={setIndoorInvoices} setSuccessMessage={setSuccessMessage} medicines={medicines} setAdmissions={setAdmissions} detailedExpenses={detailedExpenses} />
+                        <IndoorInvoicePage admissions={admissions} doctors={doctors} referrars={referrars} employees={employees} indoorInvoices={indoorInvoices} setIndoorInvoices={setIndoorInvoices} setSuccessMessage={setSuccessMessage} medicines={medicines} setAdmissions={setAdmissions} detailedExpenses={detailedExpenses} patients={patients} />
                     </div>
 
                     <div className={activeTab === 'due_collection' ? 'block' : 'hidden'}>
