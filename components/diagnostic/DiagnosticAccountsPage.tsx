@@ -462,7 +462,7 @@ const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollection
 
         for (let d = 1; d <= daysInMonth; d++) {
             const dateStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-            const dailyExps = (detailedExpenses[dateStr] || []).filter((it: any) => it.dept === 'Diagnostic' || (!it.dept && categories.includes(it.category)));
+            const dailyExps = (detailedExpenses[dateStr] || []).filter((it: any) => !it.isDeleted && (it.dept === 'Diagnostic' || (!it.dept && categories.includes(it.category))));
             
             const categorySums: Record<string, number> = {};
             categories.forEach(cat => categorySums[cat] = 0);
@@ -496,7 +496,7 @@ const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollection
             const [y, m] = date.split('-').map(Number);
             if (m - 1 === selectedMonth && y === selectedYear) {
                 items.forEach((it: any) => {
-                    if (it.dept === 'Diagnostic' || (!it.dept && expenseCategories.includes(it.category))) {
+                    if (!it.isDeleted && (it.dept === 'Diagnostic' || (!it.dept && expenseCategories.includes(it.category)))) {
                         expensesByCategory[it.category] = (expensesByCategory[it.category] || 0) + it.paidAmount;
                     }
                 });

@@ -198,6 +198,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
         for (let d = 1; d <= daysInMonth; d++) {
             const dateStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
             const dailyExps = (detailedExpenses[dateStr] || []).filter(ex => {
+                if (ex.isDeleted) return false;
                 if (deptFilter === 'All') return true;
                 if (deptFilter === 'Diagnostic') {
                     return ex.dept === 'Diagnostic' || (!ex.dept && diagExpenseCategories.includes(ex.category));
@@ -328,7 +329,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
         for (let d = 1; d <= daysInMonth; d++) {
             const dayStr = String(d).padStart(2, '0');
             const dateStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${dayStr}`;
-            const dailyExps = detailedExpenses[dateStr] || [];
+            const dailyExps = (detailedExpenses[dateStr] || []).filter(ex => !ex.isDeleted);
 
             const diagToday = dailyExps.filter(ex => ex.dept === 'Diagnostic' || (!ex.dept && diagExpenseCategories.includes(ex.category))).reduce((s, ex) => s + ex.paidAmount, 0);
             diagUpto += diagToday;
@@ -390,7 +391,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
             const totalColl = diagColl + clinicColl;
 
             // Expenses
-            const dailyExps = detailedExpenses[dateStr] || [];
+            const dailyExps = (detailedExpenses[dateStr] || []).filter(ex => !ex.isDeleted);
             const diagExp = dailyExps.filter(ex => ex.dept === 'Diagnostic' || (!ex.dept && diagExpenseCategories.includes(ex.category))).reduce((s, ex) => s + ex.paidAmount, 0);
             const clinicExp = dailyExps.filter(ex => ex.dept === 'Clinic' || (!ex.dept && clinicExpenseCategories.includes(ex.category) && !diagExpenseCategories.includes(ex.category))).reduce((s, ex) => s + ex.paidAmount, 0);
             const totalExp = diagExp + clinicExp;
@@ -465,7 +466,9 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
             const prevCompany = companyCollections.filter(c => isBeforeSelectedMonth(c.date)).reduce((s, c) => s + c.amount, 0);
             let prevExp = 0;
             Object.entries(detailedExpenses).forEach(([date, items]) => {
-                if (isBeforeSelectedMonth(date)) (items as ExpenseItem[]).forEach(it => prevExp += it.paidAmount);
+                if (isBeforeSelectedMonth(date)) (items as ExpenseItem[]).forEach(it => {
+                    if (!it.isDeleted) prevExp += it.paidAmount;
+                });
             });
 
             // Subtract all previous manual adjustments (profit distributions and house rent)
@@ -488,7 +491,9 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
         let totalMonthlyOperatingExpenses = 0;
         Object.entries(detailedExpenses).forEach(([date, items]) => {
             if (isSelectedMonth(date)) (items as ExpenseItem[]).forEach(it => {
-                totalMonthlyOperatingExpenses += it.paidAmount;
+                if (!it.isDeleted) {
+                    totalMonthlyOperatingExpenses += it.paidAmount;
+                }
             });
         });
 
@@ -527,6 +532,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
         expenseMapSequence.forEach(e => groupedExp[e.key] = 0);
         Object.entries(detailedExpenses).forEach(([date, items]) => {
             if (isSelectedMonth(date)) (items as ExpenseItem[]).forEach(it => {
+                if (it.isDeleted) return;
                 let catName = it.category;
                 
                 // Mapping Diagnostic categories to Consolidated keys
@@ -564,7 +570,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
         const profitPerShare = totalShares > 0 ? adj.profitDist / totalShares : 0;
         
         return { prevJer, diagCurrent, diagDue, totalDiag, clinicCurrent, clinicDue, totalClinic, medSalesCurrent, medPurchCurrent, totalMedNet, companyCurrent, grandTotalCollection, groupedExp, totalExpense: totalExpenseTableOnly, netProfit, finalClosingJer, profitPerShare, totalShares };
-    }, [labInvoices, dueCollections, indoorInvoices, salesInvoices, purchaseInvoices, companyCollections, detailedExpenses, selectedMonth, selectedYear, monthlyAdjustments, dynamicShareholders, repayments]);
+    }, [labInvoices, dueCollections, indoorInvoices, salesInvoices, purchaseInvoices, companyCollections, detailedExpenses, selectedMonth, selectedYear, monthlyAdjustments, dynamicShareholders, repayments, adj.houseRent, adj.loanInstallment, adj.profitDist]);
 
     const handlePrintSpecific = (elementId: string) => {
         const content = document.getElementById(elementId);

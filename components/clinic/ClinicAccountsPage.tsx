@@ -343,7 +343,7 @@ const ClinicAccountsPage: React.FC<any> = ({
         const allClinicExpenses: any[] = [];
         Object.entries(detailedExpenses).forEach(([date, items]: any) => {
             items.forEach((it: any) => {
-                if (it.dept === 'Clinic' || (!it.dept && clinicExpenseCategories.includes(it.category))) {
+                if (!it.isDeleted && (it.dept === 'Clinic' || (!it.dept && clinicExpenseCategories.includes(it.category)))) {
                     allClinicExpenses.push({ ...it, date });
                 }
             });

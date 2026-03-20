@@ -1,15 +1,7 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { SaveIcon, Activity, FileTextIcon } from './Icons';
-import { Patient, LabInvoice, Doctor, Employee } from './DiagnosticData';
-
-export interface SemenResults {
-  volume: string; color: string; viscosity: string; liquefactionTime: string; ph: string; totalCount: string; motilityActive: string; motilitySluggish: string; motilityNonMotile: string; pusCells: string;
-}
-
-export const normalSemenResults: SemenResults = {
-  volume: '2.0', color: 'Whitish', viscosity: 'Normal', liquefactionTime: '30 min', ph: '7.5', totalCount: '60', motilityActive: '60', motilitySluggish: '10', motilityNonMotile: '30', pusCells: '1-2'
-};
+import { Patient, LabInvoice, Doctor, Employee, SemenResults, normalSemenResults } from './DiagnosticData';
 
 const SemenAnalysisInputPage: React.FC<any> = ({ results: initialResults, onSaveOverride, disabled, patient, invoice, doctors, employees, technologistId, consultantId, isEmbedded }) => {
     const [localResults, setLocalResults] = useState<SemenResults>(initialResults || normalSemenResults);

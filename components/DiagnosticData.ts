@@ -572,3 +572,11 @@ export interface LipidResults {
   ldl_cholesterol_range: string;
   vldl_cholesterol_range: string;
 }
+
+export interface SemenResults {
+  volume: string; color: string; viscosity: string; liquefactionTime: string; ph: string; totalCount: string; motilityActive: string; motilitySluggish: string; motilityNonMotile: string; pusCells: string;
+}
+
+export const normalSemenResults: SemenResults = {
+  volume: '2.0', color: 'Whitish', viscosity: 'Normal', liquefactionTime: '30 min', ph: '7.5', totalCount: '60', motilityActive: '60', motilitySluggish: '10', motilityNonMotile: '30', pusCells: '1-2'
+};
