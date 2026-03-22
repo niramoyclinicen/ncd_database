@@ -1579,14 +1579,14 @@ const IndoorInvoicePage: React.FC<{
     }, [formData.serviceCategory, subCategories]);
 
     const calculateTotals = (items: ServiceItem[], _discountAmt: number, paidAmt: number, specialDiscount: number) => {
-        const newItems = items.map(item => ({ 
+        const safeItems = Array.isArray(items) ? items : [];
+        const newItems = safeItems.map(item => ({ 
             ...item, 
             line_total: (item.service_charge || 0) * (item.quantity || 0), 
             payable_amount: ((item.service_charge || 0) * (item.quantity || 0)) - (item.discount || 0) 
         }));
         
-        const total_bill = newItems.reduce((sum, item) => sum + item.line_total, 0);
-        // FIX: Sum row discounts into total_discount
+        const total_bill = newItems.reduce((sum, item) => sum + (item.line_total || 0), 0);
         const total_row_discount = newItems.reduce((sum, item) => sum + (item.discount || 0), 0);
         const payable_bill = total_bill - total_row_discount;
         const netPayable = payable_bill - (specialDiscount || 0);
@@ -1612,7 +1612,8 @@ const IndoorInvoicePage: React.FC<{
     const handleGenerateId = () => {
         if (!selectedAdmission) return alert("Select Patient first.");
         const dateToUse = formData.invoice_date || new Date().toISOString().split('T')[0];
-        const count = indoorInvoices.filter(i => i.invoice_date === dateToUse).length + 1;
+        const safeInvoices = Array.isArray(indoorInvoices) ? indoorInvoices : [];
+        const count = safeInvoices.filter(i => i.invoice_date === dateToUse).length + 1;
         const newId = `CLIN-${dateToUse}-${String(count).padStart(3, '0')}`;
         setFormData(prev => ({ 
             ...prev, 
@@ -1621,7 +1622,9 @@ const IndoorInvoicePage: React.FC<{
             admission_id: selectedAdmission.admission_id, 
             patient_id: selectedAdmission.patient_id, 
             patient_name: selectedAdmission.patient_name, 
-            status: 'Posted' 
+            status: 'Posted',
+            items: prev.items || [],
+            edit_history: prev.edit_history || []
         }));
     };
 
@@ -1841,7 +1844,14 @@ const IndoorInvoicePage: React.FC<{
     };
 
     const handleLoadInvoice = (inv: IndoorInvoice) => {
-        setFormData(inv);
+        if (!inv) return;
+        const cleanedInv = {
+            ...emptyIndoorInvoice,
+            ...inv,
+            items: Array.isArray(inv.items) ? inv.items : [],
+            edit_history: Array.isArray(inv.edit_history) ? inv.edit_history : []
+        };
+        setFormData(cleanedInv);
         setSelectedInvoiceId(inv.daily_id);
         const adm = admissions.find(a => a.admission_id === inv.admission_id);
         if (adm) setSelectedAdmission(adm);
@@ -2115,7 +2125,7 @@ const IndoorInvoicePage: React.FC<{
                                                         note: `Medicine: ${med.name}`, 
                                                         isClinicFund: false 
                                                     };
-                                                    const updatedItems = [...formData.items, newItem];
+                                                    const updatedItems = [...(formData.items || []), newItem];
                                                     const totals = calculateTotals(updatedItems, 0, formData.paid_amount, formData.special_discount_amount || 0);
                                                     setFormData(prev => ({ ...prev, items: updatedItems, ...totals }));
                                                 }
@@ -2127,7 +2137,7 @@ const IndoorInvoicePage: React.FC<{
                             </div>
                             <table className="w-full text-sm text-left text-gray-300 mb-2">
                                 <thead className="bg-[#111827]"><tr><th className="p-2">Type</th><th className="p-2">Provider</th><th className="p-2">Charge</th><th className="p-2">Qty</th><th className="p-2">Disc</th><th className="p-2">Payable</th><th className="p-2 text-center">A/C</th><th className="p-2">Note</th><th className="p-2">X</th></tr></thead>
-                                <tbody>{formData.items.map(item => (
+                                <tbody>{(formData.items || []).map(item => (
                                     <tr key={item.id}>
                                         <td className="p-1">
                                             <input list={`service_type_${item.id}`} value={item.service_type} onChange={e=>handleServiceChange(item.id,'service_type',e.target.value)} className="w-full bg-[#374151] text-white p-1 rounded h-8 text-xs" />
@@ -2147,7 +2157,7 @@ const IndoorInvoicePage: React.FC<{
                                         <td className="p-1"><input type="number" value={item.service_charge} onChange={e=>handleServiceChange(item.id,'service_charge',parseFloat(e.target.value))} onFocus={e=>e.target.select()} className="w-full bg-[#374151] text-white p-1 rounded text-right h-8"/></td>
                                         <td className="p-1"><input type="number" value={item.quantity} onChange={e=>handleServiceChange(item.id,'quantity',parseFloat(e.target.value))} onFocus={e=>e.target.select()} className="w-full bg-[#374151] text-white p-1 rounded text-right h-8"/></td>
                                         <td className="p-1"><input type="number" value={item.discount} onChange={e=>handleServiceChange(item.id,'discount',parseFloat(e.target.value))} onFocus={e=>e.target.select()} className="w-full bg-[#374151] text-white p-1 rounded text-right h-8"/></td>
-                                        <td className="p-1 font-bold text-sky-300 text-right">{item.payable_amount.toFixed(2)}</td>
+                                        <td className="p-1 font-bold text-sky-300 text-right">{(item.payable_amount || 0).toFixed(2)}</td>
                                         <td className="p-1 text-center">
                                             <input 
                                                 type="checkbox" 

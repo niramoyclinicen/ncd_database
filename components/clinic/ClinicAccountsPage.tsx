@@ -556,6 +556,7 @@ const ClinicAccountsPage: React.FC<any> = ({
                     <table>
                         <thead>
                             <tr>
+                                <th>SL</th>
                                 <th>Adm. ID</th>
                                 <th>Date</th>
                                 <th>Patient Name</th>
@@ -577,8 +578,9 @@ const ClinicAccountsPage: React.FC<any> = ({
                             </tr>
                         </thead>
                         <tbody>
-                            ${collectionReportData.map(inv => `
+                            ${collectionReportData.map((inv, idx) => `
                                 <tr class="${inv.status === 'Cancelled' ? 'opacity-30 line-through' : inv.status === 'Returned' ? 'bg-red-50' : ''}">
+                                    <td>${idx + 1}</td>
                                     <td>${inv.admission_id}</td>
                                     <td>${inv.admission_date || inv.invoice_date}</td>
                                     <td class="font-bold">${inv.patient_name}</td>
@@ -602,7 +604,7 @@ const ClinicAccountsPage: React.FC<any> = ({
                         </tbody>
                         <tfoot class="bg-gray-100 font-black">
                             <tr>
-                                <td colspan="4" class="text-right">Grand Totals (Active Only):</td>
+                                <td colspan="5" class="text-right">Grand Totals (Active Only):</td>
                                 <td class="text-right">৳${reportTotals.admFee.toLocaleString()}</td>
                                 <td class="text-right">৳${reportTotals.lscs_ot.toLocaleString()}</td>
                                 <td class="text-right">৳${reportTotals.gb.toLocaleString()}</td>
@@ -1077,6 +1079,12 @@ const ClinicAccountsPage: React.FC<any> = ({
                                         <button onClick={() => setIsTodayFilter(true)} className={`px-4 py-2 rounded-xl text-xs font-black uppercase transition-all ${isTodayFilter && selectedDate === new Date().toISOString().split('T')[0] ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-400 hover:text-slate-200'}`}>Today's Collection</button>
                                         <button onClick={() => setIsTodayFilter(false)} className={`px-4 py-2 rounded-xl text-xs font-black uppercase transition-all ${!isTodayFilter ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:text-slate-200'}`}>Monthly View</button>
                                     </div>
+                                    {!isTodayFilter && (
+                                        <div className="flex flex-col items-start bg-emerald-900/20 border border-emerald-500/30 px-4 py-1 rounded-2xl">
+                                            <span className="text-[8px] font-black text-emerald-500 uppercase tracking-widest">Total Collection</span>
+                                            <span className="text-sm font-black text-emerald-400">৳{reportTotals.paidTotal.toLocaleString()}</span>
+                                        </div>
+                                    )}
                                     <div className="flex items-center gap-2 bg-slate-900/50 p-1 rounded-2xl border border-slate-700">
                                         <label className="text-[10px] font-black text-slate-500 uppercase ml-2">Custom Date:</label>
                                         <input 
@@ -1114,6 +1122,7 @@ const ClinicAccountsPage: React.FC<any> = ({
                                 <table className="w-full text-left text-[11px] border-collapse min-w-[1500px]">
                                     <thead className="bg-slate-900/80 text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-700">
                                         <tr>
+                                            <th className="p-3 whitespace-nowrap">SL</th>
                                             <th className="p-3 whitespace-nowrap">Adm. ID</th>
                                             <th className="p-3 whitespace-nowrap">Date</th>
                                             <th className="p-3 whitespace-nowrap">Patient Name</th>
@@ -1135,8 +1144,9 @@ const ClinicAccountsPage: React.FC<any> = ({
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-800">
-                                        {collectionReportData.length > 0 ? collectionReportData.map((inv: any) => (
+                                        {collectionReportData.length > 0 ? collectionReportData.map((inv: any, idx: number) => (
                                             <tr key={inv.daily_id} className={`hover:bg-slate-700/30 transition-colors ${inv.status === 'Cancelled' ? 'opacity-30 line-through grayscale' : inv.status === 'Returned' ? 'bg-rose-900/5' : ''}`}>
+                                                <td className="p-3 border-r border-slate-800/50 text-slate-500 font-mono">{idx + 1}</td>
                                                 <td className="p-3 font-mono text-sky-500 border-r border-slate-800/50">{inv.admission_id}</td>
                                                 <td className="p-3 border-r border-slate-800/50 whitespace-nowrap">{inv.admission_date || inv.invoice_date}</td>
                                                 <td className="p-3 font-black text-slate-200 border-r border-slate-800/50 uppercase whitespace-nowrap">{inv.patient_name}</td>
@@ -1157,13 +1167,13 @@ const ClinicAccountsPage: React.FC<any> = ({
                                                 <td className="p-3 text-center"><span className="text-[7px] font-black uppercase px-1 rounded bg-slate-900">{inv.status}</span></td>
                                             </tr>
                                         )) : (
-                                            <tr><td colSpan={18} className="p-20 text-center text-slate-600 italic font-black uppercase opacity-30 text-xl tracking-[0.2em]">No Collection Records Found</td></tr>
+                                            <tr><td colSpan={19} className="p-20 text-center text-slate-600 italic font-black uppercase opacity-30 text-xl tracking-[0.2em]">No Collection Records Found</td></tr>
                                         )}
                                     </tbody>
                                     {collectionReportData.length > 0 && (
                                         <tfoot className="bg-slate-900 text-slate-200 font-black border-t-2 border-slate-700 sticky bottom-0">
                                             <tr>
-                                                <td colSpan={4} className="p-4 text-right uppercase tracking-widest text-[11px]">Grand Summary Totals (Active Only):</td>
+                                                <td colSpan={5} className="p-4 text-right uppercase tracking-widest text-[11px]">Grand Summary Totals (Active Only):</td>
                                                 <td className="p-4 text-right">৳{reportTotals.admFee.toLocaleString()}</td>
                                                 <td className="p-4 text-right">৳{reportTotals.lscs_ot.toLocaleString()}</td>
                                                 <td className="p-4 text-right">৳{reportTotals.gb.toLocaleString()}</td>
