@@ -518,7 +518,7 @@ const CertificateModal: React.FC<{
                                     <label className={labelClass}>Select Target Admission</label>
                                     <select value={selectedAdmissionId} onChange={e=>setSelectedAdmissionId(e.target.value)} className={inputClass}>
                                         <option value="">-- Select Patient --</option>
-                                        {admissions.map(a => <option key={a.admission_id} value={a.admission_id}>{a.patient_name} ({a.admission_id})</option>)}
+                                        {(Array.isArray(admissions) ? admissions : []).map(a => a && <option key={a.admission_id} value={a.admission_id}>{a.patient_name} ({a.admission_id})</option>)}
                                     </select>
                                 </div>
                                 {selectedAdmissionId && (
@@ -557,10 +557,10 @@ const CertificateModal: React.FC<{
                         </div>
                     ) : (
                         <div className="space-y-4 animate-fade-in">
-                            {savedCerts.map(cert => (
+                            {(Array.isArray(savedCerts) ? savedCerts : []).map(cert => cert && (
                                 <div key={cert.id} className="bg-slate-900 p-6 rounded-3xl border border-slate-800 flex justify-between items-center group hover:border-blue-500/50 transition-all shadow-xl">
                                     <div className="flex items-center gap-6">
-                                        <div className="w-12 h-12 bg-slate-800 rounded-2xl flex items-center justify-center font-black text-slate-500 text-xs shadow-inner uppercase">{cert.date.split('-')[2]}<br/>{monthOptions[parseInt(cert.date.split('-')[1])-1].name.substring(0,3)}</div>
+                                        <div className="w-12 h-12 bg-slate-800 rounded-2xl flex items-center justify-center font-black text-slate-500 text-xs shadow-inner uppercase">{cert.date?.split('-')[2]}<br/>{monthOptions[parseInt(cert.date?.split('-')[1])-1]?.name?.substring(0,3)}</div>
                                         <div>
                                             <h4 className="font-black text-white uppercase text-lg leading-none">{cert.patientName}</h4>
                                             <p className="text-[10px] text-slate-500 font-bold uppercase mt-1">ID: {cert.admissionId} | Issued: {new Date(cert.createdDate).toLocaleDateString()}</p>
@@ -572,7 +572,7 @@ const CertificateModal: React.FC<{
                                     </div>
                                 </div>
                             ))}
-                            {savedCerts.length === 0 && (
+                            {(Array.isArray(savedCerts) ? savedCerts : []).length === 0 && (
                                 <div className="py-32 text-center opacity-10 flex flex-col items-center">
                                     <FileTextIcon size={120} />
                                     <p className="text-4xl font-black uppercase tracking-[0.3em] mt-6">No Records</p>
@@ -595,12 +595,16 @@ const DischargeRxMasterModal: React.FC<{
     const [now] = useState(() => Date.now());
     const [searchTerm, setSearchTerm] = useState('');
     
-    const filtered = useMemo(() => admissions.filter(a => 
-        a.patient_name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-        a.admission_id.toLowerCase().includes(searchTerm.toLowerCase())
-    ), [admissions, searchTerm]);
+    const filtered = useMemo(() => {
+        const safeAdmissions = Array.isArray(admissions) ? admissions : [];
+        return safeAdmissions.filter(a => a && (
+            (a.patient_name || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
+            (a.admission_id || '').toLowerCase().includes(searchTerm.toLowerCase())
+        ));
+    }, [admissions, searchTerm]);
 
     const handlePrintFullSummary = (adm: AdmissionRecord) => {
+        if (!adm) return;
         const win = window.open('', '_blank');
         if (!win) return;
         const styles = `
@@ -619,24 +623,24 @@ const DischargeRxMasterModal: React.FC<{
             <html><head>${styles}</head><body>
                 <div class="header"><h1>Niramoy Clinic & Diagnostic</h1><p>Patient Treatment Summary / Discharge Master</p></div>
                 <div class="pt-info">
-                    <b>Patient:</b> ${adm.patient_name} | <b>ID:</b> ${adm.admission_id} | <b>Bed:</b> ${adm.bed_no || 'N/A'}<br>
-                    <b>Doctor:</b> ${adm.doctor_name} | <b>Adm. Date:</b> ${adm.admission_date}<br>
+                    <b>Patient:</b> ${adm.patient_name || ''} | <b>ID:</b> ${adm.admission_id || ''} | <b>Bed:</b> ${adm.bed_no || 'N/A'}<br>
+                    <b>Doctor:</b> ${adm.doctor_name || ''} | <b>Adm. Date:</b> ${adm.admission_date || ''}<br>
                     <b>Status:</b> ${adm.discharge_date ? `Discharged on ${adm.discharge_date}` : 'Admitted'}
                 </div>
                 <div class="section-title">Clinical Orders (Prescribed)</div>
                 <table>
                     <thead><tr><th>Time</th><th>Category</th><th>Details</th></tr></thead>
-                    <tbody>${adm.clinical_orders.map(o=>`<tr><td>${o.date} ${o.time}</td><td>${o.category}</td><td>${o.medications.map(m=>`• ${m.type} ${m.name} (${m.dosage})`).join('<br>')}</td></tr>`).join('')}</tbody>
+                    <tbody>${(Array.isArray(adm.clinical_orders) ? adm.clinical_orders : []).map(o=>`<tr><td>${o.date || ''} ${o.time || ''}</td><td>${o.category || ''}</td><td>${(Array.isArray(o.medications) ? o.medications : []).map(m=>`• ${m.type || ''} ${m.name || ''} (${m.dosage || ''})`).join('<br>')}</td></tr>`).join('')}</tbody>
                 </table>
                 <div class="section-title">Doctor Round Notes</div>
                 <table>
                     <thead><tr><th>Time</th><th>Note</th><th>Doctor</th></tr></thead>
-                    <tbody>${adm.doctor_rounds.map(l=>`<tr><td>${l.time}</td><td>${l.note}</td><td>${l.by}</td></tr>`).join('')}</tbody>
+                    <tbody>${(Array.isArray(adm.doctor_rounds) ? adm.doctor_rounds : []).map(l=>`<tr><td>${l.time || ''}</td><td>${l.note || ''}</td><td>${l.by || ''}</td></tr>`).join('')}</tbody>
                 </table>
                 <div class="section-title">Nurse Medication Chart</div>
                 <table>
                     <thead><tr><th>Time</th><th>Activity/Medication</th><th>Nurse</th></tr></thead>
-                    <tbody>${adm.nurse_chart.map(l=>`<tr><td>${l.time}</td><td>${l.note}</td><td>${l.by}</td></tr>`).join('')}</tbody>
+                    <tbody>${(Array.isArray(adm.nurse_chart) ? adm.nurse_chart : []).map(l=>`<tr><td>${l.time || ''}</td><td>${l.note || ''}</td><td>${l.by || ''}</td></tr>`).join('')}</tbody>
                 </table>
             </body></html>
         `;
@@ -730,9 +734,10 @@ const AdmissionAndTreatmentPage: React.FC<{
     const [searchTerm, setSearchTerm] = useState('');
 
     const filteredAdmissions = useMemo(() => {
-        return admissions.filter(a => !a.discharge_date && (
-            a.patient_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            a.admission_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        const safeAdmissions = Array.isArray(admissions) ? admissions : [];
+        return safeAdmissions.filter(a => a && !a.discharge_date && (
+            (a.patient_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (a.admission_id || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
             (a.bed_no && a.bed_no.toLowerCase().includes(searchTerm.toLowerCase()))
         ));
     }, [admissions, searchTerm]);
@@ -776,7 +781,8 @@ const AdmissionAndTreatmentPage: React.FC<{
         const year = today.getFullYear();
         const month = String(today.getMonth() + 1).padStart(2, '0');
         const day = String(today.getDate()).padStart(2, '0');
-        const count = admissions.filter(a => a.admission_id.startsWith(`ADM-${year}-${month}-${day}`)).length + 1;
+        const safeAdmissions = Array.isArray(admissions) ? admissions : [];
+        const count = safeAdmissions.filter(a => a && a.admission_id && a.admission_id.startsWith(`ADM-${year}-${month}-${day}`)).length + 1;
         const newId = `ADM-${year}-${month}-${day}-${String(count).padStart(3, '0')}`;
         setAdmissionData({ ...emptyAdmission, admission_id: newId, admission_date: `${year}-${month}-${day}` });
         setSelectedAdmissionId(null);
@@ -837,16 +843,19 @@ const AdmissionAndTreatmentPage: React.FC<{
                 <table>
                     <thead><tr><th>ID</th><th>Date</th><th>Patient Name</th><th>Bed</th><th>Gender/Age</th><th>Doctor</th></tr></thead>
                     <tbody>
-                        ${admissions.filter(a => !a.discharge_date).map(a => `
+                        ${(Array.isArray(admissions) ? admissions : []).filter(a => a && !a.discharge_date).map(a => {
+                            const safePatients = Array.isArray(patients) ? patients : [];
+                            const p = safePatients.find(pt => pt && pt.pt_id === a.patient_id);
+                            return `
                             <tr>
-                                <td>${a.admission_id}</td>
-                                <td>${a.admission_date}</td>
-                                <td><b>${a.patient_name}</b></td>
+                                <td>${a.admission_id || ''}</td>
+                                <td>${a.admission_date || ''}</td>
+                                <td><b>${a.patient_name || ''}</b></td>
                                 <td style="color: #b45309">${a.bed_no || 'N/A'}</td>
-                                <td>${patients.find(p=>p.pt_id===a.patient_id)?.gender}, ${patients.find(p=>p.pt_id===a.patient_id)?.ageY}Y</td>
-                                <td>${a.doctor_name}</td>
+                                <td>${p?.gender || ''}, ${p?.ageY || ''}Y</td>
+                                <td>${a.doctor_name || ''}</td>
                             </tr>
-                        `).join('')}
+                        `}).join('')}
                     </tbody>
                 </table>
             </body></html>
@@ -880,12 +889,12 @@ const AdmissionAndTreatmentPage: React.FC<{
                 <div class="section-title">Clinical Orders (Prescribed)</div>
                 <table>
                     <thead><tr><th>Time</th><th>Category</th><th>Details</th></tr></thead>
-                    <tbody>${admissionData.clinical_orders.map(o=>`<tr><td>${o.date} ${o.time}</td><td>${o.category}</td><td>${o.medications.map(m=>`• ${m.type} ${m.name} (${m.dosage})`).join('<br>')}</td></tr>`).join('')}</tbody>
+                    <tbody>${(Array.isArray(admissionData.clinical_orders) ? admissionData.clinical_orders : []).map(o=>`<tr><td>${o.date || ''} ${o.time || ''}</td><td>${o.category || ''}</td><td>${(Array.isArray(o.medications) ? o.medications : []).map(m=>`• ${m.type || ''} ${m.name || ''} (${m.dosage || ''})`).join('<br>')}</td></tr>`).join('')}</tbody>
                 </table>
                 <div class="section-title">Nurse Medication Chart</div>
                 <table>
                     <thead><tr><th>Time</th><th>Activity/Medication</th><th>Nurse</th></tr></thead>
-                    <tbody>${admissionData.nurse_chart.map(l=>`<tr><td>${l.time}</td><td>${l.note}</td><td>${l.by}</td></tr>`).join('')}</tbody>
+                    <tbody>${(Array.isArray(admissionData.nurse_chart) ? admissionData.nurse_chart : []).map(l=>`<tr><td>${l.time || ''}</td><td>${l.note || ''}</td><td>${l.by || ''}</td></tr>`).join('')}</tbody>
                 </table>
             </body></html>
         `;
@@ -913,7 +922,8 @@ const AdmissionAndTreatmentPage: React.FC<{
 
     const handleMedicineSelect = (id: string, name: string) => {
         setSelectedDrugId(id);
-        const drug = medicines.find(m => m.id === id);
+        const safeMedicines = Array.isArray(medicines) ? medicines : [];
+        const drug = safeMedicines.find(m => m && m.id === id);
         if (drug) {
             setNewMedication(prev => ({ 
                 ...prev, 
@@ -955,9 +965,9 @@ const AdmissionAndTreatmentPage: React.FC<{
         if (!currentOrder.date || !currentOrder.time) return alert("Date/Time required");
         if (!admissionData.admission_id) return alert("পেশেন্ট সিলেক্ট করুন");
 
-        let updatedOrders = [...admissionData.clinical_orders];
+        let updatedOrders = Array.isArray(admissionData.clinical_orders) ? [...admissionData.clinical_orders] : [];
         if (editingOrderBlockId) {
-            updatedOrders = updatedOrders.map(order => order.id === editingOrderBlockId ? { ...order, ...currentOrder as ClinicalOrderBlock } : order);
+            updatedOrders = updatedOrders.map(order => order && order.id === editingOrderBlockId ? { ...order, ...currentOrder as ClinicalOrderBlock } : order);
         } else {
             const newBlock: ClinicalOrderBlock = { id: Date.now().toString(), ...currentOrder as ClinicalOrderBlock };
             updatedOrders = [newBlock, ...updatedOrders];
@@ -989,7 +999,8 @@ const AdmissionAndTreatmentPage: React.FC<{
     };
 
     const handleLoadTemplate = (t: TreatmentTemplate) => {
-        const medsWithNewIds = t.medications.map(m => ({
+        const safeMeds = Array.isArray(t.medications) ? t.medications : [];
+        const medsWithNewIds = safeMeds.map(m => ({
             ...m,
             id: Date.now() + Math.random() 
         }));
@@ -1028,7 +1039,10 @@ const AdmissionAndTreatmentPage: React.FC<{
         setNewDrugEntry({ name: '', generic: '', type: 'Tab', strength: '' });
     };
 
-    const activeNurses = useMemo(() => employees.filter(e => e.status === 'Active'), [employees]);
+    const activeNurses = useMemo(() => {
+        const safeEmployees = Array.isArray(employees) ? employees : [];
+        return safeEmployees.filter(e => e && e.status === 'Active');
+    }, [employees]);
     const commonInputClass = "w-full p-2 bg-[#2d3748] border border-gray-600 rounded text-gray-200 text-sm focus:ring-1 focus:ring-blue-500";
 
     return (
@@ -1058,11 +1072,11 @@ const AdmissionAndTreatmentPage: React.FC<{
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                              <div><label className="text-[10px] font-black text-slate-500 uppercase ml-2 mb-1 block">Adm ID</label><input value={admissionData.admission_id} disabled className="w-full p-3 bg-slate-900 border border-slate-700 rounded-xl text-blue-400 font-mono font-bold shadow-inner"/></div>
-                             <div><SearchableSelect label="Select Patient" theme="dark" options={patients.map(p=>({id: p.pt_id, name: p.pt_name, details: `${p.gender}, ${p.ageY}Y`}))} value={admissionData.patient_id} onChange={(id, name)=>setAdmissionData({...admissionData, patient_id: id, patient_name: name})} onAddNew={()=>setShowNewPatientForm(true)} /></div>
-                             <div><SearchableSelect label="Consultant / MO" theme="dark" options={doctors.map(d=>({id: d.doctor_id, name: d.doctor_name, details: d.degree}))} value={admissionData.doctor_id} onChange={(id, name)=>setAdmissionData({...admissionData, doctor_id: id, doctor_name: name})} onAddNew={()=>setShowNewDoctorForm(true)} /></div>
-                             <div><SearchableSelect label="Referrer / Agent" theme="dark" options={referrars.map(r=>({id: r.ref_id, name: r.ref_name, details: r.ref_degrees}))} value={admissionData.referrer_id} onChange={(id, name)=>setAdmissionData({...admissionData, referrer_id: id, referrer_name: name})} onAddNew={()=>setShowNewReferrarForm(true)} /></div>
+                             <div><SearchableSelect label="Select Patient" theme="dark" options={(Array.isArray(patients) ? patients : []).map(p=>({id: p.pt_id, name: p.pt_name, details: `${p.gender}, ${p.ageY}Y`}))} value={admissionData.patient_id} onChange={(id, name)=>setAdmissionData({...admissionData, patient_id: id, patient_name: name})} onAddNew={()=>setShowNewPatientForm(true)} /></div>
+                             <div><SearchableSelect label="Consultant / MO" theme="dark" options={(Array.isArray(doctors) ? doctors : []).map(d=>({id: d.doctor_id, name: d.doctor_name, details: d.degree}))} value={admissionData.doctor_id} onChange={(id, name)=>setAdmissionData({...admissionData, doctor_id: id, doctor_name: name})} onAddNew={()=>setShowNewDoctorForm(true)} /></div>
+                             <div><SearchableSelect label="Referrer / Agent" theme="dark" options={(Array.isArray(referrars) ? referrars : []).map(r=>({id: r.ref_id, name: r.ref_name, details: r.ref_degrees}))} value={admissionData.referrer_id} onChange={(id, name)=>setAdmissionData({...admissionData, referrer_id: id, referrer_name: name})} onAddNew={()=>setShowNewReferrarForm(true)} /></div>
                              
-                             <div><SearchableSelect label="Disease / Indication" theme="dark" options={indications.map(i=>({id: i.id, name: i.name}))} value={indications.find(i => i.name === admissionData.indication)?.id || ''} onChange={(_id, name)=>setAdmissionData({...admissionData, indication: name})} onAddNew={()=>setShowIndicationManager(true)} /></div>
+                             <div><SearchableSelect label="Disease / Indication" theme="dark" options={(Array.isArray(indications) ? indications : []).map(i=>({id: i.id, name: i.name}))} value={(Array.isArray(indications) ? indications : []).find(i => i && i.name === admissionData.indication)?.id || ''} onChange={(_id, name)=>setAdmissionData({...admissionData, indication: name})} onAddNew={()=>setShowIndicationManager(true)} /></div>
                              <div>
                                 <label className="text-[10px] font-black text-slate-500 uppercase ml-2 mb-1 block">Bed No / Ward</label>
                                 <select 
@@ -1108,7 +1122,7 @@ const AdmissionAndTreatmentPage: React.FC<{
                                     <tr><th className="p-5">Adm ID</th><th className="p-5">Patient Name</th><th className="p-5">Doctor</th><th className="p-5">Bed</th><th className="p-5">Indication</th><th className="p-5 text-center">Action</th></tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-700/50">
-                                    {filteredAdmissions.map(adm => (
+                                    {(Array.isArray(filteredAdmissions) ? filteredAdmissions : []).map(adm => (
                                         <tr key={adm.admission_id} className="hover:bg-slate-700/30 transition-colors">
                                             <td className="p-5 font-mono text-xs text-blue-400 font-bold">{adm.admission_id}</td>
                                             <td className="p-5 font-black text-white uppercase">{adm.patient_name}</td>
@@ -1121,7 +1135,7 @@ const AdmissionAndTreatmentPage: React.FC<{
                                             </td>
                                         </tr>
                                     ))}
-                                    {filteredAdmissions.length === 0 && <tr><td colSpan={6} className="p-20 text-center text-slate-600 italic font-black uppercase opacity-20 text-xl tracking-[0.2em]">{searchTerm ? "No Matching Patients" : "No Active Inpatients"}</td></tr>}
+                                    {(Array.isArray(filteredAdmissions) ? filteredAdmissions : []).length === 0 && <tr><td colSpan={6} className="p-20 text-center text-slate-600 italic font-black uppercase opacity-20 text-xl tracking-[0.2em]">{searchTerm ? "No Matching Patients" : "No Active Inpatients"}</td></tr>}
                                 </tbody>
                              </table>
                         </div>
@@ -1177,10 +1191,10 @@ const AdmissionAndTreatmentPage: React.FC<{
                                         <button onClick={handleSaveOrderBlock} className={`w-full py-2 ${editingOrderBlockId ? 'bg-yellow-600 hover:bg-yellow-700' : 'bg-green-600 hover:bg-green-700'} text-white font-bold rounded`}>{editingOrderBlockId ? "Update Order" : "Save Order"}</button>
                                     </div>
                                     <div className="space-y-4">
-                                        {admissionData.clinical_orders.map(block => (
+                                        {(Array.isArray(admissionData.clinical_orders) ? admissionData.clinical_orders : []).map(block => (
                                             <div key={block.id} className={`bg-[#172554] border ${editingOrderBlockId === block.id ? 'border-yellow-500 ring-2 ring-yellow-500' : 'border-gray-600'} rounded shadow`}>
-                                                <div className="bg-[#2d3748] p-2 flex justify-between items-center border-b border-gray-600"><div className="flex gap-3 items-center"><span className="text-blue-400 font-bold font-mono">{block.date} {block.time}</span><span className="text-xs bg-blue-900 px-2 py-0.5 rounded text-blue-200">{block.category}</span><span className="text-green-400 text-sm">Diet: {block.diet}</span></div><div className="flex gap-2"><button onClick={() => handleEditOrder(block)} className="text-yellow-500 text-xs font-bold hover:text-yellow-400">EDIT</button><button onClick={()=>{if(confirm("Delete?")) setAdmissionData((prev: AdmissionRecord)=>({...prev, clinical_orders: prev.clinical_orders.filter((o: ClinicalOrderBlock)=>o.id!==block.id)}))}} className="text-red-500 text-xs font-bold hover:text-red-400">DEL</button></div></div>
-                                                <div className="p-3">{block.medications.map((m, i) => (<div key={i} className="text-sm text-gray-200 flex items-center mb-1"><span className="w-5 text-gray-500">{i+1}.</span><span className="font-bold">{m.type} {m.name}</span><span className="text-gray-400 ml-2">({m.dosage})</span><span className="mx-2 text-gray-600">---</span><span className="text-yellow-500 font-mono">{getFrequencyText(m.frequency)}</span></div>))}{block.note && <div className="mt-2 pt-2 border-t border-gray-700 text-sm text-amber-200"><span className="text-gray-500 text-xs font-bold mr-2">NOTE:</span>{block.note}</div>}</div>
+                                                <div className="bg-[#2d3748] p-2 flex justify-between items-center border-b border-gray-600"><div className="flex gap-3 items-center"><span className="text-blue-400 font-bold font-mono">{block.date} {block.time}</span><span className="text-xs bg-blue-900 px-2 py-0.5 rounded text-blue-200">{block.category}</span><span className="text-green-400 text-sm">Diet: {block.diet}</span></div><div className="flex gap-2"><button onClick={() => handleEditOrder(block)} className="text-yellow-500 text-xs font-bold hover:text-yellow-400">EDIT</button><button onClick={()=>{if(confirm("Delete?")) setAdmissionData((prev: AdmissionRecord)=>({...prev, clinical_orders: (Array.isArray(prev.clinical_orders) ? prev.clinical_orders : []).filter((o: ClinicalOrderBlock)=>o.id!==block.id)}))}} className="text-red-500 text-xs font-bold hover:text-red-400">DEL</button></div></div>
+                                                <div className="p-3">{(Array.isArray(block.medications) ? block.medications : []).map((m, i) => (<div key={i} className="text-sm text-gray-200 flex items-center mb-1"><span className="w-5 text-gray-500">{i+1}.</span><span className="font-bold">{m.type} {m.name}</span><span className="text-gray-400 ml-2">({m.dosage})</span><span className="mx-2 text-gray-600">---</span><span className="text-yellow-500 font-mono">{getFrequencyText(m.frequency)}</span></div>))}{block.note && <div className="mt-2 pt-2 border-t border-gray-700 text-sm text-amber-200"><span className="text-gray-500 text-xs font-bold mr-2">NOTE:</span>{block.note}</div>}</div>
                                             </div>
                                         ))}
                                     </div>
@@ -1189,8 +1203,8 @@ const AdmissionAndTreatmentPage: React.FC<{
                             
                             {activeSubTab === 'rounds' && (
                                 <div className="bg-[#172554] p-4 rounded border border-[#374151]">
-                                    <div className="flex gap-2 mb-4"><input type="time" value={roundTime} onChange={e=>setRoundTime(e.target.value)} className="bg-[#374151] border border-gray-600 rounded text-white p-2 w-32"/><input list="doctor_list_round" type="text" value={roundDoctor} onChange={e=>setRoundDoctor(e.target.value)} placeholder="Doctor" className="bg-[#374151] border border-gray-600 rounded text-white p-2 w-48"/><datalist id="doctor_list_round">{doctors.map(d=><option key={d.doctor_id} value={d.doctor_name}/>)}</datalist><input type="text" value={newRoundNote} onChange={e=>setNewRoundNote(e.target.value)} placeholder="Round Note..." className="flex-1 bg-[#374151] border border-gray-600 rounded text-white p-2"/><button onClick={()=>{if(!newRoundNote)return; const updated = {...admissionData, doctor_rounds:[...admissionData.doctor_rounds, {id:Date.now(), date:new Date().toISOString().split('T')[0], time:roundTime, note:newRoundNote, by:roundDoctor}]}; setAdmissionData(updated); syncAdmissionToGlobal(updated); setNewRoundNote('');}} className="bg-teal-600 text-white px-4 py-2 rounded">Add</button></div>
-                                    <div className="max-h-60 overflow-y-auto bg-[#111827] rounded"><table className="w-full text-sm text-left text-gray-300"><thead className="bg-[#1f2937] text-xs uppercase text-gray-400"><tr><th className="p-2">Time</th><th className="p-2">Note</th><th className="p-2">By</th><th className="p-2 text-right">X</th></tr></thead><tbody>{admissionData.doctor_rounds.map(r=><tr key={r.id} className="border-b border-gray-700"><td className="p-2">{r.time}</td><td className="p-2">{r.note}</td><td className="p-2">{r.by}</td><td className="p-2 text-right"><button onClick={()=>{const updated = {...admissionData, doctor_rounds:admissionData.doctor_rounds.filter(x=>x.id!==r.id)}; setAdmissionData(updated); syncAdmissionToGlobal(updated);}} className="text-red-500">x</button></td></tr>)}</tbody></table></div>
+                                    <div className="flex gap-2 mb-4"><input type="time" value={roundTime} onChange={e=>setRoundTime(e.target.value)} className="bg-[#374151] border border-gray-600 rounded text-white p-2 w-32"/><input list="doctor_list_round" type="text" value={roundDoctor} onChange={e=>setRoundDoctor(e.target.value)} placeholder="Doctor" className="bg-[#374151] border border-gray-600 rounded text-white p-2 w-48"/><datalist id="doctor_list_round">{(Array.isArray(doctors) ? doctors : []).map(d=>d && <option key={d.doctor_id} value={d.doctor_name}/>)}</datalist><input type="text" value={newRoundNote} onChange={e=>setNewRoundNote(e.target.value)} placeholder="Round Note..." className="flex-1 bg-[#374151] border border-gray-600 rounded text-white p-2"/><button onClick={()=>{if(!newRoundNote)return; const updated = {...admissionData, doctor_rounds:[...(Array.isArray(admissionData.doctor_rounds) ? admissionData.doctor_rounds : []), {id:Date.now(), date:new Date().toISOString().split('T')[0], time:roundTime, note:newRoundNote, by:roundDoctor}]}; setAdmissionData(updated); syncAdmissionToGlobal(updated); setNewRoundNote('');}} className="bg-teal-600 text-white px-4 py-2 rounded">Add</button></div>
+                                    <div className="max-h-60 overflow-y-auto bg-[#111827] rounded"><table className="w-full text-sm text-left text-gray-300"><thead className="bg-[#1f2937] text-xs uppercase text-gray-400"><tr><th className="p-2">Time</th><th className="p-2">Note</th><th className="p-2">By</th><th className="p-2 text-right">X</th></tr></thead><tbody>{(Array.isArray(admissionData.doctor_rounds) ? admissionData.doctor_rounds : []).map(r=>r && <tr key={r.id} className="border-b border-gray-700"><td className="p-2">{r.time}</td><td className="p-2">{r.note}</td><td className="p-2">{r.by}</td><td className="p-2 text-right"><button onClick={()=>{const updated = {...admissionData, doctor_rounds:(Array.isArray(admissionData.doctor_rounds) ? admissionData.doctor_rounds : []).filter(x=>x.id!==r.id)}; setAdmissionData(updated); syncAdmissionToGlobal(updated);}} className="text-red-500">x</button></td></tr>)}</tbody></table></div>
                                 </div>
                             )}
 
@@ -1212,8 +1226,8 @@ const AdmissionAndTreatmentPage: React.FC<{
                                                     </tr>
                                                 </thead>
                                                 <tbody className="bg-[#1f2937]">
-                                                    {admissionData.clinical_orders.flatMap(o => o.medications).map((med, idx) => {
-                                                        const logs = admissionData.nurse_chart.filter(l => l.medicationId === med.id).sort((a, b) => b.id - a.id);
+                                                    {(Array.isArray(admissionData.clinical_orders) ? admissionData.clinical_orders : []).flatMap(o => Array.isArray(o.medications) ? o.medications : []).map((med, idx) => {
+                                                        const logs = (Array.isArray(admissionData.nurse_chart) ? admissionData.nurse_chart : []).filter(l => l && l.medicationId === med.id).sort((a, b) => b.id - a.id);
                                                         const lastLog = logs[0];
                                                         let statusText = 'Not Started';
                                                         let nextTimeText = 'Start Now';
@@ -1222,8 +1236,9 @@ const AdmissionAndTreatmentPage: React.FC<{
                                                         let nextColorClass = 'text-red-400 font-bold';
                                                         let lastColorClass = 'text-gray-400';
 
-                                                        const substituteMed = medicines.find(m => 
-                                                            med.genericName && m.genericName && 
+                                                        const safeMedicines = Array.isArray(medicines) ? medicines : [];
+                                                        const substituteMed = safeMedicines.find(m => 
+                                                            m && med.genericName && m.genericName && 
                                                             m.genericName.toLowerCase() === med.genericName.toLowerCase() && 
                                                             m.stock > 0
                                                         );
@@ -1304,7 +1319,7 @@ const AdmissionAndTreatmentPage: React.FC<{
                                                                                         supplySrc: currentSrc,
                                                                                         actualInventoryId: finalInventoryId
                                                                                     };
-                                                                                    const updated = {...admissionData, nurse_chart: [newLog, ...admissionData.nurse_chart]};
+                                                                                    const updated = {...admissionData, nurse_chart: [newLog, ...(Array.isArray(admissionData.nurse_chart) ? admissionData.nurse_chart : [])]};
                                                                                     setAdmissionData(updated);
                                                                                     syncAdmissionToGlobal(updated); // IMMEDIATE SYNC FOR INVOICE
                                                                                 }} 
@@ -1325,14 +1340,14 @@ const AdmissionAndTreatmentPage: React.FC<{
                                                             </tr>
                                                         );
                                                     })}
-                                                    {admissionData.clinical_orders.flatMap(o => o.medications).length === 0 && <tr><td colSpan={6} className="p-8 text-center text-gray-500 text-base">No medications ordered by doctor yet.</td></tr>}
+                                                    {((Array.isArray(admissionData.clinical_orders) ? admissionData.clinical_orders : []).flatMap(o => Array.isArray(o.medications) ? o.medications : [])).length === 0 && <tr><td colSpan={6} className="p-8 text-center text-gray-500 text-base">No medications ordered by doctor yet.</td></tr>}
                                                 </tbody>
                                             </table>
                                         </div>
                                     </div>
                                     <div className="bg-[#172554] p-4 rounded border border-[#374151]">
-                                        <div className="flex gap-2 mb-2"><input type="text" value={newNurseNote} onChange={e => setNewNurseNote(e.target.value)} placeholder="Nurse Note..." className="flex-1 p-3 bg-[#374151] border border-gray-600 rounded text-gray-200"/><button onClick={() => { if(!performingNurse) return alert("Select Nurse"); const updated = {...admissionData, nurse_chart: [{ id: Date.now(), date: new Date().toISOString().split('T')[0], time: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}), note: newNurseNote, by: performingNurse }, ...admissionData.nurse_chart]}; setAdmissionData(updated); syncAdmissionToGlobal(updated); setNewNurseNote('');}} className="bg-purple-600 text-white px-6 py-3 rounded">Log</button></div>
-                                        <div className="max-h-60 overflow-y-auto bg-[#111827] rounded"><table className="w-full text-sm text-left text-gray-300"><thead className="bg-[#1f2937] sticky top-0"><tr><th className="p-2">Time</th><th className="p-2">Activity</th><th className="p-2">Nurse</th></tr></thead><tbody>{admissionData.nurse_chart.map(n=><tr key={n.id} className="border-b border-gray-700"><td className="p-2">{n.time}</td><td className="p-2">{n.note}</td><td className="p-2 text-purple-400">{n.by}</td></tr>)}</tbody></table></div>
+                                        <div className="flex gap-2 mb-2"><input type="text" value={newNurseNote} onChange={e => setNewNurseNote(e.target.value)} placeholder="Nurse Note..." className="flex-1 p-3 bg-[#374151] border border-gray-600 rounded text-gray-200"/><button onClick={() => { if(!performingNurse) return alert("Select Nurse"); const updated = {...admissionData, nurse_chart: [{ id: Date.now(), date: new Date().toISOString().split('T')[0], time: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}), note: newNurseNote, by: performingNurse }, ...(Array.isArray(admissionData.nurse_chart) ? admissionData.nurse_chart : [])]}; setAdmissionData(updated); syncAdmissionToGlobal(updated); setNewNurseNote('');}} className="bg-purple-600 text-white px-6 py-3 rounded">Log</button></div>
+                                        <div className="max-h-60 overflow-y-auto bg-[#111827] rounded"><table className="w-full text-sm text-left text-gray-300"><thead className="bg-[#1f2937] sticky top-0"><tr><th className="p-2">Time</th><th className="p-2">Activity</th><th className="p-2">Nurse</th></tr></thead><tbody>{(Array.isArray(admissionData.nurse_chart) ? admissionData.nurse_chart : []).map(n=>n && <tr key={n.id} className="border-b border-gray-700"><td className="p-2">{n.time}</td><td className="p-2">{n.note}</td><td className="p-2 text-purple-400">{n.by}</td></tr>)}</tbody></table></div>
                                     </div>
                                 </div>
                             )}
@@ -1355,7 +1370,7 @@ const AdmissionAndTreatmentPage: React.FC<{
                                                 </tr>
                                             </thead>
                                             <tbody className="bg-[#1f2937]">
-                                                {drugDemands.map(req => (
+                                                {(Array.isArray(drugDemands) ? drugDemands : []).map(req => req && (
                                                     <tr key={req.id} className="border-b border-gray-700">
                                                         <td className="p-3">{req.name} <span className="text-xs text-gray-400">({req.type} {req.strength})</span></td>
                                                         <td className="p-3">{req.genericName}</td>
@@ -1367,7 +1382,7 @@ const AdmissionAndTreatmentPage: React.FC<{
                                                         </td>
                                                     </tr>
                                                 ))}
-                                                {drugDemands.length === 0 && <tr><td colSpan={4} className="p-8 text-center text-gray-500 italic">No drugs in demand list.</td></tr>}
+                                                {(Array.isArray(drugDemands) ? drugDemands : []).length === 0 && <tr><td colSpan={4} className="p-8 text-center text-gray-500 italic">No drugs in demand list.</td></tr>}
                                             </tbody>
                                         </table>
                                     </div>
@@ -1409,16 +1424,16 @@ const AdmissionAndTreatmentPage: React.FC<{
                         </div>
                         <h4 className="text-sm font-bold text-gray-400 mb-2 uppercase">Saved Templates</h4>
                         <div className="max-h-60 overflow-y-auto bg-[#111827] rounded border border-gray-700 p-2">
-                            {templates.map(t => (
+                            {(Array.isArray(templates) ? templates : []).map(t => t && (
                                 <div key={t.id} className="flex justify-between items-center p-2 hover:bg-gray-800 border-b border-gray-800 last:border-0">
                                     <div onClick={() => handleLoadTemplate(t)} className="cursor-pointer flex-1">
                                         <div className="font-bold text-blue-400">{t.name}</div>
-                                        <div className="text-xs text-gray-500">{t.category} - {t.medications.length} meds</div>
+                                        <div className="text-xs text-gray-500">{t.category} - {(Array.isArray(t.medications) ? t.medications : []).length} meds</div>
                                     </div>
-                                    <button onClick={()=>{setTemplates((prev: TreatmentTemplate[])=>prev.filter((x: TreatmentTemplate)=>x.id!==t.id))}} className="text-red-500 text-xs">Del</button>
+                                    <button onClick={()=>{setTemplates((prev: TreatmentTemplate[])=>(Array.isArray(prev) ? prev : []).filter((x: TreatmentTemplate)=>x.id!==t.id))}} className="text-red-500 text-xs">Del</button>
                                 </div>
                             ))}
-                            {templates.length === 0 && <div className="text-center text-gray-500 p-4">No templates saved yet.</div>}
+                            {(Array.isArray(templates) ? templates : []).length === 0 && <div className="text-center text-gray-500 p-4">No templates saved yet.</div>}
                         </div>
                         <div className="mt-4 text-right"><button onClick={()=>setShowTemplateModal(false)} className="bg-slate-600 text-white px-4 py-2 rounded">Close</button></div>
                     </div>
@@ -1467,10 +1482,11 @@ const IndoorInvoicePage: React.FC<{
         const safePatients = Array.isArray(patients) ? patients : [];
         
         return safeInvoices.filter(inv => {
+            if (!inv) return false;
             if (isDueSearch) {
                 return (inv.due_bill || 0) > 0;
             }
-            const p = safePatients.find(pt => pt.pt_id === inv.patient_id);
+            const p = safePatients.find(pt => pt && pt.pt_id === inv.patient_id);
             const matchesSearch = (inv.patient_name || '').toLowerCase().includes(tableSearchTerm.toLowerCase()) ||
                 (inv.daily_id || '').toLowerCase().includes(tableSearchTerm.toLowerCase()) ||
                 (inv.patient_id || '').toLowerCase().includes(tableSearchTerm.toLowerCase()) ||
@@ -1479,8 +1495,7 @@ const IndoorInvoicePage: React.FC<{
                 (p?.address || '').toLowerCase().includes(tableSearchTerm.toLowerCase());
             
             const matchesDate = !tableDateFilter || inv.invoice_date === tableDateFilter;
-            
-            const matchesMonth = !tableMonthFilter || (inv.invoice_date && inv.invoice_date.startsWith(tableMonthFilter));
+            const matchesMonth = !tableMonthFilter || (typeof inv.invoice_date === 'string' && inv.invoice_date.startsWith(tableMonthFilter));
 
             return matchesSearch && matchesDate && matchesMonth;
         });
@@ -1518,18 +1533,18 @@ const IndoorInvoicePage: React.FC<{
 
             const safeInvoices = Array.isArray(indoorInvoices) ? indoorInvoices : [];
             safeInvoices.forEach(inv => {
+                if (!inv) return;
                 const dateToUse = inv.invoice_date || inv.admission_date;
-                if (!dateToUse) return;
+                if (!dateToUse || typeof dateToUse !== 'string') return;
 
                 const isMatch = type === 'day' ? dateToUse === period 
                               : type === 'month' ? dateToUse.startsWith(period)
                               : dateToUse.startsWith(period);
 
                 if (isMatch && inv.status !== 'Cancelled') {
-                    // Logic: Gain = Paid - NonFundedItems - PC
                     const items = Array.isArray(inv.items) ? inv.items : [];
                     const nonFundedCost = items
-                        .filter(it => !it.isClinicFund)
+                        .filter(it => it && !it.isClinicFund)
                         .reduce((s, it) => s + (it.payable_amount || 0), 0);
                     
                     const pcAmount = (inv.special_commission || 0) + (inv.commission_paid || 0);
@@ -1540,16 +1555,16 @@ const IndoorInvoicePage: React.FC<{
                     }
                 }
                 
-                // Subtract returned cash from today's/month's balance if returned in this period
                 if (inv.status === 'Returned') {
-                    const isReturnMatch = type === 'day' ? inv.return_date === period 
-                                        : type === 'month' ? (inv.return_date && inv.return_date.startsWith(period))
-                                        : (inv.return_date && inv.return_date.startsWith(period));
+                    const returnDate = inv.return_date;
+                    const isReturnMatch = type === 'day' ? returnDate === period 
+                                        : type === 'month' ? (typeof returnDate === 'string' && returnDate.startsWith(period))
+                                        : (typeof returnDate === 'string' && returnDate.startsWith(period));
                     
                     if (isReturnMatch) {
                         const items = Array.isArray(inv.items) ? inv.items : [];
                         const nonFundedCost = items
-                            .filter(it => !it.isClinicFund)
+                            .filter(it => it && !it.isClinicFund)
                             .reduce((s, it) => s + (it.payable_amount || 0), 0);
                         const pcAmount = (inv.special_commission || 0) + (inv.commission_paid || 0);
                         hospitalNet -= ((inv.paid_amount || 0) - nonFundedCost - pcAmount);
@@ -1571,6 +1586,7 @@ const IndoorInvoicePage: React.FC<{
 
     // FILTERED SUB-CATEGORIES BASED ON SELECTED MAIN CATEGORY
     const filteredSubCategories = useMemo(() => {
+        const safeSubCategories = Array.isArray(subCategories) ? subCategories : [];
         if (formData.serviceCategory === 'Operation') {
             return [
                 { id: 'lscs', name: 'LSCS_OT' },
@@ -1584,7 +1600,7 @@ const IndoorInvoicePage: React.FC<{
                 { id: 'dc', name: 'D&C' }
             ];
         }
-        return subCategories;
+        return safeSubCategories.filter(s => s && s.mainCategory === formData.serviceCategory);
     }, [formData.serviceCategory, subCategories]);
 
     const calculateTotals = (items: ServiceItem[], _discountAmt: number, paidAmt: number, specialDiscount: number) => {
@@ -1623,7 +1639,7 @@ const IndoorInvoicePage: React.FC<{
         
         const dateToUse = formData.invoice_date || new Date().toISOString().split('T')[0];
         const safeInvoices = Array.isArray(indoorInvoices) ? indoorInvoices : [];
-        const count = safeInvoices.filter(i => i.invoice_date === dateToUse).length + 1;
+        const count = safeInvoices.filter(i => i && i.invoice_date === dateToUse).length + 1;
         const newId = `CLIN-${dateToUse}-${String(count).padStart(3, '0')}`;
         
         const newInvoice: IndoorInvoice = {
@@ -1747,11 +1763,12 @@ const IndoorInvoicePage: React.FC<{
         }
 
         setIndoorInvoices((prev: IndoorInvoice[]) => {
-            const idx = prev.findIndex((inv: IndoorInvoice) => inv.daily_id === formData.daily_id);
+            const safePrev = Array.isArray(prev) ? prev : [];
+            const idx = safePrev.findIndex((inv: IndoorInvoice) => inv && inv.daily_id === formData.daily_id);
             const now = new Date().toISOString();
             
             if (idx >= 0) { 
-                const existingInvoice = prev[idx];
+                const existingInvoice = safePrev[idx];
                 const historyEntry = {
                     ...existingInvoice,
                     snapshot_date: now,
@@ -1761,10 +1778,10 @@ const IndoorInvoicePage: React.FC<{
                 const updatedInvoice = {
                     ...formData,
                     last_modified: now,
-                    edit_history: [...(existingInvoice.edit_history || []), historyEntry]
+                    edit_history: [...(Array.isArray(existingInvoice.edit_history) ? existingInvoice.edit_history : []), historyEntry]
                 };
                 
-                const newArr = [...prev]; 
+                const newArr = [...safePrev]; 
                 newArr[idx] = updatedInvoice; 
                 return newArr; 
             }
@@ -1840,13 +1857,13 @@ const IndoorInvoicePage: React.FC<{
                 <table>
                     <thead><tr><th>Service Type</th><th>Provider</th><th>Charge</th><th>Qty</th><th>Total</th></tr></thead>
                     <tbody>
-                        ${inv.items.map(it => `
+                        ${(Array.isArray(inv.items) ? inv.items : []).map(it => it && `
                             <tr>
-                                <td>${it.service_type}</td>
-                                <td>${it.service_provider}</td>
-                                <td>${it.service_charge.toFixed(2)}</td>
-                                <td>${it.quantity}</td>
-                                <td>${it.payable_amount.toFixed(2)}</td>
+                                <td>${it.service_type || ''}</td>
+                                <td>${it.service_provider || ''}</td>
+                                <td>${(it.service_charge || 0).toFixed(2)}</td>
+                                <td>${it.quantity || 0}</td>
+                                <td>${(it.payable_amount || 0).toFixed(2)}</td>
                             </tr>
                         `).join('')}
                     </tbody>
@@ -1928,11 +1945,12 @@ const IndoorInvoicePage: React.FC<{
 
     // --- Core logic to categorize an invoice (Mapping Category Breakdown) ---
     const categorizeInvoiceData = (inv: IndoorInvoice) => {
-        if (inv.status === 'Cancelled' || inv.status === 'Returned') {
+        if (!inv || inv.status === 'Cancelled' || inv.status === 'Returned') {
             return { admFee: 0, oxygen: 0, conservative: 0, nvd: 0, dc: 0, lscs_ot: 0, gb_ot: 0, others_ot: 0, dressing: 0, others: 0, pcAmount: 0, clinicNet: 0 };
         }
 
-        const incomeItems = inv.items.filter((it: any) => it.isClinicFund === true);
+        const items = Array.isArray(inv.items) ? inv.items : [];
+        const incomeItems = items.filter((it: any) => it && it.isClinicFund === true);
 
         let admFee = 0, oxygen = 0, dressing = 0, conservative = 0, nvd = 0, dc = 0, lscs_ot = 0, gb_ot = 0, others_ot = 0, others = 0;
 
@@ -2001,24 +2019,26 @@ const IndoorInvoicePage: React.FC<{
                             label="" 
                             theme="dark" 
                             placeholder="Search Patient or Date..."
-                            options={admissions.map(a => {
-                                const p = patients.find(pt => pt.pt_id === a.patient_id);
+                            options={(Array.isArray(admissions) ? admissions : []).map(a => {
+                                const safePatients = Array.isArray(patients) ? patients : [];
+                                const p = safePatients.find(pt => pt.pt_id === a.patient_id);
                                 return {
-                                    id: a.admission_id, 
-                                    name: a.patient_name, 
-                                    details: `ID: ${a.patient_id} | Indication: ${a.indication} | DOB: ${p?.dobY}-${p?.dobM}-${p?.dobD} | Addr: ${p?.address} | Mob: ${p?.mobile} | Adm: ${a.admission_date}`
+                                    id: a.admission_id || '', 
+                                    name: a.patient_name || 'Unknown Patient', 
+                                    details: `ID: ${a.patient_id || 'N/A'} | Indication: ${a.indication || 'N/A'} | DOB: ${p?.dobY || ''}-${p?.dobM || ''}-${p?.dobD || ''} | Addr: ${p?.address || ''} | Mob: ${p?.mobile || ''} | Adm: ${a.admission_date || ''}`
                                 };
                             })} 
                             value={selectedAdmission?.admission_id || ''} 
                             onChange={(id) => { 
-                                const adm = admissions.find(a => a.admission_id === id); 
+                                const safeAdmissions = Array.isArray(admissions) ? admissions : [];
+                                const adm = safeAdmissions.find(a => a.admission_id === id); 
                                 setSelectedAdmission(adm || null); 
                                 if(adm) setFormData({
                                     ...emptyIndoorInvoice, 
-                                    admission_id: adm.admission_id, 
-                                    patient_id: adm.patient_id, 
-                                    patient_name: adm.patient_name, 
-                                    admission_date: adm.admission_date, 
+                                    admission_id: adm.admission_id || '', 
+                                    patient_id: adm.patient_id || '', 
+                                    patient_name: adm.patient_name || '', 
+                                    admission_date: adm.admission_date || '', 
                                     status: 'Posted'
                                 }); 
                             }} 
@@ -2052,7 +2072,7 @@ const IndoorInvoicePage: React.FC<{
                     <form onSubmit={handleSaveInvoice} className="space-y-6">
                         <div className="flex justify-between items-center mb-2">
                             <h4 className="text-xs font-bold text-gray-500 uppercase tracking-widest">Invoice Details & Timeline</h4>
-                            {formData.edit_history && formData.edit_history.length > 0 && (
+                            {Array.isArray(formData.edit_history) && formData.edit_history.length > 0 && (
                                 <button 
                                     type="button"
                                     onClick={() => { setHistoryInvoice(formData); setShowHistoryModal(true); }}
@@ -2081,8 +2101,8 @@ const IndoorInvoicePage: React.FC<{
                                 <SearchableSelect 
                                     theme="dark" 
                                     label="Sub_Category" 
-                                    options={filteredSubCategories.map(s => ({id: s.id, name: s.name}))} 
-                                    value={filteredSubCategories.find(s => s.name === formData.subCategory)?.id || ''} 
+                                    options={(filteredSubCategories || []).filter(s => s && s.id && s.name).map(s => ({id: s.id, name: s.name}))} 
+                                    value={(filteredSubCategories || []).find(s => s && s.name === formData.subCategory)?.id || ''} 
                                     onChange={(_id, name) => setFormData(prev => ({...prev, subCategory: name}))} 
                                     onAddNew={() => setShowSubCategoryManager(true)}
                                     required={true}
@@ -2210,7 +2230,7 @@ const IndoorInvoicePage: React.FC<{
                         </div>
                         <div className="grid grid-cols-2 gap-6 bg-[#1f2937] p-4 rounded border border-gray-600">
                             <div className="space-y-2">
-                                <div><label className="text-xs text-gray-400">Created By</label><select name="bill_created_by" value={formData.bill_created_by} onChange={handleInputChange} className="w-full bg-[#374151] border border-gray-600 rounded p-1 text-white"><option value="">Select</option>{activeEmployees.map(e => <option key={e.emp_id} value={e.emp_name}>{e.emp_name}</option>)}</select></div>
+                                <div><label className="text-xs text-gray-400">Created By</label><select name="bill_created_by" value={formData.bill_created_by} onChange={handleInputChange} className="w-full bg-[#374151] border border-gray-600 rounded p-1 text-white"><option value="">Select</option>{(Array.isArray(activeEmployees) ? activeEmployees : []).map(e => e && <option key={e.emp_id} value={e.emp_name}>{e.emp_name}</option>)}</select></div>
                                 <div><label className="text-xs text-gray-400">Method</label><select name="payment_method" value={formData.payment_method} onChange={handleInputChange} className="w-full bg-[#374151] border border-gray-600 rounded p-1 text-white"><option>Cash</option><option>Card</option></select></div>
                             </div>
                             <div className="text-right space-y-2 text-sm font-medium">
@@ -2361,7 +2381,8 @@ const IndoorInvoicePage: React.FC<{
                                                 <span className="bg-slate-800 px-1 rounded">ID: {inv.patient_id}</span>
                                                 <span className="bg-blue-900/30 text-blue-300 px-1 rounded">Indication: {inv.indication}</span>
                                                 {(() => {
-                                                    const p = patients.find(pt => pt.pt_id === inv.patient_id);
+                                                    const safePatients = Array.isArray(patients) ? patients : [];
+                                                    const p = safePatients.find(pt => pt && pt.pt_id === inv.patient_id);
                                                     return p ? (
                                                         <>
                                                             <span>Age: {p.ageY}Y {p.ageM}M {p.ageD}D</span>
@@ -2409,7 +2430,8 @@ const ClinicDueCollectionPage: React.FC<{
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedInvoice, setSelectedInvoice] = useState<IndoorInvoice | null>(null);
     const [amount, setAmount] = useState<number>(0);
-    const dueInvoices = indoorInvoices.filter(inv => inv.status !== 'Returned' && inv.status !== 'Cancelled' && inv.due_bill > 0.5 && inv.patient_name.toLowerCase().includes(searchTerm.toLowerCase()));
+    const safeInvoices = Array.isArray(indoorInvoices) ? indoorInvoices : [];
+    const dueInvoices = safeInvoices.filter(inv => inv && inv.status !== 'Returned' && inv.status !== 'Cancelled' && (inv.due_bill || 0) > 0.5 && (inv.patient_name || '').toLowerCase().includes(searchTerm.toLowerCase()));
     
     const handlePrintReceipt = (invoice: IndoorInvoice, paidAmount: number) => {
         const win = window.open('', '_blank');
@@ -2441,8 +2463,8 @@ const ClinicDueCollectionPage: React.FC<{
             amount_collected: amount 
         };
         const updatedInvoice = { ...selectedInvoice, paid_amount: selectedInvoice.paid_amount + amount, due_bill: selectedInvoice.due_bill - amount };
-        setClinicDueCollections((prev: ClinicDueCollection[]) => [...prev, newCollection]);
-        setIndoorInvoices((prev: IndoorInvoice[]) => prev.map((inv: IndoorInvoice) => inv.daily_id === updatedInvoice.daily_id ? updatedInvoice : inv));
+        setClinicDueCollections((prev: ClinicDueCollection[]) => [...(Array.isArray(prev) ? prev : []), newCollection]);
+        setIndoorInvoices((prev: IndoorInvoice[]) => (Array.isArray(prev) ? prev : []).map((inv: IndoorInvoice) => inv && inv.daily_id === updatedInvoice.daily_id ? updatedInvoice : inv));
         setSuccessMessage("Collected!");
         handlePrintReceipt(selectedInvoice, amount);
         setSelectedInvoice(null);
@@ -2451,8 +2473,8 @@ const ClinicDueCollectionPage: React.FC<{
         <div className="bg-[#20293a] p-6 rounded border border-gray-700">
             <h3 className="text-xl font-bold text-white mb-4">Due Collection</h3>
             <input type="text" placeholder="Search..." value={searchTerm} onChange={e=>setSearchTerm(e.target.value)} className="w-full p-2 bg-[#374151] border border-gray-600 rounded text-white mb-4"/>
-            <table className="w-full text-sm text-left text-gray-300"><thead><tr><th className="p-2">ID</th><th className="p-2">Patient</th><th className="p-2">Due</th><th className="p-2">Action</th></tr></thead><tbody>{dueInvoices.map(inv => <tr key={inv.daily_id}><td className="p-2">{inv.daily_id}</td><td className="p-2">{inv.patient_name}</td><td className="p-2">{inv.due_bill}</td><td className="p-2"><button onClick={()=>{setSelectedInvoice(inv); setAmount(0);}} className="bg-green-600 px-2 py-1 rounded text-white">Collect</button></td></tr>)}</tbody></table>
-            {selectedInvoice && ( <div className="fixed inset-0 bg-black/80 flex justify-center items-center z-50"><div className="bg-[#1f2937] p-6 rounded border border-gray-600 w-full max-w-sm shadow-2xl"><h3 className="text-white text-lg font-bold mb-4 border-b border-gray-600 pb-2">Collect Payment</h3><div className="mb-4 text-sm text-gray-300 space-y-1"><div>Patient: <span className="text-white font-bold">{selectedInvoice.patient_name}</span></div><div className="flex justify-between items-center bg-gray-800 p-2 rounded"><span>Current Due:</span> <span className="text-red-400 font-bold">{selectedInvoice.due_bill.toFixed(2)}</span></div></div><div className="mb-4"><label className="text-xs text-gray-400 block mb-1">Payment Amount</label><input type="number" value={amount} onChange={e=>setAmount(parseFloat(e.target.value))} className="w-full p-2 bg-[#374151] text-white border border-gray-600 rounded focus:ring-2 focus:ring-green-500" placeholder="Enter Amount"/></div><div className="mb-6 flex justify-between items-center text-sm font-bold border-t border-gray-700 pt-2"><span>Remaining Due:</span><span className={(selectedInvoice.due_bill - amount) > 0 ? "text-red-400" : "text-green-400"}>{(selectedInvoice.due_bill - amount).toFixed(2)}</span></div><div className="flex justify-end gap-2"><button onClick={()=>setSelectedInvoice(null)} className="text-gray-300 hover:text-white px-4 py-2">Cancel</button><button onClick={handleCollect} className="bg-green-600 text-white px-6 py-2 rounded font-bold hover:bg-green-500">Confirm & Print</button></div></div></div> )}
+            <table className="w-full text-sm text-left text-gray-300"><thead><tr><th className="p-2">ID</th><th className="p-2">Patient</th><th className="p-2">Due</th><th className="p-2">Action</th></tr></thead><tbody>{(Array.isArray(dueInvoices) ? dueInvoices : []).map(inv => inv && <tr key={inv.daily_id}><td className="p-2">{inv.daily_id}</td><td className="p-2">{inv.patient_name}</td><td className="p-2">{inv.due_bill}</td><td className="p-2"><button onClick={()=>{setSelectedInvoice(inv); setAmount(0);}} className="bg-green-600 px-2 py-1 rounded text-white">Collect</button></td></tr>)}</tbody></table>
+            {selectedInvoice && ( <div className="fixed inset-0 bg-black/80 flex justify-center items-center z-50"><div className="bg-[#1f2937] p-6 rounded border border-gray-600 w-full max-w-sm shadow-2xl"><h3 className="text-white text-lg font-bold mb-4 border-b border-gray-600 pb-2">Collect Payment</h3><div className="mb-4 text-sm text-gray-300 space-y-1"><div>Patient: <span className="text-white font-bold">{selectedInvoice.patient_name}</span></div><div className="flex justify-between items-center bg-gray-800 p-2 rounded"><span>Current Due:</span> <span className="text-red-400 font-bold">{(selectedInvoice.due_bill || 0).toFixed(2)}</span></div></div><div className="mb-4"><label className="text-xs text-gray-400 block mb-1">Payment Amount</label><input type="number" value={amount} onChange={e=>setAmount(parseFloat(e.target.value))} className="w-full p-2 bg-[#374151] text-white border border-gray-600 rounded focus:ring-2 focus:ring-green-500" placeholder="Enter Amount"/></div><div className="mb-6 flex justify-between items-center text-sm font-bold border-t border-gray-700 pt-2"><span>Remaining Due:</span><span className={((selectedInvoice.due_bill || 0) - amount) > 0 ? "text-red-400" : "text-green-400"}>{((selectedInvoice.due_bill || 0) - amount).toFixed(2)}</span></div><div className="flex justify-end gap-2"><button onClick={()=>setSelectedInvoice(null)} className="text-gray-300 hover:text-white px-4 py-2">Cancel</button><button onClick={handleCollect} className="bg-green-600 text-white px-6 py-2 rounded font-bold hover:bg-green-500">Confirm & Print</button></div></div></div> )}
         </div>
     );
 };
@@ -2471,11 +2493,13 @@ const ReportSummaryPage: React.FC<{
     patients: Patient[]; 
     onOpenRxMaster: () => void;
 }> = ({ admissions, doctors, patients, onOpenRxMaster }) => {
-    const totalAdmissions = admissions.length;
-    const activeAdmissions = admissions.filter(a => !a.discharge_date).length;
+    const safeAdmissions = Array.isArray(admissions) ? admissions : [];
+    const totalAdmissions = safeAdmissions.length;
+    const activeAdmissions = safeAdmissions.filter(a => a && !a.discharge_date).length;
     const discharged = totalAdmissions - activeAdmissions;
     const [activeCertType, setActiveCertType] = useState<'discharge' | 'birth' | 'death' | 'referral' | null>(null);
-    const doctorStats = doctors.map(doc => ({ name: doc.doctor_name, count: admissions.filter(a => a.doctor_id === doc.doctor_id).length })).filter(d => d.count > 0);
+    const safeDoctors = Array.isArray(doctors) ? doctors : [];
+    const doctorStats = safeDoctors.map(doc => ({ name: doc.doctor_name, count: safeAdmissions.filter(a => a && a.doctor_id === doc.doctor_id).length })).filter(d => d.count > 0);
     return (
         <div className="bg-[#1f2937] p-6 rounded border border-[#374151]">
             <h3 className="text-xl font-bold text-white mb-6">Report Summary</h3>
@@ -2489,7 +2513,7 @@ const ReportSummaryPage: React.FC<{
                 <CertificateCard title="Referral Reports" icon={<UserPlusIcon className="w-6 h-6"/>} color="purple" onClick={() => setActiveCertType('referral')} />
             </div>
             <h4 className="text-lg font-bold text-white mb-4">Admissions by Doctor</h4>
-            <div className="bg-[#111827] rounded border border-gray-700 overflow-hidden"><table className="w-full text-sm text-left text-gray-300"><thead className="bg-[#1f2937] text-gray-400"><tr><th className="p-3">Doctor Name</th><th className="p-3 text-right">Patient Count</th></tr></thead><tbody>{doctorStats.map((stat, idx) => (<tr key={idx} className="border-b border-gray-800"><td className="p-3">{stat.name}</td><td className="p-3 text-right font-bold text-white">{stat.count}</td></tr>))}{doctorStats.length === 0 && <tr><td colSpan={2} className="p-4 text-center text-gray-500">No data available.</td></tr>}</tbody></table></div>
+            <div className="bg-[#111827] rounded border border-gray-700 overflow-hidden"><table className="w-full text-sm text-left text-gray-300"><thead className="bg-[#1f2937] text-gray-400"><tr><th className="p-3">Doctor Name</th><th className="p-3 text-right">Patient Count</th></tr></thead><tbody>{(Array.isArray(doctorStats) ? doctorStats : []).map((stat, idx) => stat && (<tr key={idx} className="border-b border-gray-800"><td className="p-3">{stat.name}</td><td className="p-3 text-right font-bold text-white">{stat.count}</td></tr>))}{doctorStats.length === 0 && <tr><td colSpan={2} className="p-4 text-center text-gray-500">No data available.</td></tr>}</tbody></table></div>
             {activeCertType && (<CertificateModal type={activeCertType} admissions={admissions} patients={patients} doctors={doctors} onClose={() => setActiveCertType(null)} />)}
         </div>
     );
@@ -2498,7 +2522,10 @@ const ReportSummaryPage: React.FC<{
 // 5. Bed Management
 const BedManagementPage: React.FC<{ admissions: AdmissionRecord[]; }> = ({ admissions }) => {
     const wards = [{ id: 'male_ward', name: 'Male Ward', beds: Array.from({length: 5}, (_, i) => `M-${String(i+1).padStart(2, '0')}`) }, { id: 'female_ward', name: 'Female Ward', beds: Array.from({length: 5}, (_, i) => `F-${String(i+1).padStart(2, '0')}`) }, { id: 'cabin', name: 'Cabins', beds: ['CAB-101', 'CAB-102', 'CAB-103', 'CAB-104', 'VIP-01'] }];
-    const getBedStatus = (bedId: string) => admissions.find(a => a.bed_no === bedId && !a.discharge_date);
+    const getBedStatus = (bedId: string) => {
+        const safeAdmissions = Array.isArray(admissions) ? admissions : [];
+        return safeAdmissions.find(a => a && a.bed_no === bedId && !a.discharge_date);
+    };
 
     const handlePrintBedMap = () => {
         const win = window.open('', '_blank');
@@ -2506,13 +2533,13 @@ const BedManagementPage: React.FC<{ admissions: AdmissionRecord[]; }> = ({ admis
         const styles = `<style>@page{size:A4; margin:15mm} body{font-family:sans-serif} .header{text-align:center; border-bottom:2px solid #000; padding-bottom:10px} .ward{margin-top:20px; border:1px solid #ccc; border-radius:10px; padding:15px} .grid{display:grid; grid-template-columns:repeat(4,1fr); gap:10px} .bed{border:1px solid #000; padding:10px; font-size:10px} .occupied{background:#fecaca}</style>`;
         const html = `<html><head>${styles}</head><body>
             <div class="header"><h1>Niramoy Clinic & Diagnostic</h1><p>Inpatient Bed Occupancy Map - ${new Date().toLocaleDateString()}</p></div>
-            ${wards.map(w => `
+            ${(Array.isArray(wards) ? wards : []).map(w => w && `
                 <div class="ward">
-                    <h3>${w.name}</h3>
+                    <h3>${w.name || ''}</h3>
                     <div class="grid">
-                        ${w.beds.map(b => {
+                        ${(Array.isArray(w.beds) ? w.beds : []).map(b => {
                             const adm = getBedStatus(b);
-                            return `<div class="bed ${adm ? 'occupied' : ''}"><b>Bed: ${b}</b><br>${adm ? `Patient: ${adm.patient_name}<br>Dr: ${adm.doctor_name}` : 'AVAILABLE'}</div>`;
+                            return `<div class="bed ${adm ? 'occupied' : ''}"><b>Bed: ${b}</b><br>${adm ? `Patient: ${adm.patient_name || ''}<br>Dr: ${adm.doctor_name || ''}` : 'AVAILABLE'}</div>`;
                         }).join('')}
                     </div>
                 </div>
@@ -2527,7 +2554,7 @@ const BedManagementPage: React.FC<{ admissions: AdmissionRecord[]; }> = ({ admis
                 <h3 className="text-xl font-bold text-white">Bed Management Status</h3>
                 <button onClick={handlePrintBedMap} className="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded text-xs font-bold transition-all flex items-center gap-2"><FileTextIcon className="w-4 h-4"/> Print Bed Map</button>
             </div>
-            <div className="space-y-8">{wards.map(ward => (<div key={ward.id}><h4 className="text-lg font-semibold text-gray-300 mb-3 ml-1 border-l-4 border-blue-500 pl-2">{ward.name}</h4><div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">{ward.beds.map(bedId => { const admission = getBedStatus(bedId); const isOccupied = !!admission; return (<div key={bedId} className={`relative p-4 rounded-lg border-2 transition-all duration-200 flex flex-col justify-between h-28 ${isOccupied ? 'bg-red-900/20 border-red-500/50 hover:shadow-[0_0_10px_rgba(239,68,68,0.3)]' : 'bg-emerald-900/20 border-emerald-500/50 hover:shadow-[0_0_10px_rgba(16,185,129,0.3)] hover:bg-emerald-900/30'}`}><div className="flex justify-between items-start"><span className={`text-sm font-bold ${isOccupied ? 'text-red-400' : 'text-emerald-400'}`}>{bedId}</span>{isOccupied ? <UserPlusIcon className="w-4 h-4 text-red-400"/> : <Armchair className="w-4 h-4 text-emerald-400"/>}</div>{isOccupied ? (<div className="mt-2"><div className="text-xs text-white font-bold truncate" title={admission.patient_name}>{admission.patient_name}</div><div className="text-[10px] text-gray-400 truncate">ID: {admission.admission_id}</div></div>) : (<div className="mt-auto text-center"><span className="text-xs text-emerald-500 font-medium bg-emerald-500/10 px-2 py-0.5 rounded">Available</span></div>)}</div>); })}</div></div>))}</div>
+            <div className="space-y-8">{(Array.isArray(wards) ? wards : []).map(ward => ward && (<div key={ward.id}><h4 className="text-lg font-semibold text-gray-300 mb-3 ml-1 border-l-4 border-blue-500 pl-2">{ward.name}</h4><div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">{(Array.isArray(ward.beds) ? ward.beds : []).map(bedId => { const admission = getBedStatus(bedId); const isOccupied = !!admission; return (<div key={bedId} className={`relative p-4 rounded-lg border-2 transition-all duration-200 flex flex-col justify-between h-28 ${isOccupied ? 'bg-red-900/20 border-red-500/50 hover:shadow-[0_0_10px_rgba(239,68,68,0.3)]' : 'bg-emerald-900/20 border-emerald-500/50 hover:shadow-[0_0_10px_rgba(16,185,129,0.3)] hover:bg-emerald-900/30'}`}><div className="flex justify-between items-start"><span className={`text-sm font-bold ${isOccupied ? 'text-red-400' : 'text-emerald-400'}`}>{bedId}</span>{isOccupied ? <UserPlusIcon className="w-4 h-4 text-red-400"/> : <Armchair className="w-4 h-4 text-emerald-400"/>}</div>{isOccupied ? (<div className="mt-2"><div className="text-xs text-white font-bold truncate" title={admission.patient_name}>{admission.patient_name}</div><div className="text-[10px] text-gray-400 truncate">ID: {admission.admission_id}</div></div>) : (<div className="mt-auto text-center"><span className="text-xs text-emerald-500 font-medium bg-emerald-500/10 px-2 py-0.5 rounded">Available</span></div>)}</div>); })}</div></div>))}</div>
         </div>
     );
 };
