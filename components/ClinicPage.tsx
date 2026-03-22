@@ -1463,15 +1463,18 @@ const IndoorInvoicePage: React.FC<{
 
     const filteredInvoices = useMemo(() => {
         const isDueSearch = tableSearchTerm.toLowerCase() === 'due';
-        return indoorInvoices.filter(inv => {
+        const safeInvoices = Array.isArray(indoorInvoices) ? indoorInvoices : [];
+        const safePatients = Array.isArray(patients) ? patients : [];
+        
+        return safeInvoices.filter(inv => {
             if (isDueSearch) {
-                return inv.due_bill > 0;
+                return (inv.due_bill || 0) > 0;
             }
-            const p = patients.find(pt => pt.pt_id === inv.patient_id);
-            const matchesSearch = inv.patient_name.toLowerCase().includes(tableSearchTerm.toLowerCase()) ||
-                inv.daily_id.toLowerCase().includes(tableSearchTerm.toLowerCase()) ||
-                inv.patient_id.toLowerCase().includes(tableSearchTerm.toLowerCase()) ||
-                inv.indication.toLowerCase().includes(tableSearchTerm.toLowerCase()) ||
+            const p = safePatients.find(pt => pt.pt_id === inv.patient_id);
+            const matchesSearch = (inv.patient_name || '').toLowerCase().includes(tableSearchTerm.toLowerCase()) ||
+                (inv.daily_id || '').toLowerCase().includes(tableSearchTerm.toLowerCase()) ||
+                (inv.patient_id || '').toLowerCase().includes(tableSearchTerm.toLowerCase()) ||
+                (inv.indication || '').toLowerCase().includes(tableSearchTerm.toLowerCase()) ||
                 (p?.mobile || '').includes(tableSearchTerm) ||
                 (p?.address || '').toLowerCase().includes(tableSearchTerm.toLowerCase());
             
@@ -1485,9 +1488,9 @@ const IndoorInvoicePage: React.FC<{
 
     const tableTotals = useMemo(() => {
         return filteredInvoices.reduce((acc, inv) => {
-            acc.total += inv.total_bill;
-            acc.paid += inv.paid_amount;
-            acc.due += inv.due_bill;
+            acc.total += (inv.total_bill || 0);
+            acc.paid += (inv.paid_amount || 0);
+            acc.due += (inv.due_bill || 0);
             return acc;
         }, { total: 0, paid: 0, due: 0 });
     }, [filteredInvoices]);
@@ -1513,38 +1516,43 @@ const IndoorInvoicePage: React.FC<{
             let totalBill = 0;
             let hospitalNet = 0;
 
-            indoorInvoices.forEach(inv => {
+            const safeInvoices = Array.isArray(indoorInvoices) ? indoorInvoices : [];
+            safeInvoices.forEach(inv => {
                 const dateToUse = inv.invoice_date || inv.admission_date;
+                if (!dateToUse) return;
+
                 const isMatch = type === 'day' ? dateToUse === period 
                               : type === 'month' ? dateToUse.startsWith(period)
                               : dateToUse.startsWith(period);
 
                 if (isMatch && inv.status !== 'Cancelled') {
                     // Logic: Gain = Paid - NonFundedItems - PC
-                    const nonFundedCost = inv.items
+                    const items = Array.isArray(inv.items) ? inv.items : [];
+                    const nonFundedCost = items
                         .filter(it => !it.isClinicFund)
-                        .reduce((s, it) => s + it.payable_amount, 0);
+                        .reduce((s, it) => s + (it.payable_amount || 0), 0);
                     
                     const pcAmount = (inv.special_commission || 0) + (inv.commission_paid || 0);
                     
                     if (inv.status !== 'Returned') {
-                        totalBill += inv.total_bill;
-                        hospitalNet += (inv.paid_amount - nonFundedCost - pcAmount);
+                        totalBill += (inv.total_bill || 0);
+                        hospitalNet += ((inv.paid_amount || 0) - nonFundedCost - pcAmount);
                     }
                 }
                 
                 // Subtract returned cash from today's/month's balance if returned in this period
                 if (inv.status === 'Returned') {
                     const isReturnMatch = type === 'day' ? inv.return_date === period 
-                                        : type === 'month' ? inv.return_date?.startsWith(period)
-                                        : inv.return_date?.startsWith(period);
+                                        : type === 'month' ? (inv.return_date && inv.return_date.startsWith(period))
+                                        : (inv.return_date && inv.return_date.startsWith(period));
                     
                     if (isReturnMatch) {
-                        const nonFundedCost = inv.items
+                        const items = Array.isArray(inv.items) ? inv.items : [];
+                        const nonFundedCost = items
                             .filter(it => !it.isClinicFund)
-                            .reduce((s, it) => s + it.payable_amount, 0);
+                            .reduce((s, it) => s + (it.payable_amount || 0), 0);
                         const pcAmount = (inv.special_commission || 0) + (inv.commission_paid || 0);
-                        hospitalNet -= (inv.paid_amount - nonFundedCost - pcAmount);
+                        hospitalNet -= ((inv.paid_amount || 0) - nonFundedCost - pcAmount);
                     }
                 }
             });
@@ -1555,7 +1563,8 @@ const IndoorInvoicePage: React.FC<{
         const today = calculateStatsForPeriod(todayStr, 'day');
         const month = calculateStatsForPeriod(currentMonthStr, 'month');
         const year = calculateStatsForPeriod(currentYearStr, 'year');
-        const totalDue = indoorInvoices.filter(i => i.status !== 'Returned' && i.status !== 'Cancelled').reduce((s, i) => s + i.due_bill, 0);
+        const safeInvoices = Array.isArray(indoorInvoices) ? indoorInvoices : [];
+        const totalDue = safeInvoices.filter(i => i.status !== 'Returned' && i.status !== 'Cancelled').reduce((s, i) => s + (i.due_bill || 0), 0);
 
         return { today, month, year, totalDue };
     }, [indoorInvoices]);
@@ -1662,19 +1671,22 @@ const IndoorInvoicePage: React.FC<{
     };
 
     const handleServiceChange = (id: number, field: keyof ServiceItem, value: any) => {
-        const updatedItems = formData.items.map(item => item.id === id ? { ...item, [field]: value } : item);
+        const items = Array.isArray(formData.items) ? formData.items : [];
+        const updatedItems = items.map(item => item.id === id ? { ...item, [field]: value } : item);
         
         if (field === 'service_type' && (value === 'Medicine' || value === 'medicine') && formData.admission_id) {
-            const latestAdm = admissions.find(a => a.admission_id === formData.admission_id);
-            if (latestAdm && latestAdm.nurse_chart) {
+            const safeAdmissions = Array.isArray(admissions) ? admissions : [];
+            const latestAdm = safeAdmissions.find(a => a.admission_id === formData.admission_id);
+            if (latestAdm && Array.isArray(latestAdm.nurse_chart)) {
                 let totalMedicineCost = 0;
                 let supplyCount = 0;
                 latestAdm.nurse_chart.forEach(log => {
                     if (log.supplySrc === 'Clinic') {
                         supplyCount++;
                         if (log.actualInventoryId) {
-                            const inventoryItem = medicines.find(m => m.id === log.actualInventoryId);
-                            if (inventoryItem) totalMedicineCost += inventoryItem.unitPriceSell;
+                            const safeMedicines = Array.isArray(medicines) ? medicines : [];
+                            const inventoryItem = safeMedicines.find(m => m.id === log.actualInventoryId);
+                            if (inventoryItem) totalMedicineCost += (inventoryItem.unitPriceSell || 0);
                         }
                     }
                 });
@@ -1693,20 +1705,22 @@ const IndoorInvoicePage: React.FC<{
             if (rowIdx !== -1) updatedItems[rowIdx].isClinicFund = isClinicFund;
         }
 
-        const totals = calculateTotals(updatedItems, 0, formData.paid_amount, formData.special_discount_amount || 0);
+        const totals = calculateTotals(updatedItems, 0, formData.paid_amount || 0, formData.special_discount_amount || 0);
         setFormData(prev => ({ ...prev, ...totals }));
     };
 
     const handleAddServiceItem = () => {
+        const items = Array.isArray(formData.items) ? formData.items : [];
         const newItem: ServiceItem = { id: Date.now(), service_type: '', service_provider: '', service_charge: 0, quantity: 1, line_total: 0, discount: 0, payable_amount: 0, note: '', isClinicFund: false };
-        const updatedItems = [...formData.items, newItem];
-        const totals = calculateTotals(updatedItems, 0, formData.paid_amount, formData.special_discount_amount || 0);
+        const updatedItems = [...items, newItem];
+        const totals = calculateTotals(updatedItems, 0, formData.paid_amount || 0, formData.special_discount_amount || 0);
         setFormData(prev => ({ ...prev, items: updatedItems, ...totals }));
     };
     
     const handleRemoveServiceItem = (id: number) => {
-        const updatedItems = formData.items.filter(i => i.id !== id);
-        const totals = calculateTotals(updatedItems, 0, formData.paid_amount, formData.special_discount_amount || 0);
+        const items = Array.isArray(formData.items) ? formData.items : [];
+        const updatedItems = items.filter(i => i.id !== id);
+        const totals = calculateTotals(updatedItems, 0, formData.paid_amount || 0, formData.special_discount_amount || 0);
         setFormData(prev => ({ ...prev, items: updatedItems, ...totals }));
     };
 
@@ -1860,7 +1874,13 @@ const IndoorInvoicePage: React.FC<{
             ...emptyIndoorInvoice,
             ...inv,
             items: Array.isArray(inv.items) ? inv.items : [],
-            edit_history: Array.isArray(inv.edit_history) ? inv.edit_history : []
+            edit_history: Array.isArray(inv.edit_history) ? inv.edit_history : [],
+            total_bill: Number(inv.total_bill) || 0,
+            total_discount: Number(inv.total_discount) || 0,
+            paid_amount: Number(inv.paid_amount) || 0,
+            due_bill: Number(inv.due_bill) || 0,
+            net_payable: Number(inv.net_payable) || 0,
+            special_discount_amount: Number(inv.special_discount_amount) || 0
         };
         setFormData(cleanedInv);
         setSelectedInvoiceId(inv.daily_id);
@@ -2165,17 +2185,18 @@ const IndoorInvoicePage: React.FC<{
                                                 }
                                             </datalist>
                                         </td>
-                                        <td className="p-1"><input type="number" value={item.service_charge} onChange={e=>handleServiceChange(item.id,'service_charge',parseFloat(e.target.value))} onFocus={e=>e.target.select()} className="w-full bg-[#374151] text-white p-1 rounded text-right h-8"/></td>
-                                        <td className="p-1"><input type="number" value={item.quantity} onChange={e=>handleServiceChange(item.id,'quantity',parseFloat(e.target.value))} onFocus={e=>e.target.select()} className="w-full bg-[#374151] text-white p-1 rounded text-right h-8"/></td>
-                                        <td className="p-1"><input type="number" value={item.discount} onChange={e=>handleServiceChange(item.id,'discount',parseFloat(e.target.value))} onFocus={e=>e.target.select()} className="w-full bg-[#374151] text-white p-1 rounded text-right h-8"/></td>
+                                        <td className="p-1"><input type="number" value={item.service_charge || 0} onChange={e=>handleServiceChange(item.id,'service_charge',parseFloat(e.target.value))} onFocus={e=>e.target.select()} className="w-full bg-[#374151] text-white p-1 rounded text-right h-8"/></td>
+                                        <td className="p-1"><input type="number" value={item.quantity || 0} onChange={e=>handleServiceChange(item.id,'quantity',parseFloat(e.target.value))} onFocus={e=>e.target.select()} className="w-full bg-[#374151] text-white p-1 rounded text-right h-8"/></td>
+                                        <td className="p-1"><input type="number" value={item.discount || 0} onChange={e=>handleServiceChange(item.id,'discount',parseFloat(e.target.value))} onFocus={e=>e.target.select()} className="w-full bg-[#374151] text-white p-1 rounded text-right h-8"/></td>
                                         <td className="p-1 font-bold text-sky-300 text-right">{(item.payable_amount || 0).toFixed(2)}</td>
                                         <td className="p-1 text-center">
                                             <input 
                                                 type="checkbox" 
-                                                checked={item.isClinicFund} 
+                                                checked={!!item.isClinicFund} 
                                                 onChange={e => {
-                                                    const updated = formData.items.map(it => it.id === item.id ? { ...it, isClinicFund: e.target.checked } : it);
-                                                    const totals = calculateTotals(updated, 0, formData.paid_amount, formData.special_discount_amount || 0);
+                                                    const items = Array.isArray(formData.items) ? formData.items : [];
+                                                    const updated = items.map(it => it.id === item.id ? { ...it, isClinicFund: e.target.checked } : it);
+                                                    const totals = calculateTotals(updated, 0, formData.paid_amount || 0, formData.special_discount_amount || 0);
                                                     setFormData(prev => ({ ...prev, items: updated, ...totals }));
                                                 }}
                                                 className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-blue-600"
@@ -2193,12 +2214,12 @@ const IndoorInvoicePage: React.FC<{
                                 <div><label className="text-xs text-gray-400">Method</label><select name="payment_method" value={formData.payment_method} onChange={handleInputChange} className="w-full bg-[#374151] border border-gray-600 rounded p-1 text-white"><option>Cash</option><option>Card</option></select></div>
                             </div>
                             <div className="text-right space-y-2 text-sm font-medium">
-                                <div className="flex justify-between items-center text-gray-300"><span>Total Bill:</span> <span className="font-bold text-white">{formData.total_bill.toFixed(2)}</span></div>
-                                <div className="flex justify-between items-center text-gray-300"><span>Total Discount:</span> <span className="font-bold text-white">{formData.total_discount.toFixed(2)}</span></div>
+                                <div className="flex justify-between items-center text-gray-300"><span>Total Bill:</span> <span className="font-bold text-white">{(formData.total_bill || 0).toFixed(2)}</span></div>
+                                <div className="flex justify-between items-center text-gray-300"><span>Total Discount:</span> <span className="font-bold text-white">{(formData.total_discount || 0).toFixed(2)}</span></div>
                                 <div className="flex justify-between items-center text-yellow-300"><span>Special Discount:</span> <input type="number" name="special_discount_amount" value={formData.special_discount_amount} onChange={handleInputChange} onFocus={e=>e.target.select()} className="bg-[#374151] text-white w-24 p-1 text-right font-bold border border-gray-600 rounded"/></div>
-                                <div className="flex justify-between items-center text-blue-300 text-lg border-t border-gray-600 pt-1 mt-1"><span>Net Payable:</span> <span className="font-bold">{formData.net_payable ? formData.net_payable.toFixed(2) : '0.00'}</span></div>
+                                <div className="flex justify-between items-center text-blue-300 text-lg border-t border-gray-600 pt-1 mt-1"><span>Net Payable:</span> <span className="font-bold">{formData.net_payable ? (formData.net_payable || 0).toFixed(2) : '0.00'}</span></div>
                                 <div className="flex justify-between items-center text-green-400"><span>Paid:</span> <input type="number" name="paid_amount" value={formData.paid_amount} onChange={handleInputChange} onFocus={e=>e.target.select()} className="bg-[#374151] text-white w-24 p-1 text-right font-bold border border-gray-600 rounded"/></div>
-                                <div className="flex justify-between items-center text-red-400 font-bold text-lg"><span>Due:</span> <span>{formData.due_bill.toFixed(2)}</span></div>
+                                <div className="flex justify-between items-center text-red-400 font-bold text-lg"><span>Due:</span> <span>{(formData.due_bill || 0).toFixed(2)}</span></div>
                             </div>
                         </div>
                         <button type="submit" className="px-6 py-2 bg-green-600 text-white rounded font-bold hover:bg-green-700">Save Invoice</button>
@@ -2246,10 +2267,10 @@ const IndoorInvoicePage: React.FC<{
                                         </div>
                                         <div className="grid grid-cols-3 gap-4 text-xs text-gray-300 border-t border-slate-700 pt-4">
                                             <div><span className="text-gray-500">Invoice Date:</span> {snapshot.invoice_date}</div>
-                                            <div><span className="text-gray-500">Total Bill:</span> ৳{snapshot.total_bill.toFixed(2)}</div>
-                                            <div><span className="text-gray-500">Paid:</span> ৳{snapshot.paid_amount.toFixed(2)}</div>
+                                            <div><span className="text-gray-500">Total Bill:</span> ৳{(snapshot.total_bill || 0).toFixed(2)}</div>
+                                            <div><span className="text-gray-500">Paid:</span> ৳{(snapshot.paid_amount || 0).toFixed(2)}</div>
                                             <div className="col-span-3">
-                                                <span className="text-gray-500">Items:</span> {snapshot.items.map((it: any) => `${it.service_type} (৳${it.payable_amount})`).join(', ')}
+                                                <span className="text-gray-500">Items:</span> {(snapshot.items || []).map((it: any) => `${it.service_type} (৳${(it.payable_amount || 0).toFixed(2)})`).join(', ')}
                                             </div>
                                         </div>
                                     </div>
