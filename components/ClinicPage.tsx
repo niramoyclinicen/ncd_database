@@ -1610,21 +1610,30 @@ const IndoorInvoicePage: React.FC<{
     };
 
     const handleGenerateId = () => {
-        if (!selectedAdmission) return alert("Select Patient first.");
+        if (!selectedAdmission) return alert("প্রথমে পেশেন্ট সিলেক্ট করুন।");
+        
         const dateToUse = formData.invoice_date || new Date().toISOString().split('T')[0];
         const safeInvoices = Array.isArray(indoorInvoices) ? indoorInvoices : [];
         const count = safeInvoices.filter(i => i.invoice_date === dateToUse).length + 1;
         const newId = `CLIN-${dateToUse}-${String(count).padStart(3, '0')}`;
+        
         setFormData(prev => ({ 
-            ...prev, 
+            ...prev,
+            ...emptyIndoorInvoice, // Reset to empty first to ensure all fields exist
             daily_id: newId, 
             invoice_date: dateToUse, 
-            admission_id: selectedAdmission.admission_id, 
-            patient_id: selectedAdmission.patient_id, 
-            patient_name: selectedAdmission.patient_name, 
+            admission_id: selectedAdmission.admission_id || '', 
+            patient_id: selectedAdmission.patient_id || '', 
+            patient_name: selectedAdmission.patient_name || '',
+            referrar_id: selectedAdmission.referrer_id || '',
+            referrar_name: selectedAdmission.referrer_name || '',
+            doctor_id: selectedAdmission.doctor_id || '',
+            doctor_name: selectedAdmission.doctor_name || '',
+            indication: selectedAdmission.indication || '',
             status: 'Posted',
-            items: prev.items || [],
-            edit_history: prev.edit_history || []
+            items: [],
+            services: [],
+            edit_history: []
         }));
     };
 
