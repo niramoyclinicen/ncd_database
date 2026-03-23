@@ -39,7 +39,8 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
   // Sync internal search term with external value (ID) -> Name
   useEffect(() => {
     const timer = setTimeout(() => {
-      const selectedOption = options.find((opt) => opt.id === value);
+      const safeOptions = Array.isArray(options) ? options : [];
+      const selectedOption = safeOptions.find((opt) => opt && opt.id === value);
       if (selectedOption) {
         setSearchTerm(selectedOption.name);
       } else {
@@ -54,11 +55,16 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
     return () => clearTimeout(timer);
   }, [value, options, isOpen, allowCustom]);
 
-  const filteredOptions = options.filter(
-    (opt) =>
-      opt.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      opt.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (opt.details && opt.details.toLowerCase().includes(searchTerm.toLowerCase()))
+  const filteredOptions = (Array.isArray(options) ? options : []).filter(
+    (opt) => {
+      if (!opt) return false;
+      const term = (searchTerm || '').toLowerCase();
+      const name = String(opt.name || '').toLowerCase();
+      const id = String(opt.id || '').toLowerCase();
+      const details = String(opt.details || '').toLowerCase();
+      
+      return name.includes(term) || id.includes(term) || details.includes(term);
+    }
   );
 
   useEffect(() => {
@@ -75,7 +81,8 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
   useEffect(() => {
       if (!isOpen) {
           const timer = setTimeout(() => {
-              const selectedOption = options.find((opt) => opt.id === value);
+          const safeOptions = Array.isArray(options) ? options : [];
+          const selectedOption = safeOptions.find((opt) => opt && opt.id === value);
               if (selectedOption) {
                   setSearchTerm(selectedOption.name);
               } else if (allowCustom && value) {

@@ -147,6 +147,9 @@ export interface IndoorInvoice {
   admission_id: string; 
   patient_id: string;
   patient_name: string;
+  patient_mobile?: string;
+  patient_address?: string;
+  patient_dob?: string;
   doctor_id?: string;
   doctor_name?: string;
   referrar_id?: string;
@@ -192,6 +195,9 @@ const emptyIndoorInvoice: IndoorInvoice = {
   admission_id: '',
   patient_id: '',
   patient_name: '',
+  patient_mobile: '',
+  patient_address: '',
+  patient_dob: '',
   doctor_id: '',
   doctor_name: '',
   referrar_id: '',
@@ -1078,11 +1084,11 @@ const AdmissionAndTreatmentPage: React.FC<{
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                              <div><label className="text-[10px] font-black text-slate-500 uppercase ml-2 mb-1 block">Adm ID</label><input value={admissionData.admission_id} disabled className="w-full p-3 bg-slate-900 border border-slate-700 rounded-xl text-blue-400 font-mono font-bold shadow-inner"/></div>
-                             <div><SearchableSelect label="Select Patient" theme="dark" options={(Array.isArray(patients) ? patients : []).map(p=>({id: p.pt_id, name: p.pt_name, details: `${p.gender}, ${p.ageY}Y`}))} value={admissionData.patient_id} onChange={(id, name)=>setAdmissionData({...admissionData, patient_id: id, patient_name: name})} onAddNew={()=>setShowNewPatientForm(true)} /></div>
-                             <div><SearchableSelect label="Consultant / MO" theme="dark" options={(Array.isArray(doctors) ? doctors : []).map(d=>({id: d.doctor_id, name: d.doctor_name, details: d.degree}))} value={admissionData.doctor_id} onChange={(id, name)=>setAdmissionData({...admissionData, doctor_id: id, doctor_name: name})} onAddNew={()=>setShowNewDoctorForm(true)} /></div>
-                             <div><SearchableSelect label="Referrer / Agent" theme="dark" options={(Array.isArray(referrars) ? referrars : []).map(r=>({id: r.ref_id, name: r.ref_name, details: r.ref_degrees}))} value={admissionData.referrer_id} onChange={(id, name)=>setAdmissionData({...admissionData, referrer_id: id, referrer_name: name})} onAddNew={()=>setShowNewReferrarForm(true)} /></div>
+                             <div><SearchableSelect label="Select Patient" theme="dark" options={(Array.isArray(patients) ? patients : []).filter(p => p).map(p=>({id: p.pt_id, name: p.pt_name, details: `${p.gender}, ${p.ageY}Y`}))} value={admissionData.patient_id} onChange={(id, name)=>setAdmissionData({...admissionData, patient_id: id, patient_name: name})} onAddNew={()=>setShowNewPatientForm(true)} /></div>
+                             <div><SearchableSelect label="Consultant / MO" theme="dark" options={(Array.isArray(doctors) ? doctors : []).filter(d => d).map(d=>({id: d.doctor_id, name: d.doctor_name, details: d.degree}))} value={admissionData.doctor_id} onChange={(id, name)=>setAdmissionData({...admissionData, doctor_id: id, doctor_name: name})} onAddNew={()=>setShowNewDoctorForm(true)} /></div>
+                             <div><SearchableSelect label="Referrer / Agent" theme="dark" options={(Array.isArray(referrars) ? referrars : []).filter(r => r).map(r=>({id: r.ref_id, name: r.ref_name, details: r.ref_degrees}))} value={admissionData.referrer_id} onChange={(id, name)=>setAdmissionData({...admissionData, referrer_id: id, referrer_name: name})} onAddNew={()=>setShowNewReferrarForm(true)} /></div>
                              
-                             <div><SearchableSelect label="Disease / Indication" theme="dark" options={(Array.isArray(indications) ? indications : []).map(i=>({id: i.id, name: i.name}))} value={(Array.isArray(indications) ? indications : []).find(i => i && i.name === admissionData.indication)?.id || ''} onChange={(_id, name)=>setAdmissionData({...admissionData, indication: name})} onAddNew={()=>setShowIndicationManager(true)} /></div>
+                             <div><SearchableSelect label="Disease / Indication" theme="dark" options={(Array.isArray(indications) ? indications : []).filter(i => i).map(i=>({id: i.id, name: i.name}))} value={(Array.isArray(indications) ? indications : []).find(i => i && i.name === admissionData.indication)?.id || ''} onChange={(_id, name)=>setAdmissionData({...admissionData, indication: name})} onAddNew={()=>setShowIndicationManager(true)} /></div>
                              <div>
                                 <label className="text-[10px] font-black text-slate-500 uppercase ml-2 mb-1 block">Bed No / Ward</label>
                                 <select 
@@ -1648,6 +1654,8 @@ const IndoorInvoicePage: React.FC<{
         const count = safeInvoices.filter(i => i && i.invoice_date === dateToUse).length + 1;
         const newId = `CLIN-${dateToUse}-${String(count).padStart(3, '0')}`;
         
+        const patient = (Array.isArray(patients) ? patients : []).find(p => p && p.pt_id === selectedAdmission.patient_id);
+
         const newInvoice: IndoorInvoice = {
             ...emptyIndoorInvoice,
             daily_id: newId,
@@ -1661,12 +1669,22 @@ const IndoorInvoicePage: React.FC<{
             doctor_name: selectedAdmission.doctor_name || '',
             indication: selectedAdmission.indication || '',
             admission_date: selectedAdmission.admission_date || '',
+            // Adding defensive defaults for new fields to support old data
+            patient_mobile: patient?.mobile || '',
+            patient_address: patient?.address || '',
+            patient_dob: patient ? `${patient.dobY}-${patient.dobM}-${patient.dobD}` : '',
             status: 'Posted',
             items: [],
             services: [],
-            edit_history: []
+            total_bill: 0,
+            total_discount: 0,
+            paid_amount: 0,
+            due_bill: 0,
+            net_payable: 0,
+            special_discount_amount: 0,
+            bill_created_by: 'System',
+            subCategory: ''
         };
-
         setFormData(newInvoice);
     };
 
@@ -1893,9 +1911,13 @@ const IndoorInvoicePage: React.FC<{
 
     const handleLoadInvoice = (inv: IndoorInvoice) => {
         if (!inv) return;
+        const patient = (Array.isArray(patients) ? patients : []).find(p => p && p.pt_id === inv.patient_id);
         const cleanedInv = {
             ...emptyIndoorInvoice,
             ...inv,
+            patient_mobile: inv.patient_mobile || patient?.mobile || '',
+            patient_address: inv.patient_address || patient?.address || '',
+            patient_dob: inv.patient_dob || (patient ? `${patient.dobY}-${patient.dobM}-${patient.dobD}` : ''),
             items: Array.isArray(inv.items) ? inv.items : [],
             edit_history: Array.isArray(inv.edit_history) ? inv.edit_history : [],
             total_bill: Number(inv.total_bill) || 0,
@@ -2025,9 +2047,9 @@ const IndoorInvoicePage: React.FC<{
                             label="" 
                             theme="dark" 
                             placeholder="Search Patient or Date..."
-                            options={(Array.isArray(admissions) ? admissions : []).map(a => {
+                            options={(Array.isArray(admissions) ? admissions : []).filter(a => a).map(a => {
                                 const safePatients = Array.isArray(patients) ? patients : [];
-                                const p = safePatients.find(pt => pt.pt_id === a.patient_id);
+                                const p = safePatients.find(pt => pt && pt.pt_id === a.patient_id);
                                 return {
                                     id: a.admission_id || '', 
                                     name: a.patient_name || 'Unknown Patient', 
@@ -2094,6 +2116,9 @@ const IndoorInvoicePage: React.FC<{
                             <div><label className="block text-xs text-gray-400">Entry Date (System)</label><input type="text" value={formData.created_at ? new Date(formData.created_at).toLocaleString() : 'Not Saved Yet'} disabled className="w-full p-2 bg-[#1a202c] border border-gray-600 rounded text-gray-400 text-[10px]"/></div>
                             <div><label className="block text-xs text-gray-400">Admission Date</label><input type="date" name="admission_date" value={formData.admission_date} onChange={handleInputChange} className="w-full p-2 bg-[#374151] border border-gray-600 rounded text-white"/></div>
                             <div><label className="block text-xs text-gray-400">Discharge Date</label><input type="date" name="discharge_date" value={formData.discharge_date} onChange={handleInputChange} className="w-full p-2 bg-[#374151] border border-gray-600 rounded text-white"/></div>
+                            <div><label className="block text-xs text-gray-400">Patient Mobile</label><input type="text" name="patient_mobile" value={formData.patient_mobile || ''} onChange={handleInputChange} className="w-full p-2 bg-[#374151] border border-gray-600 rounded text-white"/></div>
+                            <div><label className="block text-xs text-gray-400">Patient Address</label><input type="text" name="patient_address" value={formData.patient_address || ''} onChange={handleInputChange} className="w-full p-2 bg-[#374151] border border-gray-600 rounded text-white"/></div>
+                            <div><label className="block text-xs text-gray-400">Patient DOB</label><input type="text" name="patient_dob" value={formData.patient_dob || ''} onChange={handleInputChange} className="w-full p-2 bg-[#374151] border border-gray-600 rounded text-white" placeholder="YYYY-MM-DD"/></div>
                             <div className="flex flex-col justify-center items-center bg-slate-800 rounded border border-slate-600 p-2">
                                 <label className="block text-xs text-gray-400 mb-1">PC (Apply?)</label>
                                 <div className="flex gap-2 items-center">
