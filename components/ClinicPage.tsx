@@ -560,7 +560,11 @@ const CertificateModal: React.FC<{
                             {(Array.isArray(savedCerts) ? savedCerts : []).map(cert => cert && (
                                 <div key={cert.id} className="bg-slate-900 p-6 rounded-3xl border border-slate-800 flex justify-between items-center group hover:border-blue-500/50 transition-all shadow-xl">
                                     <div className="flex items-center gap-6">
-                                        <div className="w-12 h-12 bg-slate-800 rounded-2xl flex items-center justify-center font-black text-slate-500 text-xs shadow-inner uppercase">{cert.date?.split('-')[2]}<br/>{monthOptions[parseInt(cert.date?.split('-')[1])-1]?.name?.substring(0,3)}</div>
+                                        <div className="w-12 h-12 bg-slate-800 rounded-2xl flex items-center justify-center font-black text-slate-500 text-xs shadow-inner uppercase">
+                                            {cert.date?.split('-')[2] || ''}
+                                            <br/>
+                                            {cert.date?.split('-')[1] ? monthOptions[parseInt(cert.date.split('-')[1]) - 1]?.name?.substring(0, 3) : ''}
+                                        </div>
                                         <div>
                                             <h4 className="font-black text-white uppercase text-lg leading-none">{cert.patientName}</h4>
                                             <p className="text-[10px] text-slate-500 font-bold uppercase mt-1">ID: {cert.admissionId} | Issued: {new Date(cert.createdDate).toLocaleDateString()}</p>
@@ -680,7 +684,9 @@ const DischargeRxMasterModal: React.FC<{
                         {filtered.map(adm => (
                             <div key={adm.admission_id} className="bg-slate-900 p-6 rounded-3xl border border-slate-800 hover:border-emerald-500/50 transition-all flex justify-between items-center group shadow-xl">
                                 <div className="flex items-center gap-6">
-                                    <div className="w-14 h-14 bg-slate-800 rounded-2xl flex items-center justify-center font-black text-emerald-500 text-sm shadow-inner uppercase border border-slate-700">{adm.admission_id.split('-').pop()}</div>
+                                    <div className="w-14 h-14 bg-slate-800 rounded-2xl flex items-center justify-center font-black text-emerald-500 text-sm shadow-inner uppercase border border-slate-700">
+                                        {adm.admission_id ? (adm.admission_id.split('-').pop() || '') : ''}
+                                    </div>
                                     <div>
                                         <h4 className="font-black text-white uppercase text-lg leading-tight group-hover:text-emerald-400 transition-colors">{adm.patient_name}</h4>
                                         <p className="text-[10px] text-slate-500 font-bold uppercase mt-1 tracking-widest">Adm: {adm.admission_date} | Bed: {adm.bed_no || 'N/A'}</p>
@@ -1869,11 +1875,11 @@ const IndoorInvoicePage: React.FC<{
                     </tbody>
                 </table>
                 <div class="total-section">
-                    <div class="total-row"><span>Gross Total:</span> <span>৳${inv.total_bill.toFixed(2)}</span></div>
-                    <div class="total-row"><span>Discount:</span> <span>৳${(inv.total_discount + (inv.special_discount_amount || 0)).toFixed(2)}</span></div>
-                    <div class="total-row" style="font-size: 18px; color: #1e40af"><span>Net Payable:</span> <span>৳${(inv.net_payable || inv.payable_bill).toFixed(2)}</span></div>
-                    <div class="total-row" style="color: green"><span>Paid Amount:</span> <span>৳${inv.paid_amount.toFixed(2)}</span></div>
-                    <div class="total-row" style="color: red"><span>Due Balance:</span> <span>৳${inv.due_bill.toFixed(2)}</span></div>
+                    <div class="total-row"><span>Gross Total:</span> <span>৳${Number(inv.total_bill || 0).toFixed(2)}</span></div>
+                    <div class="total-row"><span>Discount:</span> <span>৳${(Number(inv.total_discount || 0) + Number(inv.special_discount_amount || 0)).toFixed(2)}</span></div>
+                    <div class="total-row" style="font-size: 18px; color: #1e40af"><span>Net Payable:</span> <span>৳${Number(inv.net_payable || 0).toFixed(2)}</span></div>
+                    <div class="total-row" style="color: green"><span>Paid Amount:</span> <span>৳${Number(inv.paid_amount || 0).toFixed(2)}</span></div>
+                    <div class="total-row" style="color: red"><span>Due Balance:</span> <span>৳${Number(inv.due_bill || 0).toFixed(2)}</span></div>
                 </div>
                 ${inv.status === 'Returned' ? '<div style="color: red; text-align: center; border: 2px solid red; padding: 10px; margin-top: 20px; font-weight: bold; font-size: 16px;">RETURNED / REFUNDED</div>' : ''}
                 <div class="signature-area">
@@ -2287,10 +2293,10 @@ const IndoorInvoicePage: React.FC<{
                                         </div>
                                         <div className="grid grid-cols-3 gap-4 text-xs text-gray-300 border-t border-slate-700 pt-4">
                                             <div><span className="text-gray-500">Invoice Date:</span> {snapshot.invoice_date}</div>
-                                            <div><span className="text-gray-500">Total Bill:</span> ৳{(snapshot.total_bill || 0).toFixed(2)}</div>
-                                            <div><span className="text-gray-500">Paid:</span> ৳{(snapshot.paid_amount || 0).toFixed(2)}</div>
+                                            <div><span className="text-gray-500">Total Bill:</span> ৳{Number(snapshot.total_bill || 0).toFixed(2)}</div>
+                                            <div><span className="text-gray-500">Paid:</span> ৳{Number(snapshot.paid_amount || 0).toFixed(2)}</div>
                                             <div className="col-span-3">
-                                                <span className="text-gray-500">Items:</span> {(snapshot.items || []).map((it: any) => `${it.service_type} (৳${(it.payable_amount || 0).toFixed(2)})`).join(', ')}
+                                                <span className="text-gray-500">Items:</span> {(Array.isArray(snapshot.items) ? snapshot.items : []).map((it: any) => it && `${it.service_type || 'Unknown'} (৳${Number(it.payable_amount || 0).toFixed(2)})`).join(', ')}
                                             </div>
                                         </div>
                                     </div>
@@ -2300,8 +2306,8 @@ const IndoorInvoicePage: React.FC<{
                                     <h4 className="text-emerald-400 font-bold text-sm mb-2 uppercase tracking-widest">Current Active Version</h4>
                                     <div className="grid grid-cols-3 gap-4 text-xs text-gray-300">
                                         <div><span className="text-gray-500">Invoice Date:</span> {historyInvoice.invoice_date}</div>
-                                        <div><span className="text-gray-500">Total Bill:</span> ৳{historyInvoice.total_bill.toFixed(2)}</div>
-                                        <div><span className="text-gray-500">Paid:</span> ৳{historyInvoice.paid_amount.toFixed(2)}</div>
+                                        <div><span className="text-gray-500">Total Bill:</span> ৳{Number(historyInvoice.total_bill || 0).toFixed(2)}</div>
+                                        <div><span className="text-gray-500">Paid:</span> ৳{Number(historyInvoice.paid_amount || 0).toFixed(2)}</div>
                                     </div>
                                 </div>
                             </div>
@@ -2393,9 +2399,9 @@ const IndoorInvoicePage: React.FC<{
                                                 })()}
                                             </div>
                                         </td>
-                                        <td className="p-3 text-right font-bold font-mono">৳{inv.total_bill.toFixed(2)}</td>
-                                        <td className="p-3 text-right text-emerald-400 font-black font-mono">৳{inv.paid_amount.toFixed(2)}</td>
-                                        <td className="p-3 text-right text-rose-500 font-black font-mono">৳{inv.due_bill.toFixed(2)}</td>
+                                        <td className="p-3 text-right font-bold font-mono">৳{Number(inv.total_bill || 0).toFixed(2)}</td>
+                                        <td className="p-3 text-right text-emerald-400 font-black font-mono">৳{Number(inv.paid_amount || 0).toFixed(2)}</td>
+                                        <td className="p-3 text-right text-rose-500 font-black font-mono">৳{Number(inv.due_bill || 0).toFixed(2)}</td>
                                         <td className="p-3 text-center"><span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase ${inv.status==='Returned'?'bg-rose-600 text-white':inv.status==='Cancelled'?'bg-slate-700 text-slate-300':'bg-blue-600 text-white'}`}>{inv.status}</span></td>
                                         <td className="p-3 text-center space-x-3" onClick={e=>e.stopPropagation()}>
                                             <button onClick={(e) => { e.stopPropagation(); handlePrintInvoice(inv); }} className="text-sky-400 hover:text-white text-xs font-bold underline">Print</button>
@@ -2445,8 +2451,8 @@ const ClinicDueCollectionPage: React.FC<{
             <table>
                 <tr><td><b>Patient Name:</b> ${invoice.patient_name}</td><td><b>Date:</b> ${new Date().toLocaleDateString()}</td></tr>
                 <tr><td><b>Invoice ID:</b> ${invoice.daily_id}</td><td><b>Receipt No:</b> REC-${Date.now().toString().slice(-5)}</td></tr>
-                <tr><td><b>Amount Collected:</b></td><td style="font-size:18px; font-weight:bold">৳${paidAmount.toFixed(2)}</td></tr>
-                <tr><td><b>Remaining Due:</b></td><td>৳${(invoice.due_bill - paidAmount).toFixed(2)}</td></tr>
+                <tr><td><b>Amount Collected:</b></td><td style="font-size:18px; font-weight:bold">৳${Number(paidAmount || 0).toFixed(2)}</td></tr>
+                <tr><td><b>Remaining Due:</b></td><td>৳${Number((invoice.due_bill || 0) - paidAmount).toFixed(2)}</td></tr>
             </table>
             <div style="margin-top:30px; text-align:right"><b>Authorized Sign</b><br>..........................</div>
         </div></body></html>`;
