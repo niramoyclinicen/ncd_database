@@ -280,7 +280,7 @@ const serviceTypesList = [
     'OT Charge', '02(Oxygen)', 'Nebulization', 'Doctor food', 'Doctor donation', 'Vehicle rent', 'Dressing', 'Maintenance fee', 'Other'
 ];
 const doctorServiceTypes = [
-    "Doctor round fee", "Doctor prescription fee", "Obstetrician/ Midwife", "Surgeon", "Anaesthetist", "Assistant_1", "Assistant_2"
+    "Doctor round fee", "Doctor prescription fee", "Obstetrician/ Midwife", "Surgeon", "Anaesthetist", "Assistant_1", "Assistant_2", "Discharge writing fee"
 ];
 
 const clinicFundServiceTypes = ['Admission Fee', 'OT Charge', '02(Oxygen)', 'Nebulization', 'Dressing', 'Bed rent', 'Service Charge', 'Maintenance fee'];
@@ -304,14 +304,15 @@ const GenericManagerPage: React.FC<{
     setItems: React.Dispatch<React.SetStateAction<any[]>>;
     onClose: () => void;
     onSaveAndSelect: (id: string, name: string) => void;
-}> = ({ title, placeholder, items, setItems, onClose, onSaveAndSelect }) => {
+    extraFields?: any;
+}> = ({ title, placeholder, items, setItems, onClose, onSaveAndSelect, extraFields }) => {
     const [name, setName] = useState('');
     const inputRef = useRef<HTMLInputElement>(null);
     useEffect(() => { inputRef.current?.focus(); }, []);
     
     const handleSave = () => {
         if (!name.trim()) return;
-        const newItem = { id: new Date().getTime().toString(), name: name.trim() };
+        const newItem = { id: new Date().getTime().toString(), name: name.trim(), ...extraFields };
         setItems([...items, newItem]);
         onSaveAndSelect(newItem.id, newItem.name);
     };
@@ -1477,7 +1478,7 @@ const IndoorInvoicePage: React.FC<{
     const [selectedAdmission, setSelectedAdmission] = useState<AdmissionRecord | null>(null);
     const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
     const [applyPC, setApplyPC] = useState(false); 
-    const [subCategories, setSubCategories] = useState<{id: string, name: string}[]>(() => JSON.parse(localStorage.getItem('ncd_clinic_subcategories') || '[]'));
+    const [subCategories, setSubCategories] = useState<{id: string, name: string, mainCategory?: string}[]>(() => JSON.parse(localStorage.getItem('ncd_clinic_subcategories') || '[]'));
     const [showSubCategoryManager, setShowSubCategoryManager] = useState(false);
     
     // Persistent OT Details Library for Suggestions
@@ -2138,6 +2139,7 @@ const IndoorInvoicePage: React.FC<{
                                     onAddNew={() => setShowSubCategoryManager(true)}
                                     required={true}
                                     inputHeightClass="h-[38px] bg-[#374151] border-gray-600"
+                                    allowCustom={true}
                                 />
                             </div>
                             <div className="col-span-2"><label className="block text-xs text-gray-400">Referrer</label><select name="referrar_id" value={formData.referrar_id} onChange={(e) => { const ref = referrars.find(r => r.ref_id === e.target.value); setFormData({...formData, referrar_id: ref?.ref_id, referrar_name: ref?.ref_name}); }} className={commonInputClasses}><option value="">Select...</option>{referrars.map(r => <option key={r.ref_id} value={r.ref_id}>{r.ref_name}</option>)}</select></div>
@@ -2284,6 +2286,7 @@ const IndoorInvoicePage: React.FC<{
                         items={subCategories} 
                         setItems={setSubCategories} 
                         onClose={() => setShowSubCategoryManager(false)} 
+                        extraFields={{ mainCategory: formData.serviceCategory }}
                         onSaveAndSelect={(_id, name) => {
                             setFormData(prev => ({...prev, subCategory: name}));
                             setShowSubCategoryManager(false);
