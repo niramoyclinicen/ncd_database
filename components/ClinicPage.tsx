@@ -1132,11 +1132,12 @@ const AdmissionAndTreatmentPage: React.FC<{
                         <div className="overflow-x-auto rounded-2xl border border-slate-700">
                              <table className="w-full text-left border-collapse text-sm">
                                 <thead className="bg-slate-900 text-[10px] uppercase font-black text-slate-500 tracking-widest border-b border-slate-700">
-                                    <tr><th className="p-5">Adm ID</th><th className="p-5">Patient Name</th><th className="p-5">Doctor</th><th className="p-5">Bed</th><th className="p-5">Indication</th><th className="p-5 text-center">Action</th></tr>
+                                    <tr><th className="p-5 w-12 text-center">SL</th><th className="p-5">Adm ID</th><th className="p-5">Patient Name</th><th className="p-5">Doctor</th><th className="p-5">Bed</th><th className="p-5">Indication</th><th className="p-5 text-center">Action</th></tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-700/50">
-                                    {(Array.isArray(filteredAdmissions) ? filteredAdmissions : []).map(adm => (
+                                    {(Array.isArray(filteredAdmissions) ? filteredAdmissions : []).map((adm, index) => (
                                         <tr key={adm.admission_id} className="hover:bg-slate-700/30 transition-colors">
+                                            <td className="p-5 text-center text-slate-500 font-mono text-xs">{index + 1}</td>
                                             <td className="p-5 font-mono text-xs text-blue-400 font-bold">{adm.admission_id}</td>
                                             <td className="p-5 font-black text-white uppercase">{adm.patient_name}</td>
                                             <td className="p-5 font-bold text-slate-300">{adm.doctor_name}</td>
@@ -1145,10 +1146,16 @@ const AdmissionAndTreatmentPage: React.FC<{
                                             <td className="p-5 text-center flex gap-2 justify-center">
                                                 <button onClick={()=>handleSelectPatientForTreatment(adm)} className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg font-black text-[10px] uppercase shadow-lg transition-all">Treatment</button>
                                                 <button onClick={()=>handleEditAdmissionInfo(adm)} className="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg font-black text-[10px] uppercase shadow-lg transition-all">Edit</button>
+                                                <button onClick={()=>{
+                                                    if(confirm(`Are you sure you want to CANCEL admission for ${adm.patient_name}? This will free the bed.`)) {
+                                                        setAdmissions(prev => prev.filter(a => a.admission_id !== adm.admission_id));
+                                                        setSuccessMessage("Admission cancelled successfully.");
+                                                    }
+                                                }} className="bg-rose-900/50 hover:bg-rose-600 text-rose-200 px-4 py-2 rounded-lg font-black text-[10px] uppercase shadow-lg transition-all">Cancel</button>
                                             </td>
                                         </tr>
                                     ))}
-                                    {(Array.isArray(filteredAdmissions) ? filteredAdmissions : []).length === 0 && <tr><td colSpan={6} className="p-20 text-center text-slate-600 italic font-black uppercase opacity-20 text-xl tracking-[0.2em]">{searchTerm ? "No Matching Patients" : "No Active Inpatients"}</td></tr>}
+                                    {(Array.isArray(filteredAdmissions) ? filteredAdmissions : []).length === 0 && <tr><td colSpan={7} className="p-20 text-center text-slate-600 italic font-black uppercase opacity-20 text-xl tracking-[0.2em]">{searchTerm ? "No Matching Patients" : "No Active Inpatients"}</td></tr>}
                                 </tbody>
                              </table>
                         </div>
@@ -1519,8 +1526,24 @@ const IndoorInvoicePage: React.FC<{
             acc.total += (inv.total_bill || 0);
             acc.paid += (inv.paid_amount || 0);
             acc.due += (inv.due_bill || 0);
+            
+            // Calculate Clinic Net for this invoice
+            if (inv.status !== 'Cancelled') {
+                const items = Array.isArray(inv.items) ? inv.items : [];
+                const nonFundedCost = items
+                    .filter(it => it && !it.isClinicFund)
+                    .reduce((s, it) => s + (it.payable_amount || 0), 0);
+                const pcAmount = (inv.special_commission || 0) + (inv.commission_paid || 0);
+                
+                if (inv.status === 'Returned') {
+                    acc.net -= ((inv.paid_amount || 0) - nonFundedCost - pcAmount);
+                } else {
+                    acc.net += ((inv.paid_amount || 0) - nonFundedCost - pcAmount);
+                }
+            }
+            
             return acc;
-        }, { total: 0, paid: 0, due: 0 });
+        }, { total: 0, paid: 0, due: 0, net: 0 });
     }, [filteredInvoices]);
 
     useEffect(() => {
@@ -1648,28 +1671,28 @@ const IndoorInvoicePage: React.FC<{
     };
 
     const handleGenerateId = () => {
-        if (!selectedAdmission) return alert("প্রথমে পেশেন্ট সিলেক্ট করুন।");
+        if (!selectedAdmission && !formData.patient_id) return alert("প্রথমে পেশেন্ট সিলেক্ট করুন।");
         
         const dateToUse = formData.invoice_date || new Date().toISOString().split('T')[0];
         const safeInvoices = Array.isArray(indoorInvoices) ? indoorInvoices : [];
         const count = safeInvoices.filter(i => i && i.invoice_date === dateToUse).length + 1;
         const newId = `CLIN-${dateToUse}-${String(count).padStart(3, '0')}`;
         
-        const patient = (Array.isArray(patients) ? patients : []).find(p => p && p.pt_id === selectedAdmission.patient_id);
+        const patient = (Array.isArray(patients) ? patients : []).find(p => p && p.pt_id === (selectedAdmission?.patient_id || formData.patient_id));
 
         const newInvoice: IndoorInvoice = {
             ...emptyIndoorInvoice,
             daily_id: newId,
             invoice_date: dateToUse,
-            admission_id: selectedAdmission.admission_id || '',
-            patient_id: selectedAdmission.patient_id || '',
-            patient_name: selectedAdmission.patient_name || '',
-            referrar_id: selectedAdmission.referrer_id || '',
-            referrar_name: selectedAdmission.referrer_name || '',
-            doctor_id: selectedAdmission.doctor_id || '',
-            doctor_name: selectedAdmission.doctor_name || '',
-            indication: selectedAdmission.indication || '',
-            admission_date: selectedAdmission.admission_date || '',
+            admission_id: selectedAdmission?.admission_id || '',
+            patient_id: patient?.pt_id || '',
+            patient_name: patient?.pt_name || '',
+            referrar_id: selectedAdmission?.referrer_id || '',
+            referrar_name: selectedAdmission?.referrer_name || '',
+            doctor_id: selectedAdmission?.doctor_id || '',
+            doctor_name: selectedAdmission?.doctor_name || '',
+            indication: selectedAdmission?.indication || 'Outdoor Service',
+            admission_date: selectedAdmission?.admission_date || '',
             // Adding defensive defaults for new fields to support old data
             patient_mobile: patient?.mobile || '',
             patient_address: patient?.address || '',
@@ -2043,11 +2066,12 @@ const IndoorInvoicePage: React.FC<{
             <div className="bg-[#20293a] p-6 rounded border border-[#374151]">
                 <h3 className="text-xl font-bold text-white mb-4 border-b border-gray-700 pb-2">Indoor Invoice</h3>
                 <div className="flex flex-wrap gap-4 mb-6">
-                    <div className="w-full md:w-1/3">
+                    <div className="w-full md:w-1/4">
+                        <label className="block text-xs text-gray-400 mb-1">Admitted Patient</label>
                         <SearchableSelect 
                             label="" 
                             theme="dark" 
-                            placeholder="Search Patient or Date..."
+                            placeholder="Search Admitted Patient..."
                             options={(Array.isArray(admissions) ? admissions : []).filter(a => a).map(a => {
                                 const safePatients = Array.isArray(patients) ? patients : [];
                                 const p = safePatients.find(pt => pt && pt.pt_id === a.patient_id);
@@ -2073,8 +2097,45 @@ const IndoorInvoicePage: React.FC<{
                             }} 
                         />
                     </div>
-                    <div className="flex flex-wrap gap-2">
-                        <button onClick={handleGenerateId} className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded font-bold shadow transition-all text-xs uppercase">Generate ID</button>
+                    <div className="w-full md:w-1/4">
+                        <label className="block text-xs text-gray-400 mb-1">Outdoor Patient (Not Admitted)</label>
+                        <SearchableSelect 
+                            label="" 
+                            theme="dark" 
+                            placeholder="Search All Patients..."
+                            options={(Array.isArray(patients) ? patients : []).filter(p => p).map(p => ({
+                                id: p.pt_id || '', 
+                                name: p.pt_name || 'Unknown', 
+                                details: `ID: ${p.pt_id} | Mob: ${p.mobile || 'N/A'} | Addr: ${p.address || 'N/A'}`
+                            }))} 
+                            value={formData.patient_id || ''} 
+                            onChange={(id) => { 
+                                const safePatients = Array.isArray(patients) ? patients : [];
+                                const p = safePatients.find(pt => pt.pt_id === id); 
+                                if(p) {
+                                    setSelectedAdmission(null);
+                                    setFormData({
+                                        ...emptyIndoorInvoice, 
+                                        patient_id: p.pt_id || '', 
+                                        patient_name: p.pt_name || '', 
+                                        status: 'Posted',
+                                        indication: 'Outdoor Service'
+                                    });
+                                }
+                            }} 
+                        />
+                    </div>
+                    <div className="w-full md:w-1/6">
+                        <label className="block text-xs text-gray-400 mb-1">Invoice Date</label>
+                        <input 
+                            type="date" 
+                            className={commonInputClasses} 
+                            value={formData.invoice_date || ''} 
+                            onChange={(e) => setFormData(prev => ({ ...prev, invoice_date: e.target.value }))}
+                        />
+                    </div>
+                    <div className="flex items-end gap-2">
+                        <button onClick={handleGenerateId} className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded font-bold shadow transition-all text-xs uppercase h-10">Generate ID</button>
                         {formData.daily_id && (
                             <button 
                                 onClick={() => { 
@@ -2383,6 +2444,10 @@ const IndoorInvoicePage: React.FC<{
                             <p className="text-2xl font-black text-emerald-400 font-mono">৳{tableTotals.paid.toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
                         </div>
                         <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 text-center shadow-lg">
+                            <h4 className="text-slate-500 text-[10px] uppercase font-black tracking-widest mb-1">Clinic Net Balance</h4>
+                            <p className="text-2xl font-black text-sky-400 font-mono">৳{tableTotals.net.toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
+                        </div>
+                        <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 text-center shadow-lg">
                             <h4 className="text-slate-500 text-[10px] uppercase font-black tracking-widest mb-1">Total Outstanding Due</h4>
                             <p className="text-2xl font-black text-rose-500 font-mono">৳{tableTotals.due.toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
                         </div>
@@ -2398,6 +2463,7 @@ const IndoorInvoicePage: React.FC<{
                                     <th className="p-3">Patient Details</th>
                                     <th className="p-3 text-right w-32">Total</th>
                                     <th className="p-3 text-right w-32">Paid</th>
+                                    <th className="p-3 text-right w-32">Clinic Net</th>
                                     <th className="p-3 text-right w-32">Due</th>
                                     <th className="p-3 text-center w-24">Status</th>
                                     <th className="p-3 text-center w-40">Action</th>
@@ -2429,6 +2495,18 @@ const IndoorInvoicePage: React.FC<{
                                         </td>
                                         <td className="p-3 text-right font-bold font-mono">৳{Number(inv.total_bill || 0).toFixed(2)}</td>
                                         <td className="p-3 text-right text-emerald-400 font-black font-mono">৳{Number(inv.paid_amount || 0).toFixed(2)}</td>
+                                        <td className="p-3 text-right text-sky-400 font-bold font-mono">
+                                            {(() => {
+                                                if (inv.status === 'Cancelled') return '৳0.00';
+                                                const items = Array.isArray(inv.items) ? inv.items : [];
+                                                const nonFundedCost = items
+                                                    .filter(it => it && !it.isClinicFund)
+                                                    .reduce((s, it) => s + (it.payable_amount || 0), 0);
+                                                const pcAmount = (inv.special_commission || 0) + (inv.commission_paid || 0);
+                                                const net = (inv.paid_amount || 0) - nonFundedCost - pcAmount;
+                                                return `৳${(inv.status === 'Returned' ? -net : net).toFixed(2)}`;
+                                            })()}
+                                        </td>
                                         <td className="p-3 text-right text-rose-500 font-black font-mono">৳{Number(inv.due_bill || 0).toFixed(2)}</td>
                                         <td className="p-3 text-center"><span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase ${inv.status==='Returned'?'bg-rose-600 text-white':inv.status==='Cancelled'?'bg-slate-700 text-slate-300':'bg-blue-600 text-white'}`}>{inv.status}</span></td>
                                         <td className="p-3 text-center space-x-3" onClick={e=>e.stopPropagation()}>
@@ -2554,11 +2632,25 @@ const ReportSummaryPage: React.FC<{
 };
 
 // 5. Bed Management
-const BedManagementPage: React.FC<{ admissions: AdmissionRecord[]; }> = ({ admissions }) => {
+const BedManagementPage: React.FC<{ admissions: AdmissionRecord[]; setAdmissions: React.Dispatch<React.SetStateAction<AdmissionRecord[]>>; }> = ({ admissions, setAdmissions }) => {
     const wards = [{ id: 'male_ward', name: 'Male Ward', beds: Array.from({length: 5}, (_, i) => `M-${String(i+1).padStart(2, '0')}`) }, { id: 'female_ward', name: 'Female Ward', beds: Array.from({length: 5}, (_, i) => `F-${String(i+1).padStart(2, '0')}`) }, { id: 'cabin', name: 'Cabins', beds: ['CAB-101', 'CAB-102', 'CAB-103', 'CAB-104', 'VIP-01'] }];
     const getBedStatus = (bedId: string) => {
         const safeAdmissions = Array.isArray(admissions) ? admissions : [];
         return safeAdmissions.find(a => a && a.bed_no === bedId && !a.discharge_date);
+    };
+
+    const handleFreeBed = (bedId: string) => {
+        const admission = getBedStatus(bedId);
+        if (!admission) return;
+        
+        if (confirm(`Are you sure you want to manually FREE bed ${bedId}? This will remove the bed assignment from ${admission.patient_name}.`)) {
+            setAdmissions(prev => prev.map(adm => {
+                if (adm.admission_id === admission.admission_id) {
+                    return { ...adm, bed_no: '' };
+                }
+                return adm;
+            }));
+        }
     };
 
     const handlePrintBedMap = () => {
@@ -2588,7 +2680,41 @@ const BedManagementPage: React.FC<{ admissions: AdmissionRecord[]; }> = ({ admis
                 <h3 className="text-xl font-bold text-white">Bed Management Status</h3>
                 <button onClick={handlePrintBedMap} className="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded text-xs font-bold transition-all flex items-center gap-2"><FileTextIcon className="w-4 h-4"/> Print Bed Map</button>
             </div>
-            <div className="space-y-8">{(Array.isArray(wards) ? wards : []).map(ward => ward && (<div key={ward.id}><h4 className="text-lg font-semibold text-gray-300 mb-3 ml-1 border-l-4 border-blue-500 pl-2">{ward.name}</h4><div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">{(Array.isArray(ward.beds) ? ward.beds : []).map(bedId => { const admission = getBedStatus(bedId); const isOccupied = !!admission; return (<div key={bedId} className={`relative p-4 rounded-lg border-2 transition-all duration-200 flex flex-col justify-between h-28 ${isOccupied ? 'bg-red-900/20 border-red-500/50 hover:shadow-[0_0_10px_rgba(239,68,68,0.3)]' : 'bg-emerald-900/20 border-emerald-500/50 hover:shadow-[0_0_10px_rgba(16,185,129,0.3)] hover:bg-emerald-900/30'}`}><div className="flex justify-between items-start"><span className={`text-sm font-bold ${isOccupied ? 'text-red-400' : 'text-emerald-400'}`}>{bedId}</span>{isOccupied ? <UserPlusIcon className="w-4 h-4 text-red-400"/> : <Armchair className="w-4 h-4 text-emerald-400"/>}</div>{isOccupied ? (<div className="mt-2"><div className="text-xs text-white font-bold truncate" title={admission.patient_name}>{admission.patient_name}</div><div className="text-[10px] text-gray-400 truncate">ID: {admission.admission_id}</div></div>) : (<div className="mt-auto text-center"><span className="text-xs text-emerald-500 font-medium bg-emerald-500/10 px-2 py-0.5 rounded">Available</span></div>)}</div>); })}</div></div>))}</div>
+            <div className="space-y-8">
+                {(Array.isArray(wards) ? wards : []).map(ward => ward && (
+                    <div key={ward.id}>
+                        <h4 className="text-lg font-semibold text-gray-300 mb-3 ml-1 border-l-4 border-blue-500 pl-2">{ward.name}</h4>
+                        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                            {(Array.isArray(ward.beds) ? ward.beds : []).map(bedId => {
+                                const admission = getBedStatus(bedId);
+                                const isOccupied = !!admission;
+                                return (
+                                    <div key={bedId} className={`relative p-4 rounded-lg border-2 transition-all duration-200 flex flex-col justify-between h-32 ${isOccupied ? 'bg-red-900/20 border-red-500/50 hover:shadow-[0_0_10px_rgba(239,68,68,0.3)]' : 'bg-emerald-900/20 border-emerald-500/50 hover:shadow-[0_0_10px_rgba(16,185,129,0.3)] hover:bg-emerald-900/30'}`}>
+                                        <div className="flex justify-between items-start">
+                                            <span className={`text-sm font-bold ${isOccupied ? 'text-red-400' : 'text-emerald-400'}`}>{bedId}</span>
+                                            {isOccupied ? (
+                                                <button onClick={() => handleFreeBed(bedId)} className="p-1 bg-red-600/20 hover:bg-red-600 text-red-500 hover:text-white rounded transition-all" title="Free Bed Manually">
+                                                    <TrashIcon size={12}/>
+                                                </button>
+                                            ) : <Armchair className="w-4 h-4 text-emerald-400"/>}
+                                        </div>
+                                        {isOccupied ? (
+                                            <div className="mt-2">
+                                                <div className="text-xs text-white font-bold truncate" title={admission.patient_name}>{admission.patient_name}</div>
+                                                <div className="text-[10px] text-gray-400 truncate">ID: {admission.admission_id}</div>
+                                            </div>
+                                        ) : (
+                                            <div className="mt-auto text-center">
+                                                <span className="text-xs text-emerald-500 font-medium bg-emerald-500/10 px-2 py-0.5 rounded">Available</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                ))}
+            </div>
         </div>
     );
 };
@@ -2677,7 +2803,7 @@ const ClinicPage: React.FC<ClinicPageProps> = ({
                     </div>
 
                     <div className={activeTab === 'bed_status' ? 'block' : 'hidden'}>
-                        <BedManagementPage admissions={admissions} />
+                        <BedManagementPage admissions={admissions} setAdmissions={setAdmissions} />
                     </div>
 
                     <div className={activeTab === 'invoice' ? 'block' : 'hidden'}>

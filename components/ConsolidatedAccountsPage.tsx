@@ -134,6 +134,9 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
     const [futurePlans, setFuturePlans] = useState<FuturePlan[]>(() => JSON.parse(localStorage.getItem('ncd_future_plans') || '[]'));
     const [companyCollections, setCompanyCollections] = useState<CompanyCollection[]>(() => JSON.parse(localStorage.getItem('ncd_company_collections') || '[]'));
     
+    const [showSaveConfirm, setShowSaveConfirm] = useState(false);
+    const [saveSuccess, setSaveSuccess] = useState(false);
+
     const [monthlyAdjustments, setMonthlyAdjustments] = useState<Record<string, { profitDist: number; houseRent: number; loanInstallment: number }>>(() => 
         JSON.parse(localStorage.getItem('ncd_monthly_adjustments') || '{}')
     );
@@ -803,7 +806,18 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                                 <tr className="bg-rose-50 h-8"><td colSpan={2} className={`${commonTableCellClass} text-rose-900`}>মোট খরচ (B)</td><td className={`${commonAmtCellClass} text-rose-900`}>({summary.totalExpense.toLocaleString()})</td></tr>
                                                 <tr className="bg-amber-50 h-8">
                                                     <td className={`${commonTableCellClass} text-amber-900`}>লভ্যাংশ বন্টন</td>
-                                                    <td className="no-print"><input type="number" value={adj.profitDist || ''} onChange={e=>updateAdjustment('profitDist', parseFloat(e.target.value)||0)} className="w-24 text-right border border-amber-400 rounded font-bold" /></td>
+                                                    <td className="no-print">
+                                                        <div className="flex items-center gap-2 justify-end">
+                                                            <input type="number" value={adj.profitDist || ''} onChange={e=>updateAdjustment('profitDist', parseFloat(e.target.value)||0)} className="w-24 text-right border border-amber-400 rounded font-bold" />
+                                                            <button 
+                                                                onClick={() => setShowSaveConfirm(true)}
+                                                                className="p-1 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors shadow-sm"
+                                                                title="Save"
+                                                            >
+                                                                <SaveIcon className="w-3.5 h-3.5" />
+                                                            </button>
+                                                        </div>
+                                                    </td>
                                                     <td className={`${commonAmtCellClass} text-amber-900`}>({adj.profitDist.toLocaleString()})</td>
                                                 </tr>
                                                 <tr className="bg-emerald-900 text-white font-black h-10"><td colSpan={2} className="p-1 text-right text-[12px]">অবশিষ্ট বা জের =</td><td className="p-1 text-right text-lg">{summary.finalClosingJer.toLocaleString()}</td></tr>
@@ -1033,6 +1047,13 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                     <div className="flex items-center justify-center gap-2">
                                         <span className="text-lg font-black text-blue-900">৳</span>
                                         <input type="number" value={adj.profitDist || ''} onChange={e=>updateAdjustment('profitDist', parseFloat(e.target.value)||0)} className="w-24 bg-transparent border-b-2 border-blue-300 text-center text-2xl font-black text-blue-900 outline-none no-print" />
+                                        <button 
+                                            onClick={() => setShowSaveConfirm(true)}
+                                            className="no-print p-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors shadow-md"
+                                            title="Save"
+                                        >
+                                            <SaveIcon className="w-4 h-4" />
+                                        </button>
                                         <span className="text-2xl font-black text-blue-900 print-only">{adj.profitDist.toLocaleString()}</span>
                                     </div>
                                 </div>
@@ -1084,6 +1105,47 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                     </div>
                 )}
             </div>
+
+            {/* Save Confirmation Modal */}
+            {showSaveConfirm && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[1000] no-print p-4">
+                    <div className="bg-white p-8 rounded-[2rem] shadow-2xl max-w-sm w-full border border-slate-200 animate-fade-in-up">
+                        <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-6">
+                            <SaveIcon size={32} />
+                        </div>
+                        <h3 className="text-xl font-black text-slate-800 text-center mb-2 font-['Hind_Siliguri']">সেভ নিশ্চিত করুন</h3>
+                        <p className="text-slate-500 text-center mb-8 font-medium">আপনি কি এই ডাটা সেভ করতে চান?</p>
+                        <div className="flex gap-4">
+                            <button 
+                                onClick={() => setShowSaveConfirm(false)} 
+                                className="flex-1 py-3 text-slate-500 font-black uppercase text-xs hover:bg-slate-100 rounded-2xl transition-all"
+                            >
+                                না
+                            </button>
+                            <button 
+                                onClick={() => {
+                                    setShowSaveConfirm(false);
+                                    setSaveSuccess(true);
+                                    setTimeout(() => setSaveSuccess(false), 3000);
+                                }} 
+                                className="flex-1 py-3 bg-emerald-600 text-white font-black uppercase text-xs rounded-2xl hover:bg-emerald-700 shadow-lg shadow-emerald-200 transition-all active:scale-95"
+                            >
+                                হ্যাঁ, সেভ করুন
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Success Toast */}
+            {saveSuccess && (
+                <div className="fixed bottom-8 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-8 py-4 rounded-2xl shadow-2xl z-[1001] flex items-center gap-3 animate-fade-in-up border border-slate-700">
+                    <div className="w-6 h-6 bg-emerald-500 rounded-full flex items-center justify-center">
+                        <SaveIcon size={14} className="text-white" />
+                    </div>
+                    <span className="font-bold text-sm font-['Hind_Siliguri']">সফলভাবে সেভ হয়েছে!</span>
+                </div>
+            )}
         </div>
     );
 };

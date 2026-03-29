@@ -511,21 +511,53 @@ const ClinicAccountsPage: React.FC<any> = ({
         return collectionReportData.reduce((acc, curr) => {
             if (curr.status !== 'Cancelled' && curr.status !== 'Returned') {
                 acc.admFee += curr.admFeeCol;
+                if (curr.admFeeCol > 0) acc.admFeeCount++;
+
                 acc.lscs_ot += curr.lscsOtCol;
+                if (curr.lscsOtCol > 0) acc.lscs_otCount++;
+
                 acc.gb += curr.gbCol;
+                if (curr.gbCol > 0) acc.gbCount++;
+
                 acc.others_ot += curr.othersOtCol;
+                if (curr.othersOtCol > 0) acc.others_otCount++;
+
                 acc.nvd += curr.nvdCol;
+                if (curr.nvdCol > 0) acc.nvdCount++;
+
                 acc.dc += curr.dcCol;
+                if (curr.dcCol > 0) acc.dcCount++;
+
                 acc.cons += curr.consCol;
+                if (curr.consCol > 0) acc.consCount++;
+
                 acc.o2neb += curr.o2NebCol;
+                if (curr.o2NebCol > 0) acc.o2nebCount++;
+
                 acc.dress += curr.dressCol;
+                if (curr.dressCol > 0) acc.dressCount++;
+
                 acc.others += curr.othersCol;
+                if (curr.othersCol > 0) acc.othersCount++;
+
                 acc.pc += curr.pcCol;
                 acc.netClinic += curr.netClinicCol;
                 acc.paidTotal += curr.paid_amount;
             }
             return acc;
-        }, { admFee: 0, lscs_ot: 0, gb: 0, others_ot: 0, nvd: 0, dc: 0, cons: 0, o2neb: 0, dress: 0, others: 0, pc: 0, netClinic: 0, paidTotal: 0 });
+        }, { 
+            admFee: 0, admFeeCount: 0,
+            lscs_ot: 0, lscs_otCount: 0,
+            gb: 0, gbCount: 0,
+            others_ot: 0, others_otCount: 0,
+            nvd: 0, nvdCount: 0,
+            dc: 0, dcCount: 0,
+            cons: 0, consCount: 0,
+            o2neb: 0, o2nebCount: 0,
+            dress: 0, dressCount: 0,
+            others: 0, othersCount: 0,
+            pc: 0, netClinic: 0, paidTotal: 0 
+        });
     }, [collectionReportData]);
 
     const handlePrintCollectionReport = () => {
@@ -605,16 +637,46 @@ const ClinicAccountsPage: React.FC<any> = ({
                         <tfoot class="bg-gray-100 font-black">
                             <tr>
                                 <td colspan="5" class="text-right">Grand Totals (Active Only):</td>
-                                <td class="text-right">৳${reportTotals.admFee.toLocaleString()}</td>
-                                <td class="text-right">৳${reportTotals.lscs_ot.toLocaleString()}</td>
-                                <td class="text-right">৳${reportTotals.gb.toLocaleString()}</td>
-                                <td class="text-right">৳${reportTotals.others_ot.toLocaleString()}</td>
-                                <td class="text-right">৳${reportTotals.nvd.toLocaleString()}</td>
-                                <td class="text-right">৳${reportTotals.dc.toLocaleString()}</td>
-                                <td class="text-right">৳${reportTotals.cons.toLocaleString()}</td>
-                                <td class="text-right">৳${reportTotals.o2neb.toLocaleString()}</td>
-                                <td class="text-right">৳${reportTotals.dress.toLocaleString()}</td>
-                                <td class="text-right">৳${reportTotals.others.toLocaleString()}</td>
+                                <td class="text-right">
+                                    <div>৳${reportTotals.admFee.toLocaleString()}</div>
+                                    <div class="text-[6pt] text-gray-500">Qty: ${reportTotals.admFeeCount}</div>
+                                </td>
+                                <td class="text-right">
+                                    <div>৳${reportTotals.lscs_ot.toLocaleString()}</div>
+                                    <div class="text-[6pt] text-gray-500">Qty: ${reportTotals.lscs_otCount}</div>
+                                </td>
+                                <td class="text-right">
+                                    <div>৳${reportTotals.gb.toLocaleString()}</div>
+                                    <div class="text-[6pt] text-gray-500">Qty: ${reportTotals.gbCount}</div>
+                                </td>
+                                <td class="text-right">
+                                    <div>৳${reportTotals.others_ot.toLocaleString()}</div>
+                                    <div class="text-[6pt] text-gray-500">Qty: ${reportTotals.others_otCount}</div>
+                                </td>
+                                <td class="text-right">
+                                    <div>৳${reportTotals.nvd.toLocaleString()}</div>
+                                    <div class="text-[6pt] text-gray-500">Qty: ${reportTotals.nvdCount}</div>
+                                </td>
+                                <td class="text-right">
+                                    <div>৳${reportTotals.dc.toLocaleString()}</div>
+                                    <div class="text-[6pt] text-gray-500">Qty: ${reportTotals.dcCount}</div>
+                                </td>
+                                <td class="text-right">
+                                    <div>৳${reportTotals.cons.toLocaleString()}</div>
+                                    <div class="text-[6pt] text-gray-500">Qty: ${reportTotals.consCount}</div>
+                                </td>
+                                <td class="text-right">
+                                    <div>৳${reportTotals.o2neb.toLocaleString()}</div>
+                                    <div class="text-[6pt] text-gray-500">Qty: ${reportTotals.o2nebCount}</div>
+                                </td>
+                                <td class="text-right">
+                                    <div>৳${reportTotals.dress.toLocaleString()}</div>
+                                    <div class="text-[6pt] text-gray-500">Qty: ${reportTotals.dressCount}</div>
+                                </td>
+                                <td class="text-right">
+                                    <div>৳${reportTotals.others.toLocaleString()}</div>
+                                    <div class="text-[6pt] text-gray-500">Qty: ${reportTotals.othersCount}</div>
+                                </td>
                                 <td class="text-right">৳${reportTotals.paidTotal.toLocaleString()}</td>
                                 <td class="text-right text-rose-700">৳${reportTotals.pc.toLocaleString()}</td>
                                 <td class="text-right text-emerald-700">৳${reportTotals.netClinic.toLocaleString()}</td>
@@ -1174,16 +1236,46 @@ const ClinicAccountsPage: React.FC<any> = ({
                                         <tfoot className="bg-slate-900 text-slate-200 font-black border-t-2 border-slate-700 sticky bottom-0">
                                             <tr>
                                                 <td colSpan={5} className="p-4 text-right uppercase tracking-widest text-[11px]">Grand Summary Totals (Active Only):</td>
-                                                <td className="p-4 text-right">৳{reportTotals.admFee.toLocaleString()}</td>
-                                                <td className="p-4 text-right">৳{reportTotals.lscs_ot.toLocaleString()}</td>
-                                                <td className="p-4 text-right">৳{reportTotals.gb.toLocaleString()}</td>
-                                                <td className="p-4 text-right">৳{reportTotals.others_ot.toLocaleString()}</td>
-                                                <td className="p-4 text-right">৳{reportTotals.nvd.toLocaleString()}</td>
-                                                <td className="p-4 text-right">৳{reportTotals.dc.toLocaleString()}</td>
-                                                <td className="p-4 text-right">৳{reportTotals.cons.toLocaleString()}</td>
-                                                <td className="p-4 text-right">৳{reportTotals.o2neb.toLocaleString()}</td>
-                                                <td className="p-4 text-right">৳{reportTotals.dress.toLocaleString()}</td>
-                                                <td className="p-4 text-right">৳{reportTotals.others.toLocaleString()}</td>
+                                                <td className="p-4 text-right">
+                                                    <div className="text-emerald-400">৳{reportTotals.admFee.toLocaleString()}</div>
+                                                    <div className="text-[9px] text-slate-500 font-bold">Qty: {reportTotals.admFeeCount}</div>
+                                                </td>
+                                                <td className="p-4 text-right">
+                                                    <div className="text-emerald-400">৳{reportTotals.lscs_ot.toLocaleString()}</div>
+                                                    <div className="text-[9px] text-slate-500 font-bold">Qty: {reportTotals.lscs_otCount}</div>
+                                                </td>
+                                                <td className="p-4 text-right">
+                                                    <div className="text-emerald-400">৳{reportTotals.gb.toLocaleString()}</div>
+                                                    <div className="text-[9px] text-slate-500 font-bold">Qty: {reportTotals.gbCount}</div>
+                                                </td>
+                                                <td className="p-4 text-right">
+                                                    <div className="text-emerald-400">৳{reportTotals.others_ot.toLocaleString()}</div>
+                                                    <div className="text-[9px] text-slate-500 font-bold">Qty: {reportTotals.others_otCount}</div>
+                                                </td>
+                                                <td className="p-4 text-right">
+                                                    <div className="text-emerald-400">৳{reportTotals.nvd.toLocaleString()}</div>
+                                                    <div className="text-[9px] text-slate-500 font-bold">Qty: {reportTotals.nvdCount}</div>
+                                                </td>
+                                                <td className="p-4 text-right">
+                                                    <div className="text-emerald-400">৳{reportTotals.dc.toLocaleString()}</div>
+                                                    <div className="text-[9px] text-slate-500 font-bold">Qty: {reportTotals.dcCount}</div>
+                                                </td>
+                                                <td className="p-4 text-right">
+                                                    <div className="text-emerald-400">৳{reportTotals.cons.toLocaleString()}</div>
+                                                    <div className="text-[9px] text-slate-500 font-bold">Qty: {reportTotals.consCount}</div>
+                                                </td>
+                                                <td className="p-4 text-right">
+                                                    <div className="text-emerald-400">৳{reportTotals.o2neb.toLocaleString()}</div>
+                                                    <div className="text-[9px] text-slate-500 font-bold">Qty: {reportTotals.o2nebCount}</div>
+                                                </td>
+                                                <td className="p-4 text-right">
+                                                    <div className="text-emerald-400">৳{reportTotals.dress.toLocaleString()}</div>
+                                                    <div className="text-[9px] text-slate-500 font-bold">Qty: {reportTotals.dressCount}</div>
+                                                </td>
+                                                <td className="p-4 text-right">
+                                                    <div className="text-emerald-400">৳{reportTotals.others.toLocaleString()}</div>
+                                                    <div className="text-[9px] text-slate-500 font-bold">Qty: {reportTotals.othersCount}</div>
+                                                </td>
                                                 <td className="p-4 text-right text-emerald-400 text-lg">৳ {reportTotals.paidTotal.toLocaleString()}</td>
                                                 <td className="p-4 text-right text-rose-400 text-lg">৳ {reportTotals.pc.toLocaleString()}</td>
                                                 <td className="p-4 text-right text-sky-400 text-2xl underline decoration-double">৳ {reportTotals.netClinic.toLocaleString()}</td>
