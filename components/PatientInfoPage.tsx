@@ -58,8 +58,8 @@ const AddressPieChart: React.FC<{ patients: Patient[] }> = ({ patients }) => {
     if (total === 0) return <div className="text-center text-slate-500 py-10">No Data</div>;
 
     return (
-        <div className="flex flex-col items-center bg-slate-800 p-4 rounded-xl border border-slate-700 h-full">
-            <h3 className="text-lg font-bold text-sky-200 mb-4 border-b border-slate-600 pb-2 w-full text-center">Address Distribution</h3>
+        <div className="flex flex-col items-center bg-white p-4 rounded-xl border border-gray-200 h-full shadow-sm">
+            <h3 className="text-lg font-bold text-gray-800 mb-4 border-b border-gray-200 pb-2 w-full text-center">Address Distribution</h3>
             <div className="relative w-48 h-48 mb-4">
                 <svg viewBox="-1 -1 2 2" className="transform -rotate-90 w-full h-full">
                     {slices.map((slice, i) => (
@@ -68,9 +68,9 @@ const AddressPieChart: React.FC<{ patients: Patient[] }> = ({ patients }) => {
                 </svg>
             </div>
             <div className="w-full overflow-y-auto max-h-64 pr-2 custom-scrollbar">
-                <table className="w-full text-sm text-left text-slate-300">
+                <table className="w-full text-sm text-left text-gray-600">
                     <thead>
-                        <tr className="border-b border-slate-600">
+                        <tr className="border-b border-gray-200">
                             <th className="py-1">Color</th>
                             <th className="py-1">Address</th>
                             <th className="py-1 text-right">Count</th>
@@ -78,10 +78,10 @@ const AddressPieChart: React.FC<{ patients: Patient[] }> = ({ patients }) => {
                     </thead>
                     <tbody>
                         {slices.map((slice, i) => (
-                            <tr key={i} className="border-b border-slate-700/50">
+                            <tr key={i} className="border-b border-gray-100">
                                 <td className="py-1"><div className="w-3 h-3 rounded-full" style={{ backgroundColor: slice.color }}></div></td>
-                                <td className="py-1 truncate max-w-[100px]" title={slice.name}>{slice.name}</td>
-                                <td className="py-1 text-right font-bold">{slice.value}</td>
+                                <td className="py-1 truncate max-w-[100px] text-gray-800" title={slice.name}>{slice.name}</td>
+                                <td className="py-1 text-right font-bold text-gray-900">{slice.value}</td>
                             </tr>
                         ))}
                     </tbody>
@@ -244,26 +244,26 @@ const PatientInfoPage: React.FC<PatientInfoPageProps> = ({ patients, setPatients
     if (onClose && isEmbedded) onClose();
   };
 
-  const inputBaseClasses = "py-2 px-3 mt-1 block w-full border border-sky-800 rounded-md shadow-sm text-lg font-medium bg-sky-900/50 text-sky-200 placeholder-sky-400 focus:bg-sky-800 focus:ring-2 focus:ring-blue-500 focus:border-blue-500";
-  const labelBaseClasses = "block text-sm font-semibold text-sky-300";
-  const actionButtonClasses = "px-4 py-2 text-sm font-medium rounded-md flex justify-center focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-sky-950 transition-colors min-w-[100px]";
+  const inputBaseClasses = "py-2 px-3 mt-1 block w-full border border-gray-300 rounded-md shadow-sm text-lg font-medium bg-white text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500";
+  const labelBaseClasses = "block text-sm font-semibold text-gray-600";
+  const actionButtonClasses = "px-4 py-2 text-sm font-medium rounded-md flex justify-center focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-white transition-colors min-w-[100px]";
 
   return (
-    <div className={`bg-slate-900 text-slate-200 rounded-xl px-4 sm:px-6 pb-6 pt-2 space-y-6 ${isEmbedded ? '!p-0 !space-y-0 !bg-transparent' : ''}`}>
+    <div className={`bg-[#f8f9fa] text-gray-800 rounded-xl px-4 sm:px-6 pb-6 pt-2 space-y-6 ${isEmbedded ? '!p-0 !space-y-0 !bg-transparent' : ''}`}>
         {successMessage && (
-            <div className="fixed bottom-5 right-5 z-[9999] bg-green-900/95 border border-green-500 text-green-100 px-6 py-3 rounded-lg shadow-2xl flex items-center transition-transform animate-fade-in-up backdrop-blur-sm">
+            <div className="fixed bottom-5 right-5 z-[9999] bg-green-600 border border-green-500 text-white px-6 py-3 rounded-lg shadow-2xl flex items-center transition-transform animate-fade-in-up">
                 <span className="font-semibold">{successMessage}</span>
             </div>
         )}
       
       <div className="flex flex-col xl:flex-row gap-6">
           {!isEmbedded && <div className="w-full xl:w-1/4 min-w-[250px]"><AddressPieChart patients={patients} /></div>}
-          <div className={`flex-1 bg-sky-950 rounded-xl p-4 sm:p-6 ${isEmbedded ? 'border-2 border-blue-800 mt-4' : 'border border-sky-800'}`}>
-            {!isEmbedded && <h2 className="text-2xl font-bold text-sky-100 mb-6 border-b border-sky-800 pb-4">Patient Information</h2>}
+          <div className={`flex-1 bg-white rounded-xl p-4 sm:p-6 ${isEmbedded ? 'border-2 border-blue-600 mt-4' : 'border border-gray-200 shadow-sm'}`}>
+            {!isEmbedded && <h2 className="text-2xl font-bold text-gray-800 mb-6 border-b border-gray-200 pb-4">Patient Information</h2>}
             {!isEmbedded && (
-                <div className="flex flex-wrap items-center gap-2 border-b border-sky-800 pb-4 mb-4">
-                    <label className="font-semibold text-sky-300 whitespace-nowrap">Pt. Id:</label>
-                    <input type="text" disabled value={formData.pt_id} className="w-48 border border-sky-800 rounded-md shadow-sm text-lg font-medium px-3 py-2 bg-sky-900 text-sky-400 cursor-not-allowed" />
+                <div className="flex flex-wrap items-center gap-2 border-b border-gray-200 pb-4 mb-4">
+                    <label className="font-semibold text-gray-600 whitespace-nowrap">Pt. Id:</label>
+                    <input type="text" disabled value={formData.pt_id} className="w-48 border border-gray-300 rounded-md shadow-sm text-lg font-medium px-3 py-2 bg-gray-100 text-gray-500 cursor-not-allowed" />
                     <button type="button" onClick={handleGetNewId} className={`${actionButtonClasses} text-white bg-blue-600 hover:bg-blue-700`}>Add New</button>
                     <button type="submit" form="patient-form" className={`${actionButtonClasses} text-white bg-green-600 hover:bg-green-700`}>Save</button>
                     <button type="button" onClick={() => { if(selectedPatientId) { const p = patients.find(x => x.pt_id === selectedPatientId); if(p) { setFormData(p); setIsEditing(true); } } }} disabled={!selectedPatientId} className={`${actionButtonClasses} text-white bg-yellow-500 hover:bg-yellow-600 disabled:opacity-50`}>Edit</button>
@@ -272,8 +272,8 @@ const PatientInfoPage: React.FC<PatientInfoPageProps> = ({ patients, setPatients
             )}
             {!isEmbedded && (
                 <div className="mb-6 flex items-center gap-2">
-                    <label className="font-semibold text-sky-300 whitespace-nowrap">Search:</label>
-                    <input type="text" placeholder="Name or ID" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="flex-1 py-2 px-3 border border-sky-800 bg-sky-900 text-sky-200 rounded-md text-lg font-medium" />
+                    <label className="font-semibold text-gray-600 whitespace-nowrap">Search:</label>
+                    <input type="text" placeholder="Name or ID" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="flex-1 py-2 px-3 border border-gray-300 bg-white text-gray-900 rounded-md text-lg font-medium" />
                 </div>
             )}
             <form id="patient-form" onSubmit={handleSavePatient}>
@@ -327,45 +327,45 @@ const PatientInfoPage: React.FC<PatientInfoPageProps> = ({ patients, setPatients
       </div>
 
       {!isEmbedded && (
-        <div className="overflow-x-auto border border-slate-700 rounded-lg">
-            <table className="min-w-full divide-y divide-slate-700">
-              <thead className="bg-slate-800">
+        <div className="overflow-x-auto border border-gray-200 rounded-lg shadow-sm">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-100">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-black text-slate-300 uppercase">Barcode</th>
-                  <th className="px-4 py-3 text-left text-xs font-black text-slate-300 uppercase">Pt_ID</th>
-                  <th className="px-4 py-3 text-left text-xs font-black text-slate-300 uppercase">Name</th>
-                  <th className="px-4 py-3 text-left text-xs font-black text-slate-300 uppercase">Gender</th>
-                  <th className="px-4 py-3 text-left text-xs font-black text-slate-300 uppercase">Age</th>
-                  <th className="px-4 py-3 text-left text-xs font-black text-slate-300 uppercase">Mobile</th>
-                  <th className="px-4 py-3 text-left text-xs font-black text-slate-300 uppercase">Address</th>
-                  <th className="px-4 py-3 text-left text-xs font-black text-slate-300 uppercase">Thana</th>
-                  <th className="px-4 py-3 text-left text-xs font-black text-slate-300 uppercase">District</th>
-                  <th className="px-4 py-3 text-left text-xs font-black text-slate-300 uppercase">Updated</th>
+                  <th className="px-4 py-3 text-left text-xs font-black text-gray-600 uppercase">Barcode</th>
+                  <th className="px-4 py-3 text-left text-xs font-black text-gray-600 uppercase">Pt_ID</th>
+                  <th className="px-4 py-3 text-left text-xs font-black text-gray-600 uppercase">Name</th>
+                  <th className="px-4 py-3 text-left text-xs font-black text-gray-600 uppercase">Gender</th>
+                  <th className="px-4 py-3 text-left text-xs font-black text-gray-600 uppercase">Age</th>
+                  <th className="px-4 py-3 text-left text-xs font-black text-gray-600 uppercase">Mobile</th>
+                  <th className="px-4 py-3 text-left text-xs font-black text-gray-600 uppercase">Address</th>
+                  <th className="px-4 py-3 text-left text-xs font-black text-gray-600 uppercase">Thana</th>
+                  <th className="px-4 py-3 text-left text-xs font-black text-gray-600 uppercase">District</th>
+                  <th className="px-4 py-3 text-left text-xs font-black text-gray-600 uppercase">Updated</th>
                 </tr>
               </thead>
-              <tbody className="bg-slate-900 divide-y divide-slate-700">
+              <tbody className="bg-white divide-y divide-gray-100">
                 {filteredPatients.map((patient) => (
                   <tr
                     key={patient.pt_id}
                     onClick={() => { setFormData(patient); setSelectedPatientId(patient.pt_id); setIsEditing(false); setLastEdited(null); }}
-                    className={`cursor-pointer hover:bg-slate-800/50 ${selectedPatientId === patient.pt_id ? 'bg-blue-900/40' : ''}`}
+                    className={`cursor-pointer hover:bg-blue-50 transition-colors ${selectedPatientId === patient.pt_id ? 'bg-blue-100/50' : ''}`}
                   >
                     <td className="px-4 py-2">
                         <img 
                             src={`https://bwipjs-api.metafloor.com/?bcid=code128&text=${encodeURIComponent(patient.pt_id)}&scale=1&height=5&incltext=false`} 
                             alt="Barcode" 
-                            className="h-6 opacity-70 invert" 
+                            className="h-6 opacity-70" 
                         />
                     </td>
-                    <td className="px-4 py-4 whitespace-nowrap text-xs text-sky-400 font-mono">{patient.pt_id}</td>
-                    <td className="px-4 py-4 whitespace-nowrap text-sm text-slate-200 font-bold">{patient.pt_name}</td>
-                    <td className="px-4 py-4 whitespace-nowrap text-xs text-slate-400">{patient.gender}</td>
-                    <td className="px-4 py-4 whitespace-nowrap text-xs text-slate-400">{patient.ageY}Y</td>
-                    <td className="px-4 py-4 whitespace-nowrap text-xs text-slate-400">{patient.mobile}</td>
-                    <td className="px-4 py-4 whitespace-nowrap text-xs text-slate-300 font-medium">{patient.address}</td>
-                    <td className="px-4 py-4 whitespace-nowrap text-xs text-slate-400">{patient.thana}</td>
-                    <td className="px-4 py-4 whitespace-nowrap text-xs text-slate-400">{patient.district}</td>
-                    <td className="px-4 py-4 whitespace-nowrap text-[10px] text-slate-500 font-mono">{patient.date_modified}</td>
+                    <td className="px-4 py-4 whitespace-nowrap text-xs text-blue-600 font-mono">{patient.pt_id}</td>
+                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900 font-bold">{patient.pt_name}</td>
+                    <td className="px-4 py-4 whitespace-nowrap text-xs text-gray-500">{patient.gender}</td>
+                    <td className="px-4 py-4 whitespace-nowrap text-xs text-gray-500">{patient.ageY}Y</td>
+                    <td className="px-4 py-4 whitespace-nowrap text-xs text-gray-500">{patient.mobile}</td>
+                    <td className="px-4 py-4 whitespace-nowrap text-xs text-gray-700 font-medium">{patient.address}</td>
+                    <td className="px-4 py-4 whitespace-nowrap text-xs text-gray-500">{patient.thana}</td>
+                    <td className="px-4 py-4 whitespace-nowrap text-xs text-gray-500">{patient.district}</td>
+                    <td className="px-4 py-4 whitespace-nowrap text-[10px] text-gray-400 font-mono">{patient.date_modified}</td>
                   </tr>
                 ))}
               </tbody>

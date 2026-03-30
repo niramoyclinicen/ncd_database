@@ -1060,42 +1060,42 @@ const AdmissionAndTreatmentPage: React.FC<{
 
     return (
         <div className="space-y-6">
-            <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 flex justify-between items-center shadow-lg">
+            <div className="bg-white p-4 rounded-xl border border-gray-200 flex justify-between items-center shadow-sm">
                 <div className="flex gap-2">
-                    <button onClick={() => setPageMode('admission')} className={`px-6 py-2 rounded-lg font-bold text-sm uppercase transition-all ${pageMode === 'admission' ? 'bg-blue-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}>Patient Admission</button>
-                    <button onClick={() => setPageMode('treatment')} className={`px-6 py-2 rounded-lg font-bold text-sm uppercase transition-all ${pageMode === 'treatment' ? 'bg-emerald-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}>Clinical Management</button>
+                    <button onClick={() => setPageMode('admission')} className={`px-6 py-2 rounded-lg font-bold text-sm uppercase transition-all ${pageMode === 'admission' ? 'bg-blue-600 text-white shadow' : 'text-gray-500 hover:text-blue-600'}`}>Patient Admission</button>
+                    <button onClick={() => setPageMode('treatment')} className={`px-6 py-2 rounded-lg font-bold text-sm uppercase transition-all ${pageMode === 'treatment' ? 'bg-emerald-600 text-white shadow' : 'text-gray-500 hover:text-emerald-600'}`}>Clinical Management</button>
                 </div>
                 {pageMode === 'treatment' && admissionData.admission_id && (
-                    <div className="flex items-center gap-3 bg-slate-900 px-4 py-2 rounded-xl border border-emerald-500/30">
-                        <Activity className="text-emerald-400 animate-pulse" size={18}/>
-                        <span className="text-white font-black uppercase text-xs">{admissionData.patient_name} <span className="text-emerald-500 ml-2">({admissionData.admission_id})</span></span>
+                    <div className="flex items-center gap-3 bg-gray-50 px-4 py-2 rounded-xl border border-emerald-500/30">
+                        <Activity className="text-emerald-600 animate-pulse" size={18}/>
+                        <span className="text-gray-800 font-black uppercase text-xs">{admissionData.patient_name} <span className="text-emerald-600 ml-2">({admissionData.admission_id})</span></span>
                     </div>
                 )}
             </div>
 
             {pageMode === 'admission' ? (
                 <div className="animate-fade-in space-y-8">
-                    <div className="bg-slate-800 p-8 rounded-[2.5rem] border border-slate-700 shadow-2xl">
-                        <div className="flex justify-between items-center mb-8 border-b border-slate-700 pb-4">
-                            <h3 className="text-xl font-black text-white uppercase tracking-tighter flex items-center gap-3"><ClinicIcon className="text-blue-400"/> New Patient Admission</h3>
+                    <div className="bg-white p-8 rounded-[2.5rem] border border-gray-200 shadow-sm">
+                        <div className="flex justify-between items-center mb-8 border-b border-gray-200 pb-4">
+                            <h3 className="text-xl font-black text-gray-800 uppercase tracking-tighter flex items-center gap-3"><ClinicIcon className="text-blue-600"/> New Patient Admission</h3>
                             <div className="flex gap-3">
-                                <button onClick={handleGetNewId} className="bg-slate-700 hover:bg-slate-600 text-white px-5 py-2 rounded-xl font-bold text-xs uppercase transition-all">Add New</button>
-                                <button onClick={handleSaveAdmission} className="bg-blue-600 hover:bg-blue-500 text-white px-10 py-2 rounded-xl font-black text-xs uppercase shadow-xl transition-all">Save Admission</button>
+                                <button onClick={handleGetNewId} className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-5 py-2 rounded-xl font-bold text-xs uppercase transition-all border border-gray-200">Add New</button>
+                                <button onClick={handleSaveAdmission} className="bg-blue-600 hover:bg-blue-700 text-white px-10 py-2 rounded-xl font-black text-xs uppercase shadow-sm transition-all">Save Admission</button>
                             </div>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                             <div><label className="text-[10px] font-black text-slate-500 uppercase ml-2 mb-1 block">Adm ID</label><input value={admissionData.admission_id} disabled className="w-full p-3 bg-slate-900 border border-slate-700 rounded-xl text-blue-400 font-mono font-bold shadow-inner"/></div>
-                             <div><SearchableSelect label="Select Patient" theme="dark" options={(Array.isArray(patients) ? patients : []).filter(p => p).map(p=>({id: p.pt_id, name: p.pt_name, details: `${p.gender}, ${p.ageY}Y`}))} value={admissionData.patient_id} onChange={(id, name)=>setAdmissionData({...admissionData, patient_id: id, patient_name: name})} onAddNew={()=>setShowNewPatientForm(true)} /></div>
-                             <div><SearchableSelect label="Consultant / MO" theme="dark" options={(Array.isArray(doctors) ? doctors : []).filter(d => d).map(d=>({id: d.doctor_id, name: d.doctor_name, details: d.degree}))} value={admissionData.doctor_id} onChange={(id, name)=>setAdmissionData({...admissionData, doctor_id: id, doctor_name: name})} onAddNew={()=>setShowNewDoctorForm(true)} /></div>
-                             <div><SearchableSelect label="Referrer / Agent" theme="dark" options={(Array.isArray(referrars) ? referrars : []).filter(r => r).map(r=>({id: r.ref_id, name: r.ref_name, details: r.ref_degrees}))} value={admissionData.referrer_id} onChange={(id, name)=>setAdmissionData({...admissionData, referrer_id: id, referrer_name: name})} onAddNew={()=>setShowNewReferrarForm(true)} /></div>
+                             <div><label className="text-[10px] font-black text-gray-500 uppercase ml-2 mb-1 block">Adm ID</label><input value={admissionData.admission_id} disabled className="w-full p-3 bg-gray-50 border border-gray-300 rounded-xl text-blue-600 font-mono font-bold shadow-inner"/></div>
+                             <div><SearchableSelect label="Select Patient" theme="light" options={(Array.isArray(patients) ? patients : []).filter(p => p).map(p=>({id: p.pt_id, name: p.pt_name, details: `${p.gender}, ${p.ageY}Y`}))} value={admissionData.patient_id} onChange={(id, name)=>setAdmissionData({...admissionData, patient_id: id, patient_name: name})} onAddNew={()=>setShowNewPatientForm(true)} /></div>
+                             <div><SearchableSelect label="Consultant / MO" theme="light" options={(Array.isArray(doctors) ? doctors : []).filter(d => d).map(d=>({id: d.doctor_id, name: d.doctor_name, details: d.degree}))} value={admissionData.doctor_id} onChange={(id, name)=>setAdmissionData({...admissionData, doctor_id: id, doctor_name: name})} onAddNew={()=>setShowNewDoctorForm(true)} /></div>
+                             <div><SearchableSelect label="Referrer / Agent" theme="light" options={(Array.isArray(referrars) ? referrars : []).filter(r => r).map(r=>({id: r.ref_id, name: r.ref_name, details: r.ref_degrees}))} value={admissionData.referrer_id} onChange={(id, name)=>setAdmissionData({...admissionData, referrer_id: id, referrer_name: name})} onAddNew={()=>setShowNewReferrarForm(true)} /></div>
                              
-                             <div><SearchableSelect label="Disease / Indication" theme="dark" options={(Array.isArray(indications) ? indications : []).filter(i => i).map(i=>({id: i.id, name: i.name}))} value={(Array.isArray(indications) ? indications : []).find(i => i && i.name === admissionData.indication)?.id || ''} onChange={(_id, name)=>setAdmissionData({...admissionData, indication: name})} onAddNew={()=>setShowIndicationManager(true)} /></div>
+                             <div><SearchableSelect label="Disease / Indication" theme="light" options={(Array.isArray(indications) ? indications : []).filter(i => i).map(i=>({id: i.id, name: i.name}))} value={(Array.isArray(indications) ? indications : []).find(i => i && i.name === admissionData.indication)?.id || ''} onChange={(_id, name)=>setAdmissionData({...admissionData, indication: name})} onAddNew={()=>setShowIndicationManager(true)} /></div>
                              <div>
-                                <label className="text-[10px] font-black text-slate-500 uppercase ml-2 mb-1 block">Bed No / Ward</label>
+                                <label className="text-[10px] font-black text-gray-500 uppercase ml-2 mb-1 block">Bed No / Ward</label>
                                 <select 
                                     value={admissionData.bed_no || ''} 
                                     onChange={e=>setAdmissionData({...admissionData, bed_no: e.target.value})} 
-                                    className="w-full p-3 bg-slate-900 border border-slate-700 rounded-xl text-white font-bold outline-none focus:ring-2 focus:ring-blue-500"
+                                    className="w-full p-3 bg-gray-50 border border-gray-300 rounded-xl text-gray-800 font-bold outline-none focus:ring-2 focus:ring-blue-500"
                                 >
                                     <option value="">Select Bed...</option>
                                     <optgroup label="Male Ward">
@@ -1109,53 +1109,53 @@ const AdmissionAndTreatmentPage: React.FC<{
                                     </optgroup>
                                 </select>
                              </div>
-                             <div><label className="text-[10px] font-black text-slate-500 uppercase ml-2 mb-1 block">Contract Bill (৳)</label><input type="number" value={admissionData.contract_amount} onChange={e=>setAdmissionData({...admissionData, contract_amount: parseFloat(e.target.value)||0})} className="w-full p-3 bg-slate-900 border border-slate-700 rounded-xl text-emerald-400 font-black text-lg" onFocus={e=>e.target.select()}/></div>
-                             <div><label className="text-[10px] font-black text-slate-500 uppercase ml-2 mb-1 block">Adm. Date</label><input type="date" value={admissionData.admission_date} onChange={e=>setAdmissionData({...admissionData, admission_date: e.target.value})} className="w-full p-3 bg-slate-900 border border-slate-700 rounded-xl text-white font-bold"/></div>
+                             <div><label className="text-[10px] font-black text-gray-500 uppercase ml-2 mb-1 block">Contract Bill (৳)</label><input type="number" value={admissionData.contract_amount} onChange={e=>setAdmissionData({...admissionData, contract_amount: parseFloat(e.target.value)||0})} className="w-full p-3 bg-gray-50 border border-gray-300 rounded-xl text-emerald-700 font-black text-lg" onFocus={e=>e.target.select()}/></div>
+                             <div><label className="text-[10px] font-black text-gray-500 uppercase ml-2 mb-1 block">Adm. Date</label><input type="date" value={admissionData.admission_date} onChange={e=>setAdmissionData({...admissionData, admission_date: e.target.value})} className="w-full p-3 bg-gray-50 border border-gray-300 rounded-xl text-gray-800 font-bold"/></div>
                         </div>
                     </div>
 
-                    <div className="bg-slate-800 p-8 rounded-[2.5rem] border border-slate-700 shadow-2xl overflow-hidden">
-                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-700 pb-4 gap-4">
-                            <h3 className="text-xl font-black text-white uppercase tracking-tighter flex items-center gap-3"><Activity className="text-emerald-400"/> Current Admitted Patients</h3>
+                    <div className="bg-white p-8 rounded-[2.5rem] border border-gray-200 shadow-sm overflow-hidden">
+                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-gray-200 pb-4 gap-4">
+                            <h3 className="text-xl font-black text-gray-800 uppercase tracking-tighter flex items-center gap-3"><Activity className="text-emerald-600"/> Current Admitted Patients</h3>
                             <div className="flex flex-1 max-w-md w-full relative">
-                                <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
+                                <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
                                 <input 
                                     type="text" 
                                     placeholder="Search by Name, ID or Bed..." 
-                                    className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-10 pr-4 py-2 text-sm text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                    className="w-full bg-gray-50 border border-gray-300 rounded-xl pl-10 pr-4 py-2 text-sm text-gray-800 focus:ring-2 focus:ring-blue-500 outline-none"
                                     value={searchTerm}
                                     onChange={e => setSearchTerm(e.target.value)}
                                 />
                             </div>
-                            <button onClick={handlePrintAdmissionList} className="bg-slate-700 hover:bg-slate-600 text-white px-5 py-2 rounded-xl font-bold text-xs uppercase transition-all flex items-center gap-2"><PrinterIcon size={14}/> Print Active List</button>
+                            <button onClick={handlePrintAdmissionList} className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-5 py-2 rounded-xl font-bold text-xs uppercase transition-all flex items-center gap-2 border border-gray-200"><PrinterIcon size={14}/> Print Active List</button>
                         </div>
-                        <div className="overflow-x-auto rounded-2xl border border-slate-700">
+                        <div className="overflow-x-auto rounded-2xl border border-gray-200">
                              <table className="w-full text-left border-collapse text-sm">
-                                <thead className="bg-slate-900 text-[10px] uppercase font-black text-slate-500 tracking-widest border-b border-slate-700">
+                                <thead className="bg-gray-50 text-[10px] uppercase font-black text-gray-500 tracking-widest border-b border-gray-200">
                                     <tr><th className="p-5 w-12 text-center">SL</th><th className="p-5">Adm ID</th><th className="p-5">Patient Name</th><th className="p-5">Doctor</th><th className="p-5">Bed</th><th className="p-5">Indication</th><th className="p-5 text-center">Action</th></tr>
                                 </thead>
-                                <tbody className="divide-y divide-slate-700/50">
+                                <tbody className="divide-y divide-gray-100">
                                     {(Array.isArray(filteredAdmissions) ? filteredAdmissions : []).map((adm, index) => (
-                                        <tr key={adm.admission_id} className="hover:bg-slate-700/30 transition-colors">
-                                            <td className="p-5 text-center text-slate-500 font-mono text-xs">{index + 1}</td>
-                                            <td className="p-5 font-mono text-xs text-blue-400 font-bold">{adm.admission_id}</td>
-                                            <td className="p-5 font-black text-white uppercase">{adm.patient_name}</td>
-                                            <td className="p-5 font-bold text-slate-300">{adm.doctor_name}</td>
-                                            <td className="p-5 font-black text-amber-500">{adm.bed_no || 'N/A'}</td>
-                                            <td className="p-5 text-slate-400 font-medium italic">{adm.indication}</td>
+                                        <tr key={adm.admission_id} className="hover:bg-blue-50 transition-colors">
+                                            <td className="p-5 text-center text-gray-400 font-mono text-xs">{index + 1}</td>
+                                            <td className="p-5 font-mono text-xs text-blue-600 font-bold">{adm.admission_id}</td>
+                                            <td className="p-5 font-black text-gray-800 uppercase">{adm.patient_name}</td>
+                                            <td className="p-5 font-bold text-gray-600">{adm.doctor_name}</td>
+                                            <td className="p-5 font-black text-amber-600">{adm.bed_no || 'N/A'}</td>
+                                            <td className="p-5 text-gray-500 font-medium italic">{adm.indication}</td>
                                             <td className="p-5 text-center flex gap-2 justify-center">
-                                                <button onClick={()=>handleSelectPatientForTreatment(adm)} className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg font-black text-[10px] uppercase shadow-lg transition-all">Treatment</button>
-                                                <button onClick={()=>handleEditAdmissionInfo(adm)} className="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg font-black text-[10px] uppercase shadow-lg transition-all">Edit</button>
+                                                <button onClick={()=>handleSelectPatientForTreatment(adm)} className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg font-black text-[10px] uppercase shadow-sm transition-all">Treatment</button>
+                                                <button onClick={()=>handleEditAdmissionInfo(adm)} className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-lg font-black text-[10px] uppercase shadow-sm transition-all">Edit</button>
                                                 <button onClick={()=>{
                                                     if(confirm(`Are you sure you want to CANCEL admission for ${adm.patient_name}? This will free the bed.`)) {
                                                         setAdmissions(prev => prev.filter(a => a.admission_id !== adm.admission_id));
                                                         setSuccessMessage("Admission cancelled successfully.");
                                                     }
-                                                }} className="bg-rose-900/50 hover:bg-rose-600 text-rose-200 px-4 py-2 rounded-lg font-black text-[10px] uppercase shadow-lg transition-all">Cancel</button>
+                                                }} className="bg-rose-100 hover:bg-rose-200 text-rose-700 px-4 py-2 rounded-lg font-black text-[10px] uppercase shadow-sm transition-all">Cancel</button>
                                             </td>
                                         </tr>
                                     ))}
-                                    {(Array.isArray(filteredAdmissions) ? filteredAdmissions : []).length === 0 && <tr><td colSpan={7} className="p-20 text-center text-slate-600 italic font-black uppercase opacity-20 text-xl tracking-[0.2em]">{searchTerm ? "No Matching Patients" : "No Active Inpatients"}</td></tr>}
+                                    {(Array.isArray(filteredAdmissions) ? filteredAdmissions : []).length === 0 && <tr><td colSpan={7} className="p-20 text-center text-gray-300 italic font-black uppercase opacity-40 text-xl tracking-[0.2em]">{searchTerm ? "No Matching Patients" : "No Active Inpatients"}</td></tr>}
                                 </tbody>
                              </table>
                         </div>
@@ -1195,12 +1195,12 @@ const AdmissionAndTreatmentPage: React.FC<{
                                             <div><label className="text-xs text-gray-400 block">Category</label><select value={currentOrder.category} onChange={e=>setCurrentOrder({...currentOrder, category: e.target.value as any})} className={commonInputClass}><option value="Conservative">Conservative</option><option value="Pre-operative">Pre-operative</option><option value="Operative">Operative</option><option value="Post-operative">Post-operative</option></select></div>
                                             <div><label className="text-xs text-gray-400 block">Diet</label><select value={currentOrder.diet} onChange={e=>setCurrentOrder({...currentOrder, diet: e.target.value})} className={commonInputClass}>{dietOptions.map(d=><option key={d} value={d}>{d}</option>)}</select></div>
                                         </div>
-                                        <div className="bg-[#283245] p-3 rounded mb-4">
+                                        <div className="bg-gray-50 p-3 rounded mb-4 border border-gray-200">
                                             <div className="flex gap-2 items-end">
-                                                <div className="flex-1 relative"><SearchableSelect theme="dark" label="" options={medicines.map(m => ({ id: m.id, name: `${m.tradeName} (${m.genericName})` }))} value={selectedDrugId} onChange={handleMedicineSelect} placeholder="Search Drug..." inputHeightClass="h-9 bg-[#374151]" /><button onClick={() => setShowDrugDemandModal(true)} className="absolute right-1 top-1.5 h-6 w-6 bg-yellow-600 hover:bg-yellow-700 text-white rounded-full font-bold flex items-center justify-center text-sm z-20">+</button></div>
-                                                <select value={newMedication.type} onChange={e=>setNewMedication({...newMedication, type:e.target.value})} className="h-9 bg-[#374151] border-gray-600 rounded text-gray-200 text-xs px-2">{drugTypes.map(t=><option key={t} value={t}>{t}</option>)}</select>
-                                                <input value={newMedication.dosage} onChange={e=>setNewMedication({...newMedication, dosage:e.target.value})} placeholder="Dose" className="h-9 bg-[#374151] border border-gray-600 rounded text-gray-200 text-xs px-2 w-20"/>
-                                                <select value={newMedication.frequency} onChange={e=>setNewMedication({...newMedication, frequency:Number(e.target.value)})} className="h-9 bg-[#374151] border-gray-600 rounded text-gray-200 text-xs px-2">{drugFrequencies.map(f=><option key={f.value} value={f.value}>{f.label}</option>)}</select>
+                                                <div className="flex-1 relative"><SearchableSelect theme="light" label="" options={medicines.map(m => ({ id: m.id, name: `${m.tradeName} (${m.genericName})` }))} value={selectedDrugId} onChange={handleMedicineSelect} placeholder="Search Drug..." inputHeightClass="h-9 bg-white" /><button onClick={() => setShowDrugDemandModal(true)} className="absolute right-1 top-1.5 h-6 w-6 bg-yellow-600 hover:bg-yellow-700 text-white rounded-full font-bold flex items-center justify-center text-sm z-20">+</button></div>
+                                                <select value={newMedication.type} onChange={e=>setNewMedication({...newMedication, type:e.target.value})} className="h-9 bg-white border border-gray-300 rounded text-gray-700 text-xs px-2">{drugTypes.map(t=><option key={t} value={t}>{t}</option>)}</select>
+                                                <input value={newMedication.dosage} onChange={e=>setNewMedication({...newMedication, dosage:e.target.value})} placeholder="Dose" className="h-9 bg-white border border-gray-300 rounded text-gray-700 text-xs px-2 w-20"/>
+                                                <select value={newMedication.frequency} onChange={e=>setNewMedication({...newMedication, frequency:Number(e.target.value)})} className="h-9 bg-white border border-gray-300 rounded text-gray-700 text-xs px-2">{drugFrequencies.map(f=><option key={f.value} value={f.value}>{f.label}</option>)}</select>
                                                 <button onClick={addMedicationToDraft} className="h-9 w-9 bg-blue-600 text-white rounded font-bold hover:bg-blue-500">+</button>
                                             </div>
                                         </div>
@@ -1222,16 +1222,16 @@ const AdmissionAndTreatmentPage: React.FC<{
                             )}
                             
                             {activeSubTab === 'rounds' && (
-                                <div className="bg-[#172554] p-4 rounded border border-[#374151]">
-                                    <div className="flex gap-2 mb-4"><input type="time" value={roundTime} onChange={e=>setRoundTime(e.target.value)} className="bg-[#374151] border border-gray-600 rounded text-white p-2 w-32"/><input list="doctor_list_round" type="text" value={roundDoctor} onChange={e=>setRoundDoctor(e.target.value)} placeholder="Doctor" className="bg-[#374151] border border-gray-600 rounded text-white p-2 w-48"/><datalist id="doctor_list_round">{(Array.isArray(doctors) ? doctors : []).map(d=>d && <option key={d.doctor_id} value={d.doctor_name}/>)}</datalist><input type="text" value={newRoundNote} onChange={e=>setNewRoundNote(e.target.value)} placeholder="Round Note..." className="flex-1 bg-[#374151] border border-gray-600 rounded text-white p-2"/><button onClick={()=>{if(!newRoundNote)return; const updated = {...admissionData, doctor_rounds:[...(Array.isArray(admissionData.doctor_rounds) ? admissionData.doctor_rounds : []), {id:Date.now(), date:new Date().toISOString().split('T')[0], time:roundTime, note:newRoundNote, by:roundDoctor}]}; setAdmissionData(updated); syncAdmissionToGlobal(updated); setNewRoundNote('');}} className="bg-teal-600 text-white px-4 py-2 rounded">Add</button></div>
-                                    <div className="max-h-60 overflow-y-auto bg-[#111827] rounded"><table className="w-full text-sm text-left text-gray-300"><thead className="bg-[#1f2937] text-xs uppercase text-gray-400"><tr><th className="p-2">Time</th><th className="p-2">Note</th><th className="p-2">By</th><th className="p-2 text-right">X</th></tr></thead><tbody>{(Array.isArray(admissionData.doctor_rounds) ? admissionData.doctor_rounds : []).map(r=>r && <tr key={r.id} className="border-b border-gray-700"><td className="p-2">{r.time}</td><td className="p-2">{r.note}</td><td className="p-2">{r.by}</td><td className="p-2 text-right"><button onClick={()=>{const updated = {...admissionData, doctor_rounds:(Array.isArray(admissionData.doctor_rounds) ? admissionData.doctor_rounds : []).filter(x=>x.id!==r.id)}; setAdmissionData(updated); syncAdmissionToGlobal(updated);}} className="text-red-500">x</button></td></tr>)}</tbody></table></div>
+                                <div className="bg-gray-50 p-4 rounded border border-gray-200">
+                                    <div className="flex gap-2 mb-4"><input type="time" value={roundTime} onChange={e=>setRoundTime(e.target.value)} className="bg-white border border-gray-300 rounded text-gray-800 p-2 w-32"/><input list="doctor_list_round" type="text" value={roundDoctor} onChange={e=>setRoundDoctor(e.target.value)} placeholder="Doctor" className="bg-white border border-gray-300 rounded text-gray-800 p-2 w-48"/><datalist id="doctor_list_round">{(Array.isArray(doctors) ? doctors : []).map(d=>d && <option key={d.doctor_id} value={d.doctor_name}/>)}</datalist><input type="text" value={newRoundNote} onChange={e=>setNewRoundNote(e.target.value)} placeholder="Round Note..." className="flex-1 bg-white border border-gray-300 rounded text-gray-800 p-2"/><button onClick={()=>{if(!newRoundNote)return; const updated = {...admissionData, doctor_rounds:[...(Array.isArray(admissionData.doctor_rounds) ? admissionData.doctor_rounds : []), {id:Date.now(), date:new Date().toISOString().split('T')[0], time:roundTime, note:newRoundNote, by:roundDoctor}]}; setAdmissionData(updated); syncAdmissionToGlobal(updated); setNewRoundNote('');}} className="bg-teal-600 text-white px-4 py-2 rounded">Add</button></div>
+                                    <div className="max-h-60 overflow-y-auto bg-white rounded border border-gray-200"><table className="w-full text-sm text-left text-gray-600"><thead className="bg-gray-50 text-xs uppercase text-gray-500"><tr><th className="p-2">Time</th><th className="p-2">Note</th><th className="p-2">By</th><th className="p-2 text-right">X</th></tr></thead><tbody>{(Array.isArray(admissionData.doctor_rounds) ? admissionData.doctor_rounds : []).map(r=>r && <tr key={r.id} className="border-b border-gray-100"><td className="p-2">{r.time}</td><td className="p-2">{r.note}</td><td className="p-2">{r.by}</td><td className="p-2 text-right"><button onClick={()=>{const updated = {...admissionData, doctor_rounds:(Array.isArray(admissionData.doctor_rounds) ? admissionData.doctor_rounds : []).filter(x=>x.id!==r.id)}; setAdmissionData(updated); syncAdmissionToGlobal(updated);}} className="text-red-500">x</button></td></tr>)}</tbody></table></div>
                                 </div>
                             )}
 
                             {activeSubTab === 'nurse' && (
                                 <div className="space-y-6">
                                     <div className="bg-[#172554] p-5 rounded border border-[#374151]">
-                                        <div className="flex items-center gap-4 mb-4 bg-[#1f2937] p-4 rounded border border-[#374151] shadow-md"><div className="w-96"><SearchableSelect theme="dark" label="Select Performing Nurse (Logged)" options={activeNurses.map(nurse => ({ id: nurse.emp_name, name: nurse.emp_name, details: nurse.job_position }))} value={performingNurse} onChange={(_id, name) => setPerformingNurse(name)} onAddNew={() => {}} placeholder="Search Nurse..." inputHeightClass="h-10 bg-[#374151] border-gray-600" /></div></div>
+                                        <div className="flex items-center gap-4 mb-4 bg-gray-50 p-4 rounded border border-gray-200 shadow-sm"><div className="w-96"><SearchableSelect theme="light" label="Select Performing Nurse (Logged)" options={activeNurses.map(nurse => ({ id: nurse.emp_name, name: nurse.emp_name, details: nurse.job_position }))} value={performingNurse} onChange={(_id, name) => setPerformingNurse(name)} onAddNew={() => {}} placeholder="Search Nurse..." inputHeightClass="h-10 bg-white border-gray-300" /></div></div>
                                         <h4 className="text-lg font-bold text-purple-400 mb-4 uppercase tracking-wide">Scheduled Medications</h4>
                                         <div className="overflow-x-auto">
                                             <table className="w-full text-sm text-left text-gray-300 border-collapse">
@@ -1365,44 +1365,99 @@ const AdmissionAndTreatmentPage: React.FC<{
                                             </table>
                                         </div>
                                     </div>
-                                    <div className="bg-[#172554] p-4 rounded border border-[#374151]">
-                                        <div className="flex gap-2 mb-2"><input type="text" value={newNurseNote} onChange={e => setNewNurseNote(e.target.value)} placeholder="Nurse Note..." className="flex-1 p-3 bg-[#374151] border border-gray-600 rounded text-gray-200"/><button onClick={() => { if(!performingNurse) return alert("Select Nurse"); const updated = {...admissionData, nurse_chart: [{ id: Date.now(), date: new Date().toISOString().split('T')[0], time: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}), note: newNurseNote, by: performingNurse }, ...(Array.isArray(admissionData.nurse_chart) ? admissionData.nurse_chart : [])]}; setAdmissionData(updated); syncAdmissionToGlobal(updated); setNewNurseNote('');}} className="bg-purple-600 text-white px-6 py-3 rounded">Log</button></div>
-                                        <div className="max-h-60 overflow-y-auto bg-[#111827] rounded"><table className="w-full text-sm text-left text-gray-300"><thead className="bg-[#1f2937] sticky top-0"><tr><th className="p-2">Time</th><th className="p-2">Activity</th><th className="p-2">Nurse</th></tr></thead><tbody>{(Array.isArray(admissionData.nurse_chart) ? admissionData.nurse_chart : []).map(n=>n && <tr key={n.id} className="border-b border-gray-700"><td className="p-2">{n.time}</td><td className="p-2">{n.note}</td><td className="p-2 text-purple-400">{n.by}</td></tr>)}</tbody></table></div>
+                                    <div className="bg-white p-4 rounded border border-gray-300 shadow-sm">
+                                        <div className="flex gap-2 mb-2">
+                                            <input 
+                                                type="text" 
+                                                value={newNurseNote} 
+                                                onChange={e => setNewNurseNote(e.target.value)} 
+                                                placeholder="Nurse Note..." 
+                                                className="flex-1 p-3 bg-gray-50 border border-gray-300 rounded text-gray-800"
+                                            />
+                                            <button 
+                                                onClick={() => { 
+                                                    if(!performingNurse) return alert("Select Nurse"); 
+                                                    const updated = {
+                                                        ...admissionData, 
+                                                        nurse_chart: [
+                                                            { 
+                                                                id: Date.now(), 
+                                                                date: new Date().toISOString().split('T')[0], 
+                                                                time: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}), 
+                                                                note: newNurseNote, 
+                                                                by: performingNurse 
+                                                            }, 
+                                                            ...(Array.isArray(admissionData.nurse_chart) ? admissionData.nurse_chart : [])
+                                                        ]
+                                                    }; 
+                                                    setAdmissionData(updated); 
+                                                    syncAdmissionToGlobal(updated); 
+                                                    setNewNurseNote('');
+                                                }} 
+                                                className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded font-bold transition-colors"
+                                            >
+                                                Log
+                                            </button>
+                                        </div>
+                                        <div className="max-h-60 overflow-y-auto bg-gray-50 rounded border border-gray-200">
+                                            <table className="w-full text-sm text-left text-gray-700">
+                                                <thead className="bg-gray-100 sticky top-0 border-b border-gray-300">
+                                                    <tr>
+                                                        <th className="p-3 font-semibold text-gray-700">Time</th>
+                                                        <th className="p-3 font-semibold text-gray-700">Activity</th>
+                                                        <th className="p-3 font-semibold text-gray-700">Nurse</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {(Array.isArray(admissionData.nurse_chart) ? admissionData.nurse_chart : []).map(n=>n && (
+                                                        <tr key={n.id} className="border-b border-gray-200 hover:bg-gray-100/50">
+                                                            <td className="p-3 text-gray-600">{n.time}</td>
+                                                            <td className="p-3 text-gray-800">{n.note}</td>
+                                                            <td className="p-3 text-purple-600 font-medium">{n.by}</td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
                                     </div>
                                 </div>
                             )}
                             {activeSubTab === 'demands' && (
-                                <div className="bg-[#172554] p-6 rounded border border-[#374151]">
+                                <div className="bg-white p-6 rounded border border-gray-300 shadow-sm">
                                     <div className="flex justify-between items-center mb-4">
-                                        <h4 className="text-xl font-bold text-yellow-400">Drug Demand List</h4>
-                                        <button onClick={() => setShowDrugDemandModal(true)} className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded font-bold text-sm shadow-lg flex items-center gap-2 transition-all">
+                                        <h4 className="text-xl font-bold text-blue-800">Drug Demand List</h4>
+                                        <button onClick={() => setShowDrugDemandModal(true)} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded font-bold text-sm shadow flex items-center gap-2 transition-all">
                                             <PlusIcon size={16}/> Add New Demand
                                         </button>
                                     </div>
-                                    <div className="overflow-x-auto">
-                                        <table className="w-full text-sm text-left text-gray-300">
-                                            <thead className="bg-[#111827] text-xs uppercase text-gray-400">
+                                    <div className="overflow-x-auto rounded border border-gray-200">
+                                        <table className="w-full text-sm text-left text-gray-700">
+                                            <thead className="bg-gray-100 text-xs uppercase text-gray-600 border-b border-gray-300">
                                                 <tr>
-                                                    <th className="p-3">Drug</th>
-                                                    <th className="p-3">Generic</th>
-                                                    <th className="p-3">Req By</th>
-                                                    <th className="p-3">Status</th>
+                                                    <th className="p-3 font-semibold">Drug</th>
+                                                    <th className="p-3 font-semibold">Generic</th>
+                                                    <th className="p-3 font-semibold">Req By</th>
+                                                    <th className="p-3 font-semibold">Status</th>
                                                 </tr>
                                             </thead>
-                                            <tbody className="bg-[#1f2937]">
+                                            <tbody className="bg-white">
                                                 {(Array.isArray(drugDemands) ? drugDemands : []).map(req => req && (
-                                                    <tr key={req.id} className="border-b border-gray-700">
-                                                        <td className="p-3">{req.name} <span className="text-xs text-gray-400">({req.type} {req.strength})</span></td>
-                                                        <td className="p-3">{req.genericName}</td>
-                                                        <td className="p-3">{req.requestedBy}</td>
+                                                    <tr key={req.id} className="border-b border-gray-200 hover:bg-gray-50">
+                                                        <td className="p-3 text-gray-800 font-medium">{req.name} <span className="text-xs text-gray-500">({req.type} {req.strength})</span></td>
+                                                        <td className="p-3 text-gray-600">{req.genericName}</td>
+                                                        <td className="p-3 text-gray-600">{req.requestedBy}</td>
                                                         <td className="p-3">
-                                                            <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase ${req.status === 'Pending' ? 'bg-amber-900/50 text-amber-400' : 'bg-emerald-900/50 text-emerald-400'}`}>
+                                                            <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase ${req.status === 'Pending' ? 'bg-amber-100 text-amber-700 border border-amber-200' : 'bg-emerald-100 text-emerald-700 border border-emerald-200'}`}>
                                                                 {req.status}
                                                             </span>
                                                         </td>
                                                     </tr>
                                                 ))}
-                                                {(Array.isArray(drugDemands) ? drugDemands : []).length === 0 && <tr><td colSpan={4} className="p-8 text-center text-gray-500 italic">No drugs in demand list.</td></tr>}
+                                                {(Array.isArray(drugDemands) ? drugDemands : []).length === 0 && (
+                                                    <tr>
+                                                        <td colSpan={4} className="p-8 text-center text-gray-500 text-base">No drug demands found.</td>
+                                                    </tr>
+                                                )}
                                             </tbody>
                                         </table>
                                     </div>
@@ -1435,34 +1490,162 @@ const AdmissionAndTreatmentPage: React.FC<{
                 />
             )}
             {showTemplateModal && (
-                <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
-                    <div className="bg-[#1f2937] rounded-lg w-full max-w-lg border border-gray-600 shadow-2xl p-6">
-                        <h3 className="text-xl font-bold text-white mb-4">Treatment Templates</h3>
+                <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+                    <div className="bg-white rounded-xl w-full max-w-lg border border-gray-300 shadow-2xl p-6">
+                        <h3 className="text-xl font-bold text-blue-800 mb-4">Treatment Templates</h3>
                         <div className="flex gap-2 mb-6">
-                            <input value={newTemplateName} onChange={e=>setNewTemplateName(e.target.value)} placeholder="New Template Name" className="flex-1 p-2 bg-[#2d3748] border border-gray-600 rounded text-white"/>
-                            <button onClick={handleSaveTemplate} className="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-500">Save Current Order as Template</button>
+                            <input 
+                                value={newTemplateName} 
+                                onChange={e=>setNewTemplateName(e.target.value)} 
+                                placeholder="New Template Name" 
+                                className="flex-1 p-2 bg-gray-50 border border-gray-300 rounded text-gray-800 focus:ring-2 focus:ring-blue-500 outline-none"
+                            />
+                            <button 
+                                onClick={handleSaveTemplate} 
+                                className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 font-bold transition-colors shadow-sm"
+                            >
+                                Save Current Order
+                            </button>
                         </div>
-                        <h4 className="text-sm font-bold text-gray-400 mb-2 uppercase">Saved Templates</h4>
-                        <div className="max-h-60 overflow-y-auto bg-[#111827] rounded border border-gray-700 p-2">
+                        <h4 className="text-sm font-bold text-gray-500 mb-2 uppercase tracking-wider">Saved Templates</h4>
+                        <div className="max-h-60 overflow-y-auto bg-gray-50 rounded border border-gray-200 p-2">
                             {(Array.isArray(templates) ? templates : []).map(t => t && (
-                                <div key={t.id} className="flex justify-between items-center p-2 hover:bg-gray-800 border-b border-gray-800 last:border-0">
+                                <div key={t.id} className="flex justify-between items-center p-3 hover:bg-blue-50 border-b border-gray-200 last:border-0 transition-colors rounded-lg mb-1">
                                     <div onClick={() => handleLoadTemplate(t)} className="cursor-pointer flex-1">
-                                        <div className="font-bold text-blue-400">{t.name}</div>
+                                        <div className="font-bold text-blue-700">{t.name}</div>
                                         <div className="text-xs text-gray-500">{t.category} - {(Array.isArray(t.medications) ? t.medications : []).length} meds</div>
                                     </div>
-                                    <button onClick={()=>{setTemplates((prev: TreatmentTemplate[])=>(Array.isArray(prev) ? prev : []).filter((x: TreatmentTemplate)=>x.id!==t.id))}} className="text-red-500 text-xs">Del</button>
+                                    <button 
+                                        onClick={()=>{setTemplates((prev: TreatmentTemplate[])=>(Array.isArray(prev) ? prev : []).filter((x: TreatmentTemplate)=>x.id!==t.id))}} 
+                                        className="text-red-500 hover:text-red-700 p-1 transition-colors"
+                                    >
+                                        <Trash2Icon size={16}/>
+                                    </button>
                                 </div>
                             ))}
-                            {(Array.isArray(templates) ? templates : []).length === 0 && <div className="text-center text-gray-500 p-4">No templates saved yet.</div>}
+                            {(Array.isArray(templates) ? templates : []).length === 0 && (
+                                <div className="text-center text-gray-400 p-8 italic">No templates saved yet.</div>
+                            )}
                         </div>
-                        <div className="mt-4 text-right"><button onClick={()=>setShowTemplateModal(false)} className="bg-slate-600 text-white px-4 py-2 rounded">Close</button></div>
+                        <div className="mt-6 text-right">
+                            <button 
+                                onClick={()=>setShowTemplateModal(false)} 
+                                className="bg-gray-200 hover:bg-gray-300 text-gray-800 px-6 py-2 rounded font-bold transition-colors"
+                            >
+                                Close
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
-            {showDrugDemandModal && <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4"><div className="bg-[#1f2937] rounded-lg w-full max-w-md border border-gray-600 shadow-2xl p-6"><h3 className="text-xl font-bold text-white mb-4">New Drug</h3><input value={newDrugEntry.name} onChange={e=>setNewDrugEntry({...newDrugEntry, name:e.target.value})} className="w-full p-2 bg-[#2d3748] border border-gray-600 rounded text-white mb-2" placeholder="Trade Name"/><input value={newDrugEntry.generic} onChange={e=>setNewDrugEntry({...newDrugEntry, generic:e.target.value})} className="w-full p-2 bg-[#2d3748] border border-gray-600 rounded text-white mb-2" placeholder="Generic Name (e.g. Paracetamol)"/><div className="grid grid-cols-2 gap-2 mb-4"><div><label className="text-[10px] text-gray-500 uppercase font-black mb-1">Type</label><select value={newDrugEntry.type} onChange={e=>setNewDrugEntry({...newDrugEntry, type: e.target.value})} className="w-full p-2 bg-[#2d3748] border border-gray-600 rounded text-white text-sm">{drugTypes.map(t=><option key={t} value={t}>{t}</option>)}</select></div><div><label className="text-[10px] text-gray-500 uppercase font-black mb-1">Strength</label><input value={newDrugEntry.strength} onChange={e=>setNewDrugEntry({...newDrugEntry, strength: e.target.value})} className="w-full p-2 bg-[#2d3748] border border-gray-600 rounded text-white text-sm" placeholder="500mg"/></div></div><button onClick={handleSaveNewDrugEntry} className="px-4 py-2 bg-blue-600 text-white rounded">Add</button><button onClick={()=>setShowDrugDemandModal(false)} className="px-4 py-2 bg-gray-600 text-white rounded ml-2">Cancel</button></div></div>}
-            {showNewPatientForm && <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4"><div className="bg-[#1f2937] rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto border border-gray-600"><div className="p-4"><PatientInfoPage patients={patients} setPatients={setPatients} isEmbedded={true} onClose={()=>setShowNewPatientForm(false)} onSaveAndSelect={(id,name)=>{setAdmissionData((prev: AdmissionRecord)=>({...prev, patient_id:id, patient_name:name})); setShowNewPatientForm(false);}}/></div></div></div>}
-            {showNewDoctorForm && <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4"><div className="bg-[#1f2937] rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto border border-gray-600"><div className="p-4"><DoctorInfoPage doctors={doctors} setDoctors={setDoctors} isEmbedded={true} onClose={()=>setShowNewDoctorForm(false)} onSaveAndSelect={(id,name)=>{setAdmissionData((prev: AdmissionRecord)=>({...prev, doctor_id:id, doctor_name:name})); setShowNewDoctorForm(false);}}/></div></div></div>}
-            {showNewReferrarForm && <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4"><div className="bg-[#1f2937] rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto border border-gray-600"><div className="p-4"><ReferrerInfoPage referrars={referrars} setReferrars={setReferrars} isEmbedded onClose={()=>setShowNewReferrarForm(false)} onSaveAndSelect={(id,name)=>{setAdmissionData((prev: AdmissionRecord)=>({...prev, referrer_id:id, referrer_name:name})); setShowNewReferrarForm(false);}}/></div></div></div>}
+            {showDrugDemandModal && (
+                <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+                    <div className="bg-white rounded-xl w-full max-w-md border border-gray-300 shadow-2xl p-6">
+                        <h3 className="text-xl font-bold text-blue-800 mb-4">New Drug Demand</h3>
+                        <input 
+                            value={newDrugEntry.name} 
+                            onChange={e=>setNewDrugEntry({...newDrugEntry, name:e.target.value})} 
+                            className="w-full p-3 bg-gray-50 border border-gray-300 rounded text-gray-800 mb-3 focus:ring-2 focus:ring-blue-500 outline-none" 
+                            placeholder="Trade Name"
+                        />
+                        <input 
+                            value={newDrugEntry.generic} 
+                            onChange={e=>setNewDrugEntry({...newDrugEntry, generic:e.target.value})} 
+                            className="w-full p-3 bg-gray-50 border border-gray-300 rounded text-gray-800 mb-3 focus:ring-2 focus:ring-blue-500 outline-none" 
+                            placeholder="Generic Name (e.g. Paracetamol)"
+                        />
+                        <div className="grid grid-cols-2 gap-3 mb-6">
+                            <div>
+                                <label className="text-[10px] text-gray-500 uppercase font-black mb-1 block">Type</label>
+                                <select 
+                                    value={newDrugEntry.type} 
+                                    onChange={e=>setNewDrugEntry({...newDrugEntry, type: e.target.value})} 
+                                    className="w-full p-3 bg-gray-50 border border-gray-300 rounded text-gray-800 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                >
+                                    {drugTypes.map(t=><option key={t} value={t}>{t}</option>)}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="text-[10px] text-gray-500 uppercase font-black mb-1 block">Strength</label>
+                                <input 
+                                    value={newDrugEntry.strength} 
+                                    onChange={e=>setNewDrugEntry({...newDrugEntry, strength: e.target.value})} 
+                                    className="w-full p-3 bg-gray-50 border border-gray-300 rounded text-gray-800 text-sm focus:ring-2 focus:ring-blue-500 outline-none" 
+                                    placeholder="500mg"
+                                />
+                            </div>
+                        </div>
+                        <div className="flex gap-3">
+                            <button 
+                                onClick={handleSaveNewDrugEntry} 
+                                className="flex-1 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded font-bold transition-colors shadow-sm"
+                            >
+                                Add Demand
+                            </button>
+                            <button 
+                                onClick={()=>setShowDrugDemandModal(false)} 
+                                className="flex-1 px-4 py-3 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded font-bold transition-colors"
+                            >
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {showNewPatientForm && (
+                <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+                    <div className="bg-white rounded-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto border border-gray-300 shadow-2xl">
+                        <div className="p-4">
+                            <PatientInfoPage 
+                                patients={patients} 
+                                setPatients={setPatients} 
+                                isEmbedded={true} 
+                                onClose={()=>setShowNewPatientForm(false)} 
+                                onSaveAndSelect={(id,name)=>{
+                                    setAdmissionData((prev: AdmissionRecord)=>({...prev, patient_id:id, patient_name:name})); 
+                                    setShowNewPatientForm(false);
+                                }}
+                            />
+                        </div>
+                    </div>
+                </div>
+            )}
+            {showNewDoctorForm && (
+                <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+                    <div className="bg-white rounded-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto border border-gray-300 shadow-2xl">
+                        <div className="p-4">
+                            <DoctorInfoPage 
+                                doctors={doctors} 
+                                setDoctors={setDoctors} 
+                                isEmbedded={true} 
+                                onClose={()=>setShowNewDoctorForm(false)} 
+                                onSaveAndSelect={(id,name)=>{
+                                    setAdmissionData((prev: AdmissionRecord)=>({...prev, doctor_id:id, doctor_name:name})); 
+                                    setShowNewDoctorForm(false);
+                                }}
+                            />
+                        </div>
+                    </div>
+                </div>
+            )}
+            {showNewReferrarForm && (
+                <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+                    <div className="bg-white rounded-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto border border-gray-300 shadow-2xl">
+                        <div className="p-4">
+                            <ReferrerInfoPage 
+                                referrars={referrars} 
+                                setReferrars={setReferrars} 
+                                isEmbedded 
+                                onClose={()=>setShowNewReferrarForm(false)} 
+                                onSaveAndSelect={(id,name)=>{
+                                    setAdmissionData((prev: AdmissionRecord)=>({...prev, referrer_id:id, referrer_name:name})); 
+                                    setShowNewReferrarForm(false);
+                                }}
+                            />
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
@@ -1970,17 +2153,17 @@ const IndoorInvoicePage: React.FC<{
         }
     };
 
-    const commonInputClasses = "w-full p-2 bg-[#374151] border border-gray-600 rounded text-white text-sm focus:ring-1 focus:ring-blue-500";
+    const commonInputClasses = "w-full p-2 bg-gray-50 border border-gray-300 rounded text-gray-800 text-sm focus:ring-1 focus:ring-blue-500";
 
     const SummaryCard = ({ title, bill, net, color }: any) => (
-        <div className="bg-slate-800 p-4 rounded border border-slate-700 text-center shadow-lg transition-transform hover:scale-105">
-            <h4 className="text-gray-400 text-[10px] uppercase font-black tracking-widest mb-1">{title}</h4>
+        <div className="bg-white p-4 rounded-xl border border-gray-300 text-center shadow-sm transition-transform hover:scale-105">
+            <h4 className="text-gray-500 text-[10px] uppercase font-black tracking-widest mb-1">{title}</h4>
             <div className="space-y-1">
-                <div className="flex justify-between items-center text-slate-500 text-[11px] font-bold">
+                <div className="flex justify-between items-center text-gray-500 text-[11px] font-bold">
                     <span>Total Bill:</span>
                     <span>৳{bill.toLocaleString()}</span>
                 </div>
-                <div className={`flex justify-between items-center ${color} text-lg font-black border-t border-slate-700 pt-1`}>
+                <div className={`flex justify-between items-center ${color} text-lg font-black border-t border-gray-200 pt-1`}>
                     <span className="text-[10px] uppercase">Hospital Net:</span>
                     <span>৳{net.toLocaleString()}</span>
                 </div>
@@ -2054,23 +2237,23 @@ const IndoorInvoicePage: React.FC<{
     return (
         <div className="space-y-6">
             <div className="grid grid-cols-4 gap-4">
-                <SummaryCard title="Today Hospital Cash" bill={stats.today.totalBill} net={stats.today.hospitalNet} color="text-green-400" />
-                <SummaryCard title="Monthly Hospital Cash" bill={stats.month.totalBill} net={stats.month.hospitalNet} color="text-blue-400" />
-                <SummaryCard title="Yearly Hospital Cash" bill={stats.year.totalBill} net={stats.year.hospitalNet} color="text-purple-400" />
-                <div className="bg-slate-800 p-4 rounded border border-slate-700 text-center shadow-lg flex flex-col justify-center">
-                    <h4 className="text-gray-400 text-[10px] uppercase font-black tracking-widest mb-1">Total Outstanding Due</h4>
-                    <p className="text-2xl font-black text-rose-500">৳{stats.totalDue.toLocaleString()}</p>
+                <SummaryCard title="Today Hospital Cash" bill={stats.today.totalBill} net={stats.today.hospitalNet} color="text-green-600" />
+                <SummaryCard title="Monthly Hospital Cash" bill={stats.month.totalBill} net={stats.month.hospitalNet} color="text-blue-600" />
+                <SummaryCard title="Yearly Hospital Cash" bill={stats.year.totalBill} net={stats.year.hospitalNet} color="text-purple-600" />
+                <div className="bg-white p-4 rounded-xl border border-gray-300 text-center shadow-sm flex flex-col justify-center">
+                    <h4 className="text-gray-500 text-[10px] uppercase font-black tracking-widest mb-1">Total Outstanding Due</h4>
+                    <p className="text-2xl font-black text-rose-600">৳{stats.totalDue.toLocaleString()}</p>
                 </div>
             </div>
 
-            <div className="bg-[#20293a] p-6 rounded border border-[#374151]">
-                <h3 className="text-xl font-bold text-white mb-4 border-b border-gray-700 pb-2">Indoor Invoice</h3>
+            <div className="bg-white p-6 rounded border border-gray-300 shadow-sm">
+                <h3 className="text-xl font-bold text-blue-800 mb-4 border-b border-gray-200 pb-2">Indoor Invoice</h3>
                 <div className="flex flex-wrap gap-4 mb-6">
                     <div className="w-full md:w-1/4">
-                        <label className="block text-xs text-gray-400 mb-1">Admitted Patient</label>
+                        <label className="block text-xs text-gray-500 font-semibold mb-1">Admitted Patient</label>
                         <SearchableSelect 
                             label="" 
-                            theme="dark" 
+                            theme="light" 
                             placeholder="Search Admitted Patient..."
                             options={(Array.isArray(admissions) ? admissions : []).filter(a => a).map(a => {
                                 const safePatients = Array.isArray(patients) ? patients : [];
@@ -2098,10 +2281,10 @@ const IndoorInvoicePage: React.FC<{
                         />
                     </div>
                     <div className="w-full md:w-1/4">
-                        <label className="block text-xs text-gray-400 mb-1">Outdoor Patient (Not Admitted)</label>
+                        <label className="block text-xs text-gray-500 font-semibold mb-1">Outdoor Patient (Not Admitted)</label>
                         <SearchableSelect 
                             label="" 
-                            theme="dark" 
+                            theme="light" 
                             placeholder="Search All Patients..."
                             options={(Array.isArray(patients) ? patients : []).filter(p => p).map(p => ({
                                 id: p.pt_id || '', 
@@ -2126,7 +2309,7 @@ const IndoorInvoicePage: React.FC<{
                         />
                     </div>
                     <div className="w-full md:w-1/6">
-                        <label className="block text-xs text-gray-400 mb-1">Invoice Date</label>
+                        <label className="block text-xs text-gray-500 font-semibold mb-1">Invoice Date</label>
                         <input 
                             type="date" 
                             className={commonInputClasses} 
@@ -2135,7 +2318,7 @@ const IndoorInvoicePage: React.FC<{
                         />
                     </div>
                     <div className="flex items-end gap-2">
-                        <button onClick={handleGenerateId} className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded font-bold shadow transition-all text-xs uppercase h-10">Generate ID</button>
+                        <button onClick={handleGenerateId} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded font-bold shadow transition-all text-xs uppercase h-10">Generate ID</button>
                         {formData.daily_id && (
                             <button 
                                 onClick={() => { 
@@ -2143,7 +2326,7 @@ const IndoorInvoicePage: React.FC<{
                                     setSelectedAdmission(null); 
                                     setSelectedInvoiceId(null); 
                                 }} 
-                                className="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded font-bold shadow transition-all text-xs uppercase"
+                                className="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded font-bold shadow transition-all text-xs uppercase h-10"
                             >
                                 Clear Form
                             </button>
@@ -2151,9 +2334,9 @@ const IndoorInvoicePage: React.FC<{
                         {selectedInvoiceId && (
                             <button 
                                 onClick={handleNewVisit} 
-                                className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded font-bold shadow transition-all text-xs uppercase"
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded font-bold shadow transition-all text-xs uppercase h-10"
                             >
-                                New Visit for this Patient
+                                New Visit
                             </button>
                         )}
                     </div>
@@ -2172,42 +2355,42 @@ const IndoorInvoicePage: React.FC<{
                                 </button>
                             )}
                         </div>
-                        <div className="grid grid-cols-1 md:grid-cols-6 gap-6 bg-[#1f2937] p-4 rounded-xl border border-gray-600">
-                            <div><label className="block text-xs text-gray-400">Invoice ID</label><input type="text" value={formData.daily_id} disabled className="w-full p-2 bg-[#1a202c] border border-gray-600 rounded text-gray-300"/></div>
-                            <div><label className="block text-xs text-gray-400">Invoice Date</label><input type="date" name="invoice_date" value={formData.invoice_date} onChange={handleInputChange} className="w-full p-2 bg-[#374151] border border-gray-600 rounded text-white"/></div>
-                            <div><label className="block text-xs text-gray-400">Entry Date (System)</label><input type="text" value={formData.created_at ? new Date(formData.created_at).toLocaleString() : 'Not Saved Yet'} disabled className="w-full p-2 bg-[#1a202c] border border-gray-600 rounded text-gray-400 text-[10px]"/></div>
-                            <div><label className="block text-xs text-gray-400">Admission Date</label><input type="date" name="admission_date" value={formData.admission_date} onChange={handleInputChange} className="w-full p-2 bg-[#374151] border border-gray-600 rounded text-white"/></div>
-                            <div><label className="block text-xs text-gray-400">Discharge Date</label><input type="date" name="discharge_date" value={formData.discharge_date} onChange={handleInputChange} className="w-full p-2 bg-[#374151] border border-gray-600 rounded text-white"/></div>
-                            <div><label className="block text-xs text-gray-400">Patient Mobile</label><input type="text" name="patient_mobile" value={formData.patient_mobile || ''} onChange={handleInputChange} className="w-full p-2 bg-[#374151] border border-gray-600 rounded text-white"/></div>
-                            <div><label className="block text-xs text-gray-400">Patient Address</label><input type="text" name="patient_address" value={formData.patient_address || ''} onChange={handleInputChange} className="w-full p-2 bg-[#374151] border border-gray-600 rounded text-white"/></div>
-                            <div><label className="block text-xs text-gray-400">Patient DOB</label><input type="text" name="patient_dob" value={formData.patient_dob || ''} onChange={handleInputChange} className="w-full p-2 bg-[#374151] border border-gray-600 rounded text-white" placeholder="YYYY-MM-DD"/></div>
-                            <div className="flex flex-col justify-center items-center bg-slate-800 rounded border border-slate-600 p-2">
-                                <label className="block text-xs text-gray-400 mb-1">PC (Apply?)</label>
+                        <div className="grid grid-cols-1 md:grid-cols-6 gap-6 bg-gray-50 p-4 rounded-xl border border-gray-300 shadow-sm">
+                            <div><label className="block text-xs text-gray-500 font-semibold">Invoice ID</label><input type="text" value={formData.daily_id} disabled className="w-full p-2 bg-gray-100 border border-gray-300 rounded text-gray-600"/></div>
+                            <div><label className="block text-xs text-gray-500 font-semibold">Invoice Date</label><input type="date" name="invoice_date" value={formData.invoice_date} onChange={handleInputChange} className="w-full p-2 bg-white border border-gray-300 rounded text-gray-800 focus:ring-1 focus:ring-blue-500"/></div>
+                            <div><label className="block text-xs text-gray-500 font-semibold">Entry Date (System)</label><input type="text" value={formData.created_at ? new Date(formData.created_at).toLocaleString() : 'Not Saved Yet'} disabled className="w-full p-2 bg-gray-100 border border-gray-300 rounded text-gray-500 text-[10px]"/></div>
+                            <div><label className="block text-xs text-gray-500 font-semibold">Admission Date</label><input type="date" name="admission_date" value={formData.admission_date} onChange={handleInputChange} className="w-full p-2 bg-white border border-gray-300 rounded text-gray-800 focus:ring-1 focus:ring-blue-500"/></div>
+                            <div><label className="block text-xs text-gray-500 font-semibold">Discharge Date</label><input type="date" name="discharge_date" value={formData.discharge_date} onChange={handleInputChange} className="w-full p-2 bg-white border border-gray-300 rounded text-gray-800 focus:ring-1 focus:ring-blue-500"/></div>
+                            <div><label className="block text-xs text-gray-500 font-semibold">Patient Mobile</label><input type="text" name="patient_mobile" value={formData.patient_mobile || ''} onChange={handleInputChange} className="w-full p-2 bg-white border border-gray-300 rounded text-gray-800 focus:ring-1 focus:ring-blue-500"/></div>
+                            <div><label className="block text-xs text-gray-500 font-semibold">Patient Address</label><input type="text" name="patient_address" value={formData.patient_address || ''} onChange={handleInputChange} className="w-full p-2 bg-white border border-gray-300 rounded text-gray-800 focus:ring-1 focus:ring-blue-500"/></div>
+                            <div><label className="block text-xs text-gray-500 font-semibold">Patient DOB</label><input type="text" name="patient_dob" value={formData.patient_dob || ''} onChange={handleInputChange} className="w-full p-2 bg-white border border-gray-300 rounded text-gray-800 focus:ring-1 focus:ring-blue-500" placeholder="YYYY-MM-DD"/></div>
+                            <div className="flex flex-col justify-center items-center bg-gray-100 rounded border border-gray-300 p-2">
+                                <label className="block text-xs text-gray-500 font-semibold mb-1">PC (Apply?)</label>
                                 <div className="flex gap-2 items-center">
-                                    <button type="button" onClick={() => setApplyPC(true)} className={`px-3 py-1 rounded text-xs font-bold ${applyPC ? 'bg-green-600 text-white' : 'bg-slate-600 text-gray-300'}`}>YES</button>
-                                    <button type="button" onClick={() => { setApplyPC(false); setFormData(prev => ({ ...prev, special_commission: 0 })); }} className={`px-3 py-1 rounded text-xs font-bold ${!applyPC ? 'bg-red-600 text-white' : 'bg-slate-600 text-gray-300'}`}>NO</button>
-                                    {applyPC && <input type="number" value={formData.special_commission} onChange={e => setFormData(prev => ({...prev, special_commission: parseFloat(e.target.value) || 0}))} className="w-20 p-1 bg-[#374151] border border-gray-600 rounded text-white text-xs" placeholder="Amount"/>}
+                                    <button type="button" onClick={() => setApplyPC(true)} className={`px-3 py-1 rounded text-xs font-bold transition-colors ${applyPC ? 'bg-green-600 text-white shadow-sm' : 'bg-gray-300 text-gray-600'}`}>YES</button>
+                                    <button type="button" onClick={() => { setApplyPC(false); setFormData(prev => ({ ...prev, special_commission: 0 })); }} className={`px-3 py-1 rounded text-xs font-bold transition-colors ${!applyPC ? 'bg-red-600 text-white shadow-sm' : 'bg-gray-300 text-gray-600'}`}>NO</button>
+                                    {applyPC && <input type="number" value={formData.special_commission} onChange={e => setFormData(prev => ({...prev, special_commission: parseFloat(e.target.value) || 0}))} className="w-20 p-1 bg-white border border-gray-300 rounded text-gray-800 text-xs focus:ring-1 focus:ring-blue-500" placeholder="Amount"/>}
                                 </div>
                             </div>
-                            <div><label className="block text-xs text-gray-400">Category</label><select name="serviceCategory" value={formData.serviceCategory} onChange={handleInputChange} className={commonInputClasses}>{serviceCategoriesList.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
+                            <div><label className="block text-xs text-gray-500 font-semibold">Category</label><select name="serviceCategory" value={formData.serviceCategory} onChange={handleInputChange} className={commonInputClasses}>{serviceCategoriesList.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
                             <div>
                                 <SearchableSelect 
-                                    theme="dark" 
+                                    theme="light" 
                                     label="Sub_Category" 
                                     options={(filteredSubCategories || []).filter(s => s && s.id && s.name).map(s => ({id: s.id, name: s.name}))} 
                                     value={(filteredSubCategories || []).find(s => s && s.name === formData.subCategory)?.id || ''} 
                                     onChange={(_id, name) => setFormData(prev => ({...prev, subCategory: name}))} 
                                     onAddNew={() => setShowSubCategoryManager(true)}
                                     required={true}
-                                    inputHeightClass="h-[38px] bg-[#374151] border-gray-600"
+                                    inputHeightClass="h-[38px] bg-white border-gray-300"
                                     allowCustom={true}
                                 />
                             </div>
-                            <div className="col-span-2"><label className="block text-xs text-gray-400">Referrer</label><select name="referrar_id" value={formData.referrar_id} onChange={(e) => { const ref = referrars.find(r => r.ref_id === e.target.value); setFormData({...formData, referrar_id: ref?.ref_id, referrar_name: ref?.ref_name}); }} className={commonInputClasses}><option value="">Select...</option>{referrars.map(r => <option key={r.ref_id} value={r.ref_id}>{r.ref_name}</option>)}</select></div>
+                            <div className="col-span-2"><label className="block text-xs text-gray-500 font-semibold">Referrer</label><select name="referrar_id" value={formData.referrar_id} onChange={(e) => { const ref = referrars.find(r => r.ref_id === e.target.value); setFormData({...formData, referrar_id: ref?.ref_id, referrar_name: ref?.ref_name}); }} className={commonInputClasses}><option value="">Select...</option>{referrars.map(r => <option key={r.ref_id} value={r.ref_id}>{r.ref_name}</option>)}</select></div>
                             
-                            <div className="col-span-4 bg-slate-800/40 p-4 rounded-xl border border-slate-700">
+                            <div className="col-span-4 bg-gray-100/50 p-4 rounded-xl border border-gray-300 shadow-inner">
                                 <div className="flex justify-between items-center mb-2">
-                                    <label className="text-xs font-black text-sky-400 uppercase tracking-widest flex items-center gap-2">
+                                    <label className="text-xs font-black text-blue-700 uppercase tracking-widest flex items-center gap-2">
                                         <FileTextIcon size={14} /> OT Details & Clinical Notes
                                     </label>
                                     <div className="flex gap-2">
@@ -2215,7 +2398,7 @@ const IndoorInvoicePage: React.FC<{
                                             <button 
                                                 type="button" 
                                                 onClick={handleLoadTemplate}
-                                                className="bg-amber-600/20 text-amber-400 px-3 py-1 rounded-lg text-[10px] font-black uppercase border border-amber-500/30 hover:bg-amber-600 hover:text-white transition-all animate-pulse"
+                                                className="bg-amber-100 text-amber-700 px-3 py-1 rounded-lg text-[10px] font-black uppercase border border-amber-300 hover:bg-amber-200 transition-all"
                                             >
                                                 Load Saved Template
                                             </button>
@@ -2223,7 +2406,7 @@ const IndoorInvoicePage: React.FC<{
                                         <button 
                                             type="button" 
                                             onClick={handleSaveAsTemplate}
-                                            className="bg-blue-600 text-white px-3 py-1 rounded-lg text-[10px] font-black uppercase hover:bg-blue-500 transition-all flex items-center gap-2"
+                                            className="bg-blue-600 text-white px-3 py-1 rounded-lg text-[10px] font-black uppercase hover:bg-blue-700 transition-all flex items-center gap-2 shadow-sm"
                                             title="Save current details as default for this category"
                                         >
                                             <SaveIcon size={12}/> Save as Default
@@ -2234,7 +2417,7 @@ const IndoorInvoicePage: React.FC<{
                                     name="ot_details"
                                     value={formData.ot_details || ''}
                                     onChange={handleInputChange}
-                                    className="w-full h-20 bg-[#111827] border border-slate-700 rounded-xl p-3 text-white text-sm focus:ring-2 focus:ring-sky-500 outline-none resize-none shadow-inner"
+                                    className="w-full h-20 bg-white border border-gray-300 rounded-xl p-3 text-gray-800 text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none shadow-inner"
                                     placeholder="Enter OT report details, operation notes..."
                                 />
                             </div>
@@ -2322,18 +2505,18 @@ const IndoorInvoicePage: React.FC<{
                                 ))}</tbody>
                             </table>
                         </div>
-                        <div className="grid grid-cols-2 gap-6 bg-[#1f2937] p-4 rounded border border-gray-600">
+                        <div className="grid grid-cols-2 gap-6 bg-gray-50 p-4 rounded border border-gray-200">
                             <div className="space-y-2">
-                                <div><label className="text-xs text-gray-400">Created By</label><select name="bill_created_by" value={formData.bill_created_by} onChange={handleInputChange} className="w-full bg-[#374151] border border-gray-600 rounded p-1 text-white"><option value="">Select</option>{(Array.isArray(activeEmployees) ? activeEmployees : []).map(e => e && <option key={e.emp_id} value={e.emp_name}>{e.emp_name}</option>)}</select></div>
-                                <div><label className="text-xs text-gray-400">Method</label><select name="payment_method" value={formData.payment_method} onChange={handleInputChange} className="w-full bg-[#374151] border border-gray-600 rounded p-1 text-white"><option>Cash</option><option>Card</option></select></div>
+                                <div><label className="text-xs text-gray-500">Created By</label><select name="bill_created_by" value={formData.bill_created_by} onChange={handleInputChange} className="w-full bg-white border border-gray-300 rounded p-1 text-gray-800"><option value="">Select</option>{(Array.isArray(activeEmployees) ? activeEmployees : []).map(e => e && <option key={e.emp_id} value={e.emp_name}>{e.emp_name}</option>)}</select></div>
+                                <div><label className="text-xs text-gray-500">Method</label><select name="payment_method" value={formData.payment_method} onChange={handleInputChange} className="w-full bg-white border border-gray-300 rounded p-1 text-gray-800"><option>Cash</option><option>Card</option></select></div>
                             </div>
                             <div className="text-right space-y-2 text-sm font-medium">
-                                <div className="flex justify-between items-center text-gray-300"><span>Total Bill:</span> <span className="font-bold text-white">{(formData.total_bill || 0).toFixed(2)}</span></div>
-                                <div className="flex justify-between items-center text-gray-300"><span>Total Discount:</span> <span className="font-bold text-white">{(formData.total_discount || 0).toFixed(2)}</span></div>
-                                <div className="flex justify-between items-center text-yellow-300"><span>Special Discount:</span> <input type="number" name="special_discount_amount" value={formData.special_discount_amount} onChange={handleInputChange} onFocus={e=>e.target.select()} className="bg-[#374151] text-white w-24 p-1 text-right font-bold border border-gray-600 rounded"/></div>
-                                <div className="flex justify-between items-center text-blue-300 text-lg border-t border-gray-600 pt-1 mt-1"><span>Net Payable:</span> <span className="font-bold">{formData.net_payable ? (formData.net_payable || 0).toFixed(2) : '0.00'}</span></div>
-                                <div className="flex justify-between items-center text-green-400"><span>Paid:</span> <input type="number" name="paid_amount" value={formData.paid_amount} onChange={handleInputChange} onFocus={e=>e.target.select()} className="bg-[#374151] text-white w-24 p-1 text-right font-bold border border-gray-600 rounded"/></div>
-                                <div className="flex justify-between items-center text-red-400 font-bold text-lg"><span>Due:</span> <span>{(formData.due_bill || 0).toFixed(2)}</span></div>
+                                <div className="flex justify-between items-center text-gray-600"><span>Total Bill:</span> <span className="font-bold text-gray-900">{(formData.total_bill || 0).toFixed(2)}</span></div>
+                                <div className="flex justify-between items-center text-gray-600"><span>Total Discount:</span> <span className="font-bold text-gray-900">{(formData.total_discount || 0).toFixed(2)}</span></div>
+                                <div className="flex justify-between items-center text-amber-600"><span>Special Discount:</span> <input type="number" name="special_discount_amount" value={formData.special_discount_amount} onChange={handleInputChange} onFocus={e=>e.target.select()} className="bg-white text-gray-800 w-24 p-1 text-right font-bold border border-gray-300 rounded"/></div>
+                                <div className="flex justify-between items-center text-blue-600 text-lg border-t border-gray-200 pt-1 mt-1"><span>Net Payable:</span> <span className="font-bold">{formData.net_payable ? (formData.net_payable || 0).toFixed(2) : '0.00'}</span></div>
+                                <div className="flex justify-between items-center text-emerald-600"><span>Paid:</span> <input type="number" name="paid_amount" value={formData.paid_amount} onChange={handleInputChange} onFocus={e=>e.target.select()} className="bg-white text-gray-800 w-24 p-1 text-right font-bold border border-gray-300 rounded"/></div>
+                                <div className="flex justify-between items-center text-rose-600 font-bold text-lg"><span>Due:</span> <span>{(formData.due_bill || 0).toFixed(2)}</span></div>
                             </div>
                         </div>
                         <button type="submit" className="px-6 py-2 bg-green-600 text-white rounded font-bold hover:bg-green-700">Save Invoice</button>
@@ -2415,47 +2598,29 @@ const IndoorInvoicePage: React.FC<{
                                     placeholder="Search Patient or ID..." 
                                     value={tableSearchTerm}
                                     onChange={e => setTableSearchTerm(e.target.value)}
-                                    className="w-full bg-[#111827] border border-gray-700 rounded-lg pl-9 pr-3 py-1.5 text-[10px] text-white focus:ring-1 focus:ring-blue-500 outline-none"
+                                    className="w-full bg-white border border-gray-300 rounded-lg pl-9 pr-3 py-1.5 text-[10px] text-gray-800 focus:ring-1 focus:ring-blue-500 outline-none"
                                 />
                             </div>
                             <input 
                                 type="date" 
                                 value={tableDateFilter}
                                 onChange={e => setTableDateFilter(e.target.value)}
-                                className="bg-[#111827] border border-gray-700 rounded-lg px-3 py-1.5 text-[10px] text-white focus:ring-1 focus:ring-blue-500 outline-none"
+                                className="bg-white border border-gray-300 rounded-lg px-3 py-1.5 text-[10px] text-gray-800 focus:ring-1 focus:ring-blue-500 outline-none"
                             />
                             <input 
                                 type="month" 
                                 value={tableMonthFilter}
                                 onChange={e => setTableMonthFilter(e.target.value)}
-                                className="bg-[#111827] border border-gray-700 rounded-lg px-3 py-1.5 text-[10px] text-white focus:ring-1 focus:ring-blue-500 outline-none"
+                                className="bg-white border border-gray-300 rounded-lg px-3 py-1.5 text-[10px] text-gray-800 focus:ring-1 focus:ring-blue-500 outline-none"
                             />
                         </div>
                     </div>
 
-                    {/* COLUMN-WISE TOTALS SUMMARY - Aligned with Table Columns */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                        <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 text-center shadow-lg">
-                            <h4 className="text-slate-500 text-[10px] uppercase font-black tracking-widest mb-1">Total Bill Sum</h4>
-                            <p className="text-2xl font-black text-blue-400 font-mono">৳{tableTotals.total.toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
-                        </div>
-                        <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 text-center shadow-lg">
-                            <h4 className="text-slate-500 text-[10px] uppercase font-black tracking-widest mb-1">Total Received Sum</h4>
-                            <p className="text-2xl font-black text-emerald-400 font-mono">৳{tableTotals.paid.toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
-                        </div>
-                        <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 text-center shadow-lg">
-                            <h4 className="text-slate-500 text-[10px] uppercase font-black tracking-widest mb-1">Clinic Net Balance</h4>
-                            <p className="text-2xl font-black text-sky-400 font-mono">৳{tableTotals.net.toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
-                        </div>
-                        <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 text-center shadow-lg">
-                            <h4 className="text-slate-500 text-[10px] uppercase font-black tracking-widest mb-1">Total Outstanding Due</h4>
-                            <p className="text-2xl font-black text-rose-500 font-mono">৳{tableTotals.due.toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
-                        </div>
-                    </div>
+                    {/* Summary row is now integrated into the table header for better alignment */}
 
-                    <div className="bg-[#111827] rounded-xl border border-gray-700 shadow-inner overflow-hidden">
-                        <table className="w-full text-sm text-left text-gray-300 border-collapse">
-                            <thead className="bg-[#1f2937] text-gray-400 sticky top-0 z-10">
+                    <div className="bg-[#f8f9fa] rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                        <table className="w-full text-sm text-left text-gray-800 border-collapse">
+                            <thead className="bg-gray-100 text-gray-600 sticky top-0 z-10">
                                 <tr>
                                     <th className="p-3 text-center w-12">SL</th>
                                     <th className="p-3 w-24">ID</th>
@@ -2463,23 +2628,31 @@ const IndoorInvoicePage: React.FC<{
                                     <th className="p-3">Patient Details</th>
                                     <th className="p-3 text-right w-32">Total</th>
                                     <th className="p-3 text-right w-32">Paid</th>
-                                    <th className="p-3 text-right w-32">Clinic Net</th>
                                     <th className="p-3 text-right w-32">Due</th>
+                                    <th className="p-3 text-right w-32">Clinic Net Balance</th>
                                     <th className="p-3 text-center w-24">Status</th>
                                     <th className="p-3 text-center w-40">Action</th>
                                 </tr>
+                                <tr className="bg-gray-200/80 text-[10px] border-t border-gray-300">
+                                    <th colSpan={4} className="p-2 text-right text-gray-500 font-black uppercase tracking-widest">Filtered Totals:</th>
+                                    <th className="p-2 text-right text-blue-600 font-mono">৳{tableTotals.total.toLocaleString(undefined, {minimumFractionDigits: 2})}</th>
+                                    <th className="p-2 text-right text-emerald-600 font-mono">৳{tableTotals.paid.toLocaleString(undefined, {minimumFractionDigits: 2})}</th>
+                                    <th className="p-2 text-right text-rose-600 font-mono">৳{tableTotals.due.toLocaleString(undefined, {minimumFractionDigits: 2})}</th>
+                                    <th className="p-2 text-right text-sky-600 font-mono">৳{tableTotals.net.toLocaleString(undefined, {minimumFractionDigits: 2})}</th>
+                                    <th colSpan={2}></th>
+                                </tr>
                             </thead>
-                            <tbody className="divide-y divide-gray-700">
+                            <tbody className="divide-y divide-gray-200">
                                 {filteredInvoices.map((inv, index) => (
-                                    <tr key={inv.daily_id} onClick={() => handleLoadInvoice(inv)} className={`cursor-pointer hover:bg-slate-800 transition-all ${selectedInvoiceId === inv.daily_id ? 'bg-blue-900/30' : ''} ${inv.status === 'Returned' ? 'bg-rose-900/10' : inv.status === 'Cancelled' ? 'opacity-30 grayscale line-through' : ''}`}>
-                                        <td className="p-3 text-center text-gray-500 font-mono text-xs">{index + 1}</td>
-                                        <td className="p-3 font-mono text-xs text-sky-400">{inv.daily_id}</td>
+                                    <tr key={inv.daily_id} onClick={() => handleLoadInvoice(inv)} className={`cursor-pointer hover:bg-white transition-all ${selectedInvoiceId === inv.daily_id ? 'bg-blue-50' : ''} ${inv.status === 'Returned' ? 'bg-rose-50' : inv.status === 'Cancelled' ? 'opacity-30 grayscale line-through' : ''}`}>
+                                        <td className="p-3 text-center text-gray-400 font-mono text-xs">{index + 1}</td>
+                                        <td className="p-3 font-mono text-xs text-sky-600">{inv.daily_id}</td>
                                         <td className="p-3 text-xs">{inv.invoice_date}</td>
                                         <td className="p-3">
-                                            <div className="font-black uppercase text-white leading-tight">{inv.patient_name}</div>
+                                            <div className="font-black uppercase text-gray-900 leading-tight">{inv.patient_name}</div>
                                             <div className="text-[9px] text-gray-500 mt-1 flex flex-wrap gap-x-3 gap-y-1">
-                                                <span className="bg-slate-800 px-1 rounded">ID: {inv.patient_id}</span>
-                                                <span className="bg-blue-900/30 text-blue-300 px-1 rounded">Indication: {inv.indication}</span>
+                                                <span className="bg-gray-200 px-1 rounded">ID: {inv.patient_id}</span>
+                                                <span className="bg-blue-50 text-blue-600 px-1 rounded">Indication: {inv.indication}</span>
                                                 {(() => {
                                                     const safePatients = Array.isArray(patients) ? patients : [];
                                                     const p = safePatients.find(pt => pt && pt.pt_id === inv.patient_id);
@@ -2494,8 +2667,9 @@ const IndoorInvoicePage: React.FC<{
                                             </div>
                                         </td>
                                         <td className="p-3 text-right font-bold font-mono">৳{Number(inv.total_bill || 0).toFixed(2)}</td>
-                                        <td className="p-3 text-right text-emerald-400 font-black font-mono">৳{Number(inv.paid_amount || 0).toFixed(2)}</td>
-                                        <td className="p-3 text-right text-sky-400 font-bold font-mono">
+                                        <td className="p-3 text-right text-emerald-600 font-black font-mono">৳{Number(inv.paid_amount || 0).toFixed(2)}</td>
+                                        <td className="p-3 text-right text-rose-600 font-black font-mono">৳{Number(inv.due_bill || 0).toFixed(2)}</td>
+                                        <td className="p-3 text-right text-sky-600 font-bold font-mono">
                                             {(() => {
                                                 if (inv.status === 'Cancelled') return '৳0.00';
                                                 const items = Array.isArray(inv.items) ? inv.items : [];
@@ -2507,14 +2681,13 @@ const IndoorInvoicePage: React.FC<{
                                                 return `৳${(inv.status === 'Returned' ? -net : net).toFixed(2)}`;
                                             })()}
                                         </td>
-                                        <td className="p-3 text-right text-rose-500 font-black font-mono">৳{Number(inv.due_bill || 0).toFixed(2)}</td>
                                         <td className="p-3 text-center"><span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase ${inv.status==='Returned'?'bg-rose-600 text-white':inv.status==='Cancelled'?'bg-slate-700 text-slate-300':'bg-blue-600 text-white'}`}>{inv.status}</span></td>
                                         <td className="p-3 text-center space-x-3" onClick={e=>e.stopPropagation()}>
-                                            <button onClick={(e) => { e.stopPropagation(); handlePrintInvoice(inv); }} className="text-sky-400 hover:text-white text-xs font-bold underline">Print</button>
+                                            <button onClick={(e) => { e.stopPropagation(); handlePrintInvoice(inv); }} className="text-sky-600 hover:text-sky-800 text-xs font-bold underline">Print</button>
                                             {inv.status !== 'Returned' && inv.status !== 'Cancelled' && (
                                                 <>
-                                                    <button onClick={(e) => { e.stopPropagation(); handleReturnInvoice(inv); }} className="text-amber-500 hover:text-white text-xs font-bold underline">Return</button>
-                                                    <button onClick={(e) => { e.stopPropagation(); handleCancelInvoice(inv); }} className="text-rose-500 hover:text-white text-xs font-bold underline">Cancel</button>
+                                                    <button onClick={(e) => { e.stopPropagation(); handleReturnInvoice(inv); }} className="text-amber-600 hover:text-amber-800 text-xs font-bold underline">Return</button>
+                                                    <button onClick={(e) => { e.stopPropagation(); handleCancelInvoice(inv); }} className="text-rose-600 hover:text-rose-800 text-xs font-bold underline">Cancel</button>
                                                 </>
                                             )}
                                         </td>
@@ -2522,7 +2695,7 @@ const IndoorInvoicePage: React.FC<{
                                 ))}
                             </tbody>
                         </table>
-                        {filteredInvoices.length === 0 && <div className="p-20 text-center text-slate-700 font-black uppercase opacity-20">No Records Found</div>}
+                        {filteredInvoices.length === 0 && <div className="p-20 text-center text-gray-400 font-black uppercase opacity-20">No Records Found</div>}
                     </div>
                 </div>
             </div>
@@ -2582,11 +2755,32 @@ const ClinicDueCollectionPage: React.FC<{
         setSelectedInvoice(null);
     };
     return (
-        <div className="bg-[#20293a] p-6 rounded border border-gray-700">
-            <h3 className="text-xl font-bold text-white mb-4">Due Collection</h3>
-            <input type="text" placeholder="Search..." value={searchTerm} onChange={e=>setSearchTerm(e.target.value)} className="w-full p-2 bg-[#374151] border border-gray-600 rounded text-white mb-4"/>
-            <table className="w-full text-sm text-left text-gray-300"><thead><tr><th className="p-2">ID</th><th className="p-2">Patient</th><th className="p-2">Due</th><th className="p-2">Action</th></tr></thead><tbody>{(Array.isArray(dueInvoices) ? dueInvoices : []).map(inv => inv && <tr key={inv.daily_id}><td className="p-2">{inv.daily_id}</td><td className="p-2">{inv.patient_name}</td><td className="p-2">{inv.due_bill}</td><td className="p-2"><button onClick={()=>{setSelectedInvoice(inv); setAmount(0);}} className="bg-green-600 px-2 py-1 rounded text-white">Collect</button></td></tr>)}</tbody></table>
-            {selectedInvoice && ( <div className="fixed inset-0 bg-black/80 flex justify-center items-center z-50"><div className="bg-[#1f2937] p-6 rounded border border-gray-600 w-full max-w-sm shadow-2xl"><h3 className="text-white text-lg font-bold mb-4 border-b border-gray-600 pb-2">Collect Payment</h3><div className="mb-4 text-sm text-gray-300 space-y-1"><div>Patient: <span className="text-white font-bold">{selectedInvoice.patient_name}</span></div><div className="flex justify-between items-center bg-gray-800 p-2 rounded"><span>Current Due:</span> <span className="text-red-400 font-bold">{(selectedInvoice.due_bill || 0).toFixed(2)}</span></div></div><div className="mb-4"><label className="text-xs text-gray-400 block mb-1">Payment Amount</label><input type="number" value={amount} onChange={e=>setAmount(parseFloat(e.target.value))} className="w-full p-2 bg-[#374151] text-white border border-gray-600 rounded focus:ring-2 focus:ring-green-500" placeholder="Enter Amount"/></div><div className="mb-6 flex justify-between items-center text-sm font-bold border-t border-gray-700 pt-2"><span>Remaining Due:</span><span className={((selectedInvoice.due_bill || 0) - amount) > 0 ? "text-red-400" : "text-green-400"}>{((selectedInvoice.due_bill || 0) - amount).toFixed(2)}</span></div><div className="flex justify-end gap-2"><button onClick={()=>setSelectedInvoice(null)} className="text-gray-300 hover:text-white px-4 py-2">Cancel</button><button onClick={handleCollect} className="bg-green-600 text-white px-6 py-2 rounded font-bold hover:bg-green-500">Confirm & Print</button></div></div></div> )}
+        <div className="bg-[#f8f9fa] p-6 rounded border border-gray-200 shadow-sm">
+            <h3 className="text-xl font-bold text-gray-800 mb-4">Due Collection</h3>
+            <input type="text" placeholder="Search..." value={searchTerm} onChange={e=>setSearchTerm(e.target.value)} className="w-full p-2 bg-white border border-gray-300 rounded text-gray-800 mb-4 focus:ring-2 focus:ring-blue-500 outline-none"/>
+            <table className="w-full text-sm text-left text-gray-700">
+                <thead className="bg-gray-100 text-gray-600">
+                    <tr>
+                        <th className="p-2">ID</th>
+                        <th className="p-2">Patient</th>
+                        <th className="p-2">Due</th>
+                        <th className="p-2">Action</th>
+                    </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                    {(Array.isArray(dueInvoices) ? dueInvoices : []).map(inv => inv && (
+                        <tr key={inv.daily_id} className="hover:bg-white transition-colors">
+                            <td className="p-2 font-mono text-xs">{inv.daily_id}</td>
+                            <td className="p-2 font-bold">{inv.patient_name}</td>
+                            <td className="p-2 text-rose-600 font-mono font-bold">৳{(inv.due_bill || 0).toFixed(2)}</td>
+                            <td className="p-2">
+                                <button onClick={()=>{setSelectedInvoice(inv); setAmount(0);}} className="bg-emerald-600 px-3 py-1 rounded text-white font-bold hover:bg-emerald-700 transition-colors">Collect</button>
+                            </td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+            {filteredInvoices.length === 0 && <div className="p-10 text-center text-gray-400 font-black uppercase opacity-20">No Due Records</div>}
         </div>
     );
 };
@@ -2756,33 +2950,33 @@ const ClinicPage: React.FC<ClinicPageProps> = ({
     useEffect(() => { if(successMessage) { const t = setTimeout(() => setSuccessMessage(''), 3000); return () => clearTimeout(t); } }, [successMessage]);
 
     return (
-        <div className="bg-[#111827] min-h-screen text-gray-200 flex flex-col">
-            <div className="bg-[#1f2937] border-b border-gray-700 shadow-lg z-10 sticky top-0">
+        <div className="bg-[#f3f4f6] min-h-screen text-gray-800 flex flex-col">
+            <div className="bg-white border-b border-gray-200 shadow-sm z-10 sticky top-0">
                 <div className="max-w-[1600px] mx-auto px-6 py-4 w-full"> 
                     <div className="flex flex-col gap-4">
                         <div className="flex justify-between items-center">
                             <div className="flex items-center gap-4">
-                                <button onClick={onBack} className="p-2 bg-[#374151] rounded-full hover:bg-[#4b5563] transition-colors"><BackIcon className="w-5 h-5 text-gray-300" /></button>
+                                <button onClick={onBack} className="p-2 bg-gray-100 rounded-full hover:bg-gray-200 transition-colors"><BackIcon className="w-5 h-5 text-gray-600" /></button>
                                 <div>
-                                    <h1 className="text-2xl md:text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-white to-cyan-100 leading-tight tracking-tight mb-1">Niramoy Clinic & Diagnostic</h1>
-                                    <p className="text-xs text-gray-400 mt-1">Enayetpur, Sirajgonj | Mobile: 01730 923007</p>
+                                    <h1 className="text-2xl md:text-3xl font-extrabold text-gray-900 leading-tight tracking-tight mb-1">Niramoy Clinic & Diagnostic</h1>
+                                    <p className="text-xs text-gray-500 mt-1">Enayetpur, Sirajgonj | Mobile: 01730 923007</p>
                                 </div>
                             </div>
-                            <div className="flex items-center gap-3 bg-[#111827] px-4 py-2 rounded-lg border border-gray-700">
-                                <ClinicIcon className="w-6 h-6 text-emerald-400"/>
+                            <div className="flex items-center gap-3 bg-gray-50 px-4 py-2 rounded-lg border border-gray-200">
+                                <ClinicIcon className="w-6 h-6 text-emerald-600"/>
                                 <div className="flex flex-col items-end">
-                                    <h2 className="text-xl font-bold text-emerald-100 font-bengali leading-none">ক্লিনিক ডিপার্টমেন্ট</h2>
-                                    <p className="text-[10px] font-bold text-slate-500 font-bengali tracking-tight mt-1">গভমেন্ট লাইসেন্স: HSM76710</p>
+                                    <h2 className="text-xl font-bold text-emerald-900 font-bengali leading-none">ক্লিনিক ডিপার্টমেন্ট</h2>
+                                    <p className="text-[10px] font-bold text-slate-600 font-bengali tracking-tight mt-1">গভমেন্ট লাইসেন্স: HSM76710</p>
                                 </div>
                             </div>
                         </div>
-                        <div className="flex bg-[#374151] rounded-lg p-1 overflow-x-auto w-full scrollbar-hide">
-                            <button onClick={() => setActiveTab('admission')} className={`flex-1 min-w-[150px] px-4 py-2 rounded-md font-bold text-sm ${activeTab === 'admission' ? 'bg-emerald-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}>Admission & Treatment</button>
-                            <button onClick={() => setActiveTab('patient_info')} className={`flex-1 min-w-[150px] px-4 py-2 rounded-md font-bold text-sm ${activeTab === 'patient_info' ? 'bg-cyan-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}>Patient Info</button>
-                            <button onClick={() => setActiveTab('bed_status')} className={`flex-1 min-w-[150px] px-4 py-2 rounded-md font-bold text-sm ${activeTab === 'bed_status' ? 'bg-teal-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}>Bed Status</button>
-                            <button onClick={() => setActiveTab('invoice')} className={`flex-1 min-w-[150px] px-4 py-2 rounded-md font-bold text-sm ${activeTab === 'invoice' ? 'bg-blue-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}>Indoor Invoice</button>
-                            <button onClick={() => setActiveTab('due_collection')} className={`flex-1 min-w-[150px] px-4 py-2 rounded-md font-bold text-sm ${activeTab === 'due_collection' ? 'bg-amber-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}>Due Collection</button>
-                            <button onClick={() => setActiveTab('report_summary')} className={`flex-1 min-w-[150px] px-4 py-2 rounded-md font-bold text-sm ${activeTab === 'report_summary' ? 'bg-purple-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}>Report Summary</button>
+                        <div className="flex bg-gray-100 rounded-lg p-1 overflow-x-auto w-full scrollbar-hide">
+                            <button onClick={() => setActiveTab('admission')} className={`flex-1 min-w-[150px] px-4 py-2 rounded-md font-bold text-sm ${activeTab === 'admission' ? 'bg-emerald-600 text-white shadow' : 'text-gray-500 hover:text-emerald-600'}`}>Admission & Treatment</button>
+                            <button onClick={() => setActiveTab('patient_info')} className={`flex-1 min-w-[150px] px-4 py-2 rounded-md font-bold text-sm ${activeTab === 'patient_info' ? 'bg-cyan-600 text-white shadow' : 'text-gray-500 hover:text-cyan-600'}`}>Patient Info</button>
+                            <button onClick={() => setActiveTab('bed_status')} className={`flex-1 min-w-[150px] px-4 py-2 rounded-md font-bold text-sm ${activeTab === 'bed_status' ? 'bg-teal-600 text-white shadow' : 'text-gray-500 hover:text-teal-600'}`}>Bed Status</button>
+                            <button onClick={() => setActiveTab('invoice')} className={`flex-1 min-w-[150px] px-4 py-2 rounded-md font-bold text-sm ${activeTab === 'invoice' ? 'bg-blue-600 text-white shadow' : 'text-gray-500 hover:text-blue-600'}`}>Indoor Invoice</button>
+                            <button onClick={() => setActiveTab('due_collection')} className={`flex-1 min-w-[150px] px-4 py-2 rounded-md font-bold text-sm ${activeTab === 'due_collection' ? 'bg-amber-600 text-white shadow' : 'text-gray-500 hover:text-amber-600'}`}>Due Collection</button>
+                            <button onClick={() => setActiveTab('report_summary')} className={`flex-1 min-w-[150px] px-4 py-2 rounded-md font-bold text-sm ${activeTab === 'report_summary' ? 'bg-purple-600 text-white shadow' : 'text-gray-500 hover:text-purple-600'}`}>Report Summary</button>
                         </div>
                     </div>
                 </div>
@@ -2797,7 +2991,7 @@ const ClinicPage: React.FC<ClinicPageProps> = ({
                     </div>
 
                     <div className={activeTab === 'patient_info' ? 'block' : 'hidden'}>
-                        <div className="bg-[#1f2937] p-6 rounded-lg border border-[#374151]">
+                        <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
                             <PatientInfoPage patients={patients} setPatients={setPatients} isEmbedded={false} />
                         </div>
                     </div>
