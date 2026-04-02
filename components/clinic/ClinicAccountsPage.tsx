@@ -289,14 +289,16 @@ const ClinicAccountsPage: React.FC<any> = ({
     const summaryData = useMemo(() => {
         const monthInvoices = invoices.filter((inv:any) => {
             const dateToUse = inv.admission_date || inv.invoice_date;
-            const d = new Date(dateToUse);
-            return d.getMonth() === selectedMonth && d.getFullYear() === selectedYear;
+            if (!dateToUse) return false;
+            const [y, m] = dateToUse.split('-').map(Number);
+            return (m - 1) === selectedMonth && y === selectedYear;
         });
         
         const monthDueRecov = dueCollections.filter((dc:any) => {
             const isClinic = !dc.invoice_id.startsWith('INV-');
-            const d = new Date(dc.collection_date);
-            return d.getMonth() === selectedMonth && d.getFullYear() === selectedYear && isClinic;
+            if (!dc.collection_date) return false;
+            const [y, m] = dc.collection_date.split('-').map(Number);
+            return (m - 1) === selectedMonth && y === selectedYear && isClinic;
         }).reduce((sum:any, dc:any) => sum + dc.amount_collected, 0);
 
         const collectionByCategory = monthInvoices.reduce((acc, inv) => {
@@ -449,8 +451,9 @@ const ClinicAccountsPage: React.FC<any> = ({
         const filtered = invoices.filter((inv: any) => {
             const dateToUse = inv.admission_date || inv.invoice_date;
             if (isTodayFilter) return dateToUse === selectedDate;
-            const d = new Date(dateToUse);
-            return d.getMonth() === selectedMonth && d.getFullYear() === selectedYear;
+            if (!dateToUse) return false;
+            const [y, m] = dateToUse.split('-').map(Number);
+            return (m - 1) === selectedMonth && y === selectedYear;
         }).filter((inv: any) => 
             inv.patient_name.toLowerCase().includes(invoiceSearch.toLowerCase()) || 
             (inv.admission_id && inv.admission_id.toLowerCase().includes(invoiceSearch.toLowerCase()))
@@ -479,14 +482,22 @@ const ClinicAccountsPage: React.FC<any> = ({
     const indoorJournalData = useMemo(() => {
         const filtered = invoices.filter((inv: any) => {
             const dateToUse = inv.admission_date || inv.invoice_date;
-            const d = new Date(dateToUse);
             
             const matchesName = inv.patient_name.toLowerCase().includes(invoiceSearch.toLowerCase()) || 
                                (inv.admission_id && inv.admission_id.toLowerCase().includes(invoiceSearch.toLowerCase()));
             
             const matchesDate = invoiceDateSearch ? dateToUse === invoiceDateSearch : true;
-            const matchesMonth = invoiceMonthSearch !== '' ? d.getMonth() === invoiceMonthSearch : true;
-            const matchesYear = invoiceYearSearch !== '' ? d.getFullYear() === invoiceYearSearch : true;
+            
+            let matchesMonth = true;
+            let matchesYear = true;
+            if (dateToUse) {
+                const [y, m] = dateToUse.split('-').map(Number);
+                matchesMonth = invoiceMonthSearch !== '' ? (m - 1) === invoiceMonthSearch : true;
+                matchesYear = invoiceYearSearch !== '' ? y === invoiceYearSearch : true;
+            } else {
+                matchesMonth = invoiceMonthSearch === '';
+                matchesYear = invoiceYearSearch === '';
+            }
             
             // If no specific search criteria, default to selectedDate
             if (!invoiceSearch && !invoiceDateSearch && invoiceMonthSearch === '' && invoiceYearSearch === '') {

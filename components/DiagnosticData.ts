@@ -454,8 +454,63 @@ export const mockEmployees: Employee[] = [];
 export const mockMedicines: Medicine[] = [];
 export const mockPurchaseInvoices: PurchaseInvoice[] = [];
 export const mockSalesInvoices: SalesInvoice[] = [];
-export const mockAdmissions: any[] = [];
-export const mockIndoorInvoices: any[] = [];
+export const mockAdmissions: any[] = [
+    {
+        admission_id: 'ADM-2024-03-01-001',
+        admission_date: '2024-03-01',
+        patient_id: 'PT-001',
+        patient_name: 'John Doe',
+        doctor_id: 'DOC-001',
+        doctor_name: 'Dr. Smith',
+        referrer_id: 'REF-001',
+        referrer_name: 'Self',
+        indication: 'Fever',
+        service_name: 'Conservative treatment',
+        service_category: 'Conservative treatment',
+        contract_type: 'Non-Contact',
+        contract_amount: 0,
+        clinical_orders: [],
+        doctor_rounds: [],
+        nurse_chart: [],
+        bed_no: 'Bed-101'
+    }
+];
+export const mockIndoorInvoices: any[] = [
+    {
+        daily_id: 'INV-2024-03-01-001',
+        monthly_id: 'M-001',
+        yearly_id: 'Y-001',
+        invoice_date: '2024-03-01',
+        admission_id: 'ADM-2024-03-01-001',
+        patient_id: 'PT-001',
+        patient_name: 'John Doe',
+        serviceCategory: 'Conservative treatment',
+        subCategory: 'Service Taken',
+        items: [
+            {
+                id: 1,
+                service_type: 'Bed Charge',
+                service_provider: 'Clinic',
+                service_charge: 1000,
+                quantity: 1,
+                line_total: 1000,
+                discount: 0,
+                payable_amount: 1000,
+                note: ''
+            }
+        ],
+        total_bill: 1000,
+        total_discount: 0,
+        payable_bill: 1000,
+        paid_amount: 1000,
+        due_bill: 0,
+        bill_pay_status: true,
+        payment_method: 'Cash',
+        bill_created_by: 'Admin',
+        special_commission: 0,
+        commission_paid: 0
+    }
+];
 export const initialAppointments: Appointment[] = [];
 export const initialClinicalDrugs: DrugMonograph[] = [];
 
