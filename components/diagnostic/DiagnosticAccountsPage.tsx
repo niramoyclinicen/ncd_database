@@ -526,9 +526,9 @@ const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollection
             if (detailViewMode === 'today') return inv.invoice_date === todayStr;
             if (detailViewMode === 'date') return inv.invoice_date === selectedDate;
             
-            const d = new Date(inv.invoice_date);
-            if (detailViewMode === 'month') return d.getMonth() === selectedMonth && d.getFullYear() === selectedYear;
-            if (detailViewMode === 'year') return d.getFullYear() === selectedYear;
+            const [y, m] = inv.invoice_date.split('-').map(Number);
+            if (detailViewMode === 'month') return (m - 1) === selectedMonth && y === selectedYear;
+            if (detailViewMode === 'year') return y === selectedYear;
             
             return true;
         }).filter((inv: any) => {
@@ -597,9 +597,10 @@ const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollection
         const baseFiltered = invoices.filter((inv: any) => {
             if (detailViewMode === 'today') return inv.invoice_date === todayStr;
             if (detailViewMode === 'date') return inv.invoice_date === selectedDate;
-            const d = new Date(inv.invoice_date);
-            if (detailViewMode === 'month') return d.getMonth() === selectedMonth && d.getFullYear() === selectedYear;
-            if (detailViewMode === 'year') return d.getFullYear() === selectedYear;
+            
+            const [y, m] = inv.invoice_date.split('-').map(Number);
+            if (detailViewMode === 'month') return (m - 1) === selectedMonth && y === selectedYear;
+            if (detailViewMode === 'year') return y === selectedYear;
             return true;
         }).filter((inv: any) => {
             return inv.patient_name.toLowerCase().includes(detailSearch.toLowerCase()) || 
@@ -629,16 +630,19 @@ const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollection
             const relevantInvoices = invoices.filter((inv: any) => {
                 if (inv.status === 'Cancelled' || inv.status === 'Returned') return false;
                 if (rangeType === 'daily') return inv.invoice_date === selectedDate;
-                const d = new Date(inv.invoice_date);
-                if (rangeType === 'monthly') return d.getMonth() === selectedMonth && d.getFullYear() === selectedYear;
-                return d.getFullYear() === selectedYear;
+                
+                // Avoid timezone issues by splitting the date string directly
+                const [y, m] = inv.invoice_date.split('-').map(Number);
+                if (rangeType === 'monthly') return (m - 1) === selectedMonth && y === selectedYear;
+                return y === selectedYear;
             });
             const relevantDueColls = dueCollections.filter((dc: any) => {
                 const isDiag = dc.invoice_id.startsWith('INV-');
                 if (rangeType === 'daily') return dc.collection_date === selectedDate && isDiag;
-                const d = new Date(dc.collection_date);
-                if (rangeType === 'monthly') return d.getMonth() === selectedMonth && d.getFullYear() === selectedYear && isDiag;
-                return d.getFullYear() === selectedYear && isDiag;
+                
+                const [y, m] = dc.collection_date.split('-').map(Number);
+                if (rangeType === 'monthly') return (m - 1) === selectedMonth && y === selectedYear && isDiag;
+                return y === selectedYear && isDiag;
             });
 
             const coll = { pathology: 0, hormone: 0, usg: 0, xray: 0, ecg: 0, others: 0, dueRecov: 0 };
@@ -679,8 +683,11 @@ const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollection
                 });
             } else {
                 Object.entries(detailedExpenses).forEach(([date, items]) => {
-                    const d = new Date(date);
-                    if ((rangeType === 'monthly' && d.getMonth() === selectedMonth && d.getFullYear() === selectedYear) || (rangeType === 'yearly' && d.getFullYear() === selectedYear)) {
+                    const [y, m] = date.split('-').map(Number);
+                    const isMatch = (rangeType === 'monthly' && (m - 1) === selectedMonth && y === selectedYear) || 
+                                    (rangeType === 'yearly' && y === selectedYear);
+                    
+                    if (isMatch) {
                         (items as any[]).filter((it: any) => !it.isDeleted && (it.dept === 'Diagnostic' || (!it.dept && expenseCategories.includes(it.category)))).forEach((it: any) => {
                             expenseMap[it.category] = (expenseMap[it.category] || 0) + it.paidAmount;
                             exp.total += it.paidAmount;

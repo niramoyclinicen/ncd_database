@@ -249,7 +249,7 @@ const PatientInfoPage: React.FC<PatientInfoPageProps> = ({ patients, setPatients
   const actionButtonClasses = "px-4 py-2 text-sm font-medium rounded-md flex justify-center focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-white transition-colors min-w-[100px]";
 
   return (
-    <div className={`bg-[#f8f9fa] text-gray-800 rounded-xl px-4 sm:px-6 pb-6 pt-2 space-y-6 ${isEmbedded ? '!p-0 !space-y-0 !bg-transparent' : ''}`}>
+    <div className={`bg-[#fdfcfb] text-gray-800 rounded-xl px-4 sm:px-6 pb-6 pt-2 space-y-6 ${isEmbedded ? '!p-0 !space-y-0 !bg-transparent' : ''}`}>
         {successMessage && (
             <div className="fixed bottom-5 right-5 z-[9999] bg-green-600 border border-green-500 text-white px-6 py-3 rounded-lg shadow-2xl flex items-center transition-transform animate-fade-in-up">
                 <span className="font-semibold">{successMessage}</span>

@@ -496,31 +496,31 @@ const CertificateModal: React.FC<{
         win.document.write(html); win.document.close();
     };
 
-    const inputClass = "w-full p-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white font-bold text-sm focus:ring-1 focus:ring-blue-500 outline-none";
-    const labelClass = "text-[10px] font-black text-slate-500 uppercase ml-2 mb-1 block";
+    const inputClass = "w-full p-2.5 bg-gray-50 border border-gray-300 rounded-xl text-gray-800 font-bold text-sm focus:ring-1 focus:ring-blue-500 outline-none";
+    const labelClass = "text-[10px] font-black text-gray-500 uppercase ml-2 mb-1 block";
 
     return (
-        <div className="fixed inset-0 bg-black/90 z-[300] flex items-center justify-center p-4 backdrop-blur-md">
-            <div className="bg-[#0f172a] rounded-[2.5rem] w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl border border-slate-800 overflow-hidden">
-                <div className="p-6 bg-slate-900 border-b border-slate-800 flex justify-between items-center shrink-0">
+        <div className="fixed inset-0 bg-black/40 z-[300] flex items-center justify-center p-4 backdrop-blur-sm">
+            <div className="bg-white rounded-[2.5rem] w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl border border-gray-200 overflow-hidden">
+                <div className="p-6 bg-gray-50 border-b border-gray-200 flex justify-between items-center shrink-0">
                     <div className="flex items-center gap-4">
                         <div className="bg-blue-600 p-2 rounded-xl shadow-lg"><FileTextIcon className="w-6 h-6 text-white" /></div>
                         <div>
-                            <h3 className="text-xl font-black text-white uppercase tracking-tight">{type.replace('_', ' ')} Records System</h3>
-                            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">NCD Management Console</p>
+                            <h3 className="text-xl font-black text-gray-800 uppercase tracking-tight">{type.replace('_', ' ')} Records System</h3>
+                            <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">NCD Management Console</p>
                         </div>
                     </div>
-                    <div className="flex bg-slate-800 p-1 rounded-2xl border border-slate-700">
-                        <button onClick={() => setActiveTab('generate')} className={`px-6 py-2 text-xs font-black uppercase rounded-xl transition-all ${activeTab === 'generate' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}>New Entry</button>
-                        <button onClick={() => setActiveTab('saved')} className={`px-6 py-2 text-xs font-black uppercase rounded-xl transition-all ${activeTab === 'saved' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}>Saved Records ({savedCerts.length})</button>
-                        <button onClick={onClose} className="ml-4 p-2 bg-rose-900/30 text-rose-500 rounded-xl hover:bg-rose-600 hover:text-white transition-all">&times;</button>
+                    <div className="flex bg-gray-100 p-1 rounded-2xl border border-gray-200">
+                        <button onClick={() => setActiveTab('generate')} className={`px-6 py-2 text-xs font-black uppercase rounded-xl transition-all ${activeTab === 'generate' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-500 hover:text-blue-600'}`}>New Entry</button>
+                        <button onClick={() => setActiveTab('saved')} className={`px-6 py-2 text-xs font-black uppercase rounded-xl transition-all ${activeTab === 'saved' ? 'bg-emerald-600 text-white shadow-lg' : 'text-gray-500 hover:text-emerald-600'}`}>Saved Records ({savedCerts.length})</button>
+                        <button onClick={onClose} className="ml-4 p-2 bg-rose-100 text-rose-600 rounded-xl hover:bg-rose-600 hover:text-white transition-all">&times;</button>
                     </div>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
+                <div className="flex-1 overflow-y-auto p-8 custom-scrollbar bg-white">
                     {activeTab === 'generate' ? (
                         <div className="space-y-8 animate-fade-in">
-                            <div className="bg-slate-900/50 p-6 rounded-3xl border border-slate-800 space-y-6 shadow-inner">
+                            <div className="bg-gray-50 p-6 rounded-3xl border border-gray-200 space-y-6 shadow-inner">
                                 <div>
                                     <label className={labelClass}>Select Target Admission</label>
                                     <select value={selectedAdmissionId} onChange={e=>setSelectedAdmissionId(e.target.value)} className={inputClass}>
@@ -565,21 +565,21 @@ const CertificateModal: React.FC<{
                     ) : (
                         <div className="space-y-4 animate-fade-in">
                             {(Array.isArray(savedCerts) ? savedCerts : []).map(cert => cert && (
-                                <div key={cert.id} className="bg-slate-900 p-6 rounded-3xl border border-slate-800 flex justify-between items-center group hover:border-blue-500/50 transition-all shadow-xl">
+                                <div key={cert.id} className="bg-white p-6 rounded-3xl border border-gray-200 flex justify-between items-center group hover:border-blue-500/50 transition-all shadow-sm">
                                     <div className="flex items-center gap-6">
-                                        <div className="w-12 h-12 bg-slate-800 rounded-2xl flex items-center justify-center font-black text-slate-500 text-xs shadow-inner uppercase">
+                                        <div className="w-12 h-12 bg-gray-100 rounded-2xl flex items-center justify-center font-black text-gray-400 text-xs shadow-inner uppercase">
                                             {cert.date?.split('-')[2] || ''}
                                             <br/>
                                             {cert.date?.split('-')[1] ? monthOptions[parseInt(cert.date.split('-')[1]) - 1]?.name?.substring(0, 3) : ''}
                                         </div>
                                         <div>
-                                            <h4 className="font-black text-white uppercase text-lg leading-none">{cert.patientName}</h4>
-                                            <p className="text-[10px] text-slate-500 font-bold uppercase mt-1">ID: {cert.admissionId} | Issued: {new Date(cert.createdDate).toLocaleDateString()}</p>
+                                            <h4 className="font-black text-gray-800 uppercase text-lg leading-none">{cert.patientName}</h4>
+                                            <p className="text-[10px] text-gray-500 font-bold uppercase mt-1">ID: {cert.admissionId} | Issued: {new Date(cert.createdDate).toLocaleDateString()}</p>
                                         </div>
                                     </div>
                                     <div className="flex gap-2">
-                                        <button onClick={() => handlePrint(cert)} className="p-3 bg-blue-600/20 text-blue-400 rounded-xl hover:bg-blue-600 hover:text-white transition-all shadow-lg"><PrinterIcon size={18}/></button>
-                                        <button onClick={() => deleteCert(cert.id)} className="p-3 bg-rose-600/20 text-rose-500 rounded-xl hover:bg-rose-600 hover:text-white transition-all shadow-lg"><TrashIcon size={18}/></button>
+                                        <button onClick={() => handlePrint(cert)} className="p-3 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-600 hover:text-white transition-all shadow-sm"><PrinterIcon size={18}/></button>
+                                        <button onClick={() => deleteCert(cert.id)} className="p-3 bg-rose-50 text-rose-600 rounded-xl hover:bg-rose-600 hover:text-white transition-all shadow-sm"><TrashIcon size={18}/></button>
                                     </div>
                                 </div>
                             ))}
@@ -660,47 +660,47 @@ const DischargeRxMasterModal: React.FC<{
     };
 
     return (
-        <div className="fixed inset-0 bg-black/90 z-[300] flex items-center justify-center p-4 backdrop-blur-md">
-            <div className="bg-[#0f172a] rounded-[2.5rem] w-full max-w-5xl max-h-[90vh] flex flex-col shadow-2xl border border-slate-800 overflow-hidden">
-                <div className="p-6 bg-slate-900 border-b border-slate-800 flex justify-between items-center shrink-0">
+        <div className="fixed inset-0 bg-black/40 z-[300] flex items-center justify-center p-4 backdrop-blur-md">
+            <div className="bg-white rounded-[2.5rem] w-full max-w-5xl max-h-[90vh] flex flex-col shadow-2xl border border-gray-200 overflow-hidden">
+                <div className="p-6 bg-gray-50 border-b border-gray-200 flex justify-between items-center shrink-0">
                     <div className="flex items-center gap-4">
                         <div className="bg-emerald-600 p-2 rounded-xl shadow-lg"><ClipboardIcon className="w-6 h-6 text-white" /></div>
                         <div>
-                            <h3 className="text-xl font-black text-white uppercase tracking-tight">Discharge & Rx Master</h3>
-                            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Inpatient Records Management</p>
+                            <h3 className="text-xl font-black text-gray-800 uppercase tracking-tight">Discharge & Rx Master</h3>
+                            <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Inpatient Records Management</p>
                         </div>
                     </div>
-                    <button onClick={onClose} className="p-2 bg-rose-900/30 text-rose-500 rounded-xl hover:bg-rose-600 hover:text-white transition-all shadow-lg">&times;</button>
+                    <button onClick={onClose} className="p-2 bg-rose-100 text-rose-600 rounded-xl hover:bg-rose-600 hover:text-white transition-all shadow-sm">&times;</button>
                 </div>
                 
-                <div className="p-6 bg-slate-900/50 border-b border-slate-800">
+                <div className="p-6 bg-gray-50 border-b border-gray-200">
                     <div className="relative">
-                        <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+                        <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                         <input 
                             type="text" 
                             placeholder="Search by Patient Name or Admission ID..." 
                             value={searchTerm}
                             onChange={e => setSearchTerm(e.target.value)}
-                            className="w-full bg-slate-800 border-2 border-slate-700 rounded-2xl pl-12 pr-4 py-3 text-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none shadow-inner font-bold"
+                            className="w-full bg-white border border-gray-300 rounded-2xl pl-12 pr-4 py-3 text-gray-800 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none shadow-sm font-bold"
                         />
                     </div>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-8 custom-scrollbar bg-slate-950/20">
+                <div className="flex-1 overflow-y-auto p-8 custom-scrollbar bg-gray-50/50">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {filtered.map(adm => (
-                            <div key={adm.admission_id} className="bg-slate-900 p-6 rounded-3xl border border-slate-800 hover:border-emerald-500/50 transition-all flex justify-between items-center group shadow-xl">
+                            <div key={adm.admission_id} className="bg-white p-6 rounded-3xl border border-gray-200 hover:border-emerald-500/50 transition-all flex justify-between items-center group shadow-sm">
                                 <div className="flex items-center gap-6">
-                                    <div className="w-14 h-14 bg-slate-800 rounded-2xl flex items-center justify-center font-black text-emerald-500 text-sm shadow-inner uppercase border border-slate-700">
+                                    <div className="w-14 h-14 bg-gray-100 rounded-2xl flex items-center justify-center font-black text-emerald-600 text-sm shadow-inner uppercase border border-gray-200">
                                         {adm.admission_id ? (adm.admission_id.split('-').pop() || '') : ''}
                                     </div>
                                     <div>
-                                        <h4 className="font-black text-white uppercase text-lg leading-tight group-hover:text-emerald-400 transition-colors">{adm.patient_name}</h4>
-                                        <p className="text-[10px] text-slate-500 font-bold uppercase mt-1 tracking-widest">Adm: {adm.admission_date} | Bed: {adm.bed_no || 'N/A'}</p>
+                                        <h4 className="font-black text-gray-800 uppercase text-lg leading-tight group-hover:text-emerald-600 transition-colors">{adm.patient_name}</h4>
+                                        <p className="text-[10px] text-gray-500 font-bold uppercase mt-1 tracking-widest">Adm: {adm.admission_date} | Bed: {adm.bed_no || 'N/A'}</p>
                                     </div>
                                 </div>
                                 <div className="flex gap-2">
-                                    <button onClick={() => handlePrintFullSummary(adm)} className="bg-emerald-600/10 text-emerald-400 border border-emerald-500/30 px-5 py-2.5 rounded-xl font-black text-[10px] uppercase shadow-inner hover:bg-emerald-600 hover:text-white transition-all flex items-center gap-2"><PrinterIcon size={14}/> Full Record</button>
+                                    <button onClick={() => handlePrintFullSummary(adm)} className="bg-emerald-50 text-emerald-600 border border-emerald-200 px-5 py-2.5 rounded-xl font-black text-[10px] uppercase shadow-sm hover:bg-emerald-600 hover:text-white transition-all flex items-center gap-2"><PrinterIcon size={14}/> Full Record</button>
                                 </div>
                             </div>
                         ))}
@@ -1056,7 +1056,7 @@ const AdmissionAndTreatmentPage: React.FC<{
         const safeEmployees = Array.isArray(employees) ? employees : [];
         return safeEmployees.filter(e => e && e.status === 'Active');
     }, [employees]);
-    const commonInputClass = "w-full p-2 bg-[#2d3748] border border-gray-600 rounded text-gray-200 text-sm focus:ring-1 focus:ring-blue-500";
+    const commonInputClass = "w-full p-2 bg-white border border-gray-300 rounded text-gray-800 text-sm focus:ring-1 focus:ring-blue-500";
 
     return (
         <div className="space-y-6">
@@ -1163,58 +1163,59 @@ const AdmissionAndTreatmentPage: React.FC<{
                 </div>
             ) : (
                 <div className="animate-fade-in space-y-6">
-                    <div className="bg-[#172554] p-4 rounded-lg border border-blue-800 shadow-lg mb-4 flex justify-between items-center">
+                    <div className="bg-blue-600 p-4 rounded-lg border border-blue-700 shadow-lg mb-4 flex justify-between items-center">
                         <div>
-                            {admissionData.admission_id ? ( <div><h2 className="text-xl font-bold text-white">Treating: <span className="text-yellow-400">{admissionData.patient_name}</span></h2><p className="text-sm text-blue-200">ID: {admissionData.admission_id} | Dr: {admissionData.doctor_name} | Bed: {admissionData.bed_no || 'N/A'}</p></div> ) : ( <div className="text-yellow-300 font-bold">Please select a patient from the Admission Section list first.</div> )}
+                            {admissionData.admission_id ? ( <div><h2 className="text-xl font-bold text-white">Treating: <span className="text-yellow-300">{admissionData.patient_name}</span></h2><p className="text-sm text-blue-100">ID: {admissionData.admission_id} | Dr: {admissionData.doctor_name} | Bed: {admissionData.bed_no || 'N/A'}</p></div> ) : ( <div className="text-yellow-200 font-bold">Please select a patient from the Admission Section list first.</div> )}
                         </div>
                         {admissionData.admission_id && ( 
                             <div className="flex gap-4 items-center">
-                                <button onClick={handlePrintTreatmentRecord} className="bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-2 rounded-lg font-bold text-sm shadow-lg flex items-center gap-2 transition-all"><FileTextIcon className="w-5 h-5"/> Print Full Chart</button>
-                                <div className="text-right"><span className="block text-xs text-gray-400 uppercase">Status</span><span className="inline-block px-2 py-1 bg-green-600 text-white text-xs rounded font-bold">Admitted</span></div> 
+                                <button onClick={handlePrintTreatmentRecord} className="bg-white/20 hover:bg-white/30 text-white px-6 py-2 rounded-lg font-bold text-sm shadow-lg flex items-center gap-2 transition-all border border-white/30"><FileTextIcon className="w-5 h-5"/> Print Full Chart</button>
+                                <div className="text-right"><span className="block text-xs text-blue-200 uppercase">Status</span><span className="inline-block px-2 py-1 bg-emerald-500 text-white text-xs rounded font-bold">Admitted</span></div> 
                             </div>
                         )}
                     </div>
                     {admissionData.admission_id && (
-                        <div className="bg-[#20293a] p-4 rounded-lg border border-[#374151] shadow-lg">
-                            <div className="flex gap-4 border-b border-gray-700 pb-2 mb-4">
-                                {['orders', 'rounds', 'nurse', 'demands'].map(t => ( <button key={t} onClick={() => setActiveSubTab(t as any)} className={`px-4 py-2 font-bold ${activeSubTab === t ? 'text-blue-400 border-b-2 border-blue-400' : 'text-gray-400 hover:text-white'}`}> {t === 'orders' ? 'Doctor Orders' : t === 'rounds' ? 'Doctor Round' : t === 'demands' ? 'Drug Demands' : 'Nurse Chart'} </button> ))}
+                        <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
+                            <div className="flex gap-4 border-b border-gray-200 pb-2 mb-4">
+                                {['orders', 'rounds', 'nurse', 'demands'].map(t => ( <button key={t} onClick={() => setActiveSubTab(t as any)} className={`px-4 py-2 font-bold transition-all ${activeSubTab === t ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50/50 rounded-t-lg' : 'text-gray-500 hover:text-blue-600'}`}> {t === 'orders' ? 'Doctor Orders' : t === 'rounds' ? 'Doctor Round' : t === 'demands' ? 'Drug Demands' : 'Nurse Chart'} </button> ))}
                             </div>
                             {activeSubTab === 'orders' && (
                                 <div className="space-y-4">
-                                    <div className="bg-[#172554] p-4 rounded border border-[#374151]">
-                                        <div className="flex justify-between items-center mb-2">
-                                            <h4 className="text-sm font-bold text-sky-300 uppercase">{editingOrderBlockId ? "Edit Treatment / Order" : "Add Treatment / Order"}</h4>
+                                    <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 shadow-inner">
+                                        <div className="flex justify-between items-center mb-4">
+                                            <h4 className="text-sm font-black text-gray-800 uppercase tracking-wider">{editingOrderBlockId ? "Edit Treatment / Order" : "Add Treatment / Order"}</h4>
                                             <div className="flex gap-2">
-                                                <button onClick={() => setShowTemplateModal(true)} className="text-xs bg-indigo-600 px-2 py-1 rounded text-white hover:bg-indigo-500">Templates</button>
-                                                {editingOrderBlockId && <button onClick={() => { setEditingOrderBlockId(null); setCurrentOrder({ category: 'Conservative', diet: 'Regular', medications: [], note: '', date: new Date().toISOString().split('T')[0], time: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', hour12:false}) }); }} className="text-xs text-red-300 hover:text-white">Cancel Edit</button>}
+                                                <button onClick={() => setShowTemplateModal(true)} className="text-xs bg-blue-600 px-3 py-1.5 rounded-lg text-white hover:bg-blue-700 font-bold shadow-sm">Templates</button>
+                                                {editingOrderBlockId && <button onClick={() => { setEditingOrderBlockId(null); setCurrentOrder({ category: 'Conservative', diet: 'Regular', medications: [], note: '', date: new Date().toISOString().split('T')[0], time: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', hour12:false}) }); }} className="text-xs text-rose-600 hover:text-rose-700 font-bold">Cancel Edit</button>}
                                             </div>
                                         </div>
                                         <div className="grid grid-cols-4 gap-4 mb-4">
-                                            <div><label className="text-xs text-gray-400 block">Date</label><input type="date" value={currentOrder.date} onChange={e=>setCurrentOrder({...currentOrder, date: e.target.value})} className={commonInputClass}/></div>
-                                            <div><label className="text-xs text-gray-400 block">Time</label><input type="time" value={currentOrder.time} onChange={e=>setCurrentOrder({...currentOrder, time: e.target.value})} className={commonInputClass}/></div>
-                                            <div><label className="text-xs text-gray-400 block">Category</label><select value={currentOrder.category} onChange={e=>setCurrentOrder({...currentOrder, category: e.target.value as any})} className={commonInputClass}><option value="Conservative">Conservative</option><option value="Pre-operative">Pre-operative</option><option value="Operative">Operative</option><option value="Post-operative">Post-operative</option></select></div>
-                                            <div><label className="text-xs text-gray-400 block">Diet</label><select value={currentOrder.diet} onChange={e=>setCurrentOrder({...currentOrder, diet: e.target.value})} className={commonInputClass}>{dietOptions.map(d=><option key={d} value={d}>{d}</option>)}</select></div>
+                                            <div><label className="text-[10px] font-bold text-gray-500 uppercase ml-1 block">Date</label><input type="date" value={currentOrder.date} onChange={e=>setCurrentOrder({...currentOrder, date: e.target.value})} className={commonInputClass}/></div>
+                                            <div><label className="text-[10px] font-bold text-gray-500 uppercase ml-1 block">Time</label><input type="time" value={currentOrder.time} onChange={e=>setCurrentOrder({...currentOrder, time: e.target.value})} className={commonInputClass}/></div>
+                                            <div><label className="text-[10px] font-bold text-gray-500 uppercase ml-1 block">Category</label><select value={currentOrder.category} onChange={e=>setCurrentOrder({...currentOrder, category: e.target.value as any})} className={commonInputClass}><option value="Conservative">Conservative</option><option value="Pre-operative">Pre-operative</option><option value="Operative">Operative</option><option value="Post-operative">Post-operative</option></select></div>
+                                            <div><label className="text-[10px] font-bold text-gray-500 uppercase ml-1 block">Diet</label><select value={currentOrder.diet} onChange={e=>setCurrentOrder({...currentOrder, diet: e.target.value})} className={commonInputClass}>{dietOptions.map(d=><option key={d} value={d}>{d}</option>)}</select></div>
                                         </div>
-                                        <div className="bg-gray-50 p-3 rounded mb-4 border border-gray-200">
+                                        <div className="bg-white p-4 rounded-xl mb-4 border border-gray-200 shadow-sm">
                                             <div className="flex gap-2 items-end">
-                                                <div className="flex-1 relative"><SearchableSelect theme="light" label="" options={medicines.map(m => ({ id: m.id, name: `${m.tradeName} (${m.genericName})` }))} value={selectedDrugId} onChange={handleMedicineSelect} placeholder="Search Drug..." inputHeightClass="h-9 bg-white" /><button onClick={() => setShowDrugDemandModal(true)} className="absolute right-1 top-1.5 h-6 w-6 bg-yellow-600 hover:bg-yellow-700 text-white rounded-full font-bold flex items-center justify-center text-sm z-20">+</button></div>
-                                                <select value={newMedication.type} onChange={e=>setNewMedication({...newMedication, type:e.target.value})} className="h-9 bg-white border border-gray-300 rounded text-gray-700 text-xs px-2">{drugTypes.map(t=><option key={t} value={t}>{t}</option>)}</select>
-                                                <input value={newMedication.dosage} onChange={e=>setNewMedication({...newMedication, dosage:e.target.value})} placeholder="Dose" className="h-9 bg-white border border-gray-300 rounded text-gray-700 text-xs px-2 w-20"/>
-                                                <select value={newMedication.frequency} onChange={e=>setNewMedication({...newMedication, frequency:Number(e.target.value)})} className="h-9 bg-white border border-gray-300 rounded text-gray-700 text-xs px-2">{drugFrequencies.map(f=><option key={f.value} value={f.value}>{f.label}</option>)}</select>
-                                                <button onClick={addMedicationToDraft} className="h-9 w-9 bg-blue-600 text-white rounded font-bold hover:bg-blue-500">+</button>
+                                                <div className="flex-1 relative"><SearchableSelect theme="light" label="" options={medicines.map(m => ({ id: m.id, name: `${m.tradeName} (${m.genericName})` }))} value={selectedDrugId} onChange={handleMedicineSelect} placeholder="Search Drug..." inputHeightClass="h-10 bg-gray-50" /><button onClick={() => setShowDrugDemandModal(true)} className="absolute right-1 top-2 h-6 w-6 bg-amber-600 hover:bg-amber-700 text-white rounded-full font-bold flex items-center justify-center text-sm z-20 shadow-sm">+</button></div>
+                                                <select value={newMedication.type} onChange={e=>setNewMedication({...newMedication, type:e.target.value})} className="h-10 bg-gray-50 border border-gray-300 rounded-lg text-gray-700 text-xs px-3">{drugTypes.map(t=><option key={t} value={t}>{t}</option>)}</select>
+                                                <input value={newMedication.dosage} onChange={e=>setNewMedication({...newMedication, dosage:e.target.value})} placeholder="Dose" className="h-10 bg-gray-50 border border-gray-300 rounded-lg text-gray-700 text-xs px-3 w-24"/>
+                                                <select value={newMedication.frequency} onChange={e=>setNewMedication({...newMedication, frequency:Number(e.target.value)})} className="h-10 bg-gray-50 border border-gray-300 rounded-lg text-gray-700 text-xs px-3">{drugFrequencies.map(f=><option key={f.value} value={f.value}>{f.label}</option>)}</select>
+                                                <button onClick={addMedicationToDraft} className="h-10 w-10 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 shadow-md transition-all">+</button>
                                             </div>
                                         </div>
-                                        <div className="bg-[#111827] p-2 rounded border border-gray-700 mb-4 min-h-[60px]">
-                                            {currentOrder.medications?.map((m, i) => (<div key={m.id} className="flex justify-between items-center text-sm text-gray-300 border-b border-gray-800 pb-1 mb-1"><span>{i+1}. <b>{m.type} {m.name}</b> ({m.dosage}) --- <span className="text-yellow-500">{getFrequencyText(m.frequency)}</span></span><button onClick={()=>removeMedicationFromDraft(m.id)} className="text-red-500 text-xs font-bold">X</button></div>))}
+                                        <div className="bg-gray-50 p-3 rounded-xl border border-gray-200 mb-4 min-h-[80px] shadow-inner">
+                                            {currentOrder.medications?.map((m, i) => (<div key={m.id} className="flex justify-between items-center text-sm text-gray-700 border-b border-gray-200 pb-2 mb-2 last:border-0 last:mb-0"><span>{i+1}. <b className="text-blue-700">{m.type} {m.name}</b> ({m.dosage}) --- <span className="text-amber-600 font-bold">{getFrequencyText(m.frequency)}</span></span><button onClick={()=>removeMedicationFromDraft(m.id)} className="text-rose-500 hover:text-rose-700 p-1 transition-colors"><TrashIcon size={14}/></button></div>))}
+                                            {(!currentOrder.medications || currentOrder.medications.length === 0) && <p className="text-center text-gray-400 text-xs py-4 italic">No medications added to draft yet...</p>}
                                         </div>
-                                        <div className="mb-4"><textarea value={currentOrder.note} onChange={e=>setCurrentOrder({...currentOrder, note:e.target.value})} className="w-full p-2 bg-[#283245] border border-gray-600 rounded text-white text-sm h-12" placeholder="Note"/></div>
-                                        <button onClick={handleSaveOrderBlock} className={`w-full py-2 ${editingOrderBlockId ? 'bg-yellow-600 hover:bg-yellow-700' : 'bg-green-600 hover:bg-green-700'} text-white font-bold rounded`}>{editingOrderBlockId ? "Update Order" : "Save Order"}</button>
+                                        <div className="mb-4"><textarea value={currentOrder.note} onChange={e=>setCurrentOrder({...currentOrder, note:e.target.value})} className="w-full p-3 bg-white border border-gray-300 rounded-xl text-gray-800 text-sm h-16 shadow-sm focus:ring-1 focus:ring-blue-500 outline-none" placeholder="Add clinical notes or special instructions here..."/></div>
+                                        <button onClick={handleSaveOrderBlock} className={`w-full py-3 ${editingOrderBlockId ? 'bg-amber-600 hover:bg-amber-700 shadow-amber-600/20' : 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20'} text-white font-black uppercase text-xs rounded-xl shadow-lg transition-all`}>{editingOrderBlockId ? "Update Clinical Order" : "Save Clinical Order"}</button>
                                     </div>
                                     <div className="space-y-4">
                                         {(Array.isArray(admissionData.clinical_orders) ? admissionData.clinical_orders : []).map(block => (
-                                            <div key={block.id} className={`bg-[#172554] border ${editingOrderBlockId === block.id ? 'border-yellow-500 ring-2 ring-yellow-500' : 'border-gray-600'} rounded shadow`}>
-                                                <div className="bg-[#2d3748] p-2 flex justify-between items-center border-b border-gray-600"><div className="flex gap-3 items-center"><span className="text-blue-400 font-bold font-mono">{block.date} {block.time}</span><span className="text-xs bg-blue-900 px-2 py-0.5 rounded text-blue-200">{block.category}</span><span className="text-green-400 text-sm">Diet: {block.diet}</span></div><div className="flex gap-2"><button onClick={() => handleEditOrder(block)} className="text-yellow-500 text-xs font-bold hover:text-yellow-400">EDIT</button><button onClick={()=>{if(confirm("Delete?")) setAdmissionData((prev: AdmissionRecord)=>({...prev, clinical_orders: (Array.isArray(prev.clinical_orders) ? prev.clinical_orders : []).filter((o: ClinicalOrderBlock)=>o.id!==block.id)}))}} className="text-red-500 text-xs font-bold hover:text-red-400">DEL</button></div></div>
-                                                <div className="p-3">{(Array.isArray(block.medications) ? block.medications : []).map((m, i) => (<div key={i} className="text-sm text-gray-200 flex items-center mb-1"><span className="w-5 text-gray-500">{i+1}.</span><span className="font-bold">{m.type} {m.name}</span><span className="text-gray-400 ml-2">({m.dosage})</span><span className="mx-2 text-gray-600">---</span><span className="text-yellow-500 font-mono">{getFrequencyText(m.frequency)}</span></div>))}{block.note && <div className="mt-2 pt-2 border-t border-gray-700 text-sm text-amber-200"><span className="text-gray-500 text-xs font-bold mr-2">NOTE:</span>{block.note}</div>}</div>
+                                            <div key={block.id} className={`bg-white border ${editingOrderBlockId === block.id ? 'border-amber-500 ring-2 ring-amber-500' : 'border-gray-200'} rounded-2xl shadow-sm overflow-hidden transition-all`}>
+                                                <div className="bg-gray-50 p-3 flex justify-between items-center border-b border-gray-200"><div className="flex gap-3 items-center"><span className="text-blue-600 font-black font-mono text-xs">{block.date} {block.time}</span><span className="text-[10px] bg-blue-100 px-2 py-0.5 rounded-full text-blue-700 font-bold uppercase">{block.category}</span><span className="text-emerald-600 text-xs font-bold">Diet: {block.diet}</span></div><div className="flex gap-2"><button onClick={() => handleEditOrder(block)} className="text-amber-600 text-[10px] font-black uppercase hover:text-amber-700 px-2 py-1 bg-amber-50 rounded-lg transition-all">EDIT</button><button onClick={()=>{if(confirm("Delete?")) setAdmissionData((prev: AdmissionRecord)=>({...prev, clinical_orders: (Array.isArray(prev.clinical_orders) ? prev.clinical_orders : []).filter((o: ClinicalOrderBlock)=>o.id!==block.id)}))}} className="text-rose-600 text-[10px] font-black uppercase hover:text-rose-700 px-2 py-1 bg-rose-50 rounded-lg transition-all">DEL</button></div></div>
+                                                <div className="p-4">{(Array.isArray(block.medications) ? block.medications : []).map((m, i) => (<div key={i} className="text-sm text-gray-800 flex items-center mb-2 last:mb-0"><span className="w-6 text-gray-400 font-bold text-xs">{i+1}.</span><span className="font-bold text-blue-700">{m.type} {m.name}</span><span className="text-gray-500 ml-2 text-xs font-medium">({m.dosage})</span><span className="mx-3 text-gray-300">|</span><span className="text-amber-600 font-black text-[10px] uppercase tracking-wider">{getFrequencyText(m.frequency)}</span></div>))}{block.note && <div className="mt-3 pt-3 border-t border-gray-100 text-sm text-gray-600 italic"><span className="text-gray-400 text-[10px] font-black uppercase mr-2 not-italic">NOTE:</span>{block.note}</div>}</div>
                                             </div>
                                         ))}
                                     </div>
@@ -1224,28 +1225,28 @@ const AdmissionAndTreatmentPage: React.FC<{
                             {activeSubTab === 'rounds' && (
                                 <div className="bg-gray-50 p-4 rounded border border-gray-200">
                                     <div className="flex gap-2 mb-4"><input type="time" value={roundTime} onChange={e=>setRoundTime(e.target.value)} className="bg-white border border-gray-300 rounded text-gray-800 p-2 w-32"/><input list="doctor_list_round" type="text" value={roundDoctor} onChange={e=>setRoundDoctor(e.target.value)} placeholder="Doctor" className="bg-white border border-gray-300 rounded text-gray-800 p-2 w-48"/><datalist id="doctor_list_round">{(Array.isArray(doctors) ? doctors : []).map(d=>d && <option key={d.doctor_id} value={d.doctor_name}/>)}</datalist><input type="text" value={newRoundNote} onChange={e=>setNewRoundNote(e.target.value)} placeholder="Round Note..." className="flex-1 bg-white border border-gray-300 rounded text-gray-800 p-2"/><button onClick={()=>{if(!newRoundNote)return; const updated = {...admissionData, doctor_rounds:[...(Array.isArray(admissionData.doctor_rounds) ? admissionData.doctor_rounds : []), {id:Date.now(), date:new Date().toISOString().split('T')[0], time:roundTime, note:newRoundNote, by:roundDoctor}]}; setAdmissionData(updated); syncAdmissionToGlobal(updated); setNewRoundNote('');}} className="bg-teal-600 text-white px-4 py-2 rounded">Add</button></div>
-                                    <div className="max-h-60 overflow-y-auto bg-white rounded border border-gray-200"><table className="w-full text-sm text-left text-gray-600"><thead className="bg-gray-50 text-xs uppercase text-gray-500"><tr><th className="p-2">Time</th><th className="p-2">Note</th><th className="p-2">By</th><th className="p-2 text-right">X</th></tr></thead><tbody>{(Array.isArray(admissionData.doctor_rounds) ? admissionData.doctor_rounds : []).map(r=>r && <tr key={r.id} className="border-b border-gray-100"><td className="p-2">{r.time}</td><td className="p-2">{r.note}</td><td className="p-2">{r.by}</td><td className="p-2 text-right"><button onClick={()=>{const updated = {...admissionData, doctor_rounds:(Array.isArray(admissionData.doctor_rounds) ? admissionData.doctor_rounds : []).filter(x=>x.id!==r.id)}; setAdmissionData(updated); syncAdmissionToGlobal(updated);}} className="text-red-500">x</button></td></tr>)}</tbody></table></div>
+                                    <div className="max-h-60 overflow-y-auto bg-white rounded border border-gray-200"><table className="w-full text-sm text-left text-gray-600"><thead className="bg-gray-50 text-xs uppercase text-gray-500"><tr><th className="p-2">Time</th><th className="p-2">Note</th><th className="p-2">By</th><th className="p-2 text-right">X</th></tr></thead><tbody>{(Array.isArray(admissionData.doctor_rounds) ? admissionData.doctor_rounds : []).map(r=>r && <tr key={r.id} className="border-b border-gray-100"><td className="p-2">{r.time}</td><td className="p-2">{r.note}</td><td className="p-2">{r.by}</td><td className="p-2 text-right"><button onClick={()=>{const updated = {...admissionData, doctor_rounds:(Array.isArray(admissionData.doctor_rounds) ? admissionData.doctor_rounds : []).filter(round=>round.id!==r.id)}; setAdmissionData(updated); syncAdmissionToGlobal(updated);}} className="text-red-500">X</button></td></tr>)}</tbody></table></div>
                                 </div>
                             )}
-
+                            
                             {activeSubTab === 'nurse' && (
                                 <div className="space-y-6">
-                                    <div className="bg-[#172554] p-5 rounded border border-[#374151]">
-                                        <div className="flex items-center gap-4 mb-4 bg-gray-50 p-4 rounded border border-gray-200 shadow-sm"><div className="w-96"><SearchableSelect theme="light" label="Select Performing Nurse (Logged)" options={activeNurses.map(nurse => ({ id: nurse.emp_name, name: nurse.emp_name, details: nurse.job_position }))} value={performingNurse} onChange={(_id, name) => setPerformingNurse(name)} onAddNew={() => {}} placeholder="Search Nurse..." inputHeightClass="h-10 bg-white border-gray-300" /></div></div>
-                                        <h4 className="text-lg font-bold text-purple-400 mb-4 uppercase tracking-wide">Scheduled Medications</h4>
-                                        <div className="overflow-x-auto">
-                                            <table className="w-full text-sm text-left text-gray-300 border-collapse">
-                                                <thead className="bg-[#111827] text-xs uppercase font-bold text-gray-400">
+                                    <div className="bg-gray-50 p-5 rounded-xl border border-gray-200 shadow-inner">
+                                        <div className="flex items-center gap-4 mb-6 bg-white p-4 rounded-xl border border-gray-200 shadow-sm"><div className="w-96"><SearchableSelect theme="light" label="Select Performing Nurse (Logged)" options={activeNurses.map(nurse => ({ id: nurse.emp_name, name: nurse.emp_name, details: nurse.job_position }))} value={performingNurse} onChange={(_id, name) => setPerformingNurse(name)} onAddNew={() => {}} placeholder="Search Nurse..." inputHeightClass="h-10 bg-gray-50 border-gray-300" /></div></div>
+                                        <h4 className="text-lg font-black text-blue-800 mb-4 uppercase tracking-widest">Scheduled Medications</h4>
+                                        <div className="overflow-x-auto rounded-xl border border-gray-200 shadow-sm">
+                                            <table className="w-full text-sm text-left text-gray-700 border-collapse">
+                                                <thead className="bg-gray-100 text-[10px] uppercase font-black text-gray-500 tracking-wider">
                                                     <tr>
-                                                        <th className="p-3 border border-gray-600">Drug Details</th>
-                                                        <th className="p-3 border border-gray-600">Frequency</th>
-                                                        <th className="p-3 border border-gray-600">Category</th>
-                                                        <th className="p-3 border border-gray-600">Last Given</th>
-                                                        <th className="p-3 border border-gray-600">Next Dose Due</th>
-                                                        <th className="p-3 border border-gray-600 text-right">Action</th>
+                                                        <th className="p-4 border-b border-gray-200">Drug Details</th>
+                                                        <th className="p-4 border-b border-gray-200">Frequency</th>
+                                                        <th className="p-4 border-b border-gray-200">Category</th>
+                                                        <th className="p-4 border-b border-gray-200">Last Given</th>
+                                                        <th className="p-4 border-b border-gray-200">Next Dose Due</th>
+                                                        <th className="p-4 border-b border-gray-200 text-right">Action</th>
                                                     </tr>
                                                 </thead>
-                                                <tbody className="bg-[#1f2937]">
+                                                <tbody className="bg-white">
                                                     {(Array.isArray(admissionData.clinical_orders) ? admissionData.clinical_orders : []).flatMap(o => Array.isArray(o.medications) ? o.medications : []).map((med, idx) => {
                                                         const logs = (Array.isArray(admissionData.nurse_chart) ? admissionData.nurse_chart : []).filter(l => l && l.medicationId === med.id).sort((a, b) => b.id - a.id);
                                                         const lastLog = logs[0];
@@ -1253,9 +1254,9 @@ const AdmissionAndTreatmentPage: React.FC<{
                                                         let nextTimeText = 'Start Now';
                                                         let lastGivenText = 'Never';
                                                         let lastGivenSrc = '';
-                                                        let nextColorClass = 'text-red-400 font-bold';
+                                                        let nextColorClass = 'text-rose-600 font-black';
                                                         let lastColorClass = 'text-gray-400';
-
+ 
                                                         const safeMedicines = Array.isArray(medicines) ? medicines : [];
                                                         const substituteMed = safeMedicines.find(m => 
                                                             m && med.genericName && m.genericName && 
@@ -1265,15 +1266,15 @@ const AdmissionAndTreatmentPage: React.FC<{
                                                         
                                                         const autoSrc = substituteMed ? 'Clinic' : 'Outside';
                                                         const currentSrc = medicationSources[med.id] || autoSrc;
-
+ 
                                                         if (lastLog) {
                                                             lastGivenText = lastLog.time;
                                                             lastGivenSrc = lastLog.supplySrc === 'Outside' ? '(Outside)' : '(Clinic)';
-                                                            lastColorClass = 'text-gray-300';
+                                                            lastColorClass = 'text-gray-600';
                                                             if (med.frequency === 0) {
                                                                 statusText = 'Completed';
                                                                 nextTimeText = '-';
-                                                                nextColorClass = 'text-green-400';
+                                                                nextColorClass = 'text-emerald-600';
                                                             } else {
                                                                 const lastTimeMs = lastLog.id; 
                                                                 const nextTimeMs = lastTimeMs + (med.frequency * 60 * 60 * 1000);
@@ -1281,24 +1282,24 @@ const AdmissionAndTreatmentPage: React.FC<{
                                                                 const isOverdue = now > nextTimeMs;
                                                                 nextTimeText = `Next: ${nextDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
                                                                 statusText = isOverdue ? 'On Schedule' : 'On Schedule';
-                                                                nextColorClass = isOverdue ? 'text-red-400 font-bold' : 'text-green-400 font-medium';
+                                                                nextColorClass = isOverdue ? 'text-rose-600 font-black' : 'text-emerald-600 font-bold';
                                                             }
                                                         }
-
+ 
                                                         return (
-                                                            <tr key={`${med.id}-${idx}`} className="border-b border-gray-700 hover:bg-gray-700/50">
-                                                                <td className="p-3 border border-gray-600 font-medium text-gray-100 text-base">{med.type}. {med.name} ({med.dosage})</td>
-                                                                <td className="p-3 border border-gray-600">{getFrequencyText(med.frequency)}</td>
-                                                                <td className="p-3 border border-gray-600">{med.category}</td>
-                                                                <td className={`p-3 border border-gray-700 ${lastColorClass}`}>{statusText} ({lastGivenText}) <span className="text-xs text-yellow-500">{lastGivenSrc}</span></td>
-                                                                <td className={`p-3 border border-gray-700 ${nextColorClass} text-base`}>{nextTimeText}</td>
-                                                                <td className="p-3 border border-gray-700 text-right">
+                                                            <tr key={`${med.id}-${idx}`} className="border-b border-gray-100 hover:bg-blue-50/30 transition-colors">
+                                                                <td className="p-4 font-bold text-gray-800 text-sm">{med.type}. {med.name} <span className="text-gray-500 font-medium">({med.dosage})</span></td>
+                                                                <td className="p-4 text-xs font-bold text-amber-600 uppercase">{getFrequencyText(med.frequency)}</td>
+                                                                <td className="p-4 text-xs text-gray-500 font-bold uppercase">{med.category}</td>
+                                                                <td className={`p-4 ${lastColorClass} text-xs font-bold`}>{statusText} ({lastGivenText}) <span className="text-[10px] text-amber-600">{lastGivenSrc}</span></td>
+                                                                <td className={`p-4 ${nextColorClass} text-xs uppercase tracking-wider`}>{nextTimeText}</td>
+                                                                <td className="p-4 text-right">
                                                                     <div className="flex flex-col gap-1 items-end">
                                                                         <div className="flex gap-2 items-center">
                                                                             <select 
                                                                                 value={currentSrc}
                                                                                 onChange={(e) => setMedicationSources(prev => ({...prev, [med.id]: e.target.value as 'Clinic' | 'Outside'}))}
-                                                                                className="bg-[#374151] text-xs text-white p-1 rounded border border-gray-600"
+                                                                                className="bg-gray-50 text-[10px] font-black uppercase text-gray-600 p-1.5 rounded-lg border border-gray-300 outline-none focus:ring-1 focus:ring-blue-500"
                                                                             >
                                                                                 <option value="Clinic">Clinic Supply</option>
                                                                                 <option value="Outside">Patient/Outside</option>
@@ -1313,7 +1314,7 @@ const AdmissionAndTreatmentPage: React.FC<{
                                                                                             return;
                                                                                         }
                                                                                     }
-
+ 
                                                                                     let finalInventoryId = med.inventoryId;
                                                                                     if (currentSrc === 'Clinic') {
                                                                                         if (substituteMed) {
@@ -1328,7 +1329,7 @@ const AdmissionAndTreatmentPage: React.FC<{
                                                                                             return alert("Stock unavailable for Clinic Supply. Please switch to Outside.");
                                                                                         }
                                                                                     }
-
+ 
                                                                                     const newLog: TreatmentLog = { 
                                                                                         id: Date.now(), 
                                                                                         date: new Date().toISOString().split('T')[0], 
@@ -1343,24 +1344,24 @@ const AdmissionAndTreatmentPage: React.FC<{
                                                                                     setAdmissionData(updated);
                                                                                     syncAdmissionToGlobal(updated); // IMMEDIATE SYNC FOR INVOICE
                                                                                 }} 
-                                                                                className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded font-bold shadow transition-colors"
+                                                                                className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg font-black uppercase text-[10px] shadow-lg transition-all"
                                                                             >
                                                                                 Give
                                                                             </button>
                                                                         </div>
                                                                         {substituteMed ? (
-                                                                            <span className="text-[10px] text-green-400 font-bold">
+                                                                            <span className="text-[9px] text-emerald-600 font-black uppercase tracking-tighter">
                                                                                 Available: {substituteMed.tradeName} (Stock: {substituteMed.stock})
                                                                             </span>
                                                                         ) : (
-                                                                            <span className="text-[10px] text-red-400 font-bold">Out of Stock</span>
+                                                                            <span className="text-[9px] text-rose-600 font-black uppercase tracking-tighter">Out of Stock</span>
                                                                         )}
                                                                     </div>
                                                                 </td>
                                                             </tr>
                                                         );
                                                     })}
-                                                    {((Array.isArray(admissionData.clinical_orders) ? admissionData.clinical_orders : []).flatMap(o => Array.isArray(o.medications) ? o.medications : [])).length === 0 && <tr><td colSpan={6} className="p-8 text-center text-gray-500 text-base">No medications ordered by doctor yet.</td></tr>}
+                                                    {((Array.isArray(admissionData.clinical_orders) ? admissionData.clinical_orders : []).flatMap(o => Array.isArray(o.medications) ? o.medications : [])).length === 0 && <tr><td colSpan={6} className="p-12 text-center text-gray-400 text-sm italic">No medications ordered by doctor yet.</td></tr>}
                                                 </tbody>
                                             </table>
                                         </div>
@@ -2423,14 +2424,16 @@ const IndoorInvoicePage: React.FC<{
                             </div>
                         </div>
 
-                        <div className="bg-[#1f2937] p-4 rounded border border-gray-600">
-                            <div className="flex justify-between items-center mb-2">
-                                <h4 className="text-lg font-bold text-sky-300">Services</h4>
+                        <div className="bg-white p-4 rounded-xl border border-gray-300 shadow-sm">
+                            <div className="flex justify-between items-center mb-4">
+                                <h4 className="text-lg font-black text-blue-800 uppercase tracking-wider flex items-center gap-2">
+                                    <Activity size={20} /> Services & Charges
+                                </h4>
                                 <div className="flex gap-2">
                                     <div className="w-64">
                                         <SearchableSelect 
                                             label=""
-                                            theme="dark"
+                                            theme="light"
                                             placeholder="Search Medicine..."
                                             options={medicines.map(m => ({
                                                 id: m.id,
@@ -2458,68 +2461,132 @@ const IndoorInvoicePage: React.FC<{
                                                     setFormData(prev => ({ ...prev, items: updatedItems, ...totals }));
                                                 }
                                             }}
+                                            inputHeightClass="h-10 bg-white border-gray-300"
                                         />
                                     </div>
-                                    <button type="button" onClick={handleAddServiceItem} className="text-xs bg-blue-600 text-white px-3 py-2 rounded hover:bg-blue-500 font-bold shadow">+ Add Service Row</button>
+                                    <button type="button" onClick={handleAddServiceItem} className="text-xs bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 font-bold shadow-md transition-all flex items-center gap-2 uppercase">
+                                        <Plus size={14}/> Add Service Row
+                                    </button>
                                 </div>
                             </div>
-                            <table className="w-full text-sm text-left text-gray-300 mb-2">
-                                <thead className="bg-[#111827]"><tr><th className="p-2">Type</th><th className="p-2">Provider</th><th className="p-2">Charge</th><th className="p-2">Qty</th><th className="p-2">Disc</th><th className="p-2">Payable</th><th className="p-2 text-center">A/C</th><th className="p-2">Note</th><th className="p-2">X</th></tr></thead>
-                                <tbody>{(formData.items || []).map(item => (
-                                    <tr key={item.id}>
-                                        <td className="p-1">
-                                            <input list={`service_type_${item.id}`} value={item.service_type} onChange={e=>handleServiceChange(item.id,'service_type',e.target.value)} className="w-full bg-[#374151] text-white p-1 rounded h-8 text-xs" />
-                                            <datalist id={`service_type_${item.id}`}>{serviceTypesList.map(t=><option key={t} value={t}/>)}</datalist>
-                                        </td>
-                                        <td className="p-1">
-                                            <input list={`service_provider_${item.id}`} value={item.service_provider} onChange={e=>handleServiceChange(item.id,'service_provider',e.target.value)} className="w-full bg-[#374151] text-white p-1 rounded h-8 text-xs" />
-                                            <datalist id={`service_provider_${item.id}`}>
-                                                {item.service_type === 'Assistant_2' 
-                                                    ? [...doctors.map(d => ({id: d.doctor_id, name: d.doctor_name})), ...activeEmployees.map(e => ({id: e.emp_id, name: e.emp_name}))].map(obj => <option key={obj.id} value={obj.name}/>)
-                                                    : doctorServiceTypes.includes(item.service_type) 
-                                                        ? doctors.map(d=><option key={d.doctor_id} value={d.doctor_name}/>) 
-                                                        : activeEmployees.map(e=><option key={e.emp_id} value={e.emp_name}/>)
-                                                }
-                                            </datalist>
-                                        </td>
-                                        <td className="p-1"><input type="number" value={item.service_charge || 0} onChange={e=>handleServiceChange(item.id,'service_charge',parseFloat(e.target.value))} onFocus={e=>e.target.select()} className="w-full bg-[#374151] text-white p-1 rounded text-right h-8"/></td>
-                                        <td className="p-1"><input type="number" value={item.quantity || 0} onChange={e=>handleServiceChange(item.id,'quantity',parseFloat(e.target.value))} onFocus={e=>e.target.select()} className="w-full bg-[#374151] text-white p-1 rounded text-right h-8"/></td>
-                                        <td className="p-1"><input type="number" value={item.discount || 0} onChange={e=>handleServiceChange(item.id,'discount',parseFloat(e.target.value))} onFocus={e=>e.target.select()} className="w-full bg-[#374151] text-white p-1 rounded text-right h-8"/></td>
-                                        <td className="p-1 font-bold text-sky-300 text-right">{(item.payable_amount || 0).toFixed(2)}</td>
-                                        <td className="p-1 text-center">
-                                            <input 
-                                                type="checkbox" 
-                                                checked={!!item.isClinicFund} 
-                                                onChange={e => {
-                                                    const items = Array.isArray(formData.items) ? formData.items : [];
-                                                    const updated = items.map(it => it.id === item.id ? { ...it, isClinicFund: e.target.checked } : it);
-                                                    const totals = calculateTotals(updated, 0, formData.paid_amount || 0, formData.special_discount_amount || 0);
-                                                    setFormData(prev => ({ ...prev, items: updated, ...totals }));
-                                                }}
-                                                className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-blue-600"
-                                            />
-                                        </td>
-                                        <td className="p-1"><input type="text" value={item.note} onChange={e=>handleServiceChange(item.id,'note',e.target.value)} className="w-full bg-[#374151] text-white p-1 rounded h-8 text-xs"/></td>
-                                        <td className="p-1 text-center"><button type="button" onClick={()=>handleRemoveServiceItem(item.id)} className="text-red-500 font-bold hover:text-red-400">x</button></td>
-                                    </tr>
-                                ))}</tbody>
-                            </table>
-                        </div>
-                        <div className="grid grid-cols-2 gap-6 bg-gray-50 p-4 rounded border border-gray-200">
-                            <div className="space-y-2">
-                                <div><label className="text-xs text-gray-500">Created By</label><select name="bill_created_by" value={formData.bill_created_by} onChange={handleInputChange} className="w-full bg-white border border-gray-300 rounded p-1 text-gray-800"><option value="">Select</option>{(Array.isArray(activeEmployees) ? activeEmployees : []).map(e => e && <option key={e.emp_id} value={e.emp_name}>{e.emp_name}</option>)}</select></div>
-                                <div><label className="text-xs text-gray-500">Method</label><select name="payment_method" value={formData.payment_method} onChange={handleInputChange} className="w-full bg-white border border-gray-300 rounded p-1 text-gray-800"><option>Cash</option><option>Card</option></select></div>
+                            <div className="overflow-x-auto rounded-lg border border-gray-200">
+                                <table className="w-full text-sm text-left text-gray-700">
+                                    <thead className="bg-gray-100 text-gray-800 border-b border-gray-200">
+                                        <tr>
+                                            <th className="p-3 font-black uppercase tracking-wider">Type</th>
+                                            <th className="p-3 font-black uppercase tracking-wider">Provider</th>
+                                            <th className="p-3 font-black uppercase tracking-wider text-right">Charge</th>
+                                            <th className="p-3 font-black uppercase tracking-wider text-right">Qty</th>
+                                            <th className="p-3 font-black uppercase tracking-wider text-right">Disc</th>
+                                            <th className="p-3 font-black uppercase tracking-wider text-right">Payable</th>
+                                            <th className="p-3 font-black uppercase tracking-wider text-center">A/C</th>
+                                            <th className="p-3 font-black uppercase tracking-wider">Note</th>
+                                            <th className="p-3 font-black uppercase tracking-wider text-center">X</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-200">
+                                        {(formData.items || []).map(item => (
+                                            <tr key={item.id} className="hover:bg-gray-50 transition-colors">
+                                                <td className="p-1">
+                                                    <input list={`service_type_${item.id}`} value={item.service_type} onChange={e=>handleServiceChange(item.id,'service_type',e.target.value)} className="w-full bg-white border border-gray-300 text-gray-800 p-1 rounded h-8 text-xs focus:ring-1 focus:ring-blue-500" />
+                                                    <datalist id={`service_type_${item.id}`}>{serviceTypesList.map(t=><option key={t} value={t}/>)}</datalist>
+                                                </td>
+                                                <td className="p-1">
+                                                    <input list={`service_provider_${item.id}`} value={item.service_provider} onChange={e=>handleServiceChange(item.id,'service_provider',e.target.value)} className="w-full bg-white border border-gray-300 text-gray-800 p-1 rounded h-8 text-xs focus:ring-1 focus:ring-blue-500" />
+                                                    <datalist id={`service_provider_${item.id}`}>
+                                                        {item.service_type === 'Assistant_2' 
+                                                            ? [...doctors.map(d => ({id: d.doctor_id, name: d.doctor_name})), ...activeEmployees.map(e => ({id: e.emp_id, name: e.emp_name}))].map(obj => <option key={obj.id} value={obj.name}/>)
+                                                            : doctorServiceTypes.includes(item.service_type) 
+                                                                ? doctors.map(d=><option key={d.doctor_id} value={d.doctor_name}/>) 
+                                                                : activeEmployees.map(e=><option key={e.emp_id} value={e.emp_name}/>)
+                                                        }
+                                                    </datalist>
+                                                </td>
+                                                <td className="p-1"><input type="number" value={item.service_charge || 0} onChange={e=>handleServiceChange(item.id,'service_charge',parseFloat(e.target.value))} onFocus={e=>e.target.select()} className="w-full bg-white border border-gray-300 text-gray-800 p-1 rounded text-right h-8 focus:ring-1 focus:ring-blue-500 font-bold"/></td>
+                                                <td className="p-1"><input type="number" value={item.quantity || 0} onChange={e=>handleServiceChange(item.id,'quantity',parseFloat(e.target.value))} onFocus={e=>e.target.select()} className="w-full bg-white border border-gray-300 text-gray-800 p-1 rounded text-right h-8 focus:ring-1 focus:ring-blue-500 font-bold"/></td>
+                                                <td className="p-1"><input type="number" value={item.discount || 0} onChange={e=>handleServiceChange(item.id,'discount',parseFloat(e.target.value))} onFocus={e=>e.target.select()} className="w-full bg-white border border-gray-300 text-gray-800 p-1 rounded text-right h-8 focus:ring-1 focus:ring-blue-500 font-bold"/></td>
+                                                <td className="p-1 font-black text-blue-700 text-right">{(item.payable_amount || 0).toFixed(2)}</td>
+                                                <td className="p-1 text-center">
+                                                    <input 
+                                                        type="checkbox" 
+                                                        checked={!!item.isClinicFund} 
+                                                        onChange={e => {
+                                                            const items = Array.isArray(formData.items) ? formData.items : [];
+                                                            const updated = items.map(it => it.id === item.id ? { ...it, isClinicFund: e.target.checked } : it);
+                                                            const totals = calculateTotals(updated, 0, formData.paid_amount || 0, formData.special_discount_amount || 0);
+                                                            setFormData(prev => ({ ...prev, items: updated, ...totals }));
+                                                        }}
+                                                        className="w-4 h-4 rounded border-gray-300 bg-white text-blue-600 focus:ring-blue-500"
+                                                    />
+                                                </td>
+                                                <td className="p-1"><input type="text" value={item.note || ''} onChange={e=>handleServiceChange(item.id,'note',e.target.value)} className="w-full bg-white border border-gray-300 text-gray-800 p-1 rounded h-8 text-xs focus:ring-1 focus:ring-blue-500"/></td>
+                                                <td className="p-1 text-center">
+                                                    <button type="button" onClick={()=>handleRemoveServiceItem(item.id)} className="text-red-500 hover:text-red-700 transition-colors p-1"><Trash2 size={16}/></button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
                             </div>
-                            <div className="text-right space-y-2 text-sm font-medium">
-                                <div className="flex justify-between items-center text-gray-600"><span>Total Bill:</span> <span className="font-bold text-gray-900">{(formData.total_bill || 0).toFixed(2)}</span></div>
-                                <div className="flex justify-between items-center text-gray-600"><span>Total Discount:</span> <span className="font-bold text-gray-900">{(formData.total_discount || 0).toFixed(2)}</span></div>
-                                <div className="flex justify-between items-center text-amber-600"><span>Special Discount:</span> <input type="number" name="special_discount_amount" value={formData.special_discount_amount} onChange={handleInputChange} onFocus={e=>e.target.select()} className="bg-white text-gray-800 w-24 p-1 text-right font-bold border border-gray-300 rounded"/></div>
-                                <div className="flex justify-between items-center text-blue-600 text-lg border-t border-gray-200 pt-1 mt-1"><span>Net Payable:</span> <span className="font-bold">{formData.net_payable ? (formData.net_payable || 0).toFixed(2) : '0.00'}</span></div>
-                                <div className="flex justify-between items-center text-emerald-600"><span>Paid:</span> <input type="number" name="paid_amount" value={formData.paid_amount} onChange={handleInputChange} onFocus={e=>e.target.select()} className="bg-white text-gray-800 w-24 p-1 text-right font-bold border border-gray-300 rounded"/></div>
-                                <div className="flex justify-between items-center text-rose-600 font-bold text-lg"><span>Due:</span> <span>{(formData.due_bill || 0).toFixed(2)}</span></div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-6 bg-gray-100 p-6 rounded-xl border border-gray-300 shadow-inner">
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="text-xs font-black text-gray-500 uppercase tracking-widest mb-1 block">Bill Created By</label>
+                                    <select name="bill_created_by" value={formData.bill_created_by} onChange={handleInputChange} className="w-full bg-white border border-gray-300 rounded-lg p-2 text-gray-800 font-bold focus:ring-2 focus:ring-blue-500 shadow-sm">
+                                        <option value="">Select Employee</option>
+                                        {(Array.isArray(activeEmployees) ? activeEmployees : []).map(e => e && <option key={e.emp_id} value={e.emp_name}>{e.emp_name}</option>)}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="text-xs font-black text-gray-500 uppercase tracking-widest mb-1 block">Payment Method</label>
+                                    <select name="payment_method" value={formData.payment_method} onChange={handleInputChange} className="w-full bg-white border border-gray-300 rounded-lg p-2 text-gray-800 font-bold focus:ring-2 focus:ring-blue-500 shadow-sm">
+                                        <option>Cash</option>
+                                        <option>Card</option>
+                                        <option>Bkash</option>
+                                        <option>Nagad</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm space-y-3">
+                                <div className="flex justify-between items-center text-gray-600 border-b border-gray-100 pb-2">
+                                    <span className="text-xs font-bold uppercase">Total Bill:</span> 
+                                    <span className="font-black text-gray-900 text-lg">৳{(formData.total_bill || 0).toLocaleString()}</span>
+                                </div>
+                                <div className="flex justify-between items-center text-gray-600 border-b border-gray-100 pb-2">
+                                    <span className="text-xs font-bold uppercase">Total Discount:</span> 
+                                    <span className="font-black text-gray-900 text-lg">৳{(formData.total_discount || 0).toLocaleString()}</span>
+                                </div>
+                                <div className="flex justify-between items-center text-amber-700 border-b border-gray-100 pb-2">
+                                    <span className="text-xs font-bold uppercase">Special Discount:</span> 
+                                    <input type="number" name="special_discount_amount" value={formData.special_discount_amount} onChange={handleInputChange} onFocus={e=>e.target.select()} className="bg-gray-50 text-gray-900 w-32 p-2 text-right font-black border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"/>
+                                </div>
+                                <div className="flex justify-between items-center text-blue-800 text-2xl font-black border-b-2 border-blue-100 pb-2">
+                                    <span className="text-sm uppercase">Net Payable:</span> 
+                                    <span>৳{formData.net_payable ? (formData.net_payable || 0).toLocaleString() : '0.00'}</span>
+                                </div>
+                                <div className="flex justify-between items-center text-emerald-700 border-b border-gray-100 pb-2">
+                                    <span className="text-xs font-bold uppercase">Paid Amount:</span> 
+                                    <input type="number" name="paid_amount" value={formData.paid_amount} onChange={handleInputChange} onFocus={e=>e.target.select()} className="bg-emerald-50 text-emerald-900 w-32 p-2 text-right font-black border border-emerald-300 rounded-lg focus:ring-2 focus:ring-emerald-500"/>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                    <span className="text-xs font-bold uppercase text-gray-500">Due Balance:</span> 
+                                    <span className={`text-2xl font-black ${(formData.due_bill || 0) > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                                        ৳{(formData.due_bill || 0).toLocaleString()}
+                                    </span>
+                                </div>
                             </div>
                         </div>
-                        <button type="submit" className="px-6 py-2 bg-green-600 text-white rounded font-bold hover:bg-green-700">Save Invoice</button>
+                        <div className="flex justify-end gap-4">
+                            <button 
+                                type="submit" 
+                                disabled={loading}
+                                className="px-10 py-4 bg-emerald-600 text-white rounded-xl font-black text-lg hover:bg-emerald-700 shadow-xl transition-all flex items-center gap-3 uppercase tracking-widest disabled:opacity-50"
+                            >
+                                {loading ? <Loader2 className="animate-spin" size={24}/> : <Save size={24}/>}
+                                Save Final Invoice
+                            </button>
+                        </div>
                     </form>
                 )}
 
@@ -2539,47 +2606,58 @@ const IndoorInvoicePage: React.FC<{
                 )}
 
                 {showHistoryModal && historyInvoice && (
-                    <div className="fixed inset-0 bg-black/90 flex justify-center items-center z-[60] p-4 overflow-y-auto">
-                        <div className="bg-[#1f2937] w-full max-w-4xl rounded-xl border border-gray-600 shadow-2xl p-6">
-                            <div className="flex justify-between items-center mb-6 border-b border-gray-700 pb-4">
-                                <h3 className="text-xl font-bold text-white uppercase tracking-widest">Invoice Edit History: {historyInvoice.daily_id}</h3>
-                                <button onClick={() => setShowHistoryModal(false)} className="text-gray-400 hover:text-white text-2xl">&times;</button>
+                    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center z-[60] p-4 overflow-y-auto">
+                        <div className="bg-white w-full max-w-4xl rounded-2xl border border-gray-200 shadow-2xl p-6">
+                            <div className="flex justify-between items-center mb-6 border-b border-gray-100 pb-4">
+                                <h3 className="text-xl font-black text-gray-800 uppercase tracking-widest flex items-center gap-2">
+                                    <Database className="text-blue-600" size={20} /> Invoice Edit History: {historyInvoice.daily_id}
+                                </h3>
+                                <button onClick={() => setShowHistoryModal(false)} className="text-gray-400 hover:text-gray-600 text-2xl transition-colors">&times;</button>
                             </div>
                             
-                            <div className="space-y-6">
+                            <div className="space-y-6 max-h-[70vh] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-gray-200">
                                 {historyInvoice.edit_history?.map((snapshot: any, idx: number) => (
-                                    <div key={idx} className="bg-slate-800/50 border border-slate-700 rounded-lg p-4">
-                                        <div className="flex justify-between items-center mb-4">
-                                            <div className="text-sm">
-                                                <span className="text-gray-400">Version {idx + 1} - Captured on: </span>
-                                                <span className="text-blue-400 font-bold">{new Date(snapshot.snapshot_date).toLocaleString()}</span>
-                                                <span className="text-gray-400 ml-4">By: </span>
-                                                <span className="text-emerald-400 font-bold">{snapshot.modified_by}</span>
+                                    <div key={idx} className="bg-gray-50 border border-gray-200 rounded-xl p-4 shadow-sm">
+                                        <div className="flex justify-between items-center mb-4 border-b border-gray-100 pb-2">
+                                            <div className="text-xs">
+                                                <span className="text-gray-500 font-bold uppercase tracking-tighter">Version {idx + 1} - Captured on: </span>
+                                                <span className="text-blue-600 font-black">{new Date(snapshot.snapshot_date).toLocaleString()}</span>
+                                                <span className="text-gray-500 ml-4 font-bold uppercase tracking-tighter">By: </span>
+                                                <span className="text-emerald-600 font-black">{snapshot.modified_by}</span>
                                             </div>
                                             <button 
                                                 onClick={() => handlePrintInvoice(snapshot)}
-                                                className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded text-[10px] font-bold uppercase"
+                                                className="bg-white border border-gray-300 hover:bg-gray-100 text-gray-700 px-3 py-1 rounded-lg text-[10px] font-black uppercase shadow-sm transition-all"
                                             >
                                                 Print This Version
                                             </button>
                                         </div>
-                                        <div className="grid grid-cols-3 gap-4 text-xs text-gray-300 border-t border-slate-700 pt-4">
-                                            <div><span className="text-gray-500">Invoice Date:</span> {snapshot.invoice_date}</div>
-                                            <div><span className="text-gray-500">Total Bill:</span> ৳{Number(snapshot.total_bill || 0).toFixed(2)}</div>
-                                            <div><span className="text-gray-500">Paid:</span> ৳{Number(snapshot.paid_amount || 0).toFixed(2)}</div>
-                                            <div className="col-span-3">
-                                                <span className="text-gray-500">Items:</span> {(Array.isArray(snapshot.items) ? snapshot.items : []).map((it: any) => it && `${it.service_type || 'Unknown'} (৳${Number(it.payable_amount || 0).toFixed(2)})`).join(', ')}
+                                        <div className="grid grid-cols-3 gap-4 text-[11px] text-gray-700">
+                                            <div><span className="text-gray-400 font-bold uppercase">Invoice Date:</span> <span className="font-black">{snapshot.invoice_date}</span></div>
+                                            <div><span className="text-gray-400 font-bold uppercase">Total Bill:</span> <span className="font-black">৳{Number(snapshot.total_bill || 0).toFixed(2)}</span></div>
+                                            <div><span className="text-gray-400 font-bold uppercase">Paid:</span> <span className="font-black">৳{Number(snapshot.paid_amount || 0).toFixed(2)}</span></div>
+                                            <div className="col-span-3 bg-white p-2 rounded border border-gray-100">
+                                                <span className="text-gray-400 font-bold uppercase block mb-1">Items:</span> 
+                                                <div className="flex flex-wrap gap-2">
+                                                    {(Array.isArray(snapshot.items) ? snapshot.items : []).map((it: any, i: number) => it && (
+                                                        <span key={i} className="bg-gray-100 px-2 py-0.5 rounded text-[10px] font-bold text-gray-600 border border-gray-200">
+                                                            {it.service_type || 'Unknown'} (৳{Number(it.payable_amount || 0).toFixed(2)})
+                                                        </span>
+                                                    ))}
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
                                 ))}
                                 
-                                <div className="bg-emerald-900/20 border border-emerald-800/50 rounded-lg p-4">
-                                    <h4 className="text-emerald-400 font-bold text-sm mb-2 uppercase tracking-widest">Current Active Version</h4>
-                                    <div className="grid grid-cols-3 gap-4 text-xs text-gray-300">
-                                        <div><span className="text-gray-500">Invoice Date:</span> {historyInvoice.invoice_date}</div>
-                                        <div><span className="text-gray-500">Total Bill:</span> ৳{Number(historyInvoice.total_bill || 0).toFixed(2)}</div>
-                                        <div><span className="text-gray-500">Paid:</span> ৳{Number(historyInvoice.paid_amount || 0).toFixed(2)}</div>
+                                <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4 shadow-inner">
+                                    <h4 className="text-emerald-700 font-black text-xs mb-2 uppercase tracking-widest flex items-center gap-2">
+                                        <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" /> Current Active Version
+                                    </h4>
+                                    <div className="grid grid-cols-3 gap-4 text-[11px] text-gray-800">
+                                        <div><span className="text-emerald-600/50 font-bold uppercase">Invoice Date:</span> <span className="font-black">{historyInvoice.invoice_date}</span></div>
+                                        <div><span className="text-emerald-600/50 font-bold uppercase">Total Bill:</span> <span className="font-black">৳{Number(historyInvoice.total_bill || 0).toFixed(2)}</span></div>
+                                        <div><span className="text-emerald-600/50 font-bold uppercase">Paid:</span> <span className="font-black">৳{Number(historyInvoice.paid_amount || 0).toFixed(2)}</span></div>
                                     </div>
                                 </div>
                             </div>
@@ -2589,65 +2667,66 @@ const IndoorInvoicePage: React.FC<{
                 
                 <div className="mt-8">
                     <div className="flex flex-col md:flex-row items-start md:items-center gap-4 mb-4">
-                        <h3 className="text-gray-400 font-bold uppercase text-xs tracking-widest whitespace-nowrap">Master Journal: Saved Indoor Invoices</h3>
+                        <h3 className="text-gray-500 font-black uppercase text-xs tracking-widest whitespace-nowrap flex items-center gap-2">
+                            <Database size={14} className="text-blue-600" /> Master Journal: Saved Indoor Invoices
+                        </h3>
                         <div className="flex flex-wrap gap-2">
                             <div className="relative w-48">
-                                <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={14} />
+                                <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
                                 <input 
                                     type="text" 
                                     placeholder="Search Patient or ID..." 
                                     value={tableSearchTerm}
                                     onChange={e => setTableSearchTerm(e.target.value)}
-                                    className="w-full bg-white border border-gray-300 rounded-lg pl-9 pr-3 py-1.5 text-[10px] text-gray-800 focus:ring-1 focus:ring-blue-500 outline-none"
+                                    className="w-full bg-white border border-gray-300 rounded-lg pl-9 pr-3 py-1.5 text-[10px] text-gray-800 focus:ring-2 focus:ring-blue-500 outline-none shadow-sm"
                                 />
                             </div>
                             <input 
                                 type="date" 
                                 value={tableDateFilter}
                                 onChange={e => setTableDateFilter(e.target.value)}
-                                className="bg-white border border-gray-300 rounded-lg px-3 py-1.5 text-[10px] text-gray-800 focus:ring-1 focus:ring-blue-500 outline-none"
+                                className="bg-white border border-gray-300 rounded-lg px-3 py-1.5 text-[10px] text-gray-800 focus:ring-2 focus:ring-blue-500 outline-none shadow-sm"
                             />
                             <input 
                                 type="month" 
                                 value={tableMonthFilter}
                                 onChange={e => setTableMonthFilter(e.target.value)}
-                                className="bg-white border border-gray-300 rounded-lg px-3 py-1.5 text-[10px] text-gray-800 focus:ring-1 focus:ring-blue-500 outline-none"
+                                className="bg-white border border-gray-300 rounded-lg px-3 py-1.5 text-[10px] text-gray-800 focus:ring-2 focus:ring-blue-500 outline-none shadow-sm"
                             />
                         </div>
                     </div>
 
-                    {/* Summary row is now integrated into the table header for better alignment */}
-
-                    <div className="bg-[#f8f9fa] rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                        <table className="w-full text-sm text-left text-gray-800 border-collapse">
-                            <thead className="bg-gray-100 text-gray-600 sticky top-0 z-10">
-                                <tr>
-                                    <th className="p-3 text-center w-12">SL</th>
-                                    <th className="p-3 w-24">ID</th>
-                                    <th className="p-3 w-28">Date</th>
-                                    <th className="p-3">Patient Details</th>
-                                    <th className="p-3 text-right w-32">Total</th>
-                                    <th className="p-3 text-right w-32">Paid</th>
-                                    <th className="p-3 text-right w-32">Due</th>
-                                    <th className="p-3 text-right w-32">Clinic Net Balance</th>
-                                    <th className="p-3 text-center w-24">Status</th>
-                                    <th className="p-3 text-center w-40">Action</th>
-                                </tr>
-                                <tr className="bg-gray-200/80 text-[10px] border-t border-gray-300">
-                                    <th colSpan={4} className="p-2 text-right text-gray-500 font-black uppercase tracking-widest">Filtered Totals:</th>
-                                    <th className="p-2 text-right text-blue-600 font-mono">৳{tableTotals.total.toLocaleString(undefined, {minimumFractionDigits: 2})}</th>
-                                    <th className="p-2 text-right text-emerald-600 font-mono">৳{tableTotals.paid.toLocaleString(undefined, {minimumFractionDigits: 2})}</th>
-                                    <th className="p-2 text-right text-rose-600 font-mono">৳{tableTotals.due.toLocaleString(undefined, {minimumFractionDigits: 2})}</th>
-                                    <th className="p-2 text-right text-sky-600 font-mono">৳{tableTotals.net.toLocaleString(undefined, {minimumFractionDigits: 2})}</th>
-                                    <th colSpan={2}></th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-200">
-                                {filteredInvoices.map((inv, index) => (
-                                    <tr key={inv.daily_id} onClick={() => handleLoadInvoice(inv)} className={`cursor-pointer hover:bg-white transition-all ${selectedInvoiceId === inv.daily_id ? 'bg-blue-50' : ''} ${inv.status === 'Returned' ? 'bg-rose-50' : inv.status === 'Cancelled' ? 'opacity-30 grayscale line-through' : ''}`}>
-                                        <td className="p-3 text-center text-gray-400 font-mono text-xs">{index + 1}</td>
-                                        <td className="p-3 font-mono text-xs text-sky-600">{inv.daily_id}</td>
-                                        <td className="p-3 text-xs">{inv.invoice_date}</td>
+                    <div className="bg-[#fdfcfb] rounded-xl border border-gray-200 shadow-lg overflow-hidden">
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-sm text-left text-gray-700 border-collapse">
+                                <thead className="bg-[#f8f9fa] text-gray-800 sticky top-0 z-10 border-b border-gray-200">
+                                    <tr>
+                                        <th className="p-3 text-center w-12 font-black uppercase text-[10px]">SL</th>
+                                        <th className="p-3 w-24 font-black uppercase text-[10px]">ID</th>
+                                        <th className="p-3 w-28 font-black uppercase text-[10px]">Date</th>
+                                        <th className="p-3 font-black uppercase text-[10px]">Patient Details</th>
+                                        <th className="p-3 text-right w-32 font-black uppercase text-[10px]">Total</th>
+                                        <th className="p-3 text-right w-32 font-black uppercase text-[10px]">Paid</th>
+                                        <th className="p-3 text-right w-32 font-black uppercase text-[10px]">Due</th>
+                                        <th className="p-3 text-right w-32 font-black uppercase text-[10px] text-blue-700">Clinic Net Balance</th>
+                                        <th className="p-3 text-center w-24 font-black uppercase text-[10px]">Status</th>
+                                        <th className="p-3 text-center w-40 font-black uppercase text-[10px]">Action</th>
+                                    </tr>
+                                    <tr className="bg-blue-50/50 text-[10px] border-t border-gray-200">
+                                        <th colSpan={4} className="p-2 text-right text-gray-500 font-black uppercase tracking-widest">Filtered Totals:</th>
+                                        <th className="p-2 text-right text-blue-800 font-black">৳{tableTotals.total.toLocaleString(undefined, {minimumFractionDigits: 2})}</th>
+                                        <th className="p-2 text-right text-emerald-700 font-black">৳{tableTotals.paid.toLocaleString(undefined, {minimumFractionDigits: 2})}</th>
+                                        <th className="p-2 text-right text-red-700 font-black">৳{tableTotals.due.toLocaleString(undefined, {minimumFractionDigits: 2})}</th>
+                                        <th className="p-2 text-right text-blue-900 font-black">৳{tableTotals.net.toLocaleString(undefined, {minimumFractionDigits: 2})}</th>
+                                        <th colSpan={2}></th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100 bg-[#fdfcfb]">
+                                    {filteredInvoices.map((inv, index) => (
+                                        <tr key={inv.daily_id} onClick={() => handleLoadInvoice(inv)} className={`cursor-pointer hover:bg-blue-50/30 transition-all ${selectedInvoiceId === inv.daily_id ? 'bg-blue-50' : ''} ${inv.status === 'Returned' ? 'bg-red-50' : inv.status === 'Cancelled' ? 'opacity-40 grayscale line-through' : ''}`}>
+                                            <td className="p-3 text-center text-gray-400 font-mono text-[10px]">{index + 1}</td>
+                                            <td className="p-3 font-black text-xs text-blue-600">{inv.daily_id}</td>
+                                            <td className="p-3 text-xs font-semibold text-gray-600">{inv.invoice_date}</td>
                                         <td className="p-3">
                                             <div className="font-black uppercase text-gray-900 leading-tight">{inv.patient_name}</div>
                                             <div className="text-[9px] text-gray-500 mt-1 flex flex-wrap gap-x-3 gap-y-1">
@@ -2696,6 +2775,7 @@ const IndoorInvoicePage: React.FC<{
                             </tbody>
                         </table>
                         {filteredInvoices.length === 0 && <div className="p-20 text-center text-gray-400 font-black uppercase opacity-20">No Records Found</div>}
+                        </div>
                     </div>
                 </div>
             </div>
@@ -2755,40 +2835,53 @@ const ClinicDueCollectionPage: React.FC<{
         setSelectedInvoice(null);
     };
     return (
-        <div className="bg-[#f8f9fa] p-6 rounded border border-gray-200 shadow-sm">
-            <h3 className="text-xl font-bold text-gray-800 mb-4">Due Collection</h3>
-            <input type="text" placeholder="Search..." value={searchTerm} onChange={e=>setSearchTerm(e.target.value)} className="w-full p-2 bg-white border border-gray-300 rounded text-gray-800 mb-4 focus:ring-2 focus:ring-blue-500 outline-none"/>
-            <table className="w-full text-sm text-left text-gray-700">
-                <thead className="bg-gray-100 text-gray-600">
-                    <tr>
-                        <th className="p-2">ID</th>
-                        <th className="p-2">Patient</th>
-                        <th className="p-2">Due</th>
-                        <th className="p-2">Action</th>
-                    </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                    {(Array.isArray(dueInvoices) ? dueInvoices : []).map(inv => inv && (
-                        <tr key={inv.daily_id} className="hover:bg-white transition-colors">
-                            <td className="p-2 font-mono text-xs">{inv.daily_id}</td>
-                            <td className="p-2 font-bold">{inv.patient_name}</td>
-                            <td className="p-2 text-rose-600 font-mono font-bold">৳{(inv.due_bill || 0).toFixed(2)}</td>
-                            <td className="p-2">
-                                <button onClick={()=>{setSelectedInvoice(inv); setAmount(0);}} className="bg-emerald-600 px-3 py-1 rounded text-white font-bold hover:bg-emerald-700 transition-colors">Collect</button>
-                            </td>
+        <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+            <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                <Database className="text-amber-600" size={20} /> Due Collection
+            </h3>
+            <div className="relative mb-4">
+                <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                <input 
+                    type="text" 
+                    placeholder="Search Patient Name..." 
+                    value={searchTerm} 
+                    onChange={e=>setSearchTerm(e.target.value)} 
+                    className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-300 rounded-lg text-gray-800 focus:ring-2 focus:ring-amber-500 outline-none transition-all"
+                />
+            </div>
+            <div className="overflow-hidden rounded-lg border border-gray-200">
+                <table className="w-full text-sm text-left text-gray-700">
+                    <thead className="bg-gray-100 text-gray-600 border-b border-gray-200">
+                        <tr>
+                            <th className="p-3 font-black uppercase text-[10px]">ID</th>
+                            <th className="p-3 font-black uppercase text-[10px]">Patient</th>
+                            <th className="p-3 font-black uppercase text-[10px] text-right">Due Amount</th>
+                            <th className="p-3 font-black uppercase text-[10px] text-center">Action</th>
                         </tr>
-                    ))}
-                </tbody>
-            </table>
-            {filteredInvoices.length === 0 && <div className="p-10 text-center text-gray-400 font-black uppercase opacity-20">No Due Records</div>}
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                        {(Array.isArray(dueInvoices) ? dueInvoices : []).map(inv => inv && (
+                            <tr key={inv.daily_id} className="hover:bg-amber-50/30 transition-colors">
+                                <td className="p-3 font-mono text-xs text-gray-500">{inv.daily_id}</td>
+                                <td className="p-3 font-bold text-gray-800">{inv.patient_name}</td>
+                                <td className="p-3 text-right text-rose-600 font-black font-mono">৳{(inv.due_bill || 0).toFixed(2)}</td>
+                                <td className="p-3 text-center">
+                                    <button onClick={()=>{setSelectedInvoice(inv); setAmount(0);}} className="bg-amber-600 px-4 py-1.5 rounded-lg text-white font-bold hover:bg-amber-700 transition-all shadow-sm text-xs uppercase tracking-wider">Collect</button>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+            {dueInvoices.length === 0 && <div className="p-10 text-center text-gray-400 font-black uppercase opacity-20">No Due Records</div>}
         </div>
     );
 };
 
 const CertificateCard = ({ title, icon, color, onClick }: any) => (
-    <div onClick={onClick} className={`bg-slate-800 p-4 rounded-lg border border-slate-700 hover:border-${color}-500 transition-all cursor-pointer group flex flex-col items-center justify-center h-32`}>
-        <div className={`p-3 rounded-full bg-${color}-900/50 text-${color}-400 mb-2 group-hover:scale-110 transition-transform`}>{icon}</div>
-        <span className="text-gray-300 font-bold text-sm text-center group-hover:text-white">{title}</span>
+    <div onClick={onClick} className={`bg-white p-4 rounded-xl border border-gray-200 hover:border-${color}-500 transition-all cursor-pointer group flex flex-col items-center justify-center h-32 shadow-sm hover:shadow-md`}>
+        <div className={`p-3 rounded-full bg-${color}-50 text-${color}-600 mb-2 group-hover:scale-110 transition-transform`}>{icon}</div>
+        <span className="text-gray-700 font-bold text-sm text-center group-hover:text-gray-900">{title}</span>
     </div>
 );
 
@@ -2807,10 +2900,25 @@ const ReportSummaryPage: React.FC<{
     const safeDoctors = Array.isArray(doctors) ? doctors : [];
     const doctorStats = safeDoctors.map(doc => ({ name: doc.doctor_name, count: safeAdmissions.filter(a => a && a.doctor_id === doc.doctor_id).length })).filter(d => d.count > 0);
     return (
-        <div className="bg-[#1f2937] p-6 rounded border border-[#374151]">
-            <h3 className="text-xl font-bold text-white mb-6">Report Summary</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8"><div className="bg-slate-800 p-4 rounded text-center border border-slate-600"><h4 className="text-gray-400 text-sm uppercase">Total Admissions</h4><p className="text-3xl font-bold text-white">{totalAdmissions}</p></div><div className="bg-slate-800 p-4 rounded text-center border border-slate-600"><h4 className="text-gray-400 text-sm uppercase">Active Patients</h4><p className="text-3xl font-bold text-green-400">{activeAdmissions}</p></div><div className="bg-slate-800 p-4 rounded text-center border border-slate-600"><h4 className="text-gray-400 text-sm uppercase">Discharged</h4><p className="text-3xl font-bold text-blue-400">{discharged}</p></div></div>
-            <h4 className="text-lg font-bold text-white mb-4 border-b border-gray-700 pb-2">Certificates & Templates</h4>
+        <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+            <h3 className="text-xl font-bold text-gray-800 mb-6 flex items-center gap-2">
+                <FileTextIcon className="text-purple-600" size={20} /> Report Summary
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <div className="bg-gray-50 p-4 rounded-xl text-center border border-gray-200 shadow-inner">
+                    <h4 className="text-gray-500 text-[10px] font-black uppercase tracking-widest mb-1">Total Admissions</h4>
+                    <p className="text-3xl font-black text-gray-900">{totalAdmissions}</p>
+                </div>
+                <div className="bg-emerald-50 p-4 rounded-xl text-center border border-emerald-100 shadow-inner">
+                    <h4 className="text-emerald-600 text-[10px] font-black uppercase tracking-widest mb-1">Active Patients</h4>
+                    <p className="text-3xl font-black text-emerald-700">{activeAdmissions}</p>
+                </div>
+                <div className="bg-blue-50 p-4 rounded-xl text-center border border-blue-100 shadow-inner">
+                    <h4 className="text-blue-600 text-[10px] font-black uppercase tracking-widest mb-1">Discharged</h4>
+                    <p className="text-3xl font-black text-blue-700">{discharged}</p>
+                </div>
+            </div>
+            <h4 className="text-sm font-black text-gray-400 uppercase tracking-widest mb-4 border-b border-gray-100 pb-2">Certificates & Templates</h4>
             <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
                 <CertificateCard title="Discharge / Rx Master" icon={<ClipboardIcon className="w-6 h-6"/>} color="emerald" onClick={onOpenRxMaster} />
                 <CertificateCard title="Discharge Certificate" icon={<ClipboardIcon className="w-6 h-6"/>} color="blue" onClick={() => setActiveCertType('discharge')} />
@@ -2818,8 +2926,26 @@ const ReportSummaryPage: React.FC<{
                 <CertificateCard title="Death Certificate" icon={<FileTextIcon className="w-6 h-6"/>} color="red" onClick={() => setActiveCertType('death')} />
                 <CertificateCard title="Referral Reports" icon={<UserPlusIcon className="w-6 h-6"/>} color="purple" onClick={() => setActiveCertType('referral')} />
             </div>
-            <h4 className="text-lg font-bold text-white mb-4">Admissions by Doctor</h4>
-            <div className="bg-[#111827] rounded border border-gray-700 overflow-hidden"><table className="w-full text-sm text-left text-gray-300"><thead className="bg-[#1f2937] text-gray-400"><tr><th className="p-3">Doctor Name</th><th className="p-3 text-right">Patient Count</th></tr></thead><tbody>{(Array.isArray(doctorStats) ? doctorStats : []).map((stat, idx) => stat && (<tr key={idx} className="border-b border-gray-800"><td className="p-3">{stat.name}</td><td className="p-3 text-right font-bold text-white">{stat.count}</td></tr>))}{doctorStats.length === 0 && <tr><td colSpan={2} className="p-4 text-center text-gray-500">No data available.</td></tr>}</tbody></table></div>
+            <h4 className="text-sm font-black text-gray-400 uppercase tracking-widest mb-4">Admissions by Doctor</h4>
+            <div className="bg-gray-50 rounded-xl border border-gray-200 overflow-hidden shadow-inner">
+                <table className="w-full text-sm text-left text-gray-700">
+                    <thead className="bg-gray-100 text-gray-600 border-b border-gray-200">
+                        <tr>
+                            <th className="p-3 font-black uppercase text-[10px]">Doctor Name</th>
+                            <th className="p-3 text-right font-black uppercase text-[10px]">Patient Count</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                        {(Array.isArray(doctorStats) ? doctorStats : []).map((stat, idx) => stat && (
+                            <tr key={idx} className="hover:bg-white transition-colors">
+                                <td className="p-3 font-semibold text-gray-800">{stat.name}</td>
+                                <td className="p-3 text-right font-black text-gray-900">{stat.count}</td>
+                            </tr>
+                        ))}
+                        {doctorStats.length === 0 && <tr><td colSpan={2} className="p-6 text-center text-gray-400 font-bold italic">No data available.</td></tr>}
+                    </tbody>
+                </table>
+            </div>
             {activeCertType && (<CertificateModal type={activeCertType} admissions={admissions} patients={patients} doctors={doctors} onClose={() => setActiveCertType(null)} />)}
         </div>
     );
@@ -2869,37 +2995,41 @@ const BedManagementPage: React.FC<{ admissions: AdmissionRecord[]; setAdmissions
     };
 
     return (
-        <div className="bg-[#1f2937] p-6 rounded border border-[#374151]">
-            <div className="flex justify-between items-center mb-6 border-gray-700 pb-2 border-b">
-                <h3 className="text-xl font-bold text-white">Bed Management Status</h3>
-                <button onClick={handlePrintBedMap} className="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded text-xs font-bold transition-all flex items-center gap-2"><FileTextIcon className="w-4 h-4"/> Print Bed Map</button>
+        <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+            <div className="flex justify-between items-center mb-6 border-gray-100 pb-2 border-b">
+                <h3 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                    <Armchair className="text-teal-600" size={20} /> Bed Management Status
+                </h3>
+                <button onClick={handlePrintBedMap} className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 border border-gray-300 shadow-sm">
+                    <FileTextIcon className="w-4 h-4"/> Print Bed Map
+                </button>
             </div>
             <div className="space-y-8">
                 {(Array.isArray(wards) ? wards : []).map(ward => ward && (
                     <div key={ward.id}>
-                        <h4 className="text-lg font-semibold text-gray-300 mb-3 ml-1 border-l-4 border-blue-500 pl-2">{ward.name}</h4>
+                        <h4 className="text-sm font-black text-gray-400 uppercase tracking-widest mb-3 ml-1 border-l-4 border-teal-500 pl-2">{ward.name}</h4>
                         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
                             {(Array.isArray(ward.beds) ? ward.beds : []).map(bedId => {
                                 const admission = getBedStatus(bedId);
                                 const isOccupied = !!admission;
                                 return (
-                                    <div key={bedId} className={`relative p-4 rounded-lg border-2 transition-all duration-200 flex flex-col justify-between h-32 ${isOccupied ? 'bg-red-900/20 border-red-500/50 hover:shadow-[0_0_10px_rgba(239,68,68,0.3)]' : 'bg-emerald-900/20 border-emerald-500/50 hover:shadow-[0_0_10px_rgba(16,185,129,0.3)] hover:bg-emerald-900/30'}`}>
+                                    <div key={bedId} className={`relative p-4 rounded-xl border-2 transition-all duration-200 flex flex-col justify-between h-32 shadow-sm ${isOccupied ? 'bg-rose-50 border-rose-200 hover:shadow-md' : 'bg-emerald-50 border-emerald-100 hover:shadow-md hover:bg-emerald-100/50'}`}>
                                         <div className="flex justify-between items-start">
-                                            <span className={`text-sm font-bold ${isOccupied ? 'text-red-400' : 'text-emerald-400'}`}>{bedId}</span>
+                                            <span className={`text-sm font-black ${isOccupied ? 'text-rose-600' : 'text-emerald-600'}`}>{bedId}</span>
                                             {isOccupied ? (
-                                                <button onClick={() => handleFreeBed(bedId)} className="p-1 bg-red-600/20 hover:bg-red-600 text-red-500 hover:text-white rounded transition-all" title="Free Bed Manually">
+                                                <button onClick={() => handleFreeBed(bedId)} className="p-1.5 bg-rose-100 hover:bg-rose-600 text-rose-600 hover:text-white rounded-lg transition-all shadow-sm" title="Free Bed Manually">
                                                     <TrashIcon size={12}/>
                                                 </button>
                                             ) : <Armchair className="w-4 h-4 text-emerald-400"/>}
                                         </div>
                                         {isOccupied ? (
                                             <div className="mt-2">
-                                                <div className="text-xs text-white font-bold truncate" title={admission.patient_name}>{admission.patient_name}</div>
-                                                <div className="text-[10px] text-gray-400 truncate">ID: {admission.admission_id}</div>
+                                                <div className="text-xs text-gray-900 font-black truncate" title={admission.patient_name}>{admission.patient_name}</div>
+                                                <div className="text-[10px] text-gray-500 font-bold truncate">ID: {admission.admission_id}</div>
                                             </div>
                                         ) : (
                                             <div className="mt-auto text-center">
-                                                <span className="text-xs text-emerald-500 font-medium bg-emerald-500/10 px-2 py-0.5 rounded">Available</span>
+                                                <span className="text-[10px] text-emerald-600 font-black bg-white px-2 py-0.5 rounded-full border border-emerald-200 uppercase tracking-tighter">Available</span>
                                             </div>
                                         )}
                                     </div>
