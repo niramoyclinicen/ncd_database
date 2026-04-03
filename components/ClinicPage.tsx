@@ -2061,7 +2061,8 @@ const IndoorInvoicePage: React.FC<{
         const newId = `CLIN-${dateToUse}-${String(count).padStart(3, '0')}`;
         
         const safePatients = Array.isArray(patients) ? patients : [];
-        const patient = safePatients.find(p => p && p.pt_id === (selectedAdmission?.patient_id || formData.patient_id));
+        const patientIdToFind = selectedAdmission?.patient_id || formData.patient_id;
+        const patient = safePatients.find(p => p && p.pt_id === patientIdToFind);
 
         const newInvoice: IndoorInvoice = {
             ...emptyIndoorInvoice,
@@ -2078,7 +2079,7 @@ const IndoorInvoicePage: React.FC<{
             admission_date: selectedAdmission?.admission_date || '',
             patient_mobile: patient?.mobile || '',
             patient_address: patient?.address || '',
-            patient_dob: patient ? `${patient.dobY}-${patient.dobM}-${patient.dobD}` : '',
+            patient_dob: patient ? `${patient.dobY || ''}-${patient.dobM || ''}-${patient.dobD || ''}` : '',
             status: 'Posted',
             items: [],
             services: [],
@@ -2089,7 +2090,8 @@ const IndoorInvoicePage: React.FC<{
             net_payable: 0,
             special_discount_amount: 0,
             bill_created_by: 'System',
-            subCategory: ''
+            subCategory: '',
+            edit_history: []
         };
         setFormData(newInvoice);
     };
@@ -2582,8 +2584,8 @@ const IndoorInvoicePage: React.FC<{
                                 <SearchableSelect 
                                     theme="dark" 
                                     label="Sub_Category" 
-                                    options={(filteredSubCategories || []).filter(s => s && s.id && s.name).map(s => ({id: s.id, name: s.name}))} 
-                                    value={(filteredSubCategories || []).find(s => s && s.name === formData.subCategory)?.id || ''} 
+                                    options={(Array.isArray(filteredSubCategories) ? filteredSubCategories : []).filter(s => s && s.id && s.name).map(s => ({id: s.id, name: s.name}))} 
+                                    value={(Array.isArray(filteredSubCategories) ? filteredSubCategories : []).find(s => s && s.name === formData.subCategory)?.id || ''} 
                                     onChange={(_id, name) => setFormData(prev => ({...prev, subCategory: name}))} 
                                     onAddNew={() => setShowSubCategoryManager(true)}
                                     required={true}
@@ -2591,7 +2593,7 @@ const IndoorInvoicePage: React.FC<{
                                     allowCustom={true}
                                 />
                             </div>
-                            <div className="col-span-2"><label className="block text-[10px] text-slate-500 font-black uppercase tracking-widest mb-1.5">Referrer</label><select name="referrar_id" value={formData.referrar_id} onChange={(e) => { const ref = (Array.isArray(referrars) ? referrars : []).find(r => r && r.ref_id === e.target.value); setFormData({...formData, referrar_id: ref?.ref_id, referrar_name: ref?.ref_name}); }} className="w-full p-3 bg-slate-900 border border-slate-800 rounded-xl text-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium"><option value="" className="bg-slate-900">Select...</option>{(Array.isArray(referrars) ? referrars : []).map(r => r && <option key={r.ref_id} value={r.ref_id} className="bg-slate-900">{r.ref_name}</option>)}</select></div>
+                            <div className="col-span-2"><label className="block text-[10px] text-slate-500 font-black uppercase tracking-widest mb-1.5">Referrer</label><select name="referrar_id" value={formData.referrar_id || ''} onChange={(e) => { const ref = (Array.isArray(referrars) ? referrars : []).find(r => r && r.ref_id === e.target.value); setFormData({...formData, referrar_id: ref?.ref_id || '', referrar_name: ref?.ref_name || ''}); }} className="w-full p-3 bg-slate-900 border border-slate-800 rounded-xl text-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium"><option value="" className="bg-slate-900">Select...</option>{(Array.isArray(referrars) ? referrars : []).map(r => r && <option key={r.ref_id} value={r.ref_id} className="bg-slate-900">{r.ref_name}</option>)}</select></div>
                             
                             <div className="col-span-4 bg-slate-900/50 p-6 rounded-2xl border border-slate-800 shadow-inner">
                                 <div className="flex justify-between items-center mb-4">
