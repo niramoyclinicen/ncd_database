@@ -138,7 +138,7 @@ const DailyExpenseForm: React.FC<any> = ({ selectedDate, onDateChange, items: in
 
     const subCategories = useMemo(() => {
         const map = { ...expenseSubCategoryMap };
-        map['Stuff salary'] = employees.map((e: any) => e.name);
+        map['Stuff salary'] = (Array.isArray(employees) ? employees : []).map((e: any) => e?.name || e?.emp_name || 'Unknown');
         return map;
     }, [employees]);
 
@@ -233,11 +233,12 @@ const ClinicAccountsPage: React.FC<any> = ({
 
     // --- Core logic to categorize an invoice (Mapping Category Breakdown) ---
     const categorizeInvoiceData = React.useCallback((inv: any) => {
-        if (inv.status === 'Cancelled' || inv.status === 'Returned') {
+        if (!inv || inv.status === 'Cancelled' || inv.status === 'Returned') {
             return { admFee: 0, oxygen: 0, conservative: 0, nvd: 0, dc: 0, lscs_ot: 0, gb_ot: 0, others_ot: 0, dressing: 0, others: 0, pcAmount: 0, clinicNet: 0 };
         }
 
-        const incomeItems = inv.items.filter((it: any) => it.isClinicFund === true);
+        const items = Array.isArray(inv.items) ? inv.items : [];
+        const incomeItems = items.filter((it: any) => it && it.isClinicFund === true);
         const totalRevenue = incomeItems.reduce((s, it) => s + it.payable_amount, 0);
         const pcAmount = (inv.special_commission || 0) + (inv.commission_paid || 0);
         const clinicNet = totalRevenue - (inv.special_discount_amount || 0) - pcAmount;
@@ -287,19 +288,27 @@ const ClinicAccountsPage: React.FC<any> = ({
     }, []);
 
     const summaryData = useMemo(() => {
-        const monthInvoices = invoices.filter((inv:any) => {
+        const safeInvoices = Array.isArray(invoices) ? invoices : [];
+        const monthInvoices = safeInvoices.filter((inv:any) => {
+            if (!inv) return false;
             const dateToUse = inv.admission_date || inv.invoice_date;
             if (!dateToUse) return false;
-            const [y, m] = dateToUse.split('-').map(Number);
+            const parts = dateToUse.split('-');
+            if (parts.length < 2) return false;
+            const [y, m] = parts.map(Number);
             return (m - 1) === selectedMonth && y === selectedYear;
         });
         
-        const monthDueRecov = dueCollections.filter((dc:any) => {
-            const isClinic = !dc.invoice_id.startsWith('INV-');
+        const safeDueCollections = Array.isArray(dueCollections) ? dueCollections : [];
+        const monthDueRecov = safeDueCollections.filter((dc:any) => {
+            if (!dc) return false;
+            const isClinic = dc.invoice_id && !dc.invoice_id.startsWith('INV-');
             if (!dc.collection_date) return false;
-            const [y, m] = dc.collection_date.split('-').map(Number);
+            const parts = dc.collection_date.split('-');
+            if (parts.length < 2) return false;
+            const [y, m] = parts.map(Number);
             return (m - 1) === selectedMonth && y === selectedYear && isClinic;
-        }).reduce((sum:any, dc:any) => sum + dc.amount_collected, 0);
+        }).reduce((sum:any, dc:any) => sum + (dc.amount_collected || 0), 0);
 
         const collectionByCategory = monthInvoices.reduce((acc, inv) => {
             const catData = categorizeInvoiceData(inv);
@@ -328,11 +337,13 @@ const ClinicAccountsPage: React.FC<any> = ({
         const expensesByCategory: Record<string, number> = {};
         clinicExpenseCategories.forEach(cat => expensesByCategory[cat] = 0);
         Object.entries(detailedExpenses).forEach(([date, items]:any) => {
-            const [y, m] = date.split('-').map(Number);
+            const parts = date.split('-');
+            if (parts.length < 2) return;
+            const [y, m] = parts.map(Number);
             if(m - 1 === selectedMonth && y === selectedYear) {
-                items.forEach((it:any) => {
-                    if (!it.isDeleted && (it.dept === 'Clinic' || (!it.dept && clinicExpenseCategories.includes(it.category)))) {
-                        expensesByCategory[it.category] = (expensesByCategory[it.category] || 0) + it.paidAmount;
+                (Array.isArray(items) ? items : []).forEach((it:any) => {
+                    if (it && !it.isDeleted && (it.dept === 'Clinic' || (!it.dept && clinicExpenseCategories.includes(it.category)))) {
+                        expensesByCategory[it.category] = (expensesByCategory[it.category] || 0) + (it.paidAmount || 0);
                     }
                 });
             }
@@ -344,17 +355,20 @@ const ClinicAccountsPage: React.FC<any> = ({
     const clinicExpenseJournalData = useMemo(() => {
         const allClinicExpenses: any[] = [];
         Object.entries(detailedExpenses).forEach(([date, items]: any) => {
-            items.forEach((it: any) => {
-                if (!it.isDeleted && (it.dept === 'Clinic' || (!it.dept && clinicExpenseCategories.includes(it.category)))) {
+            (Array.isArray(items) ? items : []).forEach((it: any) => {
+                if (it && !it.isDeleted && (it.dept === 'Clinic' || (!it.dept && clinicExpenseCategories.includes(it.category)))) {
                     allClinicExpenses.push({ ...it, date });
                 }
             });
         });
 
         const filtered = allClinicExpenses.filter(ex => {
+            if (!ex || !ex.date) return false;
             const matchesSearch = !expSearch || (ex.description || '').toLowerCase().includes(expSearch.toLowerCase()) || (ex.subCategory || '').toLowerCase().includes(expSearch.toLowerCase());
             const matchesDate = !expDateSearch || ex.date === expDateSearch;
-            const [y, m] = ex.date.split('-').map(Number);
+            const parts = ex.date.split('-');
+            if (parts.length < 2) return false;
+            const [y, m] = parts.map(Number);
             const matchesMonth = expMonthSearch === '' || (m - 1) === expMonthSearch;
             const matchesYear = expYearSearch === '' || y === expYearSearch;
             const matchesCategory = !expCategorySearch || ex.category === expCategorySearch;
@@ -375,21 +389,21 @@ const ClinicAccountsPage: React.FC<any> = ({
 
         for (let day = 1; day <= daysInMonth; day++) {
             const dateStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-            const dailyExps = (detailedExpenses[dateStr] || []).filter((it: any) => !it.isDeleted && (it.dept === 'Clinic' || (!it.dept && clinicExpenseCategories.includes(it.category))));
+            const dailyExps = (Array.isArray(detailedExpenses[dateStr]) ? detailedExpenses[dateStr] : []).filter((it: any) => it && !it.isDeleted && (it.dept === 'Clinic' || (!it.dept && clinicExpenseCategories.includes(it.category))));
             
             const rowCategories: Record<string, number> = {};
             clinicExpenseCategories.forEach(cat => rowCategories[cat] = 0);
             
             let dayTotal = 0;
             dailyExps.forEach((exp: any) => {
-                if (clinicExpenseCategories.includes(exp.category)) {
-                    rowCategories[exp.category] += exp.paidAmount;
-                    columnTotals[exp.category] += exp.paidAmount;
-                    dayTotal += exp.paidAmount;
-                } else {
-                    rowCategories['Others'] = (rowCategories['Others'] || 0) + exp.paidAmount;
-                    columnTotals['Others'] = (columnTotals['Others'] || 0) + exp.paidAmount;
-                    dayTotal += exp.paidAmount;
+                if (exp && clinicExpenseCategories.includes(exp.category)) {
+                    rowCategories[exp.category] += (exp.paidAmount || 0);
+                    columnTotals[exp.category] += (exp.paidAmount || 0);
+                    dayTotal += (exp.paidAmount || 0);
+                } else if (exp) {
+                    rowCategories['Others'] = (rowCategories['Others'] || 0) + (exp.paidAmount || 0);
+                    columnTotals['Others'] = (columnTotals['Others'] || 0) + (exp.paidAmount || 0);
+                    dayTotal += (exp.paidAmount || 0);
                 }
             });
 
@@ -405,12 +419,14 @@ const ClinicAccountsPage: React.FC<any> = ({
     }, [selectedMonth, selectedYear, detailedExpenses]);
 
     const dailySummaryData = useMemo(() => {
-        const dayInvoices = invoices.filter((inv: any) => (inv.admission_date || inv.invoice_date) === selectedDate);
+        const safeInvoices = Array.isArray(invoices) ? invoices : [];
+        const dayInvoices = safeInvoices.filter((inv: any) => (inv.admission_date || inv.invoice_date) === selectedDate);
         
-        const dayDueRecov = dueCollections.filter((dc: any) => {
-            const isClinic = !dc.invoice_id.startsWith('INV-');
-            return dc.collection_date === selectedDate && isClinic;
-        }).reduce((sum: any, dc: any) => sum + dc.amount_collected, 0);
+        const safeDueCollections = Array.isArray(dueCollections) ? dueCollections : [];
+        const dayDueRecov = safeDueCollections.filter((dc: any) => {
+            const isClinic = dc && dc.invoice_id && !dc.invoice_id.startsWith('INV-');
+            return dc && dc.collection_date === selectedDate && isClinic;
+        }).reduce((sum: any, dc: any) => sum + (dc.amount_collected || 0), 0);
 
         const collectionByCategory = dayInvoices.reduce((acc, inv) => {
             const catData = categorizeInvoiceData(inv);
@@ -435,27 +451,28 @@ const ClinicAccountsPage: React.FC<any> = ({
         }, 0);
 
         const totalCollection = totalClinicNetOnly + dayDueRecov;
-        const dayExpenses = (detailedExpenses[selectedDate] || []).filter((it: any) => !it.isDeleted && (it.dept === 'Clinic' || (!it.dept && clinicExpenseCategories.includes(it.category))));
-        const totalExpense = dayExpenses.reduce((s: number, it: any) => s + it.paidAmount, 0);
+        const dayExpenses = (Array.isArray(detailedExpenses[selectedDate]) ? detailedExpenses[selectedDate] : []).filter((it: any) => it && !it.isDeleted && (it.dept === 'Clinic' || (!it.dept && clinicExpenseCategories.includes(it.category))));
+        const totalExpense = dayExpenses.reduce((s: number, it: any) => s + (it.paidAmount || 0), 0);
         
         const expensesByCategory: Record<string, number> = {};
         clinicExpenseCategories.forEach(cat => expensesByCategory[cat] = 0);
         dayExpenses.forEach((it: any) => {
-            expensesByCategory[it.category] = (expensesByCategory[it.category] || 0) + it.paidAmount;
+            if (it) expensesByCategory[it.category] = (expensesByCategory[it.category] || 0) + (it.paidAmount || 0);
         });
 
         return { totalCollection, collectionByCategory, dayDueRecov, totalExpense, expensesByCategory, balance: totalCollection - totalExpense };
     }, [selectedDate, invoices, dueCollections, detailedExpenses, categorizeInvoiceData]);
 
     const collectionReportData = useMemo(() => {
-        const filtered = invoices.filter((inv: any) => {
+        const safeInvoices = Array.isArray(invoices) ? invoices : [];
+        const filtered = safeInvoices.filter((inv: any) => {
             const dateToUse = inv.admission_date || inv.invoice_date;
             if (isTodayFilter) return dateToUse === selectedDate;
             if (!dateToUse) return false;
             const [y, m] = dateToUse.split('-').map(Number);
             return (m - 1) === selectedMonth && y === selectedYear;
         }).filter((inv: any) => 
-            inv.patient_name.toLowerCase().includes(invoiceSearch.toLowerCase()) || 
+            (inv.patient_name || '').toLowerCase().includes(invoiceSearch.toLowerCase()) || 
             (inv.admission_id && inv.admission_id.toLowerCase().includes(invoiceSearch.toLowerCase()))
         );
 
@@ -480,10 +497,11 @@ const ClinicAccountsPage: React.FC<any> = ({
     }, [invoices, isTodayFilter, selectedDate, selectedMonth, selectedYear, invoiceSearch, categorizeInvoiceData]);
 
     const indoorJournalData = useMemo(() => {
-        const filtered = invoices.filter((inv: any) => {
+        const safeInvoices = Array.isArray(invoices) ? invoices : [];
+        const filtered = safeInvoices.filter((inv: any) => {
             const dateToUse = inv.admission_date || inv.invoice_date;
             
-            const matchesName = inv.patient_name.toLowerCase().includes(invoiceSearch.toLowerCase()) || 
+            const matchesName = (inv.patient_name || '').toLowerCase().includes(invoiceSearch.toLowerCase()) || 
                                (inv.admission_id && inv.admission_id.toLowerCase().includes(invoiceSearch.toLowerCase()));
             
             const matchesDate = invoiceDateSearch ? dateToUse === invoiceDateSearch : true;

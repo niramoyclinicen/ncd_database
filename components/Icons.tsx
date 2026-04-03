@@ -36,7 +36,8 @@ import {
   Download,
   Trash2,
   Database,
-  RefreshCw
+  RefreshCw,
+  Loader2
 } from 'lucide-react';
 
 export const DiagnosticIcon = (props: any) => <Activity {...props} />;
@@ -59,7 +60,7 @@ export const MoneyIcon = (props: any) => <Banknote {...props} />;
 export const FileTextIcon = (props: any) => <FileText {...props} />;
 export const ChartIcon = (props: any) => <BarChart3 {...props} />;
 export const SettingsIcon = (props: any) => <Settings {...props} />;
-export { Activity };
+export { Activity, Database, Plus, Save, Trash2, Loader2 };
 export { Armchair };
 export const TestTubeIcon = (props: any) => <TestTube {...props} />;
 export const DnaIcon = (props: any) => <Dna {...props} />;
@@ -76,6 +77,7 @@ export const SaveIcon = (props: any) => <Save {...props} />;
 export const PrinterIcon = (props: any) => <Printer {...props} />;
 export const DownloadIcon = (props: any) => <Download {...props} />;
 export const TrashIcon = (props: any) => <Trash2 {...props} />;
+export const Trash2Icon = (props: any) => <Trash2 {...props} />;
 export const DatabaseIcon = (props: any) => <Database {...props} />;
 export const RefreshIcon = (props: any) => <RefreshCw {...props} />;
 export { Pill, Search };

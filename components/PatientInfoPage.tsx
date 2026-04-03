@@ -14,9 +14,9 @@ interface PatientInfoPageProps {
 // --- Simple Pie Chart Component ---
 const AddressPieChart: React.FC<{ patients: Patient[] }> = ({ patients }) => {
     const addressCounts = useMemo(() => {
-        if (!Array.isArray(patients)) return {};
+        const safePatients = Array.isArray(patients) ? patients : [];
         const counts: Record<string, number> = {};
-        patients.forEach(p => {
+        safePatients.forEach(p => {
             if (!p) return;
             const addr = p.address ? p.address.trim() : 'Unknown';
             counts[addr] = (counts[addr] || 0) + 1;
@@ -24,7 +24,7 @@ const AddressPieChart: React.FC<{ patients: Patient[] }> = ({ patients }) => {
         return counts;
     }, [patients]);
 
-    const total = patients.length;
+    const total = Array.isArray(patients) ? patients.length : 0;
     const data = Object.entries(addressCounts)
         .map(([name, value]) => ({ name, value: Number(value) }))
         .sort((a, b) => b.value - a.value);
@@ -104,7 +104,8 @@ const PatientInfoPage: React.FC<PatientInfoPageProps> = ({ patients, setPatients
     const year = today.getFullYear();
     const month = String(today.getMonth() + 1).padStart(2, '0');
     const day = String(today.getDate()).padStart(2, '0');
-    const todayPatients = patients.filter(p => p.pt_id.startsWith(`${year}-${month}-${day}`)).length;
+    const safePatients = Array.isArray(patients) ? patients : [];
+    const todayPatients = safePatients.filter(p => p && p.pt_id && p.pt_id.startsWith(`${year}-${month}-${day}`)).length;
     const newId = `${year}-${month}-${day}(${String(todayPatients + 1).padStart(5, '0')})`;
     setFormData({ ...emptyPatient, pt_id: newId, date_modified: formatDateTime(today) });
     setSelectedPatientId(null);
@@ -112,17 +113,20 @@ const PatientInfoPage: React.FC<PatientInfoPageProps> = ({ patients, setPatients
   }, [patients]);
 
   const filteredPatients = useMemo(() => {
-    if (isEmbedded) return patients;
-    return patients.filter(patient =>
-      patient.pt_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      patient.pt_id.toLowerCase().includes(searchTerm.toLowerCase())
+    const safePatients = Array.isArray(patients) ? patients : [];
+    if (isEmbedded) return safePatients;
+    return safePatients.filter(patient =>
+      patient && (
+        (patient.pt_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (patient.pt_id || '').toLowerCase().includes(searchTerm.toLowerCase())
+      )
     );
   }, [searchTerm, patients, isEmbedded]);
 
-  const uniqueNames = useMemo(() => Array.from(new Set(patients.map(p => p.pt_name).filter(Boolean))), [patients]);
-  const uniqueAddresses = useMemo(() => Array.from(new Set(patients.map(p => p.address).filter(Boolean))), [patients]);
-  const uniqueThanas = useMemo(() => Array.from(new Set(patients.map(p => p.thana).filter(Boolean))), [patients]);
-  const uniqueDistricts = useMemo(() => Array.from(new Set(patients.map(p => p.district).filter(Boolean))), [patients]);
+  const uniqueNames = useMemo(() => Array.from(new Set((Array.isArray(patients) ? patients : []).map(p => p?.pt_name).filter(Boolean))), [patients]);
+  const uniqueAddresses = useMemo(() => Array.from(new Set((Array.isArray(patients) ? patients : []).map(p => p?.address).filter(Boolean))), [patients]);
+  const uniqueThanas = useMemo(() => Array.from(new Set((Array.isArray(patients) ? patients : []).map(p => p?.thana).filter(Boolean))), [patients]);
+  const uniqueDistricts = useMemo(() => Array.from(new Set((Array.isArray(patients) ? patients : []).map(p => p?.district).filter(Boolean))), [patients]);
 
   useEffect(() => {
     if (successMessage) {
@@ -240,7 +244,6 @@ const PatientInfoPage: React.FC<PatientInfoPageProps> = ({ patients, setPatients
     setFormData(emptyPatient);
     setSelectedPatientId(null);
     setIsEditing(false);
-    setLastEdited(null);
     if (onClose && isEmbedded) onClose();
   };
 
@@ -347,7 +350,7 @@ const PatientInfoPage: React.FC<PatientInfoPageProps> = ({ patients, setPatients
                 {filteredPatients.map((patient) => (
                   <tr
                     key={patient.pt_id}
-                    onClick={() => { setFormData(patient); setSelectedPatientId(patient.pt_id); setIsEditing(false); setLastEdited(null); }}
+                    onClick={() => { setFormData(patient); setSelectedPatientId(patient.pt_id); setIsEditing(false); }}
                     className={`cursor-pointer hover:bg-blue-50 transition-colors ${selectedPatientId === patient.pt_id ? 'bg-blue-100/50' : ''}`}
                   >
                     <td className="px-4 py-2">
