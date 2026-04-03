@@ -1877,6 +1877,7 @@ const IndoorInvoicePage: React.FC<{
     const [tableMonthFilter, setTableMonthFilter] = useState('');
     const [showHistoryModal, setShowHistoryModal] = useState(false);
     const [historyInvoice, setHistoryInvoice] = useState<IndoorInvoice | null>(null);
+    const [loading, setLoading] = useState(false);
 
     const filteredInvoices = useMemo(() => {
         const isDueSearch = tableSearchTerm.toLowerCase() === 'due';
@@ -2181,57 +2182,65 @@ const IndoorInvoicePage: React.FC<{
             return;
         }
 
-        if (formData.admission_id) {
-            setAdmissions((prev: AdmissionRecord[]) => prev.map((adm: AdmissionRecord) => {
-                if (!adm) return adm;
-                if (adm.admission_id === formData.admission_id) {
-                    const hasDischargeDate = !!formData.discharge_date;
-                    return { 
-                        ...adm, 
-                        discharge_date: formData.discharge_date || undefined, 
-                        bed_no: hasDischargeDate ? '' : (adm.bed_no || 'RE-ASSIGNED') 
-                    };
-                }
-                return adm;
-            }));
-        }
-
-        setIndoorInvoices((prev: IndoorInvoice[]) => {
-            const safePrev = Array.isArray(prev) ? prev : [];
-            const idx = safePrev.findIndex((inv: IndoorInvoice) => inv && inv.daily_id === formData.daily_id);
-            const now = new Date().toISOString();
-            
-            if (idx >= 0) { 
-                const existingInvoice = safePrev[idx];
-                const historyEntry = {
-                    ...existingInvoice,
-                    snapshot_date: now,
-                    modified_by: formData.bill_created_by || 'System'
-                };
-                
-                const updatedInvoice = {
-                    ...formData,
-                    last_modified: now,
-                    edit_history: [...(Array.isArray(existingInvoice.edit_history) ? existingInvoice.edit_history : []), historyEntry]
-                };
-                
-                const newArr = [...safePrev]; 
-                newArr[idx] = updatedInvoice; 
-                return newArr; 
+        setLoading(true);
+        try {
+            if (formData.admission_id) {
+                setAdmissions((prev: AdmissionRecord[]) => prev.map((adm: AdmissionRecord) => {
+                    if (!adm) return adm;
+                    if (adm.admission_id === formData.admission_id) {
+                        const hasDischargeDate = !!formData.discharge_date;
+                        return { 
+                            ...adm, 
+                            discharge_date: formData.discharge_date || undefined, 
+                            bed_no: hasDischargeDate ? '' : (adm.bed_no || 'RE-ASSIGNED') 
+                        };
+                    }
+                    return adm;
+                }));
             }
-            
-            const newInvoice = {
-                ...formData,
-                created_at: now,
-                last_modified: now,
-                edit_history: []
-            };
-            return [...prev, newInvoice];
-        });
-        setSuccessMessage("Indoor Invoice Saved!");
-        setFormData(emptyIndoorInvoice);
-        setSelectedAdmission(null);
-        setSelectedInvoiceId(null);
+
+            setIndoorInvoices((prev: IndoorInvoice[]) => {
+                const safePrev = Array.isArray(prev) ? prev : [];
+                const idx = safePrev.findIndex((inv: IndoorInvoice) => inv && inv.daily_id === formData.daily_id);
+                const now = new Date().toISOString();
+                
+                if (idx >= 0) { 
+                    const existingInvoice = safePrev[idx];
+                    const historyEntry = {
+                        ...existingInvoice,
+                        snapshot_date: now,
+                        modified_by: formData.bill_created_by || 'System'
+                    };
+                    
+                    const updatedInvoice = {
+                        ...formData,
+                        last_modified: now,
+                        edit_history: [...(Array.isArray(existingInvoice.edit_history) ? existingInvoice.edit_history : []), historyEntry]
+                    };
+                    
+                    const newArr = [...safePrev]; 
+                    newArr[idx] = updatedInvoice; 
+                    return newArr; 
+                }
+                
+                const newInvoice = {
+                    ...formData,
+                    created_at: now,
+                    last_modified: now,
+                    edit_history: []
+                };
+                return [...prev, newInvoice];
+            });
+            setSuccessMessage("Indoor Invoice Saved!");
+            setFormData(emptyIndoorInvoice);
+            setSelectedAdmission(null);
+            setSelectedInvoiceId(null);
+        } catch (error) {
+            console.error("Error saving invoice:", error);
+            alert("ইনভয়েস সেভ করার সময় একটি ত্রুটি হয়েছে।");
+        } finally {
+            setLoading(false);
+        }
     };
 
     const handleReturnInvoice = (inv: IndoorInvoice) => {
@@ -2474,7 +2483,7 @@ const IndoorInvoicePage: React.FC<{
                             value={selectedAdmission?.admission_id || ''} 
                             onChange={(id) => { 
                                 const safeAdmissions = Array.isArray(admissions) ? admissions : [];
-                                const adm = safeAdmissions.find(a => a.admission_id === id); 
+                                const adm = safeAdmissions.find(a => a && a.admission_id === id); 
                                 setSelectedAdmission(adm || null); 
                                 if(adm) setFormData({
                                     ...emptyIndoorInvoice, 
@@ -2501,7 +2510,7 @@ const IndoorInvoicePage: React.FC<{
                             value={formData.patient_id || ''} 
                             onChange={(id) => { 
                                 const safePatients = Array.isArray(patients) ? patients : [];
-                                const p = safePatients.find(pt => pt.pt_id === id); 
+                                const p = safePatients.find(pt => pt && pt.pt_id === id); 
                                 if(p) {
                                     setSelectedAdmission(null);
                                     setFormData({
@@ -2579,7 +2588,7 @@ const IndoorInvoicePage: React.FC<{
                                     {applyPC && <input type="number" value={formData.special_commission} onChange={e => setFormData(prev => ({...prev, special_commission: parseFloat(e.target.value) || 0}))} className="w-24 p-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-200 text-xs focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Amount"/>}
                                 </div>
                             </div>
-                            <div><label className="block text-[10px] text-slate-500 font-black uppercase tracking-widest mb-1.5">Category</label><select name="serviceCategory" value={formData.serviceCategory} onChange={handleInputChange} className="w-full p-3 bg-slate-900 border border-slate-800 rounded-xl text-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium">{serviceCategoriesList.map(c => <option key={c} value={c} className="bg-slate-900">{c}</option>)}</select></div>
+                            <div><label className="block text-[10px] text-slate-500 font-black uppercase tracking-widest mb-1.5">Category</label><select name="serviceCategory" value={formData.serviceCategory || ''} onChange={handleInputChange} className="w-full p-3 bg-slate-900 border border-slate-800 rounded-xl text-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium">{(Array.isArray(serviceCategoriesList) ? serviceCategoriesList : []).map(c => <option key={c} value={c} className="bg-slate-900">{c}</option>)}</select></div>
                             <div>
                                 <SearchableSelect 
                                     theme="dark" 
@@ -2649,22 +2658,23 @@ const IndoorInvoicePage: React.FC<{
                                             }))}
                                             value=""
                                             onChange={(id) => {
-                                                const med = medicines.find(m => m.id === id);
+                                                const safeMedicines = Array.isArray(medicines) ? medicines : [];
+                                                const med = safeMedicines.find(m => m && m.id === id);
                                                 if (med) {
                                                     const newItem: ServiceItem = { 
                                                         id: Date.now(), 
-                                                        service_type: med.name, 
+                                                        service_type: med.name || 'Unknown Medicine', 
                                                         service_provider: 'Medicine Store', 
-                                                        service_charge: med.unitPriceSell, 
+                                                        service_charge: med.unitPriceSell || 0, 
                                                         quantity: 1, 
-                                                        line_total: med.unitPriceSell, 
+                                                        line_total: med.unitPriceSell || 0, 
                                                         discount: 0, 
-                                                        payable_amount: med.unitPriceSell, 
-                                                        note: `Medicine: ${med.name}`, 
+                                                        payable_amount: med.unitPriceSell || 0, 
+                                                        note: `Medicine: ${med.name || ''}`, 
                                                         isClinicFund: false 
                                                     };
-                                                    const updatedItems = [...(formData.items || []), newItem];
-                                                    const totals = calculateTotals(updatedItems, 0, formData.paid_amount, formData.special_discount_amount || 0);
+                                                    const updatedItems = [...(Array.isArray(formData.items) ? formData.items : []), newItem];
+                                                    const totals = calculateTotals(updatedItems, 0, formData.paid_amount || 0, formData.special_discount_amount || 0);
                                                     setFormData(prev => ({ ...prev, items: updatedItems, ...totals }));
                                                 }
                                             }}
@@ -2702,10 +2712,13 @@ const IndoorInvoicePage: React.FC<{
                                                     <input list={`service_provider_${item.id}`} value={item.service_provider} onChange={e=>handleServiceChange(item.id,'service_provider',e.target.value)} className="w-full bg-slate-950 border border-slate-800 text-slate-200 p-2 rounded-lg h-9 text-xs focus:ring-2 focus:ring-blue-500 outline-none" />
                                                     <datalist id={`service_provider_${item.id}`}>
                                                         {item.service_type === 'Assistant_2' 
-                                                            ? [...(Array.isArray(doctors) ? doctors : []).map(d => ({id: d.doctor_id, name: d.doctor_name})), ...(Array.isArray(activeEmployees) ? activeEmployees : []).map(e => ({id: e.emp_id, name: e.emp_name}))].map(obj => <option key={obj.id} value={obj.name} className="bg-slate-900"/>)
+                                                            ? [
+                                                                ...(Array.isArray(doctors) ? doctors : []).filter(d => d && d.doctor_id).map(d => ({id: d.doctor_id, name: d.doctor_name})), 
+                                                                ...(Array.isArray(activeEmployees) ? activeEmployees : []).filter(e => e && e.emp_id).map(e => ({id: e.emp_id, name: e.emp_name}))
+                                                              ].map(obj => obj && <option key={obj.id} value={obj.name} className="bg-slate-900"/>)
                                                             : (Array.isArray(doctorServiceTypes) ? doctorServiceTypes : []).includes(item.service_type) 
-                                                                ? (Array.isArray(doctors) ? doctors : []).map(d=><option key={d.doctor_id} value={d.doctor_name} className="bg-slate-900"/>) 
-                                                                : (Array.isArray(activeEmployees) ? activeEmployees : []).map(e=><option key={e.emp_id} value={e.emp_name} className="bg-slate-900"/>)
+                                                                ? (Array.isArray(doctors) ? doctors : []).filter(d => d && d.doctor_id).map(d=><option key={d.doctor_id} value={d.doctor_name} className="bg-slate-900"/>) 
+                                                                : (Array.isArray(activeEmployees) ? activeEmployees : []).filter(e => e && e.emp_id).map(e=><option key={e.emp_id} value={e.emp_name} className="bg-slate-900"/>)
                                                         }
                                                     </datalist>
                                                 </td>
@@ -2758,11 +2771,11 @@ const IndoorInvoicePage: React.FC<{
                             <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-xl space-y-4">
                                 <div className="flex justify-between items-center text-slate-400 border-b border-slate-800 pb-3">
                                     <span className="text-[10px] font-black uppercase tracking-widest">Total Bill:</span> 
-                                    <span className="font-black text-slate-200 text-xl">৳{(formData.total_bill || 0).toLocaleString()}</span>
+                                    <span className="font-black text-slate-200 text-xl">৳{Number(formData.total_bill || 0).toLocaleString()}</span>
                                 </div>
                                 <div className="flex justify-between items-center text-slate-400 border-b border-slate-800 pb-3">
                                     <span className="text-[10px] font-black uppercase tracking-widest">Total Discount:</span> 
-                                    <span className="font-black text-slate-200 text-xl">৳{(formData.total_discount || 0).toLocaleString()}</span>
+                                    <span className="font-black text-slate-200 text-xl">৳{Number(formData.total_discount || 0).toLocaleString()}</span>
                                 </div>
                                 <div className="flex justify-between items-center text-amber-400 border-b border-slate-800 pb-3">
                                     <span className="text-[10px] font-black uppercase tracking-widest">Special Discount:</span> 
@@ -2770,7 +2783,7 @@ const IndoorInvoicePage: React.FC<{
                                 </div>
                                 <div className="flex justify-between items-center text-blue-400 text-3xl font-black border-b-2 border-blue-900/50 pb-3">
                                     <span className="text-xs uppercase tracking-widest">Net Payable:</span> 
-                                    <span>৳{formData.net_payable ? (formData.net_payable || 0).toLocaleString() : '0.00'}</span>
+                                    <span>৳{Number(formData.net_payable || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                                 </div>
                                 <div className="flex justify-between items-center text-emerald-400 border-b border-slate-800 pb-3">
                                     <span className="text-[10px] font-black uppercase tracking-widest">Paid Amount:</span> 
@@ -2779,7 +2792,7 @@ const IndoorInvoicePage: React.FC<{
                                 <div className="flex justify-between items-center pt-2">
                                     <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Due Balance:</span> 
                                     <span className={`text-3xl font-black ${(formData.due_bill || 0) > 0 ? 'text-rose-500' : 'text-emerald-500'}`}>
-                                        ৳{(formData.due_bill || 0).toLocaleString()}
+                                        ৳{Number(formData.due_bill || 0).toLocaleString()}
                                     </span>
                                 </div>
                             </div>
