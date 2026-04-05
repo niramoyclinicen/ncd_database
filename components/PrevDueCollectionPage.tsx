@@ -9,10 +9,23 @@ interface Props {
     dueCollections: DueCollection[];
     setDueCollections: React.Dispatch<React.SetStateAction<DueCollection[]>>;
     employees: Employee[];
+    onViewInvoice?: (invoiceId: string) => void;
 }
 
-const PrevDueCollectionPage: React.FC<Props> = ({ invoices, setInvoices, dueCollections, setDueCollections, employees }) => {
+const monthOptions = [
+    { value: "01", name: 'January' }, { value: "02", name: 'February' }, { value: "03", name: 'March' },
+    { value: "04", name: 'April' }, { value: "05", name: 'May' }, { value: "06", name: 'June' },
+    { value: "07", name: 'July' }, { value: "08", name: 'August' }, { value: "09", name: 'September' },
+    { value: "10", name: 'October' }, { value: "11", name: 'November' }, { value: "12", name: 'December' }
+];
+
+const PrevDueCollectionPage: React.FC<Props> = ({ invoices, setInvoices, dueCollections, setDueCollections, employees, onViewInvoice }) => {
     const [searchTerm, setSearchTerm] = useState('');
+    const [filterDay, setFilterDay] = useState('');
+    const [filterMonth, setFilterMonth] = useState('');
+    const [filterYear, setFilterYear] = useState('');
+    const [filterPatientName, setFilterPatientName] = useState('');
+
     const [selectedInvoice, setSelectedInvoice] = useState<LabInvoice | null>(null);
     const [collectionAmount, setCollectionAmount] = useState<number>(0);
     const [collectedBy, setCollectedBy] = useState<string>('');
@@ -21,12 +34,25 @@ const PrevDueCollectionPage: React.FC<Props> = ({ invoices, setInvoices, dueColl
 
     const filteredInvoices = useMemo(() => {
         if (!Array.isArray(invoices)) return [];
-        return invoices.filter(inv => 
-            inv && inv.due_amount > 0.5 && 
-            ((inv.invoice_id || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
-             (inv.patient_name || '').toLowerCase().includes(searchTerm.toLowerCase()))
-        );
-    }, [searchTerm, invoices]);
+        return invoices.filter(inv => {
+            if (!inv || inv.due_amount <= 0.5) return false;
+            
+            const invDate = inv.invoice_date ? new Date(inv.invoice_date) : null;
+            const day = invDate ? String(invDate.getDate()).padStart(2, '0') : '';
+            const month = invDate ? String(invDate.getMonth() + 1).padStart(2, '0') : '';
+            const year = invDate ? String(invDate.getFullYear()) : '';
+
+            const matchesDay = !filterDay || day === filterDay.padStart(2, '0');
+            const matchesMonth = !filterMonth || month === filterMonth;
+            const matchesYear = !filterYear || year === filterYear;
+            const matchesPatient = !filterPatientName || (inv.patient_name || '').toLowerCase().includes(filterPatientName.toLowerCase());
+            const matchesSearch = !searchTerm || 
+                (inv.invoice_id || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
+                (inv.patient_name || '').toLowerCase().includes(searchTerm.toLowerCase());
+
+            return matchesDay && matchesMonth && matchesYear && matchesPatient && matchesSearch;
+        });
+    }, [searchTerm, invoices, filterDay, filterMonth, filterYear, filterPatientName]);
 
     const handlePrintReceipt = (invoice: LabInvoice, collectedAmt: number) => {
         const win = window.open('', '_blank');
@@ -68,18 +94,80 @@ const PrevDueCollectionPage: React.FC<Props> = ({ invoices, setInvoices, dueColl
     return (
         <div className="bg-slate-900 text-slate-200 rounded-xl p-6 space-y-6">
             {successMessage && <div className="fixed top-20 right-5 bg-green-900 border border-green-700 text-green-300 px-4 py-3 rounded-lg z-50 animate-bounce">{successMessage}</div>}
-            <div className="flex justify-between items-center border-b border-slate-700 pb-4">
+            <div className="flex flex-col md:flex-row justify-between items-center border-b border-slate-700 pb-4 gap-4">
                 <h2 className="text-2xl font-bold text-sky-100">Diagnostic Due Recovery</h2>
-                <input type="text" placeholder="Search Patient or ID..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="py-2 px-4 bg-slate-800 border border-slate-700 rounded-md text-white w-64" />
+                
+                <div className="flex flex-wrap items-center gap-3 bg-slate-800/50 p-3 rounded-xl border border-slate-700">
+                    <div className="w-32">
+                        <input 
+                            type="text" 
+                            placeholder="Patient Name..." 
+                            value={filterPatientName} 
+                            onChange={(e) => setFilterPatientName(e.target.value)}
+                            className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-1.5 text-xs text-white outline-none focus:border-blue-500"
+                        />
+                    </div>
+                    <div className="w-20">
+                        <input 
+                            type="number" 
+                            placeholder="Day" 
+                            value={filterDay} 
+                            onChange={(e) => setFilterDay(e.target.value)}
+                            className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-1.5 text-xs text-white outline-none focus:border-blue-500"
+                            min="1" max="31"
+                        />
+                    </div>
+                    <div className="w-32">
+                        <select 
+                            value={filterMonth} 
+                            onChange={(e) => setFilterMonth(e.target.value)}
+                            className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-1.5 text-xs text-white outline-none focus:border-blue-500"
+                        >
+                            <option value="">Month...</option>
+                            {monthOptions.map(m => <option key={m.value} value={m.value}>{m.name}</option>)}
+                        </select>
+                    </div>
+                    <div className="w-24">
+                        <select 
+                            value={filterYear} 
+                            onChange={(e) => setFilterYear(e.target.value)}
+                            className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-1.5 text-xs text-white outline-none focus:border-blue-500"
+                        >
+                            <option value="">Year...</option>
+                            {[2023, 2024, 2025, 2026, 2027].map(y => <option key={y} value={y.toString()}>{y}</option>)}
+                        </select>
+                    </div>
+                    <div className="w-48">
+                        <input 
+                            type="text" 
+                            placeholder="Search ID..." 
+                            value={searchTerm} 
+                            onChange={(e) => setSearchTerm(e.target.value)} 
+                            className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-1.5 text-xs text-white outline-none focus:border-blue-500" 
+                        />
+                    </div>
+                </div>
             </div>
             <div className="overflow-x-auto rounded-lg border border-slate-700">
                 <table className="w-full text-left">
                     <thead className="bg-slate-800 text-slate-400 text-xs uppercase font-black"><tr><th className="p-4">Date</th><th className="p-4">Invoice ID</th><th className="p-4">Patient</th><th className="p-4 text-right">Total</th><th className="p-4 text-right">Paid</th><th className="p-4 text-right text-red-400">Due</th><th className="p-4 text-center">Action</th></tr></thead>
                     <tbody className="divide-y divide-slate-800">
                         {filteredInvoices.map((inv) => (
-                            <tr key={inv.invoice_id} className="hover:bg-slate-800/50 transition-colors">
-                                <td className="p-4 text-sm">{inv.invoice_date}</td><td className="p-4 font-mono text-sky-400">{inv.invoice_id}</td><td className="p-4 font-bold">{inv.patient_name}</td><td className="p-4 text-right">{(inv.total_amount || 0).toFixed(2)}</td><td className="p-4 text-right text-green-400">{(inv.paid_amount || 0).toFixed(2)}</td><td className="p-4 text-right text-red-500 font-black">৳{(inv.due_amount || 0).toFixed(2)}</td>
-                                <td className="p-4 text-center"><button onClick={() => { setSelectedInvoice(inv); setShowModal(true); setCollectionAmount(0); }} className="bg-green-600 px-4 py-1.5 rounded-md text-xs font-bold text-white">Collect</button></td>
+                            <tr 
+                                key={inv.invoice_id} 
+                                onDoubleClick={() => onViewInvoice && onViewInvoice(inv.invoice_id)}
+                                className="hover:bg-slate-800/50 transition-colors cursor-pointer group"
+                                title="Double click to view invoice details"
+                            >
+                                <td className="p-4 text-sm">{inv.invoice_date}</td>
+                                <td className="p-4 font-mono text-sky-400">{inv.invoice_id}</td>
+                                <td className="p-4 font-bold">{inv.patient_name}</td>
+                                <td className="p-4 text-right">{(inv.total_amount || 0).toFixed(2)}</td>
+                                <td className="p-4 text-right text-green-400">{(inv.paid_amount || 0).toFixed(2)}</td>
+                                <td className="p-4 text-right text-red-500 font-black">৳{(inv.due_amount || 0).toFixed(2)}</td>
+                                <td className="p-4 text-center">
+                                    <button onClick={(e) => { e.stopPropagation(); setSelectedInvoice(inv); setShowModal(true); setCollectionAmount(0); }} className="bg-green-600 px-4 py-1.5 rounded-md text-xs font-bold text-white hover:bg-green-500 transition-colors">Collect</button>
+                                </td>
                             </tr>
                         ))}
                     </tbody>

@@ -408,9 +408,9 @@ const DoctorAppointmentPage: React.FC<DoctorAppointmentPageProps> = ({
             </div>
             <div className="flex flex-wrap items-center gap-2">
                 <button type="submit" form="appointment-form" className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md">Save Appointment</button>
-                <button type="button" onClick={resetForm} className="px-4 py-2 text-sm font-medium text-sky-200 bg-slate-600 rounded-md">Cancel</button>
+                <button type="button" onClick={resetForm} className="px-4 py-2 text-sm font-medium text-sky-200 bg-slate-600 rounded-md">Clear Form</button>
                 <button type="button" onClick={handleEditAppointment} disabled={!isAppointmentSelected} className="px-4 py-2 text-sm font-medium text-white bg-yellow-500 rounded-md disabled:opacity-50">Edit</button>
-                <button type="button" onClick={handleCancelAppointment} disabled={!canCancel} className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md disabled:opacity-50">Cancel</button>
+                <button type="button" onClick={handleCancelAppointment} disabled={!canCancel} className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md disabled:opacity-50">Appointment Cancel</button>
                 <button type="button" onClick={handleReturnAppointment} disabled={!canReturn} className="px-4 py-2 text-sm font-medium text-white bg-rose-600 rounded-md disabled:opacity-50">Return / Refund</button>
                 <button type="button" onClick={handlePrintAppointment} disabled={!isAppointmentSelected} className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md disabled:opacity-50">Print Slip</button>
             </div>

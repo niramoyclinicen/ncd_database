@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Medicine, Employee, PurchaseInvoice, InvoiceItem, Doctor, SalesInvoice, SalesItem, DrugMonograph, IndoorInvoice } from './DiagnosticData';
-import { BackIcon, MapPinIcon, PhoneIcon, MedicineIcon, FileTextIcon, Pill, SearchIcon, Activity, SaveIcon, TrashIcon, PlusIcon, TrendingDownIcon } from './Icons';
+import { BackIcon, MapPinIcon, PhoneIcon, MedicineIcon, FileTextIcon, Pill, SearchIcon, Activity, SaveIcon, TrashIcon, PlusIcon, TrendingDownIcon, RefreshIcon } from './Icons';
 import SearchableSelect from './SearchableSelect';
 
 interface MedicinePageProps {
@@ -301,8 +301,15 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
   };
 
   const handleSaveSales = () => {
-      if (!salesFormData.customerName) { setErrors({ customerName: true }); return; }
-      if (salesFormData.items.length === 0) return;
+      if (!salesFormData.customerName) { 
+          setErrors({ customerName: true }); 
+          alert("পেশেন্টের নাম লিখুন!");
+          return; 
+      }
+      if (salesFormData.items.length === 0) {
+          alert("অন্তত একটি ঔষধ যোগ করুন!");
+          return;
+      }
       
       setMedicines(prevMeds => {
           const newMeds = [...prevMeds];
@@ -325,9 +332,11 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
       if (sellViewMode === 'edit') {
           setSalesInvoices(prev => prev.map(inv => inv.invoiceId === editingInvoiceId ? { ...salesFormData, status: 'Posted' } : inv));
           setSuccessMessage("Invoice Correction Saved!");
+          alert("Invoice Correction Saved Successfully!");
       } else {
           setSalesInvoices([ { ...salesFormData, status: 'Posted', createdDate: new Date().toISOString() }, ...salesInvoices ]);
           setSuccessMessage("Sale Completed Successfully!");
+          alert("Sale Completed Successfully!");
       }
       setSellViewMode('list');
       setEditingInvoiceId(null);

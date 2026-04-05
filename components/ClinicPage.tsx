@@ -1094,7 +1094,7 @@ const AdmissionAndTreatmentPage: React.FC<{
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                              <div><label className="text-[10px] font-black text-slate-500 uppercase ml-2 mb-1 block tracking-widest">Adm ID</label><input value={admissionData.admission_id} disabled className="w-full p-3.5 bg-slate-950 border border-slate-800 rounded-xl text-blue-400 font-mono font-black shadow-inner outline-none"/></div>
-                             <div><SearchableSelect label="Select Patient" theme="dark" options={(Array.isArray(patients) ? patients : []).filter(p => p).map(p=>({id: p.pt_id, name: p.pt_name, details: `${p.gender}, ${p.ageY}Y`}))} value={admissionData.patient_id} onChange={(id, name)=>setAdmissionData({...admissionData, patient_id: id, patient_name: name})} onAddNew={()=>setShowNewPatientForm(true)} /></div>
+                             <div><SearchableSelect label="Select Patient" theme="dark" options={(Array.isArray(patients) ? patients : []).filter(p => p).map(p=>({id: p.pt_id, name: p.pt_name, details: `${p.gender}, ${p.ageY}Y | Addr: ${p.address || 'N/A'}`}))} value={admissionData.patient_id} onChange={(id, name)=>setAdmissionData({...admissionData, patient_id: id, patient_name: name})} onAddNew={()=>setShowNewPatientForm(true)} /></div>
                              <div><SearchableSelect label="Consultant / MO" theme="dark" options={(Array.isArray(doctors) ? doctors : []).filter(d => d).map(d=>({id: d.doctor_id, name: d.doctor_name, details: d.degree}))} value={admissionData.doctor_id} onChange={(id, name)=>setAdmissionData({...admissionData, doctor_id: id, doctor_name: name})} onAddNew={()=>setShowNewDoctorForm(true)} /></div>
                              <div><SearchableSelect label="Referrer / Agent" theme="dark" options={(Array.isArray(referrars) ? referrars : []).filter(r => r).map(r=>({id: r.ref_id, name: r.ref_name, details: r.ref_degrees}))} value={admissionData.referrer_id} onChange={(id, name)=>setAdmissionData({...admissionData, referrer_id: id, referrer_name: name})} onAddNew={()=>setShowNewReferrarForm(true)} /></div>
                              
@@ -1108,13 +1108,22 @@ const AdmissionAndTreatmentPage: React.FC<{
                                 >
                                     <option value="" className="bg-slate-900">Select Bed...</option>
                                     <optgroup label="Male Ward" className="bg-slate-900 text-slate-400 font-bold">
-                                        {Array.from({length: 5}, (_, i) => `M-${String(i+1).padStart(2, '0')}`).map(b => <option key={b} value={b} className="bg-slate-900 text-slate-200">{b}</option>)}
+                                        {Array.from({length: 5}, (_, i) => `M-${String(i+1).padStart(2, '0')}`).map(b => {
+                                            const isOccupied = admissions.some(a => a.bed_no === b && !a.discharge_date);
+                                            return <option key={b} value={b} disabled={isOccupied} className={`bg-slate-900 ${isOccupied ? 'text-rose-500' : 'text-slate-200'}`}>{b} {isOccupied ? '(OCCUPIED)' : ''}</option>;
+                                        })}
                                     </optgroup>
                                     <optgroup label="Female Ward" className="bg-slate-900 text-slate-400 font-bold">
-                                        {Array.from({length: 5}, (_, i) => `F-${String(i+1).padStart(2, '0')}`).map(b => <option key={b} value={b} className="bg-slate-900 text-slate-200">{b}</option>)}
+                                        {Array.from({length: 5}, (_, i) => `F-${String(i+1).padStart(2, '0')}`).map(b => {
+                                            const isOccupied = admissions.some(a => a.bed_no === b && !a.discharge_date);
+                                            return <option key={b} value={b} disabled={isOccupied} className={`bg-slate-900 ${isOccupied ? 'text-rose-500' : 'text-slate-200'}`}>{b} {isOccupied ? '(OCCUPIED)' : ''}</option>;
+                                        })}
                                     </optgroup>
                                     <optgroup label="Cabins" className="bg-slate-900 text-slate-400 font-bold">
-                                        {['CAB-101', 'CAB-102', 'CAB-103', 'CAB-104', 'VIP-01'].map(b => <option key={b} value={b} className="bg-slate-900 text-slate-200">{b}</option>)}
+                                        {['CAB-101', 'CAB-102', 'CAB-103', 'CAB-104', 'VIP-01'].map(b => {
+                                            const isOccupied = admissions.some(a => a.bed_no === b && !a.discharge_date);
+                                            return <option key={b} value={b} disabled={isOccupied} className={`bg-slate-900 ${isOccupied ? 'text-rose-500' : 'text-slate-200'}`}>{b} {isOccupied ? '(OCCUPIED)' : ''}</option>;
+                                        })}
                                     </optgroup>
                                 </select>
                              </div>
@@ -2633,7 +2642,7 @@ const IndoorInvoicePage: React.FC<{
                                     name="ot_details"
                                     value={formData.ot_details || ''}
                                     onChange={handleInputChange}
-                                    className="w-full h-24 bg-slate-950 border border-slate-800 rounded-xl p-4 text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none shadow-inner placeholder:text-slate-700"
+                                    className="w-full h-16 bg-slate-950 border border-slate-800 rounded-xl p-3 text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none shadow-inner placeholder:text-slate-700"
                                     placeholder="Enter OT report details, operation notes..."
                                 />
                             </div>
@@ -2760,52 +2769,52 @@ const IndoorInvoicePage: React.FC<{
                                 </div>
                                 <div>
                                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block">Payment Method</label>
-                                    <select name="payment_method" value={formData.payment_method} onChange={handleInputChange} className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-slate-200 font-bold focus:ring-2 focus:ring-blue-500 outline-none shadow-lg">
+                                    <select name="payment_method" value={formData.payment_method} onChange={handleInputChange} className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-slate-200 font-bold focus:ring-2 focus:ring-blue-500 outline-none shadow-lg mb-4">
                                         <option className="bg-slate-900">Cash</option>
                                         <option className="bg-slate-900">Card</option>
                                         <option className="bg-slate-900">Bkash</option>
                                         <option className="bg-slate-900">Nagad</option>
                                     </select>
+                                    <button 
+                                        type="submit" 
+                                        disabled={loading}
+                                        className="w-full bg-gradient-to-br from-blue-600 to-indigo-800 text-white py-3.5 rounded-2xl font-black uppercase text-[11px] tracking-[0.2em] shadow-xl shadow-blue-900/40 border border-blue-400/30 hover:from-blue-500 hover:to-indigo-700 transition-all flex items-center justify-center gap-4"
+                                    >
+                                        {loading ? <Loader2 className="animate-spin" size={24}/> : <Save size={24}/>}
+                                        Save Final Invoice
+                                    </button>
                                 </div>
                             </div>
-                            <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-xl space-y-4">
-                                <div className="flex justify-between items-center text-slate-400 border-b border-slate-800 pb-3">
+                            <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800 shadow-xl space-y-2">
+                                <div className="flex justify-between items-center text-slate-400 border-b border-slate-800 pb-2">
                                     <span className="text-[10px] font-black uppercase tracking-widest">Total Bill:</span> 
                                     <span className="font-black text-slate-200 text-xl">৳{Number(formData.total_bill || 0).toLocaleString()}</span>
                                 </div>
-                                <div className="flex justify-between items-center text-slate-400 border-b border-slate-800 pb-3">
+                                <div className="flex justify-between items-center text-slate-400 border-b border-slate-800 pb-2">
                                     <span className="text-[10px] font-black uppercase tracking-widest">Total Discount:</span> 
                                     <span className="font-black text-slate-200 text-xl">৳{Number(formData.total_discount || 0).toLocaleString()}</span>
                                 </div>
-                                <div className="flex justify-between items-center text-amber-400 border-b border-slate-800 pb-3">
+                                <div className="flex justify-between items-center text-amber-400 border-b border-slate-800 pb-2">
                                     <span className="text-[10px] font-black uppercase tracking-widest">Special Discount:</span> 
-                                    <input type="number" name="special_discount_amount" value={formData.special_discount_amount} onChange={handleInputChange} onFocus={e=>e.target.select()} className="bg-slate-950 text-amber-400 w-36 p-3 text-right font-black border border-slate-800 rounded-xl focus:ring-2 focus:ring-amber-500 outline-none"/>
+                                    <input type="number" name="special_discount_amount" value={formData.special_discount_amount} onChange={handleInputChange} onFocus={e=>e.target.select()} className="bg-slate-950 text-amber-400 w-36 p-2 text-right font-black border border-slate-800 rounded-xl focus:ring-2 focus:ring-amber-500 outline-none"/>
                                 </div>
-                                <div className="flex justify-between items-center text-blue-400 text-3xl font-black border-b-2 border-blue-900/50 pb-3">
+                                <div className="flex justify-between items-center text-blue-400 text-2xl font-black border-b-2 border-blue-900/50 pb-2">
                                     <span className="text-xs uppercase tracking-widest">Net Payable:</span> 
                                     <span>৳{Number(formData.net_payable || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                                 </div>
-                                <div className="flex justify-between items-center text-emerald-400 border-b border-slate-800 pb-3">
+                                <div className="flex justify-between items-center text-emerald-400 border-b border-slate-800 pb-2">
                                     <span className="text-[10px] font-black uppercase tracking-widest">Paid Amount:</span> 
-                                    <input type="number" name="paid_amount" value={formData.paid_amount} onChange={handleInputChange} onFocus={e=>e.target.select()} className="bg-slate-950 text-emerald-400 w-36 p-3 text-right font-black border border-slate-800 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"/>
+                                    <input type="number" name="paid_amount" value={formData.paid_amount} onChange={handleInputChange} onFocus={e=>e.target.select()} className="bg-slate-950 text-emerald-400 w-36 p-2 text-right font-black border border-slate-800 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"/>
                                 </div>
-                                <div className="flex justify-between items-center pt-2">
+                                <div className="flex justify-between items-center pt-1">
                                     <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Due Balance:</span> 
-                                    <span className={`text-3xl font-black ${(formData.due_bill || 0) > 0 ? 'text-rose-500' : 'text-emerald-500'}`}>
+                                    <span className={`text-2xl font-black ${(formData.due_bill || 0) > 0 ? 'text-rose-500' : 'text-emerald-500'}`}>
                                         ৳{Number(formData.due_bill || 0).toLocaleString()}
                                     </span>
                                 </div>
                             </div>
                         </div>
                         <div className="flex justify-end gap-4">
-                            <button 
-                                type="submit" 
-                                disabled={loading}
-                                className="px-12 py-5 bg-gradient-to-br from-emerald-600 to-teal-800 text-white rounded-2xl font-black text-xl hover:from-emerald-500 hover:to-teal-700 shadow-2xl shadow-emerald-900/40 transition-all flex items-center gap-4 uppercase tracking-[0.2em] border border-emerald-400/30 disabled:opacity-50"
-                            >
-                                {loading ? <Loader2 className="animate-spin" size={28}/> : <Save size={28}/>}
-                                Save Final Invoice
-                            </button>
                         </div>
                     </form>
                 )}
@@ -2943,7 +2952,7 @@ const IndoorInvoicePage: React.FC<{
                                 </thead>
                                 <tbody className="divide-y divide-gray-100 bg-[#fdfcfb]">
                                     {filteredInvoices.map((inv, index) => (
-                                        <tr key={inv.daily_id} onClick={() => handleLoadInvoice(inv)} className={`cursor-pointer hover:bg-blue-50/30 transition-all ${selectedInvoiceId === inv.daily_id ? 'bg-blue-50' : ''} ${inv.status === 'Returned' ? 'bg-red-50' : inv.status === 'Cancelled' ? 'opacity-40 grayscale line-through' : ''}`}>
+                                        <tr key={inv.daily_id} onClick={() => handleLoadInvoice(inv)} className={`cursor-pointer odd:bg-white even:bg-slate-50/50 hover:bg-blue-100/50 transition-all ${selectedInvoiceId === inv.daily_id ? 'bg-blue-100/70 border-l-4 border-blue-600' : ''} ${inv.status === 'Returned' ? 'bg-red-50' : inv.status === 'Cancelled' ? 'opacity-40 grayscale line-through' : ''}`}>
                                             <td className="p-3 text-center text-gray-400 font-mono text-[10px]">{index + 1}</td>
                                             <td className="p-3 font-black text-xs text-blue-600">{inv.daily_id}</td>
                                             <td className="p-3 text-xs font-semibold text-gray-600">{inv.invoice_date}</td>
@@ -3172,8 +3181,13 @@ const ReportSummaryPage: React.FC<{
 };
 
 // 5. Bed Management
-const BedManagementPage: React.FC<{ admissions: AdmissionRecord[]; setAdmissions: React.Dispatch<React.SetStateAction<AdmissionRecord[]>>; }> = ({ admissions, setAdmissions }) => {
-    const wards = [{ id: 'male_ward', name: 'Male Ward', beds: Array.from({length: 5}, (_, i) => `M-${String(i+1).padStart(2, '0')}`) }, { id: 'female_ward', name: 'Female Ward', beds: Array.from({length: 5}, (_, i) => `F-${String(i+1).padStart(2, '0')}`) }, { id: 'cabin', name: 'Cabins', beds: ['CAB-101', 'CAB-102', 'CAB-103', 'CAB-104', 'VIP-01'] }];
+const BedManagementPage: React.FC<{ admissions: AdmissionRecord[]; setAdmissions: React.Dispatch<React.SetStateAction<AdmissionRecord[]>>; setSuccessMessage: (msg: string) => void; }> = ({ admissions, setAdmissions, setSuccessMessage }) => {
+    const wards = [
+        { id: 'male_ward', name: 'Male Ward', beds: Array.from({length: 5}, (_, i) => `M-${String(i+1).padStart(2, '0')}`) },
+        { id: 'female_ward', name: 'Female Ward', beds: Array.from({length: 5}, (_, i) => `F-${String(i+1).padStart(2, '0')}`) },
+        { id: 'cabin', name: 'Cabins', beds: ['CAB-101', 'CAB-102', 'CAB-103', 'CAB-104', 'VIP-01'] }
+    ];
+
     const getBedStatus = (bedId: string) => {
         const safeAdmissions = Array.isArray(admissions) ? admissions : [];
         return safeAdmissions.find(a => a && a.bed_no === bedId && !a.discharge_date);
@@ -3183,13 +3197,14 @@ const BedManagementPage: React.FC<{ admissions: AdmissionRecord[]; setAdmissions
         const admission = getBedStatus(bedId);
         if (!admission) return;
         
-        if (confirm(`Are you sure you want to manually FREE bed ${bedId}? This will remove the bed assignment from ${admission.patient_name}.`)) {
+        if (window.confirm(`Are you sure you want to manually FREE bed ${bedId}? This will remove the bed assignment from ${admission.patient_name}.`)) {
             setAdmissions(prev => prev.map(adm => {
                 if (adm.admission_id === admission.admission_id) {
                     return { ...adm, bed_no: '' };
                 }
                 return adm;
             }));
+            setSuccessMessage(`Bed ${bedId} has been freed.`);
         }
     };
 
@@ -3215,41 +3230,60 @@ const BedManagementPage: React.FC<{ admissions: AdmissionRecord[]; setAdmissions
     };
 
     return (
-        <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-            <div className="flex justify-between items-center mb-6 border-gray-100 pb-2 border-b">
-                <h3 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-                    <Armchair className="text-teal-600" size={20} /> Bed Management Status
+        <div className="bg-slate-950 p-8 rounded-[2.5rem] border border-slate-800 shadow-2xl">
+            <div className="flex justify-between items-center mb-8 border-slate-800 pb-6 border-b">
+                <h3 className="text-2xl font-black text-white uppercase tracking-tighter flex items-center gap-3">
+                    <Armchair className="text-blue-400 drop-shadow-[0_0_8px_rgba(59,130,246,0.4)]" size={28} /> Bed Status Dashboard
                 </h3>
-                <button onClick={handlePrintBedMap} className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 border border-gray-300 shadow-sm">
-                    <FileTextIcon className="w-4 h-4"/> Print Bed Map
+                <button onClick={handlePrintBedMap} className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center gap-2 border border-slate-700 shadow-lg">
+                    <PrinterIcon size={14}/> Print Bed Map
                 </button>
             </div>
-            <div className="space-y-8">
+            <div className="space-y-12">
                 {(Array.isArray(wards) ? wards : []).map(ward => ward && (
-                    <div key={ward.id}>
-                        <h4 className="text-sm font-black text-gray-400 uppercase tracking-widest mb-3 ml-1 border-l-4 border-teal-500 pl-2">{ward.name}</h4>
-                        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                    <div key={ward.id} className="animate-fade-in">
+                        <div className="flex items-center gap-4 mb-6">
+                            <h4 className="text-xs font-black text-slate-500 uppercase tracking-[0.3em]">{ward.name}</h4>
+                            <div className="h-px bg-slate-800 flex-1"></div>
+                        </div>
+                        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6">
                             {(Array.isArray(ward.beds) ? ward.beds : []).map(bedId => {
                                 const admission = getBedStatus(bedId);
                                 const isOccupied = !!admission;
                                 return (
-                                    <div key={bedId} className={`relative p-4 rounded-xl border-2 transition-all duration-200 flex flex-col justify-between h-32 shadow-sm ${isOccupied ? 'bg-rose-50 border-rose-200 hover:shadow-md' : 'bg-emerald-50 border-emerald-100 hover:shadow-md hover:bg-emerald-100/50'}`}>
-                                        <div className="flex justify-between items-start">
-                                            <span className={`text-sm font-black ${isOccupied ? 'text-rose-600' : 'text-emerald-600'}`}>{bedId}</span>
+                                    <div key={bedId} className={`relative p-5 rounded-[2rem] border transition-all duration-500 flex flex-col justify-between h-44 shadow-2xl overflow-hidden group ${isOccupied ? 'bg-gradient-to-br from-rose-600 to-rose-900 border-rose-500/30 shadow-rose-950/50' : 'bg-gradient-to-br from-emerald-500 to-emerald-800 border-emerald-400/30 shadow-emerald-950/50'}`}>
+                                        {/* Glossy Overlay */}
+                                        <div className="absolute inset-0 bg-gradient-to-tr from-white/10 to-transparent pointer-events-none opacity-50 group-hover:opacity-80 transition-opacity"></div>
+                                        <div className="absolute -top-24 -right-24 w-48 h-48 bg-white/5 rounded-full blur-3xl group-hover:bg-white/10 transition-all duration-700"></div>
+                                        
+                                        <div className="flex justify-between items-start relative z-10">
+                                            <div className="flex flex-col">
+                                                <span className="text-2xl font-black text-white drop-shadow-lg tracking-tighter">{bedId}</span>
+                                                <span className="text-[8px] text-white/50 font-black uppercase tracking-widest">{ward.name}</span>
+                                            </div>
                                             {isOccupied ? (
-                                                <button onClick={() => handleFreeBed(bedId)} className="p-1.5 bg-rose-100 hover:bg-rose-600 text-rose-600 hover:text-white rounded-lg transition-all shadow-sm" title="Free Bed Manually">
-                                                    <TrashIcon size={12}/>
+                                                <button onClick={() => handleFreeBed(bedId)} className="p-2.5 bg-black/20 hover:bg-rose-500 text-white rounded-2xl transition-all shadow-lg backdrop-blur-md border border-white/10 group-hover:scale-110" title="Free Bed Manually">
+                                                    <TrashIcon size={16}/>
                                                 </button>
-                                            ) : <Armchair className="w-4 h-4 text-emerald-400"/>}
+                                            ) : <Armchair className="w-8 h-8 text-white/20 drop-shadow-sm group-hover:text-white/40 transition-colors"/>}
                                         </div>
+                                        
                                         {isOccupied ? (
-                                            <div className="mt-2">
-                                                <div className="text-xs text-gray-900 font-black truncate" title={admission.patient_name}>{admission.patient_name}</div>
-                                                <div className="text-[10px] text-gray-500 font-bold truncate">ID: {admission.admission_id}</div>
+                                            <div className="mt-2 relative z-10">
+                                                <div className="text-sm text-white font-black truncate drop-shadow-md mb-0.5" title={admission.patient_name}>{admission.patient_name}</div>
+                                                <div className="text-[10px] text-rose-200 font-bold truncate tracking-wider uppercase opacity-80">ID: {admission.admission_id}</div>
+                                                <div className="mt-3 flex items-center gap-2">
+                                                    <div className="h-1.5 w-1.5 rounded-full bg-rose-400 animate-pulse"></div>
+                                                    <span className="text-[9px] text-white font-black bg-white/10 px-2.5 py-1 rounded-lg border border-white/10 uppercase tracking-widest">Occupied</span>
+                                                </div>
                                             </div>
                                         ) : (
-                                            <div className="mt-auto text-center">
-                                                <span className="text-[10px] text-emerald-600 font-black bg-white px-2 py-0.5 rounded-full border border-emerald-200 uppercase tracking-tighter">Available</span>
+                                            <div className="mt-auto relative z-10">
+                                                <div className="flex items-center gap-2 mb-2">
+                                                    <div className="h-1.5 w-1.5 rounded-full bg-emerald-400"></div>
+                                                    <span className="text-[9px] text-emerald-100 font-black uppercase tracking-widest opacity-60">Ready for use</span>
+                                                </div>
+                                                <div className="text-[10px] text-white font-black bg-white/10 px-4 py-1.5 rounded-xl border border-white/10 uppercase tracking-[0.2em] shadow-inner text-center backdrop-blur-sm group-hover:bg-white/20 transition-all">Available</div>
                                             </div>
                                         )}
                                     </div>
@@ -3347,7 +3381,7 @@ const ClinicPage: React.FC<ClinicPageProps> = ({
                     </div>
 
                     <div className={activeTab === 'bed_status' ? 'block' : 'hidden'}>
-                        <BedManagementPage admissions={admissions} setAdmissions={setAdmissions} />
+                        <BedManagementPage admissions={admissions} setAdmissions={setAdmissions} setSuccessMessage={setSuccessMessage} />
                     </div>
 
                     <div className={activeTab === 'invoice' ? 'block' : 'hidden'}>

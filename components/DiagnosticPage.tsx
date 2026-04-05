@@ -123,6 +123,7 @@ const DiagnosticPage: React.FC<DiagnosticPageProps> = ({
   
   const [activeTab, setActiveTab] = useState<DiagnosticSubPage>(() => isLabReporter ? 'lab_reporting' : 'doctor_appointment');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [preSelectedInvoiceId, setPreSelectedInvoiceId] = useState<string | null>(null);
   
   const renderContent = () => {
     switch (activeTab) {
@@ -174,6 +175,8 @@ const DiagnosticPage: React.FC<DiagnosticPageProps> = ({
                 invoices={labInvoices}
                 setInvoices={setLabInvoices}
                 monthlyRoster={monthlyRoster}
+                initialInvoiceId={preSelectedInvoiceId}
+                onClearInitialInvoice={() => setPreSelectedInvoiceId(null)}
             />
           </div>
         );
@@ -193,6 +196,10 @@ const DiagnosticPage: React.FC<DiagnosticPageProps> = ({
                 dueCollections={dueCollections}
                 setDueCollections={setDueCollections}
                 employees={employees}
+                onViewInvoice={(id) => {
+                  setPreSelectedInvoiceId(id);
+                  setActiveTab('lab_invoice');
+                }}
             />
           </div>
         );

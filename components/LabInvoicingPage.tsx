@@ -24,6 +24,8 @@ interface LabInvoicingPageProps {
   invoices: LabInvoice[];
   setInvoices: React.Dispatch<React.SetStateAction<LabInvoice[]>>;
   monthlyRoster: Record<string, string[]>;
+  initialInvoiceId?: string | null;
+  onClearInitialInvoice?: () => void;
 }
 
 const monthOptions = [
@@ -47,11 +49,29 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
   onNavigateSubPage,
   invoices,
   setInvoices,
-  monthlyRoster
+  monthlyRoster,
+  initialInvoiceId,
+  onClearInitialInvoice
 }) => {
   const [formData, setFormData] = useState<LabInvoice>(emptyLabInvoice);
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState<boolean>(false);
+  const handledInitialId = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (initialInvoiceId && handledInitialId.current !== initialInvoiceId) {
+      const inv = invoices.find(i => i.invoice_id === initialInvoiceId);
+      if (inv) {
+        handledInitialId.current = initialInvoiceId;
+        setTimeout(() => {
+          setFormData(inv);
+          setSelectedInvoiceId(inv.invoice_id);
+          setIsEditing(false);
+          if (onClearInitialInvoice) onClearInitialInvoice();
+        }, 0);
+      }
+    }
+  }, [initialInvoiceId, invoices, onClearInitialInvoice]);
   const [searchTerm, setSearchTerm] = useState('');
   const [barcodeInput, setBarcodeInput] = useState('');
   const [selectedTestCategory, setSelectedTestCategory] = useState('All');
@@ -664,13 +684,18 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
   }, [invoices, today]);
 
   const tableTotals = useMemo(() => {
-    if (!Array.isArray(filteredInvoices)) return { total: 0, paid: 0, due: 0 };
+    if (!Array.isArray(filteredInvoices)) return { total: 0, paid: 0, due: 0, income: 0 };
     return filteredInvoices.reduce((acc, inv) => {
+      if (inv.status === 'Cancelled') return acc;
       acc.total += (inv.total_amount || 0);
       acc.paid += (inv.paid_amount || 0);
       acc.due += (inv.due_amount || 0);
+      
+      if (inv.status !== 'Returned') {
+        acc.income += (inv.paid_amount || 0) - (inv.commission_paid || 0);
+      }
       return acc;
-    }, { total: 0, paid: 0, due: 0 });
+    }, { total: 0, paid: 0, due: 0, income: 0 });
   }, [filteredInvoices]);
 
   const resetTableFilters = () => {
@@ -715,9 +740,9 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
                 </div>
                 <button type="button" onClick={handleGetNewId} className="px-3 py-1.5 text-[10px] font-bold text-white bg-blue-600 rounded-md hover:bg-blue-500 uppercase tracking-tighter shadow-md">Get New Invoice</button>
                 <button type="submit" form="invoice-form" className="px-3 py-1.5 text-[10px] font-bold text-white bg-green-600 rounded-md hover:bg-green-500 uppercase tracking-tighter shadow-md">Save Invoice</button>
-                <button type="button" onClick={resetForm} className="px-3 py-1.5 text-[10px] font-bold text-slate-200 bg-slate-600 rounded-md hover:bg-slate-500 uppercase tracking-tighter shadow-md">Cancel</button>
+                <button type="button" onClick={resetForm} className="px-3 py-1.5 text-[10px] font-bold text-slate-200 bg-slate-600 rounded-md hover:bg-slate-500 uppercase tracking-tighter shadow-md">Clear Form</button>
                 <button type="button" onClick={handleEditInvoice} disabled={!selectedInvoiceId} className="px-3 py-1.5 text-[10px] font-bold text-white bg-yellow-500 rounded-md hover:bg-yellow-400 uppercase tracking-tighter shadow-md disabled:opacity-50">Edit</button>
-                <button type="button" onClick={handleCancelInvoice} disabled={!selectedInvoiceId || invoices.find(inv => inv.invoice_id === selectedInvoiceId)?.status === 'Cancelled'} className="px-3 py-1.5 text-[10px] font-bold text-white bg-red-600 rounded-md hover:bg-red-700 uppercase tracking-tighter shadow-md disabled:opacity-50">Cancel</button>
+                <button type="button" onClick={handleCancelInvoice} disabled={!selectedInvoiceId || invoices.find(inv => inv.invoice_id === selectedInvoiceId)?.status === 'Cancelled'} className="px-3 py-1.5 text-[10px] font-bold text-white bg-red-600 rounded-md hover:bg-red-700 uppercase tracking-tighter shadow-md disabled:opacity-50">Invoice Cancel</button>
                 <button type="button" onClick={handleReturnInvoice} disabled={!selectedInvoiceId || invoices.find(inv => inv.invoice_id === selectedInvoiceId)?.status === 'Returned'} className="px-3 py-1.5 text-[10px] font-bold text-white bg-rose-600 rounded-md hover:bg-rose-700 uppercase tracking-tighter shadow-md disabled:opacity-50">Return / Refund</button>
                 <button type="button" onClick={handlePrintInvoice} disabled={!selectedInvoiceId} className="px-3 py-1.5 text-[10px] font-bold text-white bg-indigo-600 rounded-md hover:bg-indigo-500 uppercase tracking-tighter shadow-md disabled:opacity-50">Print</button>
             </div>
@@ -1081,25 +1106,20 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
             </div>
         </div>
 
-        {/* COLUMN-WISE TOTALS SUMMARY */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4 no-print">
-            <div className="bg-slate-800/60 border border-slate-700 p-3 rounded-xl flex justify-between items-center">
-                <span className="text-xs font-black text-slate-400 uppercase tracking-widest">Total Amount:</span>
-                <span className="text-sm font-black text-white">৳ {(tableTotals.total || 0).toFixed(2)}</span>
-            </div>
-            <div className="bg-emerald-900/30 border border-emerald-800/50 p-3 rounded-xl flex justify-between items-center">
-                <span className="text-xs font-black text-emerald-400 uppercase tracking-widest">Total Paid:</span>
-                <span className="text-sm font-black text-emerald-400">৳ {(tableTotals.paid || 0).toFixed(2)}</span>
-            </div>
-            <div className="bg-rose-900/30 border border-rose-800/50 p-3 rounded-xl flex justify-between items-center">
-                <span className="text-xs font-black text-rose-400 uppercase tracking-widest">Total Due:</span>
-                <span className="text-sm font-black text-rose-400">৳ {(tableTotals.due || 0).toFixed(2)}</span>
-            </div>
-        </div>
-
         <div className="overflow-x-auto border border-slate-700 rounded-lg bg-slate-900/20">
           <table className="min-w-full divide-y divide-slate-700">
             <thead className="bg-slate-700">
+              {/* COLUMN-WISE TOTALS SUMMARY ROW */}
+              <tr className="bg-slate-800 border-b border-slate-700 no-print">
+                <th colSpan={6} className="px-6 py-2 text-right text-xs font-black text-slate-400 uppercase tracking-widest">Summary Totals:</th>
+                <th className="px-6 py-2 text-right text-lg font-black text-white">৳ {(tableTotals.total || 0).toFixed(2)}</th>
+                <th className="px-6 py-2 text-right text-lg font-black text-emerald-400">৳ {(tableTotals.paid || 0).toFixed(2)}</th>
+                <th className="px-6 py-2 text-right text-lg font-black text-rose-400">৳ {(tableTotals.due || 0).toFixed(2)}</th>
+                <th colSpan={2} className="px-6 py-2 text-right text-lg font-black text-blue-400 border-l border-slate-700">
+                    <span className="text-xs font-black text-slate-400 uppercase tracking-widest mr-2">Diagnostic Income:</span>
+                    ৳ {(tableTotals.income || 0).toFixed(2)}
+                </th>
+              </tr>
               <tr>
                 <th scope="col" className="px-4 py-4 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">SL</th>
                 <th scope="col" className="px-6 py-4 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Invoice ID</th>

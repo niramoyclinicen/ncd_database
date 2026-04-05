@@ -110,7 +110,7 @@ export interface Patient {
 export const emptyPatient: Patient = {
   pt_id: '', pt_name: '', ageY: '', ageM: '', ageD: '', gender: '', mobile: '',
   co_pref: 'S/O', co_name: '', dobY: '', dobM: '', dobD: '', address: '',
-  thana: '', district: '', date_modified: ''
+  thana: '', district: 'Sirajganj', date_modified: ''
 };
 
 export interface Doctor {
