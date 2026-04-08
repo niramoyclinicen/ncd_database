@@ -813,13 +813,14 @@ const AdmissionAndTreatmentPage: React.FC<{
     // SYNC FUNCTION: Propagates current admission record changes to the global admissions list
     const syncAdmissionToGlobal = (record: AdmissionRecord) => {
         setAdmissions((prev: AdmissionRecord[]) => {
-            const idx = prev.findIndex((a: AdmissionRecord) => a.admission_id === record.admission_id);
+            const safePrev = Array.isArray(prev) ? prev : [];
+            const idx = safePrev.findIndex((a: AdmissionRecord) => a.admission_id === record.admission_id);
             if(idx >= 0) { 
-                const newArr = [...prev]; 
+                const newArr = [...safePrev]; 
                 newArr[idx] = record; 
                 return newArr; 
             }
-            return [...prev, record];
+            return [...safePrev, record];
         });
     };
 
@@ -2210,6 +2211,10 @@ const IndoorInvoicePage: React.FC<{
 
             setIndoorInvoices((prev: IndoorInvoice[]) => {
                 const safePrev = Array.isArray(prev) ? prev : [];
+                if (!formData.daily_id) {
+                    console.error("Cannot save invoice: daily_id is missing");
+                    return safePrev;
+                }
                 const idx = safePrev.findIndex((inv: IndoorInvoice) => inv && inv.daily_id === formData.daily_id);
                 const now = new Date().toISOString();
                 
@@ -2241,7 +2246,7 @@ const IndoorInvoicePage: React.FC<{
                     last_modified: now,
                     edit_history: []
                 };
-                return [...prev, newInvoice];
+                return [...safePrev, newInvoice];
             });
             setSuccessMessage("Indoor Invoice Saved!");
             setFormData(emptyIndoorInvoice);
@@ -2265,7 +2270,7 @@ const IndoorInvoicePage: React.FC<{
 
     const handleCancelInvoice = (inv: IndoorInvoice) => {
         if (window.confirm(`ভুল এন্ট্রি হলে 'Cancel' করুন। এটি একাউন্টে কোনো প্রভাব ফেলবে না।`)) {
-            setIndoorInvoices(prev => prev.map(item => item && item.daily_id === inv.daily_id ? { ...item, status: 'Cancelled' } : item));
+            setIndoorInvoices((prev: IndoorInvoice[]) => (Array.isArray(prev) ? prev : []).map(item => item && item.daily_id === inv.daily_id ? { ...item, status: 'Cancelled' } : item));
             setSuccessMessage("Invoice Cancelled!");
         }
     };

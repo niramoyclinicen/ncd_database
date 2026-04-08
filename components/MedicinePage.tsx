@@ -624,21 +624,27 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
         return matchesName && matchesDate && matchesMonth && matchesYear;
     });
 
-    const filteredIndoor = indoorInvoices.filter(inv => {
-        const isMed = inv.items.some(it => it.service_type === 'Medicine');
+    const filteredIndoor = (Array.isArray(indoorInvoices) ? indoorInvoices : []).filter(inv => {
+        if (!inv) return false;
+        const items = Array.isArray(inv.items) ? inv.items : [];
+        const isMed = items.some(it => it && it.service_type === 'Medicine');
         if (!isMed) return false;
-        const matchesName = inv.patient_name.toLowerCase().includes(sellSearchName.toLowerCase());
+        const matchesName = (inv.patient_name || '').toLowerCase().includes(sellSearchName.toLowerCase());
         const dateToUse = inv.invoice_date || inv.admission_date;
+        if (!dateToUse || typeof dateToUse !== 'string') return false;
         const matchesDate = !sellSearchDate || dateToUse === sellSearchDate;
-        const [y, m] = dateToUse.split('-').map(Number);
+        const parts = dateToUse.split('-');
+        if (parts.length < 2) return false;
+        const [y, m] = parts.map(Number);
         const matchesMonth = sellSearchMonth === 'all' || (m - 1) === parseInt(sellSearchMonth);
         const matchesYear = y === parseInt(sellSearchYear);
         return matchesName && matchesDate && matchesMonth && matchesYear;
     });
 
     const totalOutdoor = filteredOutdoor.filter(inv => inv.status !== 'Cancelled' && inv.status !== 'Returned').reduce((sum, inv) => sum + inv.netPayable, 0);
-    const totalIndoor = filteredIndoor.filter(inv => inv.status !== 'Cancelled' && inv.status !== 'Returned').reduce((sum, inv) => {
-        return sum + inv.items.filter(it => it.service_type === 'Medicine').reduce((s, it) => s + it.payable_amount, 0);
+    const totalIndoor = filteredIndoor.filter(inv => inv && inv.status !== 'Cancelled' && inv.status !== 'Returned').reduce((sum, inv) => {
+        const items = Array.isArray(inv.items) ? inv.items : [];
+        return sum + items.filter(it => it && it.service_type === 'Medicine').reduce((s, it) => s + (it.payable_amount || 0), 0);
     }, 0);
 
     if(sellViewMode === 'list') return (
@@ -793,13 +799,17 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
     });
     const buyTotals = filteredPurchases.reduce((acc, inv) => { acc.val += inv.netPayable; acc.paid += inv.paidAmount; return acc; }, { val: 0, paid: 0 });
     
-    const indoorSalesTotal = indoorInvoices.filter(inv => {
+    const indoorSalesTotal = (Array.isArray(indoorInvoices) ? indoorInvoices : []).filter(inv => {
+        if (!inv) return false;
         const dateToUse = inv.invoice_date || inv.admission_date;
-        if (!dateToUse || inv.status === 'Cancelled' || inv.status === 'Returned') return false;
-        const [y, m] = dateToUse.split('-').map(Number);
+        if (!dateToUse || typeof dateToUse !== 'string' || inv.status === 'Cancelled' || inv.status === 'Returned') return false;
+        const parts = dateToUse.split('-');
+        if (parts.length < 2) return false;
+        const [y, m] = parts.map(Number);
         return (m - 1) === selectedMonth && y === selectedYear;
     }).reduce((sum, inv) => {
-        return sum + inv.items.filter(it => it.service_type === 'Medicine').reduce((s, it) => s + it.payable_amount, 0);
+        const items = Array.isArray(inv.items) ? inv.items : [];
+        return sum + items.filter(it => it && it.service_type === 'Medicine').reduce((s, it) => s + (it.payable_amount || 0), 0);
     }, 0);
 
     const saleTotals = { total: filteredSales.reduce((sum, inv) => sum + inv.netPayable, 0) + indoorSalesTotal };

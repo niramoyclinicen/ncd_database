@@ -270,7 +270,8 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
         let lastDayWithData = -1;
 
         const getNetDiagCash = (inv: LabInvoice) => {
-            const usgFee = inv.items.reduce((s, it) => s + (it.usg_exam_charge * it.quantity), 0);
+            const items = Array.isArray(inv.items) ? inv.items : [];
+            const usgFee = items.reduce((s, it) => s + ((it.usg_exam_charge || 0) * (it.quantity || 0)), 0);
             const commPaid = inv.commission_paid || 0;
             return inv.paid_amount - usgFee - commPaid;
         };
@@ -288,7 +289,8 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                 const dateToUse = inv.invoice_date || inv.admission_date;
                 return dateToUse === dateStr && inv.status !== 'Cancelled' && inv.status !== 'Returned';
             }).reduce((s, inv) => {
-                const fundedRevenue = inv.items.filter(it => it.isClinicFund).reduce((ss, ii) => ss + ii.payable_amount, 0);
+                const items = Array.isArray(inv.items) ? inv.items : [];
+                const fundedRevenue = items.filter(it => it && it.isClinicFund).reduce((ss, ii) => ss + (ii.payable_amount || 0), 0);
                 const pcAmount = (inv.commission_paid || 0) + (inv.special_commission || 0);
                 const specialDiscount = inv.special_discount_amount || 0;
                 return s + (fundedRevenue - pcAmount - specialDiscount);
@@ -368,7 +370,8 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
         let lastDayWithData = -1;
 
         const getNetDiagCash = (inv: LabInvoice) => {
-            const usgFee = inv.items.reduce((s, it) => s + (it.usg_exam_charge * it.quantity), 0);
+            const items = Array.isArray(inv.items) ? inv.items : [];
+            const usgFee = items.reduce((s, it) => s + ((it.usg_exam_charge || 0) * (it.quantity || 0)), 0);
             const commPaid = inv.commission_paid || 0;
             return inv.paid_amount - usgFee - commPaid;
         };
@@ -385,7 +388,8 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                 const dateToUse = inv.invoice_date || inv.admission_date;
                 return dateToUse === dateStr && inv.status !== 'Cancelled' && inv.status !== 'Returned';
             }).reduce((s, inv) => {
-                const fundedRevenue = inv.items.filter(it => it.isClinicFund).reduce((ss, ii) => ss + ii.payable_amount, 0);
+                const items = Array.isArray(inv.items) ? inv.items : [];
+                const fundedRevenue = items.filter(it => it && it.isClinicFund).reduce((ss, ii) => ss + (ii.payable_amount || 0), 0);
                 const pcAmount = (inv.commission_paid || 0) + (inv.special_commission || 0);
                 const specialDiscount = inv.special_discount_amount || 0;
                 return s + (fundedRevenue - pcAmount - specialDiscount);
@@ -435,7 +439,8 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
         };
         
         const getNetDiagCash = (inv: LabInvoice) => {
-            const usgFee = inv.items.reduce((s, it) => s + (it.usg_exam_charge * it.quantity), 0);
+            const items = Array.isArray(inv.items) ? inv.items : [];
+            const usgFee = items.reduce((s, it) => s + ((it.usg_exam_charge || 0) * (it.quantity || 0)), 0);
             const commPaid = inv.commission_paid || 0;
             return inv.paid_amount - usgFee - commPaid;
         };
@@ -448,7 +453,8 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                 const dateToUse = inv.invoice_date || inv.admission_date;
                 return isBeforeSelectedMonth(dateToUse) && inv.status !== 'Cancelled' && inv.status !== 'Returned';
             }).reduce((acc, inv) => {
-                const netIncomeForInv = inv.items.filter((it: any) => it.isClinicFund).reduce((s: number, i: any) => s + i.payable_amount, 0);
+                const items = Array.isArray(inv.items) ? inv.items : [];
+                const netIncomeForInv = items.filter((it: any) => it && it.isClinicFund).reduce((s: number, i: any) => s + (i.payable_amount || 0), 0);
                 const pcAmount = (inv.commission_paid || 0) + (inv.special_commission || 0);
                 const specialDiscount = inv.special_discount_amount || 0;
                 return acc + (netIncomeForInv - pcAmount - specialDiscount);
@@ -461,7 +467,8 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                 const dateToUse = inv.invoice_date || inv.admission_date;
                 return isBeforeSelectedMonth(dateToUse) && inv.status !== 'Cancelled' && inv.status !== 'Returned';
             }).reduce((s, inv) => {
-                return s + inv.items.filter(it => it.service_type === 'Medicine').reduce((ss, it) => ss + it.payable_amount, 0);
+                const items = Array.isArray(inv.items) ? inv.items : [];
+                return s + items.filter(it => it && it.service_type === 'Medicine').reduce((ss, it) => ss + (it.payable_amount || 0), 0);
             }, 0);
             const prevMedSales = prevMedSalesOutdoor + prevMedSalesIndoor;
 
@@ -504,7 +511,8 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
             const dateToUse = inv.invoice_date || inv.admission_date;
             return isSelectedMonth(dateToUse) && inv.status !== 'Cancelled' && inv.status !== 'Returned';
         }).reduce((acc, inv) => {
-            const netIncomeForInv = inv.items.filter((it: any) => it.isClinicFund).reduce((s: number, i: any) => s + i.payable_amount, 0);
+            const items = Array.isArray(inv.items) ? inv.items : [];
+            const netIncomeForInv = items.filter((it: any) => it && it.isClinicFund).reduce((s: number, i: any) => s + (i.payable_amount || 0), 0);
             const pcAmount = (inv.commission_paid || 0) + (inv.special_commission || 0);
             const specialDiscount = inv.special_discount_amount || 0;
             return acc + (netIncomeForInv - pcAmount - specialDiscount);
@@ -518,7 +526,8 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
             const dateToUse = inv.invoice_date || inv.admission_date;
             return isSelectedMonth(dateToUse) && inv.status !== 'Cancelled' && inv.status !== 'Returned';
         }).reduce((s, inv) => {
-            return s + inv.items.filter(it => it.service_type === 'Medicine').reduce((ss, it) => ss + it.payable_amount, 0);
+            const items = Array.isArray(inv.items) ? inv.items : [];
+            return s + items.filter(it => it && it.service_type === 'Medicine').reduce((ss, it) => ss + (it.payable_amount || 0), 0);
         }, 0);
         const medSalesCurrent = medSalesOutdoor + medSalesIndoor;
 
