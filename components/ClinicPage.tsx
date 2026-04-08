@@ -2215,8 +2215,11 @@ const IndoorInvoicePage: React.FC<{
                 
                 if (idx >= 0) { 
                     const existingInvoice = safePrev[idx];
+                    // CRITICAL: Exclude edit_history from the snapshot to prevent recursive nesting and crashes
+                    const { edit_history: oldHistory, ...invoiceSnapshot } = existingInvoice;
+                    
                     const historyEntry = {
-                        ...existingInvoice,
+                        ...invoiceSnapshot,
                         snapshot_date: now,
                         modified_by: formData.bill_created_by || 'System'
                     };
@@ -2224,7 +2227,7 @@ const IndoorInvoicePage: React.FC<{
                     const updatedInvoice = {
                         ...formData,
                         last_modified: now,
-                        edit_history: [...(Array.isArray(existingInvoice.edit_history) ? existingInvoice.edit_history : []), historyEntry]
+                        edit_history: [...(Array.isArray(oldHistory) ? oldHistory : []), historyEntry]
                     };
                     
                     const newArr = [...safePrev]; 

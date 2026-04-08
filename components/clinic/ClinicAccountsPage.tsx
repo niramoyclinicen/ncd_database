@@ -292,7 +292,7 @@ const ClinicAccountsPage: React.FC<any> = ({
         const monthInvoices = safeInvoices.filter((inv:any) => {
             if (!inv) return false;
             const dateToUse = inv.invoice_date || inv.admission_date;
-            if (!dateToUse) return false;
+            if (!dateToUse || typeof dateToUse !== 'string') return false;
             const parts = dateToUse.split('-');
             if (parts.length < 2) return false;
             const [y, m] = parts.map(Number);
