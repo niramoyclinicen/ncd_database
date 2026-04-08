@@ -360,7 +360,7 @@ const CertificateModal: React.FC<{
         issuedBy: ''
     });
 
-    const selectedAdmission = admissions.find(a => a.admission_id === selectedAdmissionId);
+    const selectedAdmission = (Array.isArray(admissions) ? admissions : []).find(a => a && a.admission_id === selectedAdmissionId);
     const selectedPatient = selectedAdmission ? patients.find(p => p.pt_id === selectedAdmission.patient_id) : null;
 
     useEffect(() => {
@@ -1110,19 +1110,19 @@ const AdmissionAndTreatmentPage: React.FC<{
                                     <option value="" className="bg-slate-900">Select Bed...</option>
                                     <optgroup label="Male Ward" className="bg-slate-900 text-slate-400 font-bold">
                                         {Array.from({length: 5}, (_, i) => `M-${String(i+1).padStart(2, '0')}`).map(b => {
-                                            const isOccupied = admissions.some(a => a.bed_no === b && !a.discharge_date);
+                                            const isOccupied = (Array.isArray(admissions) ? admissions : []).some(a => a && a.bed_no === b && !a.discharge_date);
                                             return <option key={b} value={b} disabled={isOccupied} className={`bg-slate-900 ${isOccupied ? 'text-rose-500' : 'text-slate-200'}`}>{b} {isOccupied ? '(OCCUPIED)' : ''}</option>;
                                         })}
                                     </optgroup>
                                     <optgroup label="Female Ward" className="bg-slate-900 text-slate-400 font-bold">
                                         {Array.from({length: 5}, (_, i) => `F-${String(i+1).padStart(2, '0')}`).map(b => {
-                                            const isOccupied = admissions.some(a => a.bed_no === b && !a.discharge_date);
+                                            const isOccupied = (Array.isArray(admissions) ? admissions : []).some(a => a && a.bed_no === b && !a.discharge_date);
                                             return <option key={b} value={b} disabled={isOccupied} className={`bg-slate-900 ${isOccupied ? 'text-rose-500' : 'text-slate-200'}`}>{b} {isOccupied ? '(OCCUPIED)' : ''}</option>;
                                         })}
                                     </optgroup>
                                     <optgroup label="Cabins" className="bg-slate-900 text-slate-400 font-bold">
                                         {['CAB-101', 'CAB-102', 'CAB-103', 'CAB-104', 'VIP-01'].map(b => {
-                                            const isOccupied = admissions.some(a => a.bed_no === b && !a.discharge_date);
+                                            const isOccupied = (Array.isArray(admissions) ? admissions : []).some(a => a && a.bed_no === b && !a.discharge_date);
                                             return <option key={b} value={b} disabled={isOccupied} className={`bg-slate-900 ${isOccupied ? 'text-rose-500' : 'text-slate-200'}`}>{b} {isOccupied ? '(OCCUPIED)' : ''}</option>;
                                         })}
                                     </optgroup>
@@ -2034,11 +2034,14 @@ const IndoorInvoicePage: React.FC<{
 
     const calculateTotals = (items: ServiceItem[], _discountAmt: number, paidAmt: number, specialDiscount: number) => {
         const safeItems = Array.isArray(items) ? items : [];
-        const newItems = safeItems.map(item => ({ 
-            ...item, 
-            line_total: (item.service_charge || 0) * (item.quantity || 0), 
-            payable_amount: ((item.service_charge || 0) * (item.quantity || 0)) - (item.discount || 0) 
-        }));
+        const newItems = safeItems.map(item => {
+            if (!item) return item;
+            return { 
+                ...item, 
+                line_total: (item.service_charge || 0) * (item.quantity || 0), 
+                payable_amount: ((item.service_charge || 0) * (item.quantity || 0)) - (item.discount || 0) 
+            };
+        }).filter(Boolean);
         
         const total_bill = newItems.reduce((sum, item) => sum + (item.line_total || 0), 0);
         const total_row_discount = newItems.reduce((sum, item) => sum + (item.discount || 0), 0);
@@ -2229,10 +2232,13 @@ const IndoorInvoicePage: React.FC<{
                         modified_by: formData.bill_created_by || 'System'
                     };
                     
+                    // Limit history to last 5 entries to prevent massive state objects and crashes
+                    const updatedHistory = [...(Array.isArray(oldHistory) ? oldHistory : []), historyEntry].slice(-5);
+                    
                     const updatedInvoice = {
                         ...formData,
                         last_modified: now,
-                        edit_history: [...(Array.isArray(oldHistory) ? oldHistory : []), historyEntry]
+                        edit_history: updatedHistory
                     };
                     
                     const newArr = [...safePrev]; 
@@ -2365,7 +2371,7 @@ const IndoorInvoicePage: React.FC<{
         };
         setFormData(cleanedInv);
         setSelectedInvoiceId(inv.daily_id);
-        const adm = admissions.find(a => a.admission_id === inv.admission_id);
+        const adm = (Array.isArray(admissions) ? admissions : []).find(a => a && a.admission_id === inv.admission_id);
         if (adm) setSelectedAdmission(adm);
     };
 

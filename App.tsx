@@ -119,9 +119,13 @@ const App: React.FC = () => {
     };
 
     // Immediate local persistence to prevent data loss on refresh
-    localStorage.setItem('ncd_offline_cache_v1', JSON.stringify(currentState));
-    localStorage.setItem('ncd_monthly_roster', JSON.stringify(monthlyRoster));
-    localStorage.setItem('ncd_mkt_mapping', JSON.stringify(employeeReferrerMap));
+    try {
+      localStorage.setItem('ncd_offline_cache_v1', JSON.stringify(currentState));
+      localStorage.setItem('ncd_monthly_roster', JSON.stringify(monthlyRoster));
+      localStorage.setItem('ncd_mkt_mapping', JSON.stringify(employeeReferrerMap));
+    } catch (e) {
+      console.warn("LocalStorage sync failed (possibly quota exceeded)", e);
+    }
     
     const syncData = async () => {
       await dbService.saveToCloud(currentState);
