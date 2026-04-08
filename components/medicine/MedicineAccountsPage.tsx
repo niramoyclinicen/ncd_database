@@ -51,7 +51,7 @@ const MedicineAccountsPage: React.FC<MedicineAccountsPageProps> = ({
 
         const currentIndoorSales = indoorInvoices.filter(inv => {
             if (inv.status === 'Cancelled' || inv.status === 'Returned') return false;
-            const dateToUse = inv.admission_date || inv.invoice_date;
+            const dateToUse = inv.invoice_date || inv.admission_date;
             return isSelectedMonth(dateToUse);
         });
 
@@ -81,7 +81,7 @@ const MedicineAccountsPage: React.FC<MedicineAccountsPageProps> = ({
 
         const prevIndoorTotal = indoorInvoices.filter(inv => {
             if (inv.status === 'Cancelled' || inv.status === 'Returned') return false;
-            const dateToUse = inv.admission_date || inv.invoice_date;
+            const dateToUse = inv.invoice_date || inv.admission_date;
             return isBeforeSelectedMonth(dateToUse);
         }).reduce((sum, inv) => {
              const medItemsTotal = inv.items
@@ -119,7 +119,7 @@ const MedicineAccountsPage: React.FC<MedicineAccountsPageProps> = ({
         });
         indoorInvoices.forEach(inv => {
             if (inv.status === 'Cancelled' || inv.status === 'Returned') return;
-            const dateToUse = inv.admission_date || inv.invoice_date;
+            const dateToUse = inv.invoice_date || inv.admission_date;
             const [y, m] = dateToUse.split('-').map(Number);
             if (y === selectedYear) {
                 const monthName = monthOptions[m - 1].name;

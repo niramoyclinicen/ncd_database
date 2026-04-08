@@ -620,7 +620,7 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
         const isMed = inv.items.some(it => it.service_type === 'Medicine');
         if (!isMed) return false;
         const matchesName = inv.patient_name.toLowerCase().includes(sellSearchName.toLowerCase());
-        const dateToUse = inv.admission_date || inv.invoice_date;
+        const dateToUse = inv.invoice_date || inv.admission_date;
         const matchesDate = !sellSearchDate || dateToUse === sellSearchDate;
         const [y, m] = dateToUse.split('-').map(Number);
         const matchesMonth = sellSearchMonth === 'all' || (m - 1) === parseInt(sellSearchMonth);
@@ -786,7 +786,7 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
     const buyTotals = filteredPurchases.reduce((acc, inv) => { acc.val += inv.netPayable; acc.paid += inv.paidAmount; return acc; }, { val: 0, paid: 0 });
     
     const indoorSalesTotal = indoorInvoices.filter(inv => {
-        const dateToUse = inv.admission_date || inv.invoice_date;
+        const dateToUse = inv.invoice_date || inv.admission_date;
         if (!dateToUse || inv.status === 'Cancelled' || inv.status === 'Returned') return false;
         const [y, m] = dateToUse.split('-').map(Number);
         return (m - 1) === selectedMonth && y === selectedYear;
