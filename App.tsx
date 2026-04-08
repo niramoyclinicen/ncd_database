@@ -111,16 +111,20 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!isDataLoaded) return;
     
+    const currentState = {
+      patients, doctors, referrars, tests, reagents, labInvoices, 
+      dueCollections, reports, employees, medicines, clinicalDrugs,
+      purchaseInvoices, salesInvoices, admissions, indoorInvoices,
+      detailedExpenses, prescriptions, appointments, attendanceLog, leaveLog, monthlyRoster
+    };
+
+    // Immediate local persistence to prevent data loss on refresh
+    localStorage.setItem('ncd_offline_cache_v1', JSON.stringify(currentState));
+    localStorage.setItem('ncd_monthly_roster', JSON.stringify(monthlyRoster));
+    localStorage.setItem('ncd_mkt_mapping', JSON.stringify(employeeReferrerMap));
+    
     const syncData = async () => {
-      const currentState = {
-        patients, doctors, referrars, tests, reagents, labInvoices, 
-        dueCollections, reports, employees, medicines, clinicalDrugs,
-        purchaseInvoices, salesInvoices, admissions, indoorInvoices,
-        detailedExpenses, prescriptions, appointments, attendanceLog, leaveLog, monthlyRoster
-      };
       await dbService.saveToCloud(currentState);
-      localStorage.setItem('ncd_monthly_roster', JSON.stringify(monthlyRoster));
-      localStorage.setItem('ncd_mkt_mapping', JSON.stringify(employeeReferrerMap));
     };
 
     const syncInterval = setTimeout(syncData, 2000);

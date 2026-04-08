@@ -311,35 +311,43 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
           return;
       }
       
-      setMedicines(prevMeds => {
-          const newMeds = [...prevMeds];
-          if (sellViewMode === 'edit' && editingInvoiceId) {
-              const oldInv = salesInvoices.find(x => x.invoiceId === editingInvoiceId);
-              if (oldInv) {
-                  oldInv.items.forEach(oldItem => {
-                      const mIdx = newMeds.findIndex(m => m.id === oldItem.id);
-                      if (mIdx >= 0) newMeds[mIdx] = { ...newMeds[mIdx], stock: newMeds[mIdx].stock + oldItem.qtySelling };
-                  });
+      setLoading(true);
+      try {
+          setMedicines(prevMeds => {
+              const newMeds = [...prevMeds];
+              if (sellViewMode === 'edit' && editingInvoiceId) {
+                  const oldInv = salesInvoices.find(x => x.invoiceId === editingInvoiceId);
+                  if (oldInv) {
+                      oldInv.items.forEach(oldItem => {
+                          const mIdx = newMeds.findIndex(m => m.id === oldItem.id);
+                          if (mIdx >= 0) newMeds[mIdx] = { ...newMeds[mIdx], stock: newMeds[mIdx].stock + oldItem.qtySelling };
+                      });
+                  }
               }
-          }
-          salesFormData.items.forEach(newItem => {
-              const mIdx = newMeds.findIndex(m => m.id === newItem.id);
-              if (mIdx >= 0) newMeds[mIdx] = { ...newMeds[mIdx], stock: Math.max(0, newMeds[mIdx].stock - newItem.qtySelling) };
+              salesFormData.items.forEach(newItem => {
+                  const mIdx = newMeds.findIndex(m => m.id === newItem.id);
+                  if (mIdx >= 0) newMeds[mIdx] = { ...newMeds[mIdx], stock: Math.max(0, newMeds[mIdx].stock - newItem.qtySelling) };
+              });
+              return newMeds;
           });
-          return newMeds;
-      });
 
-      if (sellViewMode === 'edit') {
-          setSalesInvoices(prev => prev.map(inv => inv.invoiceId === editingInvoiceId ? { ...salesFormData, status: 'Posted' } : inv));
-          setSuccessMessage("Invoice Correction Saved!");
-          alert("Invoice Correction Saved Successfully!");
-      } else {
-          setSalesInvoices([ { ...salesFormData, status: 'Posted', createdDate: new Date().toISOString() }, ...salesInvoices ]);
-          setSuccessMessage("Sale Completed Successfully!");
-          alert("Sale Completed Successfully!");
+          if (sellViewMode === 'edit') {
+              setSalesInvoices(prev => prev.map(inv => inv.invoiceId === editingInvoiceId ? { ...salesFormData, status: 'Posted' } : inv));
+              setSuccessMessage("Invoice Correction Saved!");
+              alert("Invoice Correction Saved Successfully!");
+          } else {
+              setSalesInvoices([ { ...salesFormData, status: 'Posted', createdDate: new Date().toISOString() }, ...salesInvoices ]);
+              setSuccessMessage("Sale Completed Successfully!");
+              alert("Sale Completed Successfully!");
+          }
+          setSellViewMode('list');
+          setEditingInvoiceId(null);
+      } catch (error) {
+          console.error("Error saving sales:", error);
+          alert("বিক্রি সেভ করার সময় একটি ত্রুটি হয়েছে।");
+      } finally {
+          setLoading(false);
       }
-      setSellViewMode('list');
-      setEditingInvoiceId(null);
   };
 
   const handleReturnSale = (inv: SalesInvoice) => {
@@ -745,7 +753,7 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
       return (
           <div className="space-y-6 animate-fade-in">
               <div className="flex justify-between items-center border-b border-slate-700 pb-3"><h2 className="text-2xl font-black text-purple-400 flex items-center gap-2 uppercase tracking-tighter"><span className="w-3 h-3 bg-purple-500 rounded-full"></span> Live Stock Inventory</h2><button onClick={handlePrintStore} className="bg-purple-600 hover:bg-purple-500 text-white px-6 py-2 rounded-lg font-bold flex items-center gap-2 shadow-lg transition-all active:scale-95"><FileTextIcon className="w-4 h-4"/> Print Stock List</button></div>
-              <div className="overflow-x-auto rounded-2xl border border-slate-700 shadow-2xl"><table className="w-full text-left border-collapse text-sm"><thead className="bg-slate-700 text-slate-100"><tr><th className="p-4 uppercase text-xs font-black tracking-widest">Brand Name</th><th className="p-4 uppercase text-xs font-black tracking-widest">Generic</th><th className="p-4 uppercase text-xs font-black tracking-widest">Form</th><th className="p-4 text-right uppercase text-xs font-black tracking-widest">Expiry</th><th className="p-4 text-right uppercase text-xs font-black tracking-widest">Buy P.</th><th className="p-4 text-right uppercase text-xs font-black tracking-widest">Sell P.</th><th className="p-4 text-center uppercase text-xs font-black tracking-widest">Stock</th><th className="p-4 text-right uppercase text-xs font-black tracking-widest">Asset Value</th><th className="p-4 text-center uppercase text-xs font-black tracking-widest">Adjust</th></tr></thead><tbody className="divide-y divide-slate-700">{medicines.map((m, i) => (<tr key={i} className="bg-slate-800 hover:bg-slate-750 transition-colors"><td className="p-4 font-black text-white text-base">{m.tradeName} <span className="text-xs font-bold text-slate-500">{m.strength}</span></td><td className="p-4 text-sky-400 text-sm font-bold italic">{m.genericName}</td><td className="p-4 text-slate-400 text-sm font-bold uppercase">{m.formulation}</td><td className="p-4 text-right text-xs font-mono">{m.expiryDate || 'N/A'}</td><td className="p-4 text-right text-slate-300 font-bold">৳{m.unitPriceBuy.toFixed(2)}</td><td className="p-4 text-right text-white font-black">৳{m.unitPriceSell.toFixed(2)}</td><td className={`p-4 text-center font-black text-xl ${m.stock < 10 ? 'text-red-500 animate-pulse' : 'text-emerald-400'}`}>{m.stock}</td><td className="p-4 text-right text-slate-400 font-bold">৳{(m.stock * m.unitPriceBuy).toFixed(2)}</td><td className="p-4 text-center"><button onClick={() => { setAdjustmentData({ medicineId: m.id, tradeName: m.tradeName, genericName: m.genericName, strength: m.strength, formulation: m.formulation, currentStock: m.stock, adjustmentType: 'add', adjustmentQty: '', newSellingPrice: m.unitPriceSell.toString() }); setShowAdjustmentModal(true); }} className="bg-slate-900 hover:bg-slate-700 text-purple-400 p-2 rounded-lg border border-purple-900/50 transition-all"><RefreshIcon className="w-4 h-4"/></button></td></tr>))}</tbody></table></div>
+              <div className="overflow-x-auto rounded-2xl border border-slate-700 shadow-2xl"><table className="w-full text-left border-collapse text-sm"><thead className="bg-slate-700 text-slate-100"><tr><th className="p-4 uppercase text-xs font-black tracking-widest">Brand Name</th><th className="p-4 uppercase text-xs font-black tracking-widest">Generic</th><th className="p-4 uppercase text-xs font-black tracking-widest">Form</th><th className="p-4 text-right uppercase text-xs font-black tracking-widest">Expiry</th><th className="p-4 text-right uppercase text-xs font-black tracking-widest">Buy P.</th><th className="p-4 text-right uppercase text-xs font-black tracking-widest">Sell P.</th><th className="p-4 text-center uppercase text-xs font-black tracking-widest">Stock</th><th className="p-4 text-right uppercase text-xs font-black tracking-widest">Asset Value</th><th className="p-4 text-center uppercase text-xs font-black tracking-widest">Adjust</th></tr></thead><tbody className="divide-y divide-slate-700">{(Array.isArray(medicines) ? medicines : []).map((m, i) => { if(!m) return null; return (<tr key={i} className="bg-slate-800 hover:bg-slate-750 transition-colors"><td className="p-4 font-black text-white text-base">{m.tradeName} <span className="text-xs font-bold text-slate-500">{m.strength}</span></td><td className="p-4 text-sky-400 text-sm font-bold italic">{m.genericName}</td><td className="p-4 text-slate-400 text-sm font-bold uppercase">{m.formulation}</td><td className="p-4 text-right text-xs font-mono">{m.expiryDate || 'N/A'}</td><td className="p-4 text-right text-slate-300 font-bold">৳{(m.unitPriceBuy || 0).toFixed(2)}</td><td className="p-4 text-right text-white font-black">৳{(m.unitPriceSell || 0).toFixed(2)}</td><td className={`p-4 text-center font-black text-xl ${m.stock < 10 ? 'text-red-500 animate-pulse' : 'text-emerald-400'}`}>{m.stock}</td><td className="p-4 text-right text-slate-400 font-bold">৳{(m.stock * (m.unitPriceBuy || 0)).toFixed(2)}</td><td className="p-4 text-center"><button onClick={() => { setAdjustmentData({ medicineId: m.id, tradeName: m.tradeName, genericName: m.genericName, strength: m.strength, formulation: m.formulation, currentStock: m.stock, adjustmentType: 'add', adjustmentQty: '', newSellingPrice: (m.unitPriceSell || 0).toString() }); setShowAdjustmentModal(true); }} className="bg-slate-900 hover:bg-slate-700 text-purple-400 p-2 rounded-lg border border-purple-900/50 transition-all"><RefreshIcon className="w-4 h-4"/></button></td></tr>); })}</tbody></table></div>
           </div>
       );
   };
