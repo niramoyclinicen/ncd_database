@@ -2187,7 +2187,7 @@ const IndoorInvoicePage: React.FC<{
         setFormData(prev => ({ ...prev, items: updatedItems, ...totals }));
     };
 
-    const handleSaveInvoice = (e: React.FormEvent) => {
+    const handleSaveInvoice = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!formData.daily_id) return alert("Generate ID first");
         if (!formData.subCategory) {
@@ -2197,14 +2197,27 @@ const IndoorInvoicePage: React.FC<{
 
         setLoading(true);
         try {
-            if (formData.admission_id) {
+            // Check if date has changed for an existing invoice
+            const finalInvoice = { ...formData };
+            const isDateChanged = selectedInvoiceId && formData.invoice_date !== indoorInvoices.find(inv => inv.daily_id === selectedInvoiceId)?.invoice_date;
+
+            if (isDateChanged) {
+                const dateToUse = formData.invoice_date;
+                const safeInvoices = Array.isArray(indoorInvoices) ? indoorInvoices : [];
+                const count = safeInvoices.filter(i => i && i.invoice_date === dateToUse).length + 1;
+                const newId = `CLIN-${dateToUse}-${String(count).padStart(3, '0')}`;
+                finalInvoice.daily_id = newId;
+                setSuccessMessage(`তারিখ পরিবর্তনের কারণে নতুন আইডি ${newId} তৈরি করা হয়েছে।`);
+            }
+
+            if (finalInvoice.admission_id) {
                 setAdmissions((prev: AdmissionRecord[]) => prev.map((adm: AdmissionRecord) => {
                     if (!adm) return adm;
-                    if (adm.admission_id === formData.admission_id) {
-                        const hasDischargeDate = !!formData.discharge_date;
+                    if (adm.admission_id === finalInvoice.admission_id) {
+                        const hasDischargeDate = !!finalInvoice.discharge_date;
                         return { 
                             ...adm, 
-                            discharge_date: formData.discharge_date || undefined, 
+                            discharge_date: finalInvoice.discharge_date || undefined, 
                             bed_no: hasDischargeDate ? '' : (adm.bed_no || 'RE-ASSIGNED') 
                         };
                     }
@@ -2214,53 +2227,57 @@ const IndoorInvoicePage: React.FC<{
 
             setIndoorInvoices((prev: IndoorInvoice[]) => {
                 const safePrev = Array.isArray(prev) ? prev : [];
-                if (!formData.daily_id) {
-                    console.error("Cannot save invoice: daily_id is missing");
-                    return safePrev;
-                }
-                const idx = safePrev.findIndex((inv: IndoorInvoice) => inv && inv.daily_id === formData.daily_id);
                 const now = new Date().toISOString();
                 
-                if (idx >= 0) { 
-                    const existingInvoice = safePrev[idx];
-                    // CRITICAL: Exclude edit_history from the snapshot to prevent recursive nesting and crashes
-                    const { edit_history: oldHistory, ...invoiceSnapshot } = existingInvoice;
-                    
-                    const historyEntry = {
-                        ...invoiceSnapshot,
-                        snapshot_date: now,
-                        modified_by: formData.bill_created_by || 'System'
-                    };
-                    
-                    // Limit history to last 5 entries to prevent massive state objects and crashes
-                    const updatedHistory = [...(Array.isArray(oldHistory) ? oldHistory : []), historyEntry].slice(-5);
-                    
-                    const updatedInvoice = {
-                        ...formData,
+                let newArr = [...safePrev];
+                
+                if (selectedInvoiceId) {
+                    // If date changed, we need to remove the old ID and add the new one
+                    if (isDateChanged) {
+                        newArr = newArr.filter(inv => inv.daily_id !== selectedInvoiceId);
+                        const newInvoice = {
+                            ...finalInvoice,
+                            created_at: now,
+                            last_modified: now,
+                            edit_history: []
+                        };
+                        newArr.push(newInvoice);
+                    } else {
+                        // Regular update
+                        const idx = newArr.findIndex(inv => inv.daily_id === selectedInvoiceId);
+                        if (idx >= 0) {
+                            const { edit_history: oldHistory, ...invoiceSnapshot } = newArr[idx];
+                            const historyEntry = { ...invoiceSnapshot, snapshot_date: now, modified_by: finalInvoice.bill_created_by || 'System' };
+                            const updatedHistory = [...(Array.isArray(oldHistory) ? oldHistory : []), historyEntry].slice(-5);
+                            
+                            newArr[idx] = {
+                                ...finalInvoice,
+                                last_modified: now,
+                                edit_history: updatedHistory
+                            };
+                        }
+                    }
+                } else {
+                    // New invoice
+                    const newInvoice = {
+                        ...finalInvoice,
+                        created_at: now,
                         last_modified: now,
-                        edit_history: updatedHistory
+                        edit_history: []
                     };
-                    
-                    const newArr = [...safePrev]; 
-                    newArr[idx] = updatedInvoice; 
-                    return newArr; 
+                    newArr.push(newInvoice);
                 }
                 
-                const newInvoice = {
-                    ...formData,
-                    created_at: now,
-                    last_modified: now,
-                    edit_history: []
-                };
-                return [...safePrev, newInvoice];
+                return newArr;
             });
-            setSuccessMessage("Indoor Invoice Saved!");
+
+            setSuccessMessage("Indoor Invoice Saved! Syncing to cloud...");
             setFormData(emptyIndoorInvoice);
             setSelectedAdmission(null);
             setSelectedInvoiceId(null);
         } catch (error) {
             console.error("Error saving invoice:", error);
-            alert("ইনভয়েস সেভ করার সময় একটি ত্রুটি হয়েছে।");
+            alert("ইনভয়েস সেভ করার সময় একটি ত্রুটি হয়েছে। অনুগ্রহ করে ইন্টারনেট কানেকশন চেক করুন।");
         } finally {
             setLoading(false);
         }

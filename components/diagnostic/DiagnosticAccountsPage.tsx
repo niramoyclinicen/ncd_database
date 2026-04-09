@@ -98,7 +98,17 @@ const HistoryModal: React.FC<{ item: ExpenseItem, onClose: () => void }> = ({ it
 const DailyExpenseForm: React.FC<any> = ({ selectedDate, onDateChange, allDetailedExpenses, onSave, onDelete, onEdit, employees, monthlyRoster, editingItem }) => {
     const dailyExpenseItems = allDetailedExpenses[selectedDate] || [];
     const [items, setItems] = useState<ExpenseItem[]>(() => {
-        if (editingItem && editingItem.date === selectedDate) return [{ ...editingItem }];
+        if (editingItem && editingItem.date === selectedDate) {
+            return [{ ...editingItem }];
+        }
+
+        const existingItems = allDetailedExpenses[selectedDate] || [];
+        const diagnosticItems = existingItems.filter((it: any) => !it.isDeleted && (it.dept === 'Diagnostic' || (!it.dept && expenseCategories.includes(it.category))));
+        
+        if (diagnosticItems.length > 0) {
+            return diagnosticItems.map(it => ({ ...it }));
+        }
+        
         return [{
             id: Date.now(), category: expenseCategories[0], subCategory: '', description: '', billAmount: 0, paidAmount: 0, dept: 'Diagnostic'
         }];
@@ -439,13 +449,21 @@ const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollection
     const handleSaveExpense = (date: string, items: ExpenseItem[]) => {
         setDetailedExpenses((prev: any) => {
             const existingItems = prev[date] || [];
-            // Keep Clinic items, replace Diagnostic items
+            // Keep Clinic items, replace Diagnostic items with updated ones
             const otherDeptItems = existingItems.filter((it: any) => it.dept !== 'Diagnostic');
-            const diagnosticItems = items.map(it => ({ ...it, dept: 'Diagnostic' as const }));
-            return { ...prev, [date]: [...otherDeptItems, ...diagnosticItems] };
+            
+            // Ensure all items have the correct department and date
+            const diagnosticItems = items.map(it => ({ 
+                ...it, 
+                dept: 'Diagnostic' as const,
+                date: date // Ensure date consistency
+            }));
+            
+            const newState = { ...prev, [date]: [...otherDeptItems, ...diagnosticItems] };
+            return newState;
         });
         setEditingItem(null);
-        setSuccessMessage("Expense data saved successfully!");
+        setSuccessMessage("Expense data saved successfully! Syncing to cloud...");
     };
 
     const handleDeleteExpense = (date: string, id: number) => {

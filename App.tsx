@@ -107,6 +107,8 @@ const App: React.FC = () => {
     loadData();
   }, []);
 
+  const [isSyncing, setIsSyncing] = useState(false);
+
   // --- DATA SYNCING ---
   useEffect(() => {
     if (!isDataLoaded) return;
@@ -128,10 +130,12 @@ const App: React.FC = () => {
     }
     
     const syncData = async () => {
+      setIsSyncing(true);
       await dbService.saveToCloud(currentState);
+      setIsSyncing(false);
     };
 
-    const syncInterval = setTimeout(syncData, 2000);
+    const syncInterval = setTimeout(syncData, 500);
     return () => clearTimeout(syncInterval);
   }, [
     patients, doctors, referrars, tests, reagents, labInvoices, 
@@ -344,6 +348,14 @@ const App: React.FC = () => {
           labInvoices={labInvoices}
           indoorInvoices={indoorInvoices}
         />
+      )}
+
+      {/* Cloud Sync Indicator */}
+      {isSyncing && (
+        <div className="fixed bottom-4 right-4 z-[9999] flex items-center gap-2 bg-slate-800/90 backdrop-blur-sm border border-cyan-500/50 px-4 py-2 rounded-full shadow-lg animate-pulse">
+          <div className="w-2 h-2 bg-cyan-500 rounded-full animate-ping"></div>
+          <span className="text-[10px] font-bold text-cyan-400 uppercase tracking-widest">Syncing to Cloud...</span>
+        </div>
       )}
     </div>
   );
