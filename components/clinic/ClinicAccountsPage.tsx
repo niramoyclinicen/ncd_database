@@ -165,9 +165,18 @@ const ClinicAccountsPage: React.FC<any> = ({
   onBack, invoices, dueCollections, employees, detailedExpenses, setDetailedExpenses 
 }) => {
     const [viewMode, setViewMode] = useState<'detailed' | 'summary' | 'collection' | 'daily_summary' | 'monthly_expense'>('detailed');
-    const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
-    const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
-    const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+    const handleDateChange = (newDate: string) => {
+        setSelectedDate(newDate);
+        const dateObj = new Date(newDate);
+        if (!isNaN(dateObj.getTime())) {
+            setSelectedMonth(dateObj.getMonth());
+            setSelectedYear(dateObj.getFullYear());
+            if (viewMode === 'detailed') {
+                setExpDateSearch(newDate);
+            }
+        }
+    };
+
     const [isTodayFilter, setIsTodayFilter] = useState(false);
     const [invoiceSearch, setInvoiceSearch] = useState('');
     const [invoiceDateSearch, setInvoiceDateSearch] = useState('');
@@ -175,7 +184,7 @@ const ClinicAccountsPage: React.FC<any> = ({
     const [invoiceYearSearch, setInvoiceYearSearch] = useState<number | ''>('');
 
     const [expSearch, setExpSearch] = useState('');
-    const [expDateSearch, setExpDateSearch] = useState('');
+    const [expDateSearch, setExpDateSearch] = useState(selectedDate);
     const [expMonthSearch, setExpMonthSearch] = useState<number | ''>('');
     const [expYearSearch, setExpYearSearch] = useState<number | ''>('');
     const [expCategorySearch, setExpCategorySearch] = useState('');
@@ -190,10 +199,21 @@ const ClinicAccountsPage: React.FC<any> = ({
             const existingItems = prev[date] || [];
             // Keep Diagnostic items, replace Clinic items
             const otherDeptItems = existingItems.filter((it: any) => it.dept !== 'Clinic');
-            const clinicItems = items.map(it => ({ ...it, dept: 'Clinic' as const }));
-            return { ...prev, [date]: [...otherDeptItems, ...clinicItems] };
+            const clinicItems = items.map(it => ({ ...it, dept: 'Clinic' as const, date: date }));
+            const newState = { ...prev, [date]: [...otherDeptItems, ...clinicItems] };
+            
+            // Immediate local backup
+            try {
+                const fullState = JSON.parse(localStorage.getItem('ncd_offline_cache_v1') || '{}');
+                fullState.detailedExpenses = newState;
+                localStorage.setItem('ncd_offline_cache_v1', JSON.stringify(fullState));
+            } catch (e) {
+                console.warn("Immediate local backup failed", e);
+            }
+
+            return newState;
         });
-        setSuccessMsg("Clinic Expense Saved!");
+        setSuccessMsg("Clinic Expense Saved! Syncing to cloud...");
     };
 
     const handleLedgerDelete = (date: string, itemId: number) => {
@@ -1057,7 +1077,7 @@ const ClinicAccountsPage: React.FC<any> = ({
                         <DailyExpenseForm 
                             key={selectedDate}
                             selectedDate={selectedDate} 
-                            onDateChange={setSelectedDate} 
+                            onDateChange={handleDateChange} 
                             items={detailedExpenses[selectedDate] || []} 
                             onSave={handleSave} 
                             onPrint={handlePrintDailyJournal}

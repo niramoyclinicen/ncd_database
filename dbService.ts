@@ -49,7 +49,7 @@ export const dbService = {
     }
   },
 
-  loadFromCloud: async (defaultData: any) => {
+  loadFromCloud: async () => {
     try {
       if (supabase) {
         const { data: record, error } = await supabase
@@ -58,19 +58,18 @@ export const dbService = {
           .eq('id', MASTER_RECORD_ID)
           .single();
         
+        if (error) throw error;
+
         if (record && record.data) {
+          // Still keep a local copy for emergency, but loadFromCloud will only return cloud data
           localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(record.data));
           return record.data;
         }
       }
-
-      // Fallback if cloud is unavailable
-      const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-      return saved ? JSON.parse(saved) : defaultData;
+      return null; // Return null if no cloud data or no connection
     } catch (error) {
-      console.warn("Database Load Status: Using local data.", error);
-      const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-      return saved ? JSON.parse(saved) : defaultData;
+      console.error("Cloud Connection Error:", error);
+      return null; // Strictly return null on error as per user request
     }
   }
 };

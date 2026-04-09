@@ -116,11 +116,10 @@ const DailyExpenseForm: React.FC<any> = ({ selectedDate, onDateChange, allDetail
 
     const [savedSearchTerm, setSavedSearchTerm] = useState('');
     const [savedCategoryFilter, setSavedCategoryFilter] = useState('All');
-    const [searchDate, setSearchDate] = useState(selectedDate);
-    const [searchMonth, setSearchMonth] = useState(new Date().getMonth());
-    const [searchYear, setSearchYear] = useState(new Date().getFullYear());
-    const [searchMode, setSearchMode] = useState<'date' | 'month' | 'year' | 'all'>('date');
-    const [historyItem, setHistoryItem] = useState<ExpenseItem | null>(null);
+    const handleDateChange = (newDate: string) => {
+        onDateChange(newDate);
+        setSearchDate(newDate);
+    };
 
     const periodKey = selectedDate.substring(0, 7); // YYYY-MM
     const activeEmpIds = monthlyRoster[periodKey] || [];
@@ -235,7 +234,7 @@ const DailyExpenseForm: React.FC<any> = ({ selectedDate, onDateChange, allDetail
                 {historyItem && <HistoryModal item={historyItem} onClose={() => setHistoryItem(null)} />}
                 <div className="flex justify-between items-center mb-6 border-b border-sky-800 pb-4">
                     <h3 className="text-xl font-black text-sky-100 flex items-center gap-3"><Activity className="w-6 h-6 text-sky-400" /> Daily Expense Entry</h3>
-                    <input type="date" value={selectedDate} onChange={(e) => onDateChange(e.target.value)} className="bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white text-sm font-black" />
+                    <input type="date" value={selectedDate} onChange={(e) => handleDateChange(e.target.value)} className="bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white text-sm font-black" />
                 </div>
                 <div className="overflow-x-auto min-h-[150px]">
                     <table className="w-full text-left">
@@ -426,9 +425,15 @@ const DailyExpenseForm: React.FC<any> = ({ selectedDate, onDateChange, allDetail
 
 const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollections, employees, detailedExpenses, setDetailedExpenses, monthlyRoster }) => {
     const todayStr = new Date().toISOString().split('T')[0];
-    const [selectedDate, setSelectedDate] = useState(todayStr);
-    const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
-    const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+    const handleDateChange = (newDate: string) => {
+        setSelectedDate(newDate);
+        const dateObj = new Date(newDate);
+        if (!isNaN(dateObj.getTime())) {
+            setSelectedMonth(dateObj.getMonth());
+            setSelectedYear(dateObj.getFullYear());
+        }
+    };
+
     const [activeTab, setActiveTab] = useState<'entry' | 'diagnostic_expense' | 'daily' | 'monthly' | 'yearly' | 'detail' | 'due'>('entry');
     
     // Detailed Collection States
@@ -460,6 +465,16 @@ const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollection
             }));
             
             const newState = { ...prev, [date]: [...otherDeptItems, ...diagnosticItems] };
+            
+            // Immediate local backup for this specific change
+            try {
+                const fullState = JSON.parse(localStorage.getItem('ncd_offline_cache_v1') || '{}');
+                fullState.detailedExpenses = newState;
+                localStorage.setItem('ncd_offline_cache_v1', JSON.stringify(fullState));
+            } catch (e) {
+                console.warn("Immediate local backup failed", e);
+            }
+
             return newState;
         });
         setEditingItem(null);
@@ -982,7 +997,7 @@ const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollection
                         <DailyExpenseForm 
                             key={`${selectedDate}-${editingItem?.id || 'new'}`} 
                             selectedDate={selectedDate} 
-                            onDateChange={setSelectedDate} 
+                            onDateChange={handleDateChange} 
                             allDetailedExpenses={detailedExpenses} 
                             onSave={handleSaveExpense} 
                             onDelete={handleDeleteExpense}
