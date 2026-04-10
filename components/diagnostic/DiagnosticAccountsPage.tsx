@@ -24,7 +24,7 @@ const subCategoryMap: Record<string, string[]> = {
     'Electricity bill': ['Meter 01', 'Meter 02'],
     'Reagent buy': ['Local Market', 'Company Delivery', 'Special Order'],
     'Marketing': ['Doctor Appayon', 'PC conference', 'PC Gift', 'Miking', 'Recording', 'Others'],
-    'Motorcycle': ['Motorcycle buy', 'Motorcycle repair', 'Motorcycle License'],
+    'Motorcycle': ['Motorcycle buy', 'Motorcycle repair', 'Motorcycle License', 'Motorcycle Fuel'],
     'Doctor donation & Vehicle service': ['Weekly vehicle', 'Monthly Referral Pay', 'Festival Bonus'],
     'Instruments buy/ repair': ['Lab Equipment', 'IT/Computer', 'Furniture'],
     'Diagnostic development': ['New Test Marketing', 'Branding'],
@@ -228,6 +228,20 @@ const DailyExpenseForm: React.FC<any> = ({ selectedDate, onDateChange, allDetail
         return filteredSavedItems.reduce((acc, it) => acc + (Number(it.paidAmount) || 0), 0);
     }, [filteredSavedItems]);
 
+    const descriptionSuggestions = useMemo(() => {
+        const suggestions: Record<string, Set<string>> = {};
+        Object.values(allDetailedExpenses).forEach((dayItems: any) => {
+            dayItems.forEach((item: any) => {
+                if (item.subCategory && item.description) {
+                    const key = `${item.category}|${item.subCategory}`;
+                    if (!suggestions[key]) suggestions[key] = new Set();
+                    suggestions[key].add(item.description);
+                }
+            });
+        });
+        return suggestions;
+    }, [allDetailedExpenses]);
+
     return (
         <div className="space-y-10">
             <div className="bg-sky-950/40 rounded-[2rem] p-8 border border-sky-800 shadow-xl no-print">
@@ -280,7 +294,20 @@ const DailyExpenseForm: React.FC<any> = ({ selectedDate, onDateChange, allDetail
                                             </>
                                         )}
                                     </td>
-                                    <td className="py-3 pr-2"><input value={item.description} onChange={e => handleItemChange(item.id, 'description', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white text-sm font-bold" placeholder="Additional details..." /></td>
+                                    <td className="py-3 pr-2">
+                                        <input 
+                                            list={`desc-list-${item.id}`}
+                                            value={item.description} 
+                                            onChange={e => handleItemChange(item.id, 'description', e.target.value)} 
+                                            className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white text-sm font-bold" 
+                                            placeholder="Additional details..." 
+                                        />
+                                        <datalist id={`desc-list-${item.id}`}>
+                                            {Array.from(descriptionSuggestions[`${item.category}|${item.subCategory}`] || []).map((desc, i) => (
+                                                <option key={i} value={desc} />
+                                            ))}
+                                        </datalist>
+                                    </td>
                                     <td className="py-3 pr-2"><input type="number" value={item.paidAmount} onChange={e => handleItemChange(item.id, 'paidAmount', parseFloat(e.target.value) || 0)} className="w-28 bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white text-base font-black text-right outline-none focus:border-emerald-500" onFocus={e => e.target.select()} /></td>
                                     <td className="py-3 text-center"><button onClick={() => removeItem(item.id)} className="text-red-500 font-bold text-2xl hover:text-red-400">×</button></td>
                                 </tr>

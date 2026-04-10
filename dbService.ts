@@ -58,7 +58,13 @@ export const dbService = {
           .eq('id', MASTER_RECORD_ID)
           .single();
         
-        if (error) throw error;
+        if (error) {
+          // PGRST116 means no rows found - this is normal for a new app
+          if (error.code === 'PGRST116') {
+            return {}; 
+          }
+          throw error;
+        }
 
         if (record && record.data) {
           // Still keep a local copy for emergency, but loadFromCloud will only return cloud data

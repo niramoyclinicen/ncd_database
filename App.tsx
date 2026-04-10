@@ -80,28 +80,30 @@ const App: React.FC = () => {
     const loadData = async () => {
       const loadedData = await dbService.loadFromCloud();
       
-      if (loadedData && Object.keys(loadedData).length > 0) {
-        if (loadedData.patients) setPatients(loadedData.patients);
-        if (loadedData.doctors) setDoctors(loadedData.doctors);
-        if (loadedData.referrars) setReferrars(loadedData.referrars);
-        if (loadedData.tests) setTests(loadedData.tests);
-        if (loadedData.reagents) setReagents(loadedData.reagents);
-        if (loadedData.labInvoices) setLabInvoices(loadedData.labInvoices);
-        if (loadedData.dueCollections) setDueCollections(loadedData.dueCollections);
-        if (loadedData.reports) setReports(loadedData.reports);
-        if (loadedData.employees) setEmployees(loadedData.employees);
-        if (loadedData.medicines) setMedicines(loadedData.medicines);
-        if (loadedData.clinicalDrugs) setClinicalDrugs(loadedData.clinicalDrugs);
-        if (loadedData.purchaseInvoices) setPurchaseInvoices(loadedData.purchaseInvoices);
-        if (loadedData.salesInvoices) setSalesInvoices(loadedData.salesInvoices);
-        if (loadedData.admissions) setAdmissions(loadedData.admissions);
-        if (loadedData.indoorInvoices) setIndoorInvoices(loadedData.indoorInvoices);
-        if (loadedData.detailedExpenses) setDetailedExpenses(loadedData.detailedExpenses);
-        if (loadedData.prescriptions) setPrescriptions(loadedData.prescriptions);
-        if (loadedData.appointments) setAppointments(loadedData.appointments);
-        if (loadedData.attendanceLog) setAttendanceLog(loadedData.attendanceLog);
-        if (loadedData.leaveLog) setLeaveLog(loadedData.leaveLog);
-        if (loadedData.monthlyRoster) setMonthlyRoster(loadedData.monthlyRoster);
+      if (loadedData) {
+        if (Object.keys(loadedData).length > 0) {
+          if (loadedData.patients) setPatients(loadedData.patients);
+          if (loadedData.doctors) setDoctors(loadedData.doctors);
+          if (loadedData.referrars) setReferrars(loadedData.referrars);
+          if (loadedData.tests) setTests(loadedData.tests);
+          if (loadedData.reagents) setReagents(loadedData.reagents);
+          if (loadedData.labInvoices) setLabInvoices(loadedData.labInvoices);
+          if (loadedData.dueCollections) setDueCollections(loadedData.dueCollections);
+          if (loadedData.reports) setReports(loadedData.reports);
+          if (loadedData.employees) setEmployees(loadedData.employees);
+          if (loadedData.medicines) setMedicines(loadedData.medicines);
+          if (loadedData.clinicalDrugs) setClinicalDrugs(loadedData.clinicalDrugs);
+          if (loadedData.purchaseInvoices) setPurchaseInvoices(loadedData.purchaseInvoices);
+          if (loadedData.salesInvoices) setSalesInvoices(loadedData.salesInvoices);
+          if (loadedData.admissions) setAdmissions(loadedData.admissions);
+          if (loadedData.indoorInvoices) setIndoorInvoices(loadedData.indoorInvoices);
+          if (loadedData.detailedExpenses) setDetailedExpenses(loadedData.detailedExpenses);
+          if (loadedData.prescriptions) setPrescriptions(loadedData.prescriptions);
+          if (loadedData.appointments) setAppointments(loadedData.appointments);
+          if (loadedData.attendanceLog) setAttendanceLog(loadedData.attendanceLog);
+          if (loadedData.leaveLog) setLeaveLog(loadedData.leaveLog);
+          if (loadedData.monthlyRoster) setMonthlyRoster(loadedData.monthlyRoster);
+        }
         
         setIsDataLoaded(true);
         setConnectionError(false);
