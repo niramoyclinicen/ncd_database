@@ -96,13 +96,13 @@ const HistoryModal: React.FC<{ item: ExpenseItem, onClose: () => void }> = ({ it
 );
 
 const DailyExpenseForm: React.FC<any> = ({ selectedDate, onDateChange, allDetailedExpenses, onSave, onDelete, onEdit, employees, monthlyRoster, editingItem }) => {
-    const dailyExpenseItems = allDetailedExpenses[selectedDate] || [];
+    const dailyExpenseItems = (allDetailedExpenses && allDetailedExpenses[selectedDate]) || [];
     const [items, setItems] = useState<ExpenseItem[]>(() => {
         if (editingItem && editingItem.date === selectedDate) {
             return [{ ...editingItem }];
         }
 
-        const existingItems = allDetailedExpenses[selectedDate] || [];
+        const existingItems = (allDetailedExpenses && allDetailedExpenses[selectedDate]) || [];
         const diagnosticItems = existingItems.filter((it: any) => !it.isDeleted && (it.dept === 'Diagnostic' || (!it.dept && expenseCategories.includes(it.category))));
         
         if (diagnosticItems.length > 0) {
@@ -196,7 +196,7 @@ const DailyExpenseForm: React.FC<any> = ({ selectedDate, onDateChange, allDetail
     
     const filteredSavedItems = useMemo(() => {
         const allItems: any[] = [];
-        Object.entries(allDetailedExpenses).forEach(([date, items]: [string, any]) => {
+        Object.entries(allDetailedExpenses || {}).forEach(([date, items]: [string, any]) => {
             const [y, m] = date.split('-').map(Number);
             
             let matchesTime = false;
@@ -205,7 +205,7 @@ const DailyExpenseForm: React.FC<any> = ({ selectedDate, onDateChange, allDetail
             else if (searchMode === 'year') matchesTime = y === searchYear;
             else if (searchMode === 'all') matchesTime = true;
 
-            if (matchesTime) {
+            if (matchesTime && Array.isArray(items)) {
                 items.filter((it: any) => !it.isDeleted && (it.dept === 'Diagnostic' || (!it.dept && expenseCategories.includes(it.category)))).forEach((it: any) => {
                     allItems.push({ ...it, date });
                 });
@@ -230,14 +230,16 @@ const DailyExpenseForm: React.FC<any> = ({ selectedDate, onDateChange, allDetail
 
     const descriptionSuggestions = useMemo(() => {
         const suggestions: Record<string, Set<string>> = {};
-        Object.values(allDetailedExpenses).forEach((dayItems: any) => {
-            dayItems.forEach((item: any) => {
-                if (item.subCategory && item.description) {
-                    const key = `${item.category}|${item.subCategory}`;
-                    if (!suggestions[key]) suggestions[key] = new Set();
-                    suggestions[key].add(item.description);
-                }
-            });
+        Object.values(allDetailedExpenses || {}).forEach((dayItems: any) => {
+            if (Array.isArray(dayItems)) {
+                dayItems.forEach((item: any) => {
+                    if (item.subCategory && item.description) {
+                        const key = `${item.category}|${item.subCategory}`;
+                        if (!suggestions[key]) suggestions[key] = new Set();
+                        suggestions[key].add(item.description);
+                    }
+                });
+            }
         });
         return suggestions;
     }, [allDetailedExpenses]);
@@ -536,7 +538,7 @@ const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollection
 
         for (let d = 1; d <= daysInMonth; d++) {
             const dateStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-            const dailyExps = (detailedExpenses[dateStr] || []).filter((it: any) => !it.isDeleted && (it.dept === 'Diagnostic' || (!it.dept && categories.includes(it.category))));
+            const dailyExps = ((detailedExpenses && detailedExpenses[dateStr]) || []).filter((it: any) => !it.isDeleted && (it.dept === 'Diagnostic' || (!it.dept && categories.includes(it.category))));
             
             const categorySums: Record<string, number> = {};
             categories.forEach(cat => categorySums[cat] = 0);
