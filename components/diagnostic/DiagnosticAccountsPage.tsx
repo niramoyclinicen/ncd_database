@@ -454,6 +454,10 @@ const DailyExpenseForm: React.FC<any> = ({ selectedDate, onDateChange, allDetail
 
 const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollections, employees, detailedExpenses, setDetailedExpenses, monthlyRoster }) => {
     const todayStr = new Date().toISOString().split('T')[0];
+    const [selectedDate, setSelectedDate] = useState(todayStr);
+    const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
+    const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+
     const handleDateChange = (newDate: string) => {
         setSelectedDate(newDate);
         const dateObj = new Date(newDate);
@@ -482,18 +486,19 @@ const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollection
 
     const handleSaveExpense = (date: string, items: ExpenseItem[]) => {
         setDetailedExpenses((prev: any) => {
-            const existingItems = prev[date] || [];
+            const safePrev = prev || {};
+            const existingItems = safePrev[date] || [];
             // Keep Clinic items, replace Diagnostic items with updated ones
             const otherDeptItems = existingItems.filter((it: any) => it.dept !== 'Diagnostic');
             
             // Ensure all items have the correct department and date
-            const diagnosticItems = items.map(it => ({ 
+            const diagnosticItems = (items || []).map(it => ({ 
                 ...it, 
                 dept: 'Diagnostic' as const,
                 date: date // Ensure date consistency
             }));
             
-            const newState = { ...prev, [date]: [...otherDeptItems, ...diagnosticItems] };
+            const newState = { ...safePrev, [date]: [...otherDeptItems, ...diagnosticItems] };
             
             // Immediate local backup for this specific change
             try {
@@ -512,7 +517,8 @@ const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollection
 
     const handleDeleteExpense = (date: string, id: number) => {
         setDetailedExpenses((prev: any) => {
-            const existingItems = prev[date] || [];
+            const safePrev = prev || {};
+            const existingItems = safePrev[date] || [];
             const updatedItems = existingItems.map((it: any) => {
                 if (it.id === id) {
                     const history = it.editHistory || [];
@@ -568,9 +574,9 @@ const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollection
         const expensesByCategory: Record<string, number> = {};
         expenseCategories.forEach(cat => expensesByCategory[cat] = 0);
         
-        Object.entries(detailedExpenses).forEach(([date, items]: any) => {
+        Object.entries(detailedExpenses || {}).forEach(([date, items]: any) => {
             const [y, m] = date.split('-').map(Number);
-            if (m - 1 === selectedMonth && y === selectedYear) {
+            if (m - 1 === selectedMonth && y === selectedYear && Array.isArray(items)) {
                 items.forEach((it: any) => {
                     if (!it.isDeleted && (it.dept === 'Diagnostic' || (!it.dept && expenseCategories.includes(it.category)))) {
                         expensesByCategory[it.category] = (expensesByCategory[it.category] || 0) + it.paidAmount;
@@ -584,24 +590,24 @@ const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollection
     }, [selectedMonth, selectedYear, detailedExpenses]);
 
     const detailTableData = useMemo(() => {
-        const filtered = invoices.filter((inv: any) => {
+        const filtered = (invoices || []).filter((inv: any) => {
             if (detailViewMode === 'today') return inv.invoice_date === todayStr;
             if (detailViewMode === 'date') return inv.invoice_date === selectedDate;
             
-            const [y, m] = inv.invoice_date.split('-').map(Number);
+            const [y, m] = (inv.invoice_date || '').split('-').map(Number);
             if (detailViewMode === 'month') return (m - 1) === selectedMonth && y === selectedYear;
             if (detailViewMode === 'year') return y === selectedYear;
             
             return true;
         }).filter((inv: any) => {
-            const matchesSearch = inv.patient_name.toLowerCase().includes(detailSearch.toLowerCase()) || 
-                                 inv.invoice_id.toLowerCase().includes(detailSearch.toLowerCase()) ||
+            const matchesSearch = (inv.patient_name || '').toLowerCase().includes(detailSearch.toLowerCase()) || 
+                                 (inv.invoice_id || '').toLowerCase().includes(detailSearch.toLowerCase()) ||
                                  (inv.referrar_name || '').toLowerCase().includes(detailSearch.toLowerCase());
             
             if (detailFilterCategory === 'All') return matchesSearch;
             if (detailFilterCategory === 'Due Recovery') return matchesSearch && inv.due_amount > 0;
 
-            const matchesCat = inv.items.some((it: any) => {
+            const matchesCat = (inv.items || []).some((it: any) => {
                 const name = (it.test_name || '').toLowerCase();
                 if (detailFilterCategory === 'USG') return name.includes('usg') || name.includes('ultra');
                 if (detailFilterCategory === 'X-Ray') return name.includes('x-ray') || name.includes('xray');
@@ -656,24 +662,24 @@ const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollection
     }, [detailTableData]);
 
     const categoryCounts = useMemo(() => {
-        const baseFiltered = invoices.filter((inv: any) => {
+        const baseFiltered = (invoices || []).filter((inv: any) => {
             if (detailViewMode === 'today') return inv.invoice_date === todayStr;
             if (detailViewMode === 'date') return inv.invoice_date === selectedDate;
             
-            const [y, m] = inv.invoice_date.split('-').map(Number);
+            const [y, m] = (inv.invoice_date || '').split('-').map(Number);
             if (detailViewMode === 'month') return (m - 1) === selectedMonth && y === selectedYear;
             if (detailViewMode === 'year') return y === selectedYear;
             return true;
         }).filter((inv: any) => {
-            return inv.patient_name.toLowerCase().includes(detailSearch.toLowerCase()) || 
-                   inv.invoice_id.toLowerCase().includes(detailSearch.toLowerCase()) ||
+            return (inv.patient_name || '').toLowerCase().includes(detailSearch.toLowerCase()) || 
+                   (inv.invoice_id || '').toLowerCase().includes(detailSearch.toLowerCase()) ||
                    (inv.referrar_name || '').toLowerCase().includes(detailSearch.toLowerCase());
         });
 
         const counts: Record<string, number> = { All: baseFiltered.length };
         ['Pathology', 'USG', 'X-Ray', 'ECG', 'Hormone'].forEach(cat => {
             counts[cat] = baseFiltered.filter(inv => {
-                return inv.items.some((it: any) => {
+                return (inv.items || []).some((it: any) => {
                     const name = (it.test_name || '').toLowerCase();
                     if (cat === 'USG') return name.includes('usg') || name.includes('ultra');
                     if (cat === 'X-Ray') return name.includes('x-ray') || name.includes('xray');
@@ -689,20 +695,20 @@ const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollection
 
     const stats = useMemo(() => {
         const getRangeStats = (rangeType: 'daily' | 'monthly' | 'yearly') => {
-            const relevantInvoices = invoices.filter((inv: any) => {
+            const relevantInvoices = (invoices || []).filter((inv: any) => {
                 if (inv.status === 'Cancelled' || inv.status === 'Returned') return false;
                 if (rangeType === 'daily') return inv.invoice_date === selectedDate;
                 
                 // Avoid timezone issues by splitting the date string directly
-                const [y, m] = inv.invoice_date.split('-').map(Number);
+                const [y, m] = (inv.invoice_date || '').split('-').map(Number);
                 if (rangeType === 'monthly') return (m - 1) === selectedMonth && y === selectedYear;
                 return y === selectedYear;
             });
-            const relevantDueColls = dueCollections.filter((dc: any) => {
-                const isDiag = dc.invoice_id.startsWith('INV-');
+            const relevantDueColls = (dueCollections || []).filter((dc: any) => {
+                const isDiag = dc.invoice_id && dc.invoice_id.startsWith('INV-');
                 if (rangeType === 'daily') return dc.collection_date === selectedDate && isDiag;
                 
-                const [y, m] = dc.collection_date.split('-').map(Number);
+                const [y, m] = (dc.collection_date || '').split('-').map(Number);
                 if (rangeType === 'monthly') return (m - 1) === selectedMonth && y === selectedYear && isDiag;
                 return y === selectedYear && isDiag;
             });
@@ -716,7 +722,7 @@ const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollection
                 const actualCommPaid = inv.commission_paid || 0;
                 const commFactor = inv.paid_amount > 0 ? (actualCommPaid / inv.paid_amount) : 0;
 
-                inv.items.forEach((item: any) => {
+                (inv.items || []).forEach((item: any) => {
                     const testName = (item.test_name || '').toLowerCase();
                     const itemGross = (item.price * item.quantity);
                     
@@ -732,24 +738,24 @@ const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollection
                 });
             });
             
-            coll.dueRecov = relevantDueColls.reduce((s: any, c: any) => s + c.amount_collected, 0);
+            coll.dueRecov = relevantDueColls.reduce((s: any, c: any) => s + (c.amount_collected || 0), 0);
 
             const exp = { total: 0 };
             const expenseMap: Record<string, number> = {};
             expenseCategories.forEach(c => expenseMap[c] = 0);
 
             if (rangeType === 'daily') {
-                (detailedExpenses[selectedDate] || []).filter((it: any) => it.dept === 'Diagnostic' || (!it.dept && expenseCategories.includes(it.category))).forEach((it: any) => {
+                ((detailedExpenses && detailedExpenses[selectedDate]) || []).filter((it: any) => it.dept === 'Diagnostic' || (!it.dept && expenseCategories.includes(it.category))).forEach((it: any) => {
                     expenseMap[it.category] = (expenseMap[it.category] || 0) + it.paidAmount;
                     exp.total += it.paidAmount;
                 });
             } else {
-                Object.entries(detailedExpenses).forEach(([date, items]) => {
+                Object.entries(detailedExpenses || {}).forEach(([date, items]) => {
                     const [y, m] = date.split('-').map(Number);
                     const isMatch = (rangeType === 'monthly' && (m - 1) === selectedMonth && y === selectedYear) || 
                                     (rangeType === 'yearly' && y === selectedYear);
                     
-                    if (isMatch) {
+                    if (isMatch && Array.isArray(items)) {
                         (items as any[]).filter((it: any) => !it.isDeleted && (it.dept === 'Diagnostic' || (!it.dept && expenseCategories.includes(it.category)))).forEach((it: any) => {
                             expenseMap[it.category] = (expenseMap[it.category] || 0) + it.paidAmount;
                             exp.total += it.paidAmount;
@@ -969,7 +975,7 @@ const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollection
         setTimeout(() => { win.print(); win.close(); }, 500);
     };
 
-    const dueList = invoices.filter((inv: any) => {
+    const dueList = (invoices || []).filter((inv: any) => {
         if (inv.due_amount <= 1) return false;
         
         let matchesTime = true;
@@ -983,8 +989,8 @@ const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollection
             matchesTime = d.getFullYear() === selectedYear;
         }
         
-        const matchesSearch = inv.patient_name.toLowerCase().includes(dueSearch.toLowerCase()) || 
-                             inv.invoice_id.toLowerCase().includes(dueSearch.toLowerCase());
+        const matchesSearch = (inv.patient_name || '').toLowerCase().includes(dueSearch.toLowerCase()) || 
+                             (inv.invoice_id || '').toLowerCase().includes(dueSearch.toLowerCase());
         
         return matchesTime && matchesSearch;
     }).sort((a,b) => new Date(b.invoice_date).getTime() - new Date(a.invoice_date).getTime());
