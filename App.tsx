@@ -62,18 +62,12 @@ const App: React.FC = () => {
   const [appointments, setAppointments] = useState(initialAppointments);
   
   // Marketing States
-  const [employeeReferrerMap, setEmployeeReferrerMap] = useState<Record<string, string[]>>(() => {
-    const saved = localStorage.getItem('ncd_mkt_mapping');
-    return saved ? JSON.parse(saved) : {};
-  });
+  const [employeeReferrerMap, setEmployeeReferrerMap] = useState<Record<string, string[]>>({});
 
   // HR/Payroll States
   const [attendanceLog, setAttendanceLog] = useState<Record<string, any>>({});
   const [leaveLog, setLeaveLog] = useState<Record<string, any>>({});
-  const [monthlyRoster, setMonthlyRoster] = useState<Record<string, string[]>>(() => {
-    const saved = localStorage.getItem('ncd_monthly_roster');
-    return saved ? JSON.parse(saved) : {};
-  });
+  const [monthlyRoster, setMonthlyRoster] = useState<Record<string, string[]>>({});
 
   // --- DATA LOADING ---
   useEffect(() => {
@@ -128,15 +122,6 @@ const App: React.FC = () => {
       detailedExpenses, prescriptions, appointments, attendanceLog, leaveLog, monthlyRoster,
       last_updated_at: new Date().toISOString()
     };
-
-    // Immediate local persistence to prevent data loss on refresh
-    try {
-      localStorage.setItem('ncd_offline_cache_v1', JSON.stringify(currentState));
-      localStorage.setItem('ncd_monthly_roster', JSON.stringify(monthlyRoster));
-      localStorage.setItem('ncd_mkt_mapping', JSON.stringify(employeeReferrerMap));
-    } catch (e) {
-      console.warn("LocalStorage sync failed (possibly quota exceeded)", e);
-    }
     
     const syncData = async () => {
       setIsSyncing(true);

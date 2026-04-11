@@ -164,6 +164,10 @@ const DailyExpenseForm: React.FC<any> = ({ selectedDate, onDateChange, items: in
 const ClinicAccountsPage: React.FC<any> = ({ 
   onBack, invoices, dueCollections, employees, detailedExpenses, setDetailedExpenses 
 }) => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const [selectedDate, setSelectedDate] = useState(todayStr);
+    const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
+    const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
     const [viewMode, setViewMode] = useState<'detailed' | 'summary' | 'collection' | 'daily_summary' | 'monthly_expense'>('detailed');
     const handleDateChange = (newDate: string) => {
         setSelectedDate(newDate);
@@ -196,21 +200,13 @@ const ClinicAccountsPage: React.FC<any> = ({
 
     const handleSave = (date: string, items: ExpenseItem[]) => {
         setDetailedExpenses((prev: any) => {
-            const existingItems = prev[date] || [];
+            const safePrev = prev || {};
+            const existingItems = safePrev[date] || [];
             // Keep Diagnostic items, replace Clinic items
             const otherDeptItems = existingItems.filter((it: any) => it.dept !== 'Clinic');
-            const clinicItems = items.map(it => ({ ...it, dept: 'Clinic' as const, date: date }));
-            const newState = { ...prev, [date]: [...otherDeptItems, ...clinicItems] };
+            const clinicItems = (items || []).map(it => ({ ...it, dept: 'Clinic' as const, date: date }));
+            const newState = { ...safePrev, [date]: [...otherDeptItems, ...clinicItems] };
             
-            // Immediate local backup
-            try {
-                const fullState = JSON.parse(localStorage.getItem('ncd_offline_cache_v1') || '{}');
-                fullState.detailedExpenses = newState;
-                localStorage.setItem('ncd_offline_cache_v1', JSON.stringify(fullState));
-            } catch (e) {
-                console.warn("Immediate local backup failed", e);
-            }
-
             return newState;
         });
         setSuccessMsg("Clinic Expense Saved! Syncing to cloud...");
@@ -220,7 +216,8 @@ const ClinicAccountsPage: React.FC<any> = ({
         if (!window.confirm("Are you sure you want to delete this expense entry? It will be logged and removed from totals.")) return;
 
         setDetailedExpenses((prev: any) => {
-            const dateItems = prev[date] || [];
+            const safePrev = prev || {};
+            const dateItems = safePrev[date] || [];
             const updatedItems = dateItems.map((it: any) => {
                 if (it.id === itemId) {
                     const history = it.editHistory || [];
@@ -356,8 +353,8 @@ const ClinicAccountsPage: React.FC<any> = ({
 
         const expensesByCategory: Record<string, number> = {};
         clinicExpenseCategories.forEach(cat => expensesByCategory[cat] = 0);
-        Object.entries(detailedExpenses).forEach(([date, items]:any) => {
-            const parts = date.split('-');
+        Object.entries(detailedExpenses || {}).forEach(([date, items]:any) => {
+            const parts = (date || '').split('-');
             if (parts.length < 2) return;
             const [y, m] = parts.map(Number);
             if(m - 1 === selectedMonth && y === selectedYear) {
@@ -374,7 +371,7 @@ const ClinicAccountsPage: React.FC<any> = ({
 
     const clinicExpenseJournalData = useMemo(() => {
         const allClinicExpenses: any[] = [];
-        Object.entries(detailedExpenses).forEach(([date, items]: any) => {
+        Object.entries(detailedExpenses || {}).forEach(([date, items]: any) => {
             (Array.isArray(items) ? items : []).forEach((it: any) => {
                 if (it && !it.isDeleted && (it.dept === 'Clinic' || (!it.dept && clinicExpenseCategories.includes(it.category)))) {
                     allClinicExpenses.push({ ...it, date });
@@ -471,7 +468,7 @@ const ClinicAccountsPage: React.FC<any> = ({
         }, 0);
 
         const totalCollection = totalClinicNetOnly + dayDueRecov;
-        const dayExpenses = (Array.isArray(detailedExpenses[selectedDate]) ? detailedExpenses[selectedDate] : []).filter((it: any) => it && !it.isDeleted && (it.dept === 'Clinic' || (!it.dept && clinicExpenseCategories.includes(it.category))));
+        const dayExpenses = (Array.isArray(detailedExpenses && detailedExpenses[selectedDate]) ? detailedExpenses[selectedDate] : []).filter((it: any) => it && !it.isDeleted && (it.dept === 'Clinic' || (!it.dept && clinicExpenseCategories.includes(it.category))));
         const totalExpense = dayExpenses.reduce((s: number, it: any) => s + (it.paidAmount || 0), 0);
         
         const expensesByCategory: Record<string, number> = {};

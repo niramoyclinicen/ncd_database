@@ -500,15 +500,6 @@ const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollection
             
             const newState = { ...safePrev, [date]: [...otherDeptItems, ...diagnosticItems] };
             
-            // Immediate local backup for this specific change
-            try {
-                const fullState = JSON.parse(localStorage.getItem('ncd_offline_cache_v1') || '{}');
-                fullState.detailedExpenses = newState;
-                localStorage.setItem('ncd_offline_cache_v1', JSON.stringify(fullState));
-            } catch (e) {
-                console.warn("Immediate local backup failed", e);
-            }
-
             return newState;
         });
         setEditingItem(null);

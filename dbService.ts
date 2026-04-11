@@ -28,9 +28,6 @@ const MASTER_RECORD_ID = 1;
 export const dbService = {
   saveToCloud: async (appState: any) => {
     try {
-      // Primary local backup
-      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(appState));
-
       if (supabase) {
         const { error } = await supabase
           .from('ncd_state')
@@ -44,7 +41,7 @@ export const dbService = {
       }
       return { success: true };
     } catch (error) {
-      console.warn("Database Sync Status: Local storage only.", error);
+      console.error("Cloud Sync Error:", error);
       return { success: false, error };
     }
   },
@@ -67,8 +64,6 @@ export const dbService = {
         }
 
         if (record && record.data) {
-          // Still keep a local copy for emergency, but loadFromCloud will only return cloud data
-          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(record.data));
           return record.data;
         }
       }
