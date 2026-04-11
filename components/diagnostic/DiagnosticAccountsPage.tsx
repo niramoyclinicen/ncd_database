@@ -116,6 +116,12 @@ const DailyExpenseForm: React.FC<any> = ({ selectedDate, onDateChange, allDetail
 
     const [savedSearchTerm, setSavedSearchTerm] = useState('');
     const [savedCategoryFilter, setSavedCategoryFilter] = useState('All');
+    const [searchDate, setSearchDate] = useState(selectedDate);
+    const [searchMonth, setSearchMonth] = useState(new Date().getMonth());
+    const [searchYear, setSearchYear] = useState(new Date().getFullYear());
+    const [searchMode, setSearchMode] = useState<'date' | 'month' | 'year' | 'all'>('date');
+    const [historyItem, setHistoryItem] = useState<ExpenseItem | null>(null);
+
     const handleDateChange = (newDate: string) => {
         onDateChange(newDate);
         setSearchDate(newDate);
@@ -213,15 +219,23 @@ const DailyExpenseForm: React.FC<any> = ({ selectedDate, onDateChange, allDetail
         });
 
         return allItems.filter((it: any) => {
-            const matchesSearch = it.category.toLowerCase().includes(savedSearchTerm.toLowerCase()) ||
-                (expenseCategoryBanglaMap[it.category] || '').includes(savedSearchTerm) ||
-                it.subCategory.toLowerCase().includes(savedSearchTerm.toLowerCase()) ||
-                it.description.toLowerCase().includes(savedSearchTerm.toLowerCase());
+            const cat = it.category || '';
+            const subCat = it.subCategory || '';
+            const desc = it.description || '';
             
-            const matchesCategory = savedCategoryFilter === 'All' || it.category === savedCategoryFilter;
+            const matchesSearch = cat.toLowerCase().includes(savedSearchTerm.toLowerCase()) ||
+                (expenseCategoryBanglaMap[cat] || '').includes(savedSearchTerm) ||
+                subCat.toLowerCase().includes(savedSearchTerm.toLowerCase()) ||
+                desc.toLowerCase().includes(savedSearchTerm.toLowerCase());
+            
+            const matchesCategory = savedCategoryFilter === 'All' || cat === savedCategoryFilter;
             
             return matchesSearch && matchesCategory;
-        }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        }).sort((a, b) => {
+            const timeA = a.date ? new Date(a.date).getTime() : 0;
+            const timeB = b.date ? new Date(b.date).getTime() : 0;
+            return timeB - timeA;
+        });
     }, [allDetailedExpenses, searchDate, searchMonth, searchYear, searchMode, savedSearchTerm, savedCategoryFilter]);
 
     const totalFilteredSavedAmount = useMemo(() => {
@@ -967,24 +981,29 @@ const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollection
     };
 
     const dueList = (invoices || []).filter((inv: any) => {
-        if (inv.due_amount <= 1) return false;
+        if (!inv || (inv.due_amount || 0) <= 1) return false;
         
         let matchesTime = true;
-        if (dueViewMode === 'date') matchesTime = inv.invoice_date === selectedDate;
+        const invDate = inv.invoice_date || '';
+        if (dueViewMode === 'date') matchesTime = invDate === selectedDate;
         else if (dueViewMode === 'month') {
-            const d = new Date(inv.invoice_date);
-            matchesTime = d.getMonth() === selectedMonth && d.getFullYear() === selectedYear;
+            const d = new Date(invDate);
+            matchesTime = !isNaN(d.getTime()) && d.getMonth() === selectedMonth && d.getFullYear() === selectedYear;
         }
         else if (dueViewMode === 'year') {
-            const d = new Date(inv.invoice_date);
-            matchesTime = d.getFullYear() === selectedYear;
+            const d = new Date(invDate);
+            matchesTime = !isNaN(d.getTime()) && d.getFullYear() === selectedYear;
         }
         
         const matchesSearch = (inv.patient_name || '').toLowerCase().includes(dueSearch.toLowerCase()) || 
                              (inv.invoice_id || '').toLowerCase().includes(dueSearch.toLowerCase());
         
         return matchesTime && matchesSearch;
-    }).sort((a,b) => new Date(b.invoice_date).getTime() - new Date(a.invoice_date).getTime());
+    }).sort((a,b) => {
+        const timeA = a.invoice_date ? new Date(a.invoice_date).getTime() : 0;
+        const timeB = b.invoice_date ? new Date(b.invoice_date).getTime() : 0;
+        return timeB - timeA;
+    });
 
     return (
         <div className="min-h-screen bg-slate-950 flex flex-col font-sans">
