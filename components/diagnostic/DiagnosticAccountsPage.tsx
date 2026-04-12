@@ -7,6 +7,7 @@ const expenseCategories = [
     'House rent', 'Electricity bill', 'Stuff salary', 'Reagent buy', 'Marketing', 'Motorcycle', 'Doctor donation & Vehicle service',
     'Instruments buy/ repair', 'Diagnostic development', 'Maintenance', 'License cost', 
     'X-ray Film buy', 'Mobile buy/ Flexiload', 'Press Cost', 'Food/Meal Cost', 'Paper / Dish / Wifi Bill',
+    'Electrical and Electronics',
     'Others',
 ];
 
@@ -16,6 +17,7 @@ const expenseCategoryBanglaMap: Record<string, string> = {
     'Diagnostic development': 'ডায়াগনস্টিক উন্নয়ন', 'Maintenance': 'রক্ষণাবেক্ষণ', 'License cost': 'লাইসেন্স খরচ', 
     'X-ray Film buy': 'এক্স-রে ফিল্ম ক্রয়', 'Mobile buy/ Flexiload': 'মোবাইল ক্রয়/ফ্লেক্সিলোড', 'Press Cost': 'প্রেস খরচ', 
     'Food/Meal Cost': 'খাবার খরচ', 'Paper / Dish / Wifi Bill': 'পেপার/ডিশ/ওয়াইফাই বিল',
+    'Electrical and Electronics': 'ইলেকট্রিক্যাল ও ইলেকট্রনিক্স',
     'Others': 'অন্যান্য',
 };
 
@@ -35,6 +37,7 @@ const subCategoryMap: Record<string, string[]> = {
     'Press Cost': ['Pad Printing', 'Envelope Printing', 'Leaflet','Others'],
     'Food/Meal Cost': ['Staff Lunch','Doctor Lunch', 'Guest Entertainment', 'Tea/Snacks'],
     'Paper / Dish / Wifi Bill': ['Newspaper', 'Dish Bill', 'Wifi Bill'],
+    'Electrical and Electronics': ['Light', 'Wire/Tar', 'Mistry Mojuri', 'Electrical Parts', 'Electronics Items', 'IPS', 'UPS', 'Battery', 'Voltage Stabilizer', 'Fan', 'X-ray View Box', 'Others'],
     'Others': ['Entertainment', 'Donation', 'Emergency']
 };
 
@@ -296,18 +299,21 @@ const DailyExpenseForm: React.FC<any> = ({ selectedDate, onDateChange, allDetail
                                                 {filteredEmployees.map((e:any) => <option key={e.emp_id} value={e.emp_name}>{e.emp_name}</option>)}
                                             </select>
                                         ) : (
-                                            <>
+                                            <div className="relative group">
                                                 <input 
                                                     list={`list-${item.id}`} 
                                                     value={item.subCategory} 
                                                     onChange={e => handleItemChange(item.id, 'subCategory', e.target.value)} 
-                                                    className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white text-sm font-black outline-none focus:border-blue-500" 
+                                                    className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 pr-10 text-white text-sm font-black outline-none focus:border-blue-500" 
                                                     placeholder="Sub-category..." 
                                                 />
+                                                <button className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-sky-400 transition-colors" title="Add custom sub-category">
+                                                    <span className="text-lg font-bold">+</span>
+                                                </button>
                                                 <datalist id={`list-${item.id}`}>
                                                     {subCategoryMap[item.category]?.map((sub, i) => <option key={i} value={sub} />)}
                                                 </datalist>
-                                            </>
+                                            </div>
                                         )}
                                     </td>
                                     <td className="py-3 pr-2">
@@ -828,18 +834,18 @@ const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollection
                         }
                         th, td { 
                             border: 1px solid black; 
-                            padding: 1px; 
+                            padding: 0.2px; 
                             text-align: center; 
-                            font-size: 7.5pt; 
+                            font-size: 6pt; 
                             word-wrap: break-word; 
-                            line-height: 1;
-                            height: 13.8pt;
+                            line-height: 1.1;
+                            height: 11pt;
                         }
                         th { 
                             background: #f3f4f6; 
                             font-weight: bold; 
                             text-transform: uppercase; 
-                            font-size: 6.5pt; 
+                            font-size: 5pt; 
                         }
                         .total-row {
                             background: #f3f4f6;
@@ -848,7 +854,7 @@ const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollection
                         .grand-total {
                             color: #047857;
                             background: #ecfdf5;
-                            font-size: 8.5pt;
+                            font-size: 7pt;
                         }
                         .footer {
                             margin-top: 3mm;
@@ -876,9 +882,9 @@ const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollection
                     <table>
                         <thead>
                             <tr>
-                                <th style="width: 35px">Date</th>
+                                <th style="width: 30px">Date</th>
                                 ${expenseCategories.map(cat => `<th title="${cat}">${expenseCategoryBanglaMap[cat] || cat}</th>`).join('')}
-                                <th style="width: 55px" style="background: #e5e7eb">Total</th>
+                                <th style="width: 45px; background: #e5e7eb">Total</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -886,7 +892,7 @@ const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollection
                                 <tr>
                                     <td style="font-weight: bold">${row.date.split('-')[2]} ${monthName.substring(0,3)}</td>
                                     ${expenseCategories.map(cat => `<td>${row.categories[cat] > 0 ? row.categories[cat].toLocaleString() : '-'}</td>`).join('')}
-                                    <td style="font-weight: 900; background: #f9fafb">৳${row.total > 0 ? row.total.toLocaleString() : '-'}</td>
+                                    <td style="font-weight: 900; background: #f9fafb">${row.total > 0 ? row.total.toLocaleString() : '-'}</td>
                                 </tr>
                             `).join('')}
                         </tbody>
@@ -894,7 +900,7 @@ const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollection
                             <tr>
                                 <td style="text-transform: uppercase">TOTAL:</td>
                                 ${expenseCategories.map(cat => `<td>${columnTotals[cat] > 0 ? columnTotals[cat].toLocaleString() : '-'}</td>`).join('')}
-                                <td class="grand-total">৳${grandTotal.toLocaleString()}</td>
+                                <td class="grand-total">${grandTotal.toLocaleString()}</td>
                             </tr>
                         </tfoot>
                     </table>
