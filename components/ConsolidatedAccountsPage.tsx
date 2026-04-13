@@ -102,6 +102,7 @@ const expenseMapSequence = [
     { key: 'Installment', label: 'কিস্তি' },
     { key: 'Mobile', label: 'মোবাইল খরচ' },
     { key: 'Maintenance', label: 'রক্ষণাবেক্ষণ' },
+    { key: 'Electrical and Electronics', label: 'ইলেকট্রিক্যাল ও ইলেকট্রনিক্স' },
     { key: 'Others', label: 'অন্যান্য খরচ' },
     { key: 'Old Loan Repay', label: 'পূর্বের ঋণ পরিশোধ' }
 ];
@@ -110,6 +111,7 @@ const diagExpenseCategories = [
     'House rent', 'Electricity bill', 'Stuff salary', 'Reagent buy', 'Marketing', 'Motorcycle', 'Doctor donation & Vehicle service',
     'Instruments buy/ repair', 'Diagnostic development', 'Maintenance', 'License cost', 
     'X-ray Film buy', 'Mobile buy/ Flexiload', 'Press Cost', 'Food/Meal Cost', 'Paper / Dish / Wifi Bill',
+    'Electrical and Electronics',
     'Others',
 ];
 
@@ -248,6 +250,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                 if (catName === 'Motorcycle') catName = 'Motorcycle';
                 if (catName === 'Reagent buy') catName = 'Reagent buy';
                 if (catName === 'House rent') catName = 'House rent';
+                if (catName === 'Electrical and Electronics') catName = 'Electrical and Electronics';
 
                 const matched = expenseMapSequence.find(e => e.key === catName);
                 if (matched) categorySums[matched.key] += exp.paidAmount;
@@ -573,6 +576,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                 if (catName === 'Motorcycle') catName = 'Motorcycle';
                 if (catName === 'Reagent buy') catName = 'Reagent buy';
                 if (catName === 'House rent') catName = 'House rent';
+                if (catName === 'Electrical and Electronics') catName = 'Electrical and Electronics';
 
                 const mapping = expenseMapSequence.find(e => e.key === catName);
                 const key = mapping ? mapping.key : 'Others';
@@ -762,14 +766,14 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                     <div id="section-accounts" className="relative animate-fade-in h-full">
                         <button onClick={() => handlePrintSpecific('section-accounts')} className="no-print absolute top-2 right-2 p-2 bg-blue-600 text-white rounded-full shadow-lg"><FileTextIcon className="w-5 h-5" /></button>
                         <main className="p-8 max-w-[210mm] mx-auto w-full bg-white text-black shadow-2xl flex flex-col border border-gray-300 font-['Inter'] min-h-full">
-                            <div className="flex justify-between items-end mb-6 border-b-2 border-black pb-3 shrink-0">
+                            <div className="flex justify-between items-end mb-2 border-b-2 border-black pb-1 shrink-0">
                                 <div>
                                     <h1 className="text-2xl font-black uppercase text-blue-900 leading-none">Niramoy Clinic & Diagnostic</h1>
-                                    <p className="text-sm font-bold mt-2">Enayetpur, Sirajgonj | Mobile: 01730 923007</p>
+                                    <p className="text-xs font-bold mt-1">Enayetpur, Sirajgonj | Mobile: 01730 923007</p>
                                 </div>
-                                <h3 className="text-lg font-bold underline uppercase tracking-widest bg-gray-100 px-4 py-2 border border-black font-['Hind_Siliguri']">অ্যাকাউন্টস শিট : {monthOptions[selectedMonth].name}, {selectedYear}</h3>
+                                <h3 className="text-base font-bold underline uppercase tracking-widest bg-gray-100 px-3 py-1 border border-black font-['Hind_Siliguri']">অ্যাকাউন্টস শিট : {monthOptions[selectedMonth].name}, {selectedYear}</h3>
                             </div>
-                            <div className="grid grid-cols-2 gap-8 flex-1">
+                            <div className="grid grid-cols-2 gap-6 flex-1">
                                 <div className="space-y-4">
                                     <div className="bg-slate-800 text-white border border-black p-1.5 text-center font-bold text-xs font-['Hind_Siliguri'] uppercase shadow-md">কালেকশন এর হিসাব</div>
                                     <div className="space-y-1">
@@ -863,15 +867,15 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                         <main className="p-4 sm:p-5 max-w-[210mm] mx-auto w-full bg-white text-black shadow-2xl flex flex-col border border-gray-300 font-['Inter'] min-h-[292mm]">
                             
                             {/* COMPACT HEADER */}
-                            <div className="flex justify-between items-start mb-3 border-b-2 border-black pb-1 shrink-0">
+                            <div className="flex justify-between items-start mb-1 border-b-2 border-black pb-0.5 shrink-0">
                                 <div className="text-left flex-1">
-                                    <h1 className="text-2xl font-black text-blue-900 uppercase tracking-tighter leading-none mb-1.5">Niramoy Clinic & Diagnostic</h1>
-                                    <h2 className="text-sm font-black underline uppercase tracking-widest font-['Hind_Siliguri']">মাসিক চূড়ান্ত রিপোর্ট (Closing Status) : {monthOptions[selectedMonth].name}, {selectedYear}</h2>
+                                    <h1 className="text-xl font-black text-blue-900 uppercase tracking-tighter leading-none mb-1">Niramoy Clinic & Diagnostic</h1>
+                                    <h2 className="text-xs font-black underline uppercase tracking-widest font-['Hind_Siliguri']">মাসিক চূড়ান্ত রিপোর্ট (Closing Status) : {monthOptions[selectedMonth].name}, {selectedYear}</h2>
                                 </div>
-                                <div className="w-[270px] border border-black text-[8.5pt] font-bold">
-                                    <div className="flex justify-between border-b border-black p-1"><span className="text-blue-900">সর্বমোট জমা (Total Gross Cash) :</span> <span className="border-l border-black pl-3 w-18 text-right">{summary.grandTotalCollection.toLocaleString()}</span></div>
-                                    <div className="flex justify-between border-b border-black p-1"><span className="text-rose-900">সর্বমোট খরচ (Total Operating Cost) :</span> <span className="border-l border-black pl-3 w-18 text-right text-rose-600">{summary.totalExpense.toLocaleString()}</span></div>
-                                    <div className="flex justify-between p-1 bg-gray-50"><span className="text-blue-700 font-black">Nit Balance :</span> <span className="border-l border-black pl-3 w-18 text-right font-black text-blue-700">{(summary.grandTotalCollection - summary.totalExpense).toLocaleString()}</span></div>
+                                <div className="w-[250px] border border-black text-[8pt] font-bold">
+                                    <div className="flex justify-between border-b border-black p-0.5"><span className="text-blue-900">সর্বমোট জমা (Total Gross Cash) :</span> <span className="border-l border-black pl-2 w-16 text-right">{summary.grandTotalCollection.toLocaleString()}</span></div>
+                                    <div className="flex justify-between border-b border-black p-0.5"><span className="text-rose-900">সর্বমোট খরচ (Total Operating Cost) :</span> <span className="border-l border-black pl-2 w-16 text-right text-rose-600">{summary.totalExpense.toLocaleString()}</span></div>
+                                    <div className="flex justify-between p-0.5 bg-gray-50"><span className="text-blue-700 font-black">Nit Balance :</span> <span className="border-l border-black pl-2 w-16 text-right font-black text-blue-700">{(summary.grandTotalCollection - summary.totalExpense).toLocaleString()}</span></div>
                                 </div>
                             </div>
 

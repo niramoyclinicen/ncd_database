@@ -834,18 +834,18 @@ const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollection
                         }
                         th, td { 
                             border: 1px solid black; 
-                            padding: 0.2px; 
+                            padding: 1px; 
                             text-align: center; 
-                            font-size: 6pt; 
+                            font-size: 7.5pt; 
                             word-wrap: break-word; 
-                            line-height: 1.1;
-                            height: 11pt;
+                            line-height: 1.2; 
+                            height: 15.5pt;
                         }
                         th { 
                             background: #f3f4f6; 
                             font-weight: bold; 
                             text-transform: uppercase; 
-                            font-size: 5pt; 
+                            font-size: 6.5pt; 
                         }
                         .total-row {
                             background: #f3f4f6;
@@ -854,7 +854,7 @@ const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollection
                         .grand-total {
                             color: #047857;
                             background: #ecfdf5;
-                            font-size: 7pt;
+                            font-size: 8pt;
                         }
                         .footer {
                             margin-top: 3mm;
@@ -882,9 +882,9 @@ const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollection
                     <table>
                         <thead>
                             <tr>
-                                <th style="width: 30px">Date</th>
+                                <th style="width: 35px">Date</th>
                                 ${expenseCategories.map(cat => `<th title="${cat}">${expenseCategoryBanglaMap[cat] || cat}</th>`).join('')}
-                                <th style="width: 45px; background: #e5e7eb">Total</th>
+                                <th style="width: 50px; background: #e5e7eb">Total</th>
                             </tr>
                         </thead>
                         <tbody>
