@@ -307,6 +307,8 @@ const App: React.FC = () => {
             attendanceLog={attendanceLog} setAttendanceLog={setAttendanceLog}
             leaveLog={leaveLog} setLeaveLog={setLeaveLog}
             monthlyRoster={monthlyRoster} setMonthlyRoster={setMonthlyRoster}
+            patients={patients}
+            doctors={doctors}
           />
         );
 

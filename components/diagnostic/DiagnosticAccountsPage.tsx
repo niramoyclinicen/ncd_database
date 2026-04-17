@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { LabInvoice as Invoice, DueCollection, ExpenseItem, Employee, testCategories } from '../DiagnosticData';
-import { Activity, BackIcon, FileTextIcon, SearchIcon, PrinterIcon } from '../Icons';
+import { Activity, BackIcon, FileTextIcon, SearchIcon, PrinterIcon, XIcon } from '../Icons';
 
 // --- Configuration & Data ---
 const expenseCategories = [
@@ -47,6 +47,214 @@ const monthOptions = [
     { value: 6, name: 'July' }, { value: 7, name: 'August' }, { value: 8, name: 'September' },
     { value: 9, name: 'October' }, { value: 10, name: 'November' }, { value: 11, name: 'December' }
 ];
+
+const InvoiceViewModal: React.FC<{ inv: any, patients: any[], doctors: any[], onClose: () => void }> = ({ inv, patients, doctors, onClose }) => {
+    const patient = patients.find(p => p.pt_id === inv.patient_id);
+    const doctor = doctors.find(d => d.doctor_id === inv.doctor_id);
+
+    const handlePrint = () => {
+        const itemsHtml = inv.items.map((item: any, idx: number) => `
+            <tr>
+                <td style="border: 1px solid #000; padding: 4px; text-align: left;">${idx + 1}. ${item.test_name}</td>
+                <td style="border: 1px solid #000; padding: 4px; text-align: right;">${item.price.toFixed(2)}</td>
+                <td style="border: 1px solid #000; padding: 4px; text-align: center;">${item.quantity}</td>
+                <td style="border: 1px solid #000; padding: 4px; text-align: right; font-weight: bold;">${(item.price * item.quantity).toFixed(2)}</td>
+            </tr>
+        `).join('');
+
+        const getSlipHtml = (copyType: string, isLast: boolean) => `
+            <div class="slip-column" style="width: 148.5mm; height: 210mm; padding: 12mm 15mm; box-sizing: border-box; display: flex; flex-direction: column; ${!isLast ? 'border-right: 1.5px dashed #666;' : ''} overflow: hidden; position: relative;">
+                <div class="header" style="text-align: center; margin-bottom: 8px;">
+                    <h1 style="margin:0; font-size: 22px; font-weight: 900; color: #000; text-transform: uppercase; line-height: 1.1;">Niramoy Clinic & Diagnostic</h1>
+                    <p style="margin:2px 0; font-size: 11px; font-weight: bold;">Enayetpur, Sirajgonj | Mobile: 01730 923007</p>
+                    <p style="margin:0; font-size: 9px; font-weight: bold; color: #555;">Govt. License: HSM41671</p>
+                    <div class="copy-label" style="display: inline-block; border: 1.5px solid #000; padding: 2px 10px; margin-top: 5px; font-size: 10px; font-weight: 900; text-transform: uppercase;">${copyType}</div>
+                </div>
+
+                <table style="width:100%; border-collapse: collapse; margin-bottom: 5px; margin-top: 8px; font-size: 11px; border: 1px solid #000;">
+                    <tr>
+                        <td style="border: 1px solid #000; padding: 4px; width: 40%;"><b>Invoice ID:</b> ${inv.invoice_id}</td>
+                        <td style="border: 1px solid #000; padding: 4px; width: 35%;"><b>Date:</b> ${inv.invoice_date}</td>
+                        <td rowspan="2" style="border: 1px solid #000; padding: 4px; width: 25%; text-align: center; vertical-align: middle; background: #fff;">
+                            <div style="display: flex; flex-direction: column; align-items: center; justify-content: center;">
+                                <img 
+                                    src="https://bwipjs-api.metafloor.com/?bcid=code128&text=${encodeURIComponent(inv.patient_id)}&scale=1&height=8&incltext=false" 
+                                    alt="BC" 
+                                    style="height: 35px; width: auto; max-width: 100%;"
+                                />
+                                <div style="font-size: 8px; font-family: monospace; margin-top: 2px; font-weight: bold;">${inv.patient_id}</div>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="border: 1px solid #000; padding: 4px;"><b>Patient Name:</b> ${patient?.pt_name || 'N/A'}</td>
+                        <td style="border: 1px solid #000; padding: 4px;"><b>Age/Sex:</b> ${patient?.ageY || 'N/A'}Y / ${patient?.gender || 'N/A'}</td>
+                    </tr>
+                    <tr>
+                        <td colspan="3" style="border: 1px solid #000; padding: 4px;"><b>Consultant:</b> ${doctor?.doctor_name || 'Self/Walk-in'} ${doctor?.degree ? `(${doctor.degree})` : ''}</td>
+                    </tr>
+                    <tr>
+                        <td colspan="3" style="border: 1px solid #000; padding: 4px;"><b>Address:</b> ${patient?.address || 'N/A'} | <b>Mob:</b> ${patient?.mobile || 'N/A'}</td>
+                    </tr>
+                </table>
+
+                <div style="height: 15px;"></div>
+                
+                <div style="text-align: center; font-weight: 900; font-size: 14px; text-decoration: underline; margin-bottom: 5px; font-family: 'Arial', sans-serif;">Test Invoice</div>
+
+                <div class="table-container" style="display: block; overflow: hidden;">
+                    <table style="width:100%; border-collapse: collapse; font-size: 11px;">
+                        <thead>
+                            <tr style="background:#f3f3f3;">
+                                <th style="border: 1px solid #000; padding: 4px; text-align: left;">Test Name</th>
+                                <th style="border: 1px solid #000; padding: 4px; text-align: right;">Price</th>
+                                <th style="border: 1px solid #000; padding: 4px; text-align: center;">Qty</th>
+                                <th style="border: 1px solid #000; padding: 4px; text-align: right;">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>${itemsHtml}</tbody>
+                    </table>
+
+                    <div class="footer-summary" style="display: flex; justify-content: flex-end; margin-top: 10px;">
+                        <div class="totals" style="width: 160px; font-size: 11px;">
+                            <div style="display: flex; justify-content: space-between; line-height: 1.1;"><span>Total:</span> <span>${inv.total_amount.toFixed(2)}</span></div>
+                            <div style="display: flex; justify-content: space-between; line-height: 1.1;"><span>Discount:</span> <span>${inv.discount_amount.toFixed(2)}</span></div>
+                            <div style="display: flex; justify-content: space-between; line-height: 1.2; font-weight: 900; border-top: 1.2px solid #000; padding-top: 2px; margin-top: 2px;"><span>Net Payable:</span> <span>${inv.net_payable.toFixed(2)}</span></div>
+                            <div style="display: flex; justify-content: space-between; line-height: 1.1;"><span>Paid:</span> <span>${inv.paid_amount.toFixed(2)}</span></div>
+                            <div style="display: flex; justify-content: space-between; line-height: 1.1;"><span>Due:</span> <span style="font-weight:900; color: #d00;">${inv.due_amount.toFixed(2)}</span></div>
+                            ${inv.status === 'Returned' ? '<div style="color: #d00; text-align: center; border: 1.5px solid #d00; margin-top: 5px; font-weight: 900; padding: 2px;">RETURNED / REFUNDED</div>' : ''}
+                        </div>
+                    </div>
+
+                    <div style="margin-top: 10px; font-size: 11px; border-top: 1px solid #eee; padding-top: 5px;">
+                        <b>Expected Report Delivery:</b> ${inv.expected_delivery_time || 'As per schedule'}
+                    </div>
+                </div>
+
+                <div style="margin-top: auto; display: flex; justify-content: space-between; align-items: flex-end; padding-bottom: 10px;">
+                    <div class="signature" style="width: 100px; border-top: 1.2px solid #000; text-align: center; font-size: 10px; font-weight: bold; padding-top: 3px;">Authorized Sign</div>
+                    <div style="text-align:center; font-size: 8px; color: #666;">System Printed at ${new Date().toLocaleString()}</div>
+                </div>
+            </div>
+        `;
+
+        const printWin = window.open('', '_blank');
+        if (printWin) {
+            printWin.document.write(`
+                <html>
+                <head>
+                    <style>
+                        @page { size: A4 landscape; margin: 0; }
+                        * { box-sizing: border-box; }
+                        html, body { margin: 0; padding: 0; }
+                        .print-container { display: flex; width: 297mm; height: 210mm; }
+                    </style>
+                </head>
+                <body onload="window.print(); window.close();">
+                    <div class="print-container">
+                        ${getSlipHtml('Office Copy', false)}
+                        ${getSlipHtml('Patient Copy', true)}
+                    </div>
+                </body>
+                </html>
+            `);
+            printWin.document.close();
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-md z-[200] flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl w-full max-w-5xl h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-zoom-in">
+                <div className="bg-slate-900 px-8 py-6 flex justify-between items-center text-white no-print">
+                    <div className="flex items-center gap-4">
+                        <FileTextIcon className="text-blue-400 w-8 h-8" />
+                        <div>
+                            <h2 className="text-xl font-black uppercase tracking-tighter">View Invoice Record</h2>
+                            <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Read Only Mode - Non Editable</p>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                        <button onClick={handlePrint} className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2.5 rounded-2xl font-black uppercase text-xs transition-all shadow-lg flex items-center gap-2">
+                           <PrinterIcon size={16} /> Print Invoice
+                        </button>
+                        <button onClick={onClose} className="p-3 bg-slate-800 hover:bg-red-600 rounded-2xl transition-all text-white">
+                            <XIcon size={24} />
+                        </button>
+                    </div>
+                </div>
+                
+                <div className="flex-1 overflow-y-auto p-12 bg-gray-100 flex justify-center">
+                    <div className="bg-white shadow-2xl p-12 w-[148.5mm] border border-gray-300 transform scale-110 origin-top mb-12">
+                         {/* Header */}
+                         <div className="text-center mb-10 pb-6 border-b-2 border-slate-900 border-double">
+                            <h1 className="text-3xl font-black text-blue-900 uppercase">Niramoy Clinic & Diagnostic</h1>
+                            <p className="text-sm font-bold text-gray-700 italic">Enayetpur, Sirajgonj | Mobile: 01730 923007</p>
+                            <p className="text-xs font-black text-gray-500 mt-1 uppercase tracking-widest">Govt. License: HSM41671</p>
+                        </div>
+
+                        {/* Info Header Table */}
+                        <div className="grid grid-cols-2 gap-px bg-slate-900 border border-slate-900 mb-8 rounded overflow-hidden">
+                            <div className="bg-white p-3"><span className="text-[10px] font-black uppercase text-gray-400 block mb-1">Invoice ID</span><span className="font-mono font-black text-blue-600">{inv.invoice_id}</span></div>
+                            <div className="bg-white p-3"><span className="text-[10px] font-black uppercase text-gray-400 block mb-1">Date</span><span className="font-bold text-gray-800">{inv.invoice_date}</span></div>
+                            <div className="bg-white p-3 col-span-2"><span className="text-[10px] font-black uppercase text-gray-400 block mb-1">Patient Name</span><span className="font-black text-gray-900 text-lg uppercase">{patient?.pt_name || 'N/A'}</span></div>
+                            <div className="bg-white p-3"><span className="text-[10px] font-black uppercase text-gray-400 block mb-1">Age / Gender</span><span className="font-bold text-gray-800">{patient?.ageY || 'N/A'}Y / {patient?.gender || 'N/A'}</span></div>
+                            <div className="bg-white p-3"><span className="text-[10px] font-black uppercase text-gray-400 block mb-1">Mobile</span><span className="font-mono font-bold text-gray-800">{patient?.mobile || 'N/A'}</span></div>
+                            <div className="bg-white p-3 col-span-2"><span className="text-[10px] font-black uppercase text-gray-400 block mb-1">Ref. Doctor</span><span className="font-bold text-blue-800">{doctor?.doctor_name || 'Self/Walk-in'} {doctor?.degree ? `(${doctor.degree})` : ''}</span></div>
+                        </div>
+
+                        {/* Test Items Table */}
+                        <div className="mb-10 min-h-[300px]">
+                            <h3 className="text-center font-black text-xl mb-6 underline decoration-double underline-offset-8">TEST INVOICE</h3>
+                            <table className="w-full border-collapse">
+                                <thead className="bg-slate-100 border-y-2 border-slate-900">
+                                    <tr>
+                                        <th className="py-2 px-3 text-left border-r border-slate-300 tracking-tighter uppercase font-black text-xs">Test Name</th>
+                                        <th className="py-2 px-3 text-right border-r border-slate-300 tracking-tighter uppercase font-black text-xs">Price</th>
+                                        <th className="py-2 px-3 text-center border-r border-slate-300 tracking-tighter uppercase font-black text-xs">Qty</th>
+                                        <th className="py-2 px-3 text-right tracking-tighter uppercase font-black text-xs">Total</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {inv.items.map((it: any, i: number) => (
+                                        <tr key={i} className="border-b border-gray-200">
+                                            <td className="py-3 px-3 text-sm font-bold text-slate-800">{it.test_name}</td>
+                                            <td className="py-3 px-3 text-right text-sm">{it.price.toLocaleString()}</td>
+                                            <td className="py-3 px-3 text-center text-sm">{it.quantity}</td>
+                                            <td className="py-3 px-3 text-right font-bold text-slate-900 leading-none">{it.subtotal.toLocaleString()}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {/* Totals Section */}
+                        <div className="flex justify-between items-start pt-6 border-t-2 border-slate-200">
+                            <div className="text-xs italic text-gray-500 w-1/2">
+                                <p className="mb-2"><b>Delivery:</b> {inv.expected_delivery_time || 'Check Schedule'}</p>
+                                <p>This is an electronically generated document. No signature required for validation.</p>
+                            </div>
+                            <div className="w-48 space-y-2">
+                                <div className="flex justify-between text-sm py-1"><span>Sub Total:</span> <span className="font-bold">৳{inv.total_amount.toLocaleString()}</span></div>
+                                <div className="flex justify-between text-sm py-1 border-b border-gray-100"><span>Discount:</span> <span className="text-rose-600 font-bold">-৳{inv.discount_amount.toLocaleString()}</span></div>
+                                <div className="flex justify-between text-base font-black py-2 border-b-2 border-slate-900"><span>Net Payable:</span> <span className="text-slate-900 uppercase">৳{inv.net_payable.toLocaleString()}</span></div>
+                                <div className="flex justify-between text-sm py-1"><span>Paid:</span> <span className="text-emerald-600 font-bold">৳{inv.paid_amount.toLocaleString()}</span></div>
+                                <div className="flex justify-between text-lg font-black py-2 bg-slate-50 border-double border-b-4 border-slate-900 px-1 mt-2">
+                                    <span className={inv.due_amount > 0 ? "text-rose-600" : "text-emerald-700"}>{inv.due_amount > 0 ? 'Due:' : 'Paid:'}</span>
+                                    <span className={inv.due_amount > 0 ? "text-rose-600" : "text-emerald-700"}>৳{inv.due_amount.toLocaleString()}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="mt-20 flex justify-between">
+                            <div className="w-32 border-t-2 border-slate-900 pt-2 text-center text-[10px] font-black uppercase">Prepared By</div>
+                            <div className="w-32 border-t-2 border-slate-900 pt-2 text-center text-[10px] font-black uppercase">Authorized</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
 
 const SummaryBox = ({ title, items, totalLabel, totalValue, colorClass }: any) => (
     <div className={`bg-slate-800 border border-slate-700 rounded-2xl p-6 shadow-lg flex flex-col h-full`}>
@@ -472,7 +680,10 @@ const DailyExpenseForm: React.FC<any> = ({ selectedDate, onDateChange, allDetail
     );
 };
 
-const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollections, employees, detailedExpenses, setDetailedExpenses, monthlyRoster }) => {
+const DiagnosticAccountsPage: React.FC<any> = ({ 
+    onBack, invoices, dueCollections, employees, detailedExpenses, setDetailedExpenses, monthlyRoster,
+    patients, doctors 
+}) => {
     const todayStr = new Date().toISOString().split('T')[0];
     const [selectedDate, setSelectedDate] = useState(todayStr);
     const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
@@ -493,6 +704,8 @@ const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollection
     const [detailViewMode, setDetailViewMode] = useState<'today' | 'month' | 'year' | 'date'>('today');
     const [detailSearch, setDetailSearch] = useState('');
     const [detailFilterCategory, setDetailFilterCategory] = useState('All');
+    const [viewingInvoice, setViewingInvoice] = useState<any>(null);
+    const [showInvoiceModal, setShowInvoiceModal] = useState(false);
     
     const [dueSearch, setDueSearch] = useState('');
     const [dueViewMode, setDueViewMode] = useState<'all' | 'date' | 'month' | 'year'>('all');
@@ -613,7 +826,8 @@ const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollection
         }).filter((inv: any) => {
             const matchesSearch = (inv.patient_name || '').toLowerCase().includes(detailSearch.toLowerCase()) || 
                                  (inv.invoice_id || '').toLowerCase().includes(detailSearch.toLowerCase()) ||
-                                 (inv.referrar_name || '').toLowerCase().includes(detailSearch.toLowerCase());
+                                 (inv.referrar_name || '').toLowerCase().includes(detailSearch.toLowerCase()) ||
+                                 (inv.items || []).some((it: any) => (it.test_name || '').toLowerCase().includes(detailSearch.toLowerCase()));
             
             if (detailFilterCategory === 'All') return matchesSearch;
             if (detailFilterCategory === 'Due Recovery') return matchesSearch && inv.due_amount > 0;
@@ -684,7 +898,8 @@ const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollection
         }).filter((inv: any) => {
             return (inv.patient_name || '').toLowerCase().includes(detailSearch.toLowerCase()) || 
                    (inv.invoice_id || '').toLowerCase().includes(detailSearch.toLowerCase()) ||
-                   (inv.referrar_name || '').toLowerCase().includes(detailSearch.toLowerCase());
+                   (inv.referrar_name || '').toLowerCase().includes(detailSearch.toLowerCase()) ||
+                   (inv.items || []).some((it: any) => (it.test_name || '').toLowerCase().includes(detailSearch.toLowerCase()));
         });
 
         const counts: Record<string, number> = { All: baseFiltered.length };
@@ -797,7 +1012,7 @@ const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollection
                     <style>
                         @page { 
                             size: A4 landscape; 
-                            margin: 3mm; 
+                            margin: 2mm; 
                         }
                         body { 
                             font-family: 'Arial Narrow', sans-serif; 
@@ -812,18 +1027,18 @@ const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollection
                             justify-content: space-between;
                             align-items: flex-end;
                             border-bottom: 1px solid black;
-                            margin-bottom: 2px;
-                            padding-bottom: 1px;
+                            margin-bottom: 0px;
+                            padding-bottom: 0px;
                         }
                         .header h1 {
                             margin: 0;
-                            font-size: 12pt;
+                            font-size: 10pt;
                             color: #1e3a8a;
                             text-transform: uppercase;
                         }
                         .header p {
                             margin: 0;
-                            font-size: 7.5pt;
+                            font-size: 7pt;
                             font-weight: bold;
                             text-transform: uppercase;
                         }
@@ -838,8 +1053,8 @@ const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollection
                             text-align: center; 
                             font-size: 7.5pt; 
                             word-wrap: break-word; 
-                            line-height: 1.2; 
-                            height: 15.5pt;
+                            line-height: 1.0; 
+                            height: 14.7pt;
                         }
                         th { 
                             background: #f3f4f6; 
@@ -857,7 +1072,7 @@ const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollection
                             font-size: 8pt;
                         }
                         .footer {
-                            margin-top: 3mm;
+                            margin-top: 0.5mm;
                             display: flex;
                             justify-content: space-between;
                             padding: 0 60px;
@@ -870,7 +1085,7 @@ const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollection
                             width: 150px;
                             border-top: 1px solid black;
                             text-align: center;
-                            padding-top: 2px;
+                            padding-top: 1px;
                         }
                     </style>
                 </head>
@@ -1199,7 +1414,7 @@ const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollection
                                 </div>
                                 <div className="relative w-80">
                                     <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
-                                    <input type="text" placeholder="Search Patient or Referrer..." value={detailSearch} onChange={e => setDetailSearch(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-full pl-12 pr-6 py-3 text-sm text-white outline-none focus:ring-2 focus:ring-blue-500" />
+                                    <input type="text" placeholder="Search Patient, Referrer or Test Name..." value={detailSearch} onChange={e => setDetailSearch(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-full pl-12 pr-6 py-3 text-sm text-white outline-none focus:ring-2 focus:ring-blue-500" />
                                 </div>
                             </div>
                             
@@ -1238,7 +1453,13 @@ const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollection
                                     </thead>
                                     <tbody className="divide-y divide-slate-800">
                                         {detailTableData.map((inv, idx) => (
-                                            <tr key={inv.invoice_id} className={`hover:bg-slate-700/30 transition-colors ${inv.status==='Returned'?'opacity-50 grayscale bg-red-900/10':''}`}>
+                                            <tr 
+                                                key={inv.invoice_id} 
+                                                onDoubleClick={() => { setViewingInvoice(inv); setShowInvoiceModal(true); }}
+                                                onContextMenu={(e) => { e.preventDefault(); setViewingInvoice(inv); setShowInvoiceModal(true); }}
+                                                className={`hover:bg-slate-700/30 transition-colors cursor-help ${inv.status==='Returned'?'opacity-50 grayscale bg-red-900/10':''}`}
+                                                title="Double Click or Right Click to view invoice"
+                                            >
                                                 <td className="p-4 text-slate-500 font-bold">{idx+1}</td>
                                                 <td className="p-4 font-mono text-cyan-400 font-bold">{inv.invoice_id}</td>
                                                 <td className="p-4 font-black uppercase text-slate-200">{inv.patient_name}</td>
@@ -1349,6 +1570,15 @@ const DiagnosticAccountsPage: React.FC<any> = ({ onBack, invoices, dueCollection
                     </div>
                 )}
             </main>
+
+            {showInvoiceModal && viewingInvoice && (
+                <InvoiceViewModal 
+                    inv={viewingInvoice} 
+                    patients={patients} 
+                    doctors={doctors}
+                    onClose={() => { setShowInvoiceModal(false); setViewingInvoice(null); }} 
+                />
+            )}
         </div>
     );
 };

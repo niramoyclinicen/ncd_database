@@ -9,7 +9,7 @@ import {
   MapPinIcon,
   PhoneIcon
 } from './Icons';
-import { LabInvoice, DueCollection, ExpenseItem, Employee, PurchaseInvoice, SalesInvoice, Medicine, Reagent, IndoorInvoice } from './DiagnosticData';
+import { LabInvoice, DueCollection, ExpenseItem, Employee, PurchaseInvoice, SalesInvoice, Medicine, Reagent, IndoorInvoice, Patient, Doctor } from './DiagnosticData';
 import DiagnosticAccountsPage from './diagnostic/DiagnosticAccountsPage';
 import EmployeeInfoPage from './EmployeeInfoPage';
 import MedicineAccountsPage from './medicine/MedicineAccountsPage';
@@ -35,6 +35,8 @@ interface AccountingPageProps {
   setLeaveLog: React.Dispatch<React.SetStateAction<Record<string, any>>>;
   monthlyRoster: Record<string, string[]>;
   setMonthlyRoster: React.Dispatch<React.SetStateAction<Record<string, string[]>>>;
+  patients: Patient[];
+  doctors: Doctor[];
 }
 
 interface AccountingButtonProps {
@@ -114,7 +116,7 @@ const AccountingPage: React.FC<AccountingPageProps> = ({
   onBack, invoices, dueCollections, detailedExpenses, setDetailedExpenses, employees, setEmployees,
   purchaseInvoices, salesInvoices, indoorInvoices, medicines, setReagents,
   attendanceLog, setAttendanceLog, leaveLog, setLeaveLog,
-  monthlyRoster, setMonthlyRoster
+  monthlyRoster, setMonthlyRoster, patients, doctors
 }) => {
   const [activeView, setActiveView] = useState<'main' | 'diagnostic' | 'clinic_accounts' | 'employee_info' | 'medicine_accounts' | 'consolidated'>('main');
 
@@ -129,6 +131,8 @@ const AccountingPage: React.FC<AccountingPageProps> = ({
             setDetailedExpenses={setDetailedExpenses}
             setReagents={setReagents} 
             monthlyRoster={monthlyRoster}
+            patients={patients}
+            doctors={doctors}
         />
     );
   }

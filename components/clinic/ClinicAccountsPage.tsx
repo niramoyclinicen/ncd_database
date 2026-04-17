@@ -8,7 +8,7 @@ import { ClinicIcon, Activity, BackIcon, FileTextIcon, PrinterIcon, SearchIcon }
 const clinicExpenseCategories = [
     'Stuff salary', 'Generator', 'Motorcycle', 'Marketing', 'Clinic development', 
     'House rent', 'Stationery', 'Food/Refreshment', 
-    'Doctor donation', 'Repair/Instruments', 'Press', 'License/Official', 
+    'Doctor donation', 'Instruments/Repair', 'Electric bill', 'Electrical & Electronics', 'Press', 'License/Official', 
     'Bank/NGO Installment', 'Mobile', 'Interest/Loan', 'Others', 'Old Loan Repay'
 ];
 
@@ -17,7 +17,7 @@ const expenseCategoryBanglaMap: Record<string, string> = {
     'Marketing': 'মার্কেটিং', 'Clinic development': 'ক্লিনিক উন্নয়ন',
     'House rent': 'বাড়ী ভাড়া',
     'Stationery': 'স্টেশনারী', 'Food/Refreshment': 'আপ্যায়ন/খাবার', 'Doctor donation': 'ডাক্তার ডোনেশন',
-    'Repair/Instruments': 'যন্ত্রপাতি মেরামত', 'Press': 'প্রেস/ছাপা খরচ', 'License/Official': 'লাইসেন্স/অফিসিয়াল',
+    'Instruments/Repair': 'ইন্সট্রুমেন্ট বাই / রিপায়ার', 'Electric bill': 'বিদ্যুৎ বিল', 'Electrical & Electronics': 'ইলেকট্রিক্যাল এন্ড ইলেকট্রনিক্স', 'Press': 'প্রেস/ছাপা খরচ', 'License/Official': 'লাইসেন্স/অফিসিয়াল',
     'Bank/NGO Installment': 'ব্যাংক/এনজিও কিস্তি', 'Mobile': 'মোবাইল খরচ', 'Interest/Loan': 'কিস্তি/সুদ',
     'Others': 'অন্যান্য', 'Old Loan Repay': 'পূর্বের ঋণ পরিশোধ'
 };
@@ -32,7 +32,9 @@ const expenseSubCategoryMap: Record<string, string[]> = {
     'Stationery': ['Office', 'Medical', 'Printing'],
     'Food/Refreshment': ['Staff Food', 'Guest Refreshment', 'Patient Food'],
     'Doctor donation': ['Regular', 'Special Event'],
-    'Repair/Instruments': ['Medical Equipment', 'Electrical', 'Plumbing'],
+    'Instruments/Repair': ['Medical Equipment', 'Electrical', 'Plumbing'],
+    'Electric bill': ['Current Month Bill', 'Arrears'],
+    'Electrical & Electronics': ['Bulb', 'Fan', 'Switch', 'AC', 'Wiring'],
     'Press': ['Leaflet', 'Poster', 'Banner'],
     'License/Official': ['Trade License', 'Health License', 'Tax'],
     'Bank/NGO Installment': ['Bank Loan', 'NGO Loan'],
@@ -84,6 +86,14 @@ const HistoryModal: React.FC<{ item: ExpenseItem, onClose: () => void }> = ({ it
 const DailyExpenseForm: React.FC<any> = ({ selectedDate, onDateChange, items: initialItems, onSave, onPrint, employees }) => {
     const [items, setItems] = useState<ExpenseItem[]>([]);
     const [historyItem, setHistoryItem] = useState<ExpenseItem | null>(null);
+    const [customSubCategories, setCustomSubCategories] = useState<Record<string, string[]>>(() => {
+        const saved = localStorage.getItem('clinic_custom_subcategories');
+        return saved ? JSON.parse(saved) : {};
+    });
+
+    useEffect(() => {
+        localStorage.setItem('clinic_custom_subcategories', JSON.stringify(customSubCategories));
+    }, [customSubCategories]);
 
     const [prevInitialItems, setPrevInitialItems] = useState(initialItems);
 
@@ -138,9 +148,37 @@ const DailyExpenseForm: React.FC<any> = ({ selectedDate, onDateChange, items: in
 
     const subCategories = useMemo(() => {
         const map = { ...expenseSubCategoryMap };
+        Object.keys(customSubCategories).forEach(cat => {
+            if (map[cat]) {
+                map[cat] = [...new Set([...map[cat], ...customSubCategories[cat]])];
+            } else {
+                map[cat] = customSubCategories[cat];
+            }
+        });
         map['Stuff salary'] = (Array.isArray(employees) ? employees : []).map((e: any) => e?.name || e?.emp_name || 'Unknown');
         return map;
-    }, [employees]);
+    }, [employees, customSubCategories]);
+
+    const addSubCategory = (category: string) => {
+        const newSub = prompt(`নতুন সাব-ক্যাটাগরি লিখুন (${expenseCategoryBanglaMap[category] || category}):`);
+        if (newSub && newSub.trim()) {
+            setCustomSubCategories(prev => ({
+                ...prev,
+                [category]: [...(prev[category] || []), newSub.trim()]
+            }));
+        }
+    };
+
+    const deleteSubCategory = (category: string, sub: string) => {
+        if (!window.confirm(`আপনি কি "${sub}" সাব-ক্যাটাগরি মুছে ফেলতে চান?`)) return;
+        setCustomSubCategories(prev => {
+            const updated = { ...prev };
+            if (updated[category]) {
+                updated[category] = updated[category].filter(s => s !== sub);
+            }
+            return updated;
+        });
+    };
 
     return (
         <div className="bg-emerald-950/40 rounded-xl p-6 border border-emerald-800/50 shadow-xl no-print">
@@ -152,7 +190,45 @@ const DailyExpenseForm: React.FC<any> = ({ selectedDate, onDateChange, items: in
                 </div>
                 <input type="date" value={selectedDate} onChange={e => onDateChange(e.target.value)} className="bg-slate-800 border border-slate-700 rounded p-2 text-white" />
             </div>
-            <div className="overflow-x-auto"><table className="w-full text-left"><thead><tr className="text-xs text-emerald-400 uppercase tracking-widest"><th className="pb-3">Category</th><th className="pb-3">Sub-Category</th><th className="pb-3">Details</th><th className="pb-3 text-right">Bill</th><th className="pb-3 text-right">Paid</th><th className="pb-3 text-center">History</th><th className="pb-3 text-center">X</th></tr></thead><tbody>{items.filter(i => !i.isDeleted).map(item => (<tr key={item.id} className="border-t border-emerald-900/30"><td className="py-2 pr-2"><select value={item.category} onChange={e => { handleItemChange(item.id, 'category', e.target.value); handleItemChange(item.id, 'subCategory', ''); }} className={inputClass}>{clinicExpenseCategories.map(c => <option key={c} value={c}>{c}</option>)}</select></td><td className="py-2 pr-2">{subCategories[item.category] && subCategories[item.category].length > 0 ? (<select value={item.subCategory} onChange={e => handleItemChange(item.id, 'subCategory', e.target.value)} className={inputClass}><option value="">Select...</option>{subCategories[item.category].map(sc => <option key={sc} value={sc}>{sc}</option>)}</select>) : (<input value={item.subCategory} onChange={e => handleItemChange(item.id, 'subCategory', e.target.value)} className={inputClass} placeholder="Sub-category..."/>)}</td><td className="py-2 pr-2"><input value={item.description} onChange={e => handleItemChange(item.id, 'description', e.target.value)} className={inputClass} placeholder="Details..."/></td><td className="py-2 pr-2"><input type="number" value={item.billAmount} onChange={e => handleItemChange(item.id, 'billAmount', parseFloat(e.target.value) || 0)} className={`${inputClass} text-right`} /></td><td className="py-2 pr-2"><input type="number" value={item.paidAmount} onChange={e => handleItemChange(item.id, 'paidAmount', parseFloat(e.target.value) || 0)} className={`${inputClass} text-right`} /></td><td className="py-2 text-center"><button onClick={() => setHistoryItem(item)} className={`text-[10px] font-black uppercase px-2 py-1 rounded ${item.isEdited ? 'bg-amber-600 text-white' : 'bg-slate-700 text-slate-400'}`}>History</button></td><td className="py-2 text-center"><button onClick={() => handleDeleteItem(item.id)} className="text-red-400 font-bold">×</button></td></tr>))}</tbody></table></div>
+            <div className="overflow-x-auto"><table className="w-full text-left"><thead><tr className="text-xs text-emerald-400 uppercase tracking-widest"><th className="pb-3">Category</th><th className="pb-3">Sub-Category</th><th className="pb-3">Details</th><th className="pb-3 text-right">Bill</th><th className="pb-3 text-right">Paid</th><th className="pb-3 text-center">History</th><th className="pb-3 text-center">X</th></tr></thead><tbody>{items.filter(i => !i.isDeleted).map(item => (<tr key={item.id} className="border-t border-emerald-900/30"><td className="py-2 pr-2"><select value={item.category} onChange={e => { handleItemChange(item.id, 'category', e.target.value); handleItemChange(item.id, 'subCategory', ''); }} className={inputClass}>{clinicExpenseCategories.map(c => <option key={c} value={c}>{c}</option>)}</select></td><td className="py-2 pr-2">
+    <div className="flex items-center gap-1 group">
+        {(subCategories[item.category] && subCategories[item.category].length > 0) ? (
+            <div className="relative flex-1">
+                <select 
+                    value={item.subCategory} 
+                    onChange={e => handleItemChange(item.id, 'subCategory', e.target.value)} 
+                    className={inputClass}
+                >
+                    <option value="">Select...</option>
+                    {subCategories[item.category].map(sc => (
+                        <option key={sc} value={sc}>{sc}</option>
+                    ))}
+                </select>
+                {item.subCategory && customSubCategories[item.category]?.includes(item.subCategory) && (
+                    <button 
+                        type="button"
+                        onClick={() => deleteSubCategory(item.category, item.subCategory)}
+                        className="absolute -right-1 -top-1 bg-red-600 border border-white text-white rounded-full w-4 h-4 text-[10px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10 shadow-lg"
+                        title="Delete this sub-category"
+                    >
+                        ×
+                    </button>
+                )}
+            </div>
+        ) : (
+            <input value={item.subCategory} onChange={e => handleItemChange(item.id, 'subCategory', e.target.value)} className={inputClass} placeholder="Sub-category..."/>
+        )}
+        <button 
+            type="button"
+            onClick={() => addSubCategory(item.category)} 
+            className="p-1 px-2.5 bg-emerald-700/50 hover:bg-emerald-600 rounded text-emerald-100 text-sm font-bold transition-colors shadow-lg border border-emerald-600/50"
+            title="Add New Sub-category"
+        >
+            +
+        </button>
+    </div>
+</td>
+<td className="py-2 pr-2"><input value={item.description} onChange={e => handleItemChange(item.id, 'description', e.target.value)} className={inputClass} placeholder="Details..."/></td><td className="py-2 pr-2"><input type="number" value={item.billAmount} onChange={e => handleItemChange(item.id, 'billAmount', parseFloat(e.target.value) || 0)} className={`${inputClass} text-right`} /></td><td className="py-2 pr-2"><input type="number" value={item.paidAmount} onChange={e => handleItemChange(item.id, 'paidAmount', parseFloat(e.target.value) || 0)} className={`${inputClass} text-right`} /></td><td className="py-2 text-center"><button onClick={() => setHistoryItem(item)} className={`text-[10px] font-black uppercase px-2 py-1 rounded ${item.isEdited ? 'bg-amber-600 text-white' : 'bg-slate-700 text-slate-400'}`}>History</button></td><td className="py-2 text-center"><button onClick={() => handleDeleteItem(item.id)} className="text-red-400 font-bold">×</button></td></tr>))}</tbody></table></div>
             <div className="flex justify-between items-center mt-6">
                 <button onClick={() => setItems([...items, { id: Date.now(), category: clinicExpenseCategories[0], subCategory: '', description: '', billAmount: 0, paidAmount: 0, dept: 'Clinic' }])} className="bg-blue-600 text-white px-4 py-2 rounded font-bold hover:bg-blue-500">+ Add</button>
                 <div className="flex gap-6 items-center"><div className="text-slate-400">Total Paid: <span className="text-emerald-400 font-bold text-lg">{totals.paid.toLocaleString()}</span></div><button onClick={() => onSave(selectedDate, items)} className="bg-green-600 text-white px-8 py-2 rounded font-black shadow-lg hover:bg-green-500">SAVE DATA</button></div>

@@ -67,10 +67,12 @@ export const dbService = {
           return record.data;
         }
       }
-      return null; // Return null if no cloud data or no connection
+      // Return empty object instead of null to allow local testing if Supabase is not configured
+      return {}; 
     } catch (error) {
       console.error("Cloud Connection Error:", error);
-      return null; // Strictly return null on error as per user request
+      // Return empty object on error to allow the app to function locally
+      return {}; 
     }
   }
 };

@@ -37,7 +37,8 @@ import {
   Trash2,
   Database,
   RefreshCw,
-  Loader2
+  Loader2,
+  X
 } from 'lucide-react';
 
 export const DiagnosticIcon = (props: any) => <Activity {...props} />;
@@ -80,4 +81,5 @@ export const TrashIcon = (props: any) => <Trash2 {...props} />;
 export const Trash2Icon = (props: any) => <Trash2 {...props} />;
 export const DatabaseIcon = (props: any) => <Database {...props} />;
 export const RefreshIcon = (props: any) => <RefreshCw {...props} />;
+export const XIcon = (props: any) => <X {...props} />;
 export { Pill, Search };

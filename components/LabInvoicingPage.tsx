@@ -86,6 +86,7 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
   const [tableFilterYear, setTableFilterYear] = useState('');
   const [tableFilterDoctorId, setTableFilterDoctorId] = useState('');
   const [tableFilterPatientName, setTableFilterPatientName] = useState('');
+  const [tableFilterDueOnly, setTableFilterDueOnly] = useState(false);
 
   // Local state for the "Paid Amount (BDT)" input to allow free typing
   const [displayPaidAmount, setDisplayPaidAmount] = useState<string>('');
@@ -193,10 +194,11 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
       
       const matchesDoctor = !tableFilterDoctorId || invoice.doctor_id === tableFilterDoctorId;
       const matchesPatient = !tableFilterPatientName || (invoice.patient_name || '').toLowerCase().includes(tableFilterPatientName.toLowerCase());
+      const matchesDue = !tableFilterDueOnly || (invoice.due_amount > 0 && invoice.status !== 'Cancelled' && invoice.status !== 'Returned');
 
-      return matchesSearch && matchesDate && matchesMonth && matchesYear && matchesDoctor && matchesPatient;
+      return matchesSearch && matchesDate && matchesMonth && matchesYear && matchesDoctor && matchesPatient && matchesDue;
     });
-  }, [searchTerm, tableFilterDate, tableFilterMonth, tableFilterYear, tableFilterDoctorId, tableFilterPatientName, invoices]);
+  }, [searchTerm, tableFilterDate, tableFilterMonth, tableFilterYear, tableFilterDoctorId, tableFilterPatientName, tableFilterDueOnly, invoices]);
 
 
   const filteredTestsForSelect = useMemo(() => {
@@ -704,6 +706,7 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
     setTableFilterYear('');
     setTableFilterDoctorId('');
     setTableFilterPatientName('');
+    setTableFilterDueOnly(false);
   };
 
   return (
@@ -1096,6 +1099,13 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
                         {[2023, 2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
                     </select>
                 </div>
+                <button 
+                  onClick={() => setTableFilterDueOnly(!tableFilterDueOnly)}
+                  className={`px-4 py-1.5 rounded-lg text-xs font-black uppercase transition-all flex items-center gap-2 border-2 ${tableFilterDueOnly ? 'bg-rose-600 text-white border-rose-400 shadow-[0_0_15px_rgba(225,29,72,0.4)]' : 'bg-slate-900 text-slate-400 border-slate-700 hover:border-rose-600'}`}
+                >
+                    <div className={`w-2 h-2 rounded-full ${tableFilterDueOnly ? 'bg-white animate-pulse' : 'bg-slate-600'}`}></div>
+                    Dues Invoices
+                </button>
                 <button 
                     onClick={resetTableFilters}
                     className="p-1.5 bg-slate-600 hover:bg-rose-600 text-white rounded-lg transition-colors"
