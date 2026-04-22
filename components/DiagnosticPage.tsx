@@ -49,6 +49,7 @@ interface DiagnosticPageProps {
   setMonthlyRoster: React.Dispatch<React.SetStateAction<Record<string, string[]>>>;
   employeeReferrerMap: Record<string, string[]>;
   setEmployeeReferrerMap: React.Dispatch<React.SetStateAction<Record<string, string[]>>>;
+  performBlockingSync?: (stateOverride?: any) => Promise<boolean>;
 }
 
 const TopBarButton: React.FC<{ label: string; icon?: React.ReactNode; isActive: boolean; onClick: () => void; disabled?: boolean }> = ({ label, icon, isActive, onClick, disabled = false }) => (
@@ -116,7 +117,8 @@ const DiagnosticPage: React.FC<DiagnosticPageProps> = ({
   attendanceLog, setAttendanceLog, leaveLog, setLeaveLog,
   appointments, setAppointments,
   monthlyRoster, setMonthlyRoster,
-  employeeReferrerMap, setEmployeeReferrerMap
+  employeeReferrerMap, setEmployeeReferrerMap,
+  performBlockingSync
 }) => {
   const isLabReporter = userRole === 'LAB_REPORTER';
   const isDiagAdmin = userRole === 'DIAGNOSTIC_ADMIN';
@@ -177,6 +179,7 @@ const DiagnosticPage: React.FC<DiagnosticPageProps> = ({
                 monthlyRoster={monthlyRoster}
                 initialInvoiceId={preSelectedInvoiceId}
                 onClearInitialInvoice={() => setPreSelectedInvoiceId(null)}
+                performBlockingSync={performBlockingSync}
             />
           </div>
         );
@@ -225,6 +228,7 @@ const DiagnosticPage: React.FC<DiagnosticPageProps> = ({
                 tests={tests}
                 doctors={doctors}
                 referrars={referrars}
+                performBlockingSync={performBlockingSync}
              />
           </div>
         );

@@ -106,7 +106,7 @@ const isOutOfRange = (valStr: string, rangeStr: string): boolean => {
 
 // --- MAIN COMPONENT ---
 
-const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setReports, patients, employees, tests, doctors }) => {
+const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setReports, patients, employees, tests, doctors, performBlockingSync }) => {
     const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
     const [activeTestName, setActiveTestName] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
@@ -186,34 +186,51 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
         return groups;
     }, [activeTestGroup, tests]);
 
-    const handleSaveReport = (reportData: any, isAutoSave: boolean = false) => {
+    const handleSaveReport = async (reportData: any, isAutoSave: boolean = false) => {
         if (!selectedInvoiceId || !activeTestName) return;
         
         let updatedReports: LabReport[] = [];
-        setReports((prev: LabReport[]) => {
-            let newList = [...prev];
-            const existing = prev.find(r => r.invoice_id === selectedInvoiceId && r.test_name === activeTestName);
-            const newReport: LabReport = {
-                report_id: existing?.report_id || `REP-${selectedInvoiceId}-${activeTestName.replace(/\s+/g, '')}`,
-                invoice_id: selectedInvoiceId, test_name: activeTestName, patient_id: patient?.pt_id || '',
-                report_date: new Date().toISOString().split('T')[0], status: 'Completed', data: reportData,
-                technologistId: selectedTechnologistId, consultantId: selectedConsultantId,
-                isDelivered: existing?.isDelivered || false
-            };
-            newList = newList.filter(r => !(r.invoice_id === selectedInvoiceId && r.test_name === activeTestName));
-            newList.push(newReport);
-            updatedReports = newList;
-            return newList;
-        });
+        let finalUpdatedInvoices: Invoice[] = invoices;
 
+        // 1. Calculate updated reports
+        const existing = reports.find((r: LabReport) => r.invoice_id === selectedInvoiceId && r.test_name === activeTestName);
+        const newReport: LabReport = {
+            report_id: existing?.report_id || `REP-${selectedInvoiceId}-${activeTestName.replace(/\s+/g, '')}`,
+            invoice_id: selectedInvoiceId, test_name: activeTestName, patient_id: patient?.pt_id || '',
+            report_date: new Date().toISOString().split('T')[0], status: 'Completed', data: reportData,
+            technologistId: selectedTechnologistId, consultantId: selectedConsultantId,
+            isDelivered: existing?.isDelivered || false
+        };
+        updatedReports = reports.filter((r: LabReport) => !(r.invoice_id === selectedInvoiceId && r.test_name === activeTestName));
+        updatedReports.push(newReport);
+
+        // 2. Calculate updated invoices
         if (currentInvoice) {
             const completedTestsForInvoice = updatedReports.filter(r => r.invoice_id === selectedInvoiceId).map(r => r.test_name);
             const allTestsDone = currentInvoice.items.every((item: any) => completedTestsForInvoice.includes(item.test_name));
             if (allTestsDone && currentInvoice.status !== 'Cancelled') {
-                setInvoices((prev: Invoice[]) => prev.map(inv => inv.invoice_id === selectedInvoiceId ? { ...inv, status: 'Report Ready' } : inv));
+                finalUpdatedInvoices = invoices.map(inv => inv.invoice_id === selectedInvoiceId ? { ...inv, status: 'Report Ready' } : inv);
             }
         }
-        if (!isAutoSave) setSuccessMessage(`রিপোর্ট সফলভাবে সেভ হয়েছে!`);
+
+        // 3. Update local states
+        setReports(updatedReports);
+        if (finalUpdatedInvoices !== invoices) {
+            setInvoices(finalUpdatedInvoices);
+        }
+
+        // 4. Perform blocking sync if requested manually
+        if (!isAutoSave && performBlockingSync) {
+            const success = await performBlockingSync({ 
+                reports: updatedReports, 
+                labInvoices: finalUpdatedInvoices 
+            });
+            if (success) {
+                setSuccessMessage(`রিপোর্ট সফলভাবে সেভ হয়েছে!`);
+            }
+        } else {
+            if (!isAutoSave) setSuccessMessage(`রিপোর্ট সফলভাবে সেভ হয়েছে!`);
+        }
     };
 
     const handlePrintReport = () => {

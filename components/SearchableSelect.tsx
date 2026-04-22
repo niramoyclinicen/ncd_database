@@ -168,9 +168,13 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
                     handleSelect(option);
                 }}
             >
-                <div className="flex flex-col">
-                <span className="font-medium">{option.name}</span>
-                {option.details && <span className="text-xs opacity-70">{option.details}</span>}
+                <div className="flex flex-col overflow-hidden leading-tight">
+                  <span className="font-bold truncate">{option.name}</span>
+                  {option.details && (
+                    <span className="text-[11px] opacity-70 font-medium truncate italic">
+                      {option.details}
+                    </span>
+                  )}
                 </div>
             </li>
             ))}

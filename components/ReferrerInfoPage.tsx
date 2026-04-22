@@ -28,12 +28,23 @@ const ReferrarInfoPage: React.FC<ReferrarInfoPageProps> = ({ referrars, setRefer
     const [mobileError, setMobileError] = useState('');
     const [successMessage, setSuccessMessage] = useState('');
 
-    // Extract unique areas for the dropdown/datalist
+    // Extract unique areas for the dropdown/datalist - case insensitive uniqueness
     const uniqueAreas = useMemo(() => {
-        const areas = referrars
-            .map(r => r.area)
-            .filter((area): area is string => !!area && area.trim() !== '');
-        return Array.from(new Set(areas)).sort();
+        const normalizedMap = new Map<string, string>();
+        referrars.forEach(r => {
+            const area = r.area?.trim() || '';
+            if (area) {
+                const lower = area.toLowerCase();
+                // Ensure we store the properly capitalized version (Title Case for each word)
+                const capitalized = area.split(' ')
+                    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+                    .join(' ');
+                if (!normalizedMap.has(lower)) {
+                    normalizedMap.set(lower, capitalized);
+                }
+            }
+        });
+        return Array.from(normalizedMap.values()).sort();
     }, [referrars]);
 
     // Calculate data for the Pie Chart
@@ -121,28 +132,38 @@ const ReferrarInfoPage: React.FC<ReferrarInfoPageProps> = ({ referrars, setRefer
             alert('Referrar ID and Name are required.');
             return;
         }
+
+        // Normalize Area: Auto-capitalize first letter of each word and trim
+        let normalizedArea = formData.area?.trim() || '';
+        if (normalizedArea) {
+            normalizedArea = normalizedArea.split(' ')
+                .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+                .join(' ');
+        }
         
-        const rawMobile = formData.ref_mobile.replace(/\D/g, '');
-        if (formData.ref_mobile && (rawMobile.length !== 11 || !rawMobile.startsWith('01'))) {
+        const dataToSave = { ...formData, area: normalizedArea };
+        
+        const rawMobile = dataToSave.ref_mobile.replace(/\D/g, '');
+        if (dataToSave.ref_mobile && (rawMobile.length !== 11 || !rawMobile.startsWith('01'))) {
             setMobileError('Please enter a valid mobile number (e.g., 01712-345515)');
             return;
         }
         setMobileError('');
 
         if (isEditing) {
-            setReferrars(referrars.map(r => r.ref_id === formData.ref_id ? formData : r));
+            setReferrars(referrars.map(r => r.ref_id === dataToSave.ref_id ? dataToSave : r));
             setSuccessMessage('Referrar updated successfully!');
         } else {
-            if (referrars.some(r => r.ref_id === formData.ref_id)) {
+            if (referrars.some(r => r.ref_id === dataToSave.ref_id)) {
                 alert('Referrar ID already exists. Please get a new ID.');
                 return;
             }
-            setReferrars([formData, ...referrars]);
+            setReferrars([dataToSave, ...referrars]);
             setSuccessMessage('New referrar added successfully!');
         }
         
         if (isEmbedded && onSaveAndSelect) {
-            onSaveAndSelect(formData.ref_id, formData.ref_name);
+            onSaveAndSelect(dataToSave.ref_id, dataToSave.ref_name);
         }
         resetForm();
         if (onClose && isEmbedded) {
@@ -298,6 +319,18 @@ const ReferrarInfoPage: React.FC<ReferrarInfoPageProps> = ({ referrars, setRefer
                                     </p>}
                                 </div>
                             </div>
+
+                            {isEmbedded && (
+                                <div className="flex items-center gap-4 pt-4 border-t border-sky-800/50">
+                                    <button type="submit" className="flex-1 flex items-center justify-center gap-2 px-6 py-3 text-sm font-black text-white bg-emerald-600 rounded-xl hover:bg-emerald-700 transition-all shadow-lg active:scale-95 uppercase tracking-widest">
+                                        <PlusCircle className="w-4 h-4" />
+                                        Save New Referrer
+                                    </button>
+                                    <button type="button" onClick={onClose} className="px-6 py-3 text-sm font-black text-sky-200 bg-slate-800 rounded-xl hover:bg-slate-700 transition-all active:scale-95 uppercase tracking-widest">
+                                        Cancel
+                                    </button>
+                                </div>
+                            )}
                         </form>
                     </div>
 

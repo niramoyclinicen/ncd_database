@@ -109,34 +109,66 @@ const App: React.FC = () => {
   }, []);
 
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isManualSyncing, setIsManualSyncing] = useState(false);
+  const [manualSyncError, setManualSyncError] = useState<string | null>(null);
   const [syncError, setSyncError] = useState(false);
 
-  // --- DATA SYNCING ---
-  useEffect(() => {
-    if (!isDataLoaded) return;
-    
-    const currentState = {
+  // Helper to get current state for syncing
+  const getCurrentState = useCallback((overrides: any = {}) => {
+    return {
       patients, doctors, referrars, tests, reagents, labInvoices, 
       dueCollections, reports, employees, medicines, clinicalDrugs,
       purchaseInvoices, salesInvoices, admissions, indoorInvoices,
       detailedExpenses, prescriptions, appointments, attendanceLog, leaveLog, monthlyRoster,
-      last_updated_at: new Date().toISOString()
+      last_updated_at: new Date().toISOString(),
+      ...overrides
     };
+  }, [patients, doctors, referrars, tests, reagents, labInvoices, dueCollections, reports, employees, medicines, clinicalDrugs, purchaseInvoices, salesInvoices, admissions, indoorInvoices, detailedExpenses, prescriptions, appointments, attendanceLog, leaveLog, monthlyRoster]);
+
+  // Blocking Manual Sync Handler
+  const performBlockingSync = useCallback(async (overrides?: any) => {
+    setIsManualSyncing(true);
+    setManualSyncError(null);
+    
+    // Merge overrides with current state if any, otherwise use current state
+    const stateToSync = getCurrentState(overrides);
+    
+    try {
+      const result = await dbService.saveToCloud(stateToSync);
+      if (result.success) {
+        setIsManualSyncing(false);
+        setSyncError(false);
+        return true;
+      } else {
+        setManualSyncError("Internet Connection Failure. Please check your connection and try again.");
+        setIsManualSyncing(false);
+        return false;
+      }
+    } catch (e) {
+      setManualSyncError("Sync failed due to an unexpected error.");
+      setIsManualSyncing(false);
+      return false;
+    }
+  }, [getCurrentState]);
+
+  // --- DATA SYNCING ---
+  useEffect(() => {
+    if (!isDataLoaded || isManualSyncing) return;
     
     const syncData = async () => {
       setIsSyncing(true);
-      const result = await dbService.saveToCloud(currentState);
+      const result = await dbService.saveToCloud(getCurrentState());
       setIsSyncing(false);
       setSyncError(!result.success);
     };
 
-    const syncInterval = setTimeout(syncData, 300);
+    const syncInterval = setTimeout(syncData, 500);
     return () => clearTimeout(syncInterval);
   }, [
     patients, doctors, referrars, tests, reagents, labInvoices, 
     dueCollections, reports, employees, medicines, clinicalDrugs,
     purchaseInvoices, salesInvoices, admissions, indoorInvoices,
-    detailedExpenses, prescriptions, appointments, attendanceLog, leaveLog, monthlyRoster, employeeReferrerMap, isDataLoaded
+    detailedExpenses, prescriptions, appointments, attendanceLog, leaveLog, monthlyRoster, employeeReferrerMap, isDataLoaded, getCurrentState, isManualSyncing
   ]);
 
   // --- HANDLERS ---
@@ -259,6 +291,7 @@ const App: React.FC = () => {
             appointments={appointments} setAppointments={setAppointments}
             monthlyRoster={monthlyRoster} setMonthlyRoster={setMonthlyRoster}
             employeeReferrerMap={employeeReferrerMap} setEmployeeReferrerMap={setEmployeeReferrerMap}
+            performBlockingSync={performBlockingSync}
           />
         );
 
@@ -381,6 +414,37 @@ const App: React.FC = () => {
           labInvoices={labInvoices}
           indoorInvoices={indoorInvoices}
         />
+      )}
+
+      {/* BLOCKING MANUAL SYNC OVERLAY */}
+      {isManualSyncing && (
+        <div className="fixed inset-0 z-[10000] bg-slate-900/80 backdrop-blur-md flex flex-col items-center justify-center text-white">
+           <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+           <h2 className="text-2xl font-black uppercase tracking-[0.2em] animate-pulse">ডাটা সেভ হচ্ছে...</h2>
+           <p className="mt-2 text-slate-400 font-medium">অনুগ্রহ করে অপেক্ষা করুন, সার্ভারে ডাটা পাঠানো হচ্ছে।</p>
+           <p className="mt-1 text-xs text-blue-400 opacity-70 italic">Saving to cloud, please do not close the window...</p>
+        </div>
+      )}
+
+      {/* MANUAL SYNC ERROR MODAL */}
+      {manualSyncError && (
+        <div className="fixed inset-0 z-[10001] bg-black/90 backdrop-blur-lg flex items-center justify-center p-4">
+           <div className="bg-slate-800 border-2 border-red-500 p-8 rounded-2xl shadow-2xl max-w-md w-full flex flex-col items-center text-center">
+             <div className="w-20 h-20 bg-red-500/20 rounded-full flex items-center justify-center text-red-500 text-4xl mb-6">⚠️</div>
+             <h3 className="text-2xl font-black text-white uppercase mb-2">সেভ ব্যর্থ হয়েছে!</h3>
+             <p className="text-slate-300 mb-8 leading-relaxed font-medium">
+               আপনার ইন্টারনেট কানেকশন চেক করুন। সার্ভারে ডাটা পাঠাতে ব্যর্থ হয়েছে। 
+               <br/>
+               <span className="text-red-400 text-sm mt-2 block italic">{manualSyncError}</span>
+             </p>
+             <button 
+               onClick={() => setManualSyncError(null)}
+               className="w-full bg-red-600 hover:bg-red-700 text-white font-black py-4 rounded-xl transition-all shadow-lg active:scale-95"
+             >
+               আবার চেষ্টা করুন (Retry)
+             </button>
+           </div>
+        </div>
       )}
 
       {/* Cloud Sync Indicator */}

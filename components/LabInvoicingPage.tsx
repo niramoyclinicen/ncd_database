@@ -26,6 +26,7 @@ interface LabInvoicingPageProps {
   monthlyRoster: Record<string, string[]>;
   initialInvoiceId?: string | null;
   onClearInitialInvoice?: () => void;
+  performBlockingSync?: (stateOverride?: any) => Promise<boolean>;
 }
 
 const monthOptions = [
@@ -51,7 +52,8 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
   setInvoices,
   monthlyRoster,
   initialInvoiceId,
-  onClearInitialInvoice
+  onClearInitialInvoice,
+  performBlockingSync
 }) => {
   const [formData, setFormData] = useState<LabInvoice>(emptyLabInvoice);
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
@@ -434,7 +436,7 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
     setIsConfirmModalOpen(true);
   };
   
-  const executeSave = () => {
+  const executeSave = async () => {
     const currentDateTime = formatDateTime(new Date());
     const invoiceToSave = { 
       ...formData, 
@@ -445,17 +447,34 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
       status: totals.status
     };
 
-    if (isEditing) {
-      setInvoices(invoices.map(inv => inv.invoice_id === invoiceToSave.invoice_id ? invoiceToSave : inv));
-    } else {
-      if (invoices.some(inv => inv.invoice_id === invoiceToSave.invoice_id)) {
-        alert('Invoice ID already exists. Please get a new ID.');
-        return;
-      }
-      setInvoices([invoiceToSave, ...invoices]);
+    const newInvoices = isEditing 
+      ? invoices.map(inv => inv.invoice_id === invoiceToSave.invoice_id ? invoiceToSave : inv)
+      : [invoiceToSave, ...invoices];
+
+    if (!isEditing && invoices.some(inv => inv.invoice_id === invoiceToSave.invoice_id)) {
+      alert('Invoice ID already exists. Please get a new ID.');
+      return;
     }
-    setSuccessMessage('ইনভয়েস ডাটা সফলভাবে সেভ করা হয়েছে!');
-    resetForm();
+
+    // Update local state first for immediate UI response (though overlay will block)
+    setInvoices(newInvoices);
+
+    // If performBlockingSync is available, use it to ensure cloud save
+    if (performBlockingSync) {
+      // Pass the updated invoices to ensure the sync uses the latest data
+      const success = await performBlockingSync({ labInvoices: newInvoices });
+      if (success) {
+        setSuccessMessage('ইনভয়েস ডাটা সফলভাবে সেভ করা হয়েছে!');
+        resetForm();
+      } else {
+        // If it failed, the App.tsx will show the error modal
+        // We don't reset the form so the user can retry
+      }
+    } else {
+      // Fallback if no blocking sync is provided
+      setSuccessMessage('ইনভয়েস ডাটা সেভ করা হয়েছে!');
+      resetForm();
+    }
   };
 
 
@@ -834,16 +853,16 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
         </div>
       </div>
       <form id="invoice-form" onSubmit={handleSaveInvoice}>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-x-4 gap-y-5">
-          <div>
-            <label htmlFor="invoice_date" className={commonLabelClasses}>Invoice Date</label>
-            <input type="date" id="invoice_date" name="invoice_date" value={formData.invoice_date} onChange={handleInputChange} required className={`${commonInputClasses} h-10 ${errors.invoice_date ? 'border-red-500 ring-2 ring-red-500' : ''}`} />
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-x-4 gap-y-5 items-start">
+          <div className="lg:col-span-1">
+            <label htmlFor="invoice_date" className={commonLabelClasses}>Date</label>
+            <input type="date" id="invoice_date" name="invoice_date" value={formData.invoice_date} onChange={handleInputChange} required className={`${commonInputClasses} h-10 px-1 text-[10px] ${errors.invoice_date ? 'border-red-500 ring-2 ring-red-500' : ''}`} />
           </div>
-          <div className={`rounded-md ${errors.patient_id ? 'ring-2 ring-red-500' : ''}`}>
+          <div className={`lg:col-span-4 rounded-md ${errors.patient_id ? 'ring-2 ring-red-500' : ''}`}>
              <SearchableSelect
                 theme="dark"
                 label="Patient"
-                options={patients.map(p => ({ id: p.pt_id, name: p.pt_name, details: `${p.gender}, ${p.ageY}Y, C/O: ${p.co_pref} ${p.co_name}, Add: ${p.address}, Mob: ${p.mobile}` }))}
+                options={patients.map(p => ({ id: p.pt_id, name: p.pt_name, details: `ID: ${p.pt_id} | ${p.gender}, ${p.ageY}Y | ${p.address} | ${p.mobile}` }))}
                 value={formData.patient_id}
                 onChange={handlePatientSelect}
                 onAddNew={() => setShowNewPatientForm(true)}
@@ -851,12 +870,21 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
                 required
                 inputHeightClass="h-10"
                 />
+              {formData.patient_id && (
+                <p className="mt-1 text-[10px] text-sky-400 font-bold truncate leading-tight">
+                  {patients.find(p => p.pt_id === formData.patient_id)?.pt_name}, 
+                  <span className="ml-1 opacity-70 font-medium">
+                    {patients.find(p => p.pt_id === formData.patient_id)?.gender} ({patients.find(p => p.pt_id === formData.patient_id)?.ageY}Y), 
+                    Loc: {patients.find(p => p.pt_id === formData.patient_id)?.address}
+                  </span>
+                </p>
+              )}
           </div>
-          <div className={`rounded-md ${errors.doctor_id ? 'ring-2 ring-red-500' : ''}`}>
+          <div className={`lg:col-span-3 rounded-md ${errors.doctor_id ? 'ring-2 ring-red-500' : ''}`}>
             <SearchableSelect
               theme="dark"
               label="Consulting Doctor"
-              options={doctors.map(d => ({ id: d.doctor_id, name: d.doctor_name, details: d.degree }))}
+              options={doctors.map(d => ({ id: d.doctor_id, name: d.doctor_name, details: `${d.degree}${d.speciality ? ` - ${d.speciality}` : ''}` }))}
               value={formData.doctor_id || ''}
               onChange={handleDoctorSelect}
               onAddNew={() => setShowNewDoctorForm(true)}
@@ -864,12 +892,18 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
               inputHeightClass="h-10"
               required
             />
+            {formData.doctor_id && (
+              <p className="mt-1 text-[10px] text-sky-500 font-bold truncate leading-tight">
+                {doctors.find(d => d.doctor_id === formData.doctor_id)?.doctor_name}
+                <span className="ml-1 opacity-70 font-medium">({doctors.find(d => d.doctor_id === formData.doctor_id)?.degree})</span>
+              </p>
+            )}
           </div>
-          <div className={`rounded-md ${errors.referrar_id ? 'ring-2 ring-red-500' : ''}`}>
+          <div className={`lg:col-span-3 rounded-md ${errors.referrar_id ? 'ring-2 ring-red-500' : ''}`}>
             <SearchableSelect
               theme="dark"
               label="Referrar"
-              options={referrars.map(r => ({ id: r.ref_id, name: r.ref_name, details: r.ref_degrees }))}
+              options={referrars.map(r => ({ id: r.ref_id, name: r.ref_name, details: `${r.ref_degrees}${r.ref_organization ? ` | ${r.ref_organization}` : ''}${r.ref_address ? ` | ${r.ref_address}` : ''}` }))}
               value={formData.referrar_id || ''}
               onChange={handleReferrarSelect}
               onAddNew={() => setShowNewReferrarForm(true)}
@@ -877,10 +911,16 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
               inputHeightClass="h-10"
               required
             />
+            {formData.referrar_id && (
+              <p className="mt-1 text-[10px] text-sky-500 font-bold truncate leading-tight">
+                {referrars.find(r => r.ref_id === formData.referrar_id)?.ref_name}
+                <span className="ml-1 opacity-70 font-medium">({referrars.find(r => r.ref_id === formData.referrar_id)?.ref_degrees})</span>
+              </p>
+            )}
           </div>
-          <div>
-            <label htmlFor="expected_delivery_time" className={commonLabelClasses}>Expected Delivery</label>
-            <input type="text" id="expected_delivery_time" name="expected_delivery_time" value={formData.expected_delivery_time} onChange={handleInputChange} className={`${commonInputClasses} h-10`} placeholder="e.g. Tomorrow 5 PM" />
+          <div className="lg:col-span-1">
+            <label htmlFor="expected_delivery_time" className={commonLabelClasses}>Deliv.</label>
+            <input type="text" id="expected_delivery_time" name="expected_delivery_time" value={formData.expected_delivery_time} onChange={handleInputChange} className={`${commonInputClasses} h-10 px-1 text-xs`} placeholder="5 PM" />
           </div>
         </div>
 

@@ -602,25 +602,25 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
         const html = `<html><head><title>Print Report</title><script src="https://cdn.tailwindcss.com"></script><style>
             @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700;800&family=Hind+Siliguri:wght@400;500;600;700&display=swap');
             @page { size: A4 ${isLandscape ? 'landscape' : 'portrait'}; margin: 1mm 2mm; } 
-            html, body { background: white; font-family: 'Inter', 'Hind Siliguri', sans-serif; padding: 0; margin: 0; color: black; box-sizing: border-box; -webkit-print-color-adjust: exact; width: 100%; height: auto; overflow: hidden; } 
-            main { width: 100% !important; max-width: none !important; margin: 0 !important; padding: 1mm 0 !important; border: none !important; box-shadow: none !important; }
-            table { width: 100% !important; border-collapse: collapse !important; border: 2px solid #000 !important; table-layout: fixed; margin-bottom: 0 !important; } 
-            th, td { border: 1px solid #000 !important; padding: 1px 2px; text-align: center; overflow: hidden; font-size: ${isLandscape ? '8.1pt' : '10.5pt'}; line-height: 1.02; word-break: break-all; } 
+            html, body { background: white; font-family: 'Inter', 'Hind Siliguri', sans-serif; padding: 0; margin: 0; color: black; box-sizing: border-box; -webkit-print-color-adjust: exact; width: 100%; height: auto !important; min-height: 0 !important; } 
+            main { width: 100% !important; max-width: none !important; margin: 0 !important; padding: 0 !important; border: none !important; box-shadow: none !important; height: auto !important; min-height: 0 !important; display: flex; flex-direction: column; }
+            .print-table { width: 100% !important; border-collapse: collapse !important; border: 2px solid #000 !important; table-layout: fixed; margin-bottom: 0 !important; } 
+            th, td { border: 1px solid #000 !important; padding: 0.5px 1.5px; text-align: center; overflow: hidden; font-size: ${isLandscape ? '8.75pt' : '10.5pt'}; line-height: 1.05; word-break: break-all; } 
             .no-print { display: none !important; } 
             .font-bengali { font-family: 'Hind Siliguri', sans-serif !important; } 
             .font-mono { font-family: 'JetBrains Mono', monospace !important; }
-            h1 { font-size: ${isLandscape ? '14.5pt' : '22pt'} !important; margin: 0 !important; font-weight: 900 !important; line-height: 1; } 
-            p { font-size: ${isLandscape ? '8.5pt' : '11pt'} !important; margin: 0 !important; line-height: 1.1; }
+            h1 { font-size: ${isLandscape ? '17pt' : '22pt'} !important; margin: 0 !important; font-weight: 900 !important; line-height: 1.1; } 
+            p { font-size: ${isLandscape ? '9.5pt' : '11pt'} !important; margin: 0 !important; line-height: 1.2; }
             .print-border-b { border-bottom: 2px solid black !important; }
         </style></head><body>${content.innerHTML}<script>setTimeout(() => { window.print(); window.close(); }, 850);</script></body></html>`;
         win.document.write(html); win.document.close();
     };
 
-    const commonTableCellClass = "p-1.5 border border-black font-bold text-[10.5pt] font-['Hind_Siliguri'] h-8 text-center";
-    const commonAmtCellClass = "p-1.5 border border-black text-right font-black text-[10.5pt] w-[100px] h-8 font-['JetBrains_Mono']";
+    const commonTableCellClass = "p-1.5 border border-black font-bold text-[10.5pt] font-['Hind_Siliguri'] h-10 text-center";
+    const commonAmtCellClass = "p-1.5 border border-black text-right font-black text-[10.5pt] w-[100px] h-10 font-['JetBrains_Mono']";
 
-    const collectionTableCellClass = "p-1.5 border border-black font-bold text-[11pt] font-['Hind_Siliguri'] h-11 text-center";
-    const collectionAmtCellClass = "p-1.5 border border-black text-right font-black text-[11pt] w-[100px] h-11 font-['JetBrains_Mono']";
+    const collectionTableCellClass = "p-1 border border-black font-bold text-[10pt] font-['Hind_Siliguri'] h-13 text-center";
+    const collectionAmtCellClass = "p-1 border border-black text-right font-black text-[10pt] w-[90px] h-13 font-['JetBrains_Mono']";
 
     return (
         <div className="min-h-screen bg-slate-100 flex flex-col font-['Inter']">
@@ -651,51 +651,58 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                 
                 {/* 1. Monthly Expense Sheet */}
                 {activeTab === 'monthly_expense_sheet' && (
-                    <div id="section-monthly-expense" className="relative animate-fade-in">
-                        <button onClick={() => handlePrintSpecific('section-monthly-expense')} className="no-print absolute top-2 right-2 p-2 bg-emerald-600 text-white rounded-full shadow-lg hover:bg-emerald-500 z-50 flex items-center gap-2"><PrinterIcon size={18} /> <span className="text-xs font-bold">Print Landscape</span></button>
-                        <main className="p-2 print:p-1 max-w-[210mm] lg:max-w-[290mm] mx-auto w-full bg-white text-black shadow-2xl flex flex-col border border-gray-300 font-['Inter'] overflow-x-auto min-h-[290mm] lg:min-h-[200mm]">
-                            <div className="flex justify-between items-center mb-1 border-b-2 border-black pb-0.5 shrink-0 px-1 print:mb-1.5 print:pb-0.5">
+                    <div id="section-monthly-expense" className="animate-fade-in w-full">
+                        <main className="relative p-2 print:p-0 w-full max-w-[98%] lg:max-w-[none] mx-auto bg-white text-black shadow-2xl flex flex-col border border-gray-300 font-['Inter'] overflow-x-auto min-h-0">
+                            <button 
+                                onClick={() => handlePrintSpecific('section-monthly-expense')} 
+                                className="no-print absolute top-1.5 right-1.5 px-3 py-1.5 bg-emerald-600 text-white rounded-lg shadow-lg hover:bg-emerald-500 transition-all flex items-center gap-2 active:scale-95 z-[60]"
+                            >
+                                <PrinterIcon size={14} /> 
+                                <span className="text-[9px] font-bold uppercase tracking-wider">Print Landscape</span>
+                            </button>
+                            <div className="flex justify-between items-center mb-1 border-b-2 border-black pb-0.5 shrink-0 px-1 print:mb-0.5 print:pb-0.5">
                                 <div className="flex items-center gap-3">
                                     <h1 className="text-xl font-black uppercase text-blue-900 leading-none m-0 p-0 print:text-lg">Niramoy Clinic & Diagnostic</h1>
                                     <span className="h-4 w-0.5 bg-black"></span>
-                                    <p className="text-[10pt] font-black uppercase tracking-tight text-slate-800 m-0 p-0 font-['Hind_Siliguri'] print:text-[9pt]">মাসিক খরচের হিসাব : {monthOptions[selectedMonth].name} {selectedYear}</p>
+                                    <p className="text-[10pt] font-black uppercase tracking-tight text-slate-800 m-0 p-0 font-['Hind_Siliguri'] print:text-[8pt]">মাসিক খরচের হিসাব : {monthOptions[selectedMonth].name} {selectedYear}</p>
                                 </div>
-                                <div className="no-print flex bg-slate-100 p-0.5 rounded border border-slate-300">
+                                <div className="no-print flex items-center bg-slate-100 p-1 rounded border border-slate-300 mr-32 gap-1">
+                                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-tighter mr-1 ml-0.5">Filter:</span>
                                     <button onClick={() => setDeptFilter('All')} className={`px-2 py-0.5 rounded text-[9px] font-bold transition-all ${deptFilter === 'All' ? 'bg-slate-800 text-white shadow-md' : 'text-slate-500 hover:text-slate-800'}`}>All</button>
                                     <button onClick={() => setDeptFilter('Diagnostic')} className={`px-2 py-0.5 rounded text-[9px] font-bold transition-all ${deptFilter === 'Diagnostic' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-500 hover:text-indigo-600'}`}>Diagnostic</button>
                                     <button onClick={() => setDeptFilter('Clinic')} className={`px-2 py-0.5 rounded text-[9px] font-bold transition-all ${deptFilter === 'Clinic' ? 'bg-emerald-600 text-white shadow-md' : 'text-slate-500 hover:text-emerald-600'}`}>Clinic</button>
                                 </div>
                             </div>
-                            <table className="w-full text-[8.5pt] border-collapse border-2 border-black table-fixed leading-none">
+                            <table className="print-table w-full text-[8.75pt] border-collapse border-2 border-black table-fixed leading-none">
                                 <thead>
-                                    <tr className="bg-gray-100 h-[30px] print:h-[6.3mm]">
-                                        <th className="border-2 border-black p-0 w-[45px] text-[8pt]">Date</th>
-                                        {expenseMapSequence.map(e => <th key={e.key} className="border-2 border-black p-0 font-black text-[7.5pt] uppercase leading-tight break-all font-['Hind_Siliguri']">{e.label}</th>)}
-                                        <th className="border-2 border-black p-0 bg-gray-200 font-black w-[70px] text-[8pt]">Total</th>
+                                    <tr className="bg-gray-100 h-[28px] print:h-[6.8mm]">
+                                        <th className="border-2 border-black p-0 w-[45px] text-[8.5pt]">Date</th>
+                                        {expenseMapSequence.map(e => <th key={e.key} className="border-2 border-black p-0 font-black text-[8pt] uppercase leading-tight break-all font-['Hind_Siliguri']">{e.label}</th>)}
+                                        <th className="border-2 border-black p-0 bg-gray-200 font-black w-[70px] text-[8.5pt]">Total</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {expenseSheetData.rows.map(row => (
-                                        <tr key={row.date} className="hover:bg-blue-50 transition-colors h-[23px] print:h-[5.3mm]">
-                                            <td className="border border-black p-0 text-center font-['JetBrains_Mono'] font-bold text-[8pt] whitespace-nowrap bg-gray-50">{row.date.split('-')[2]} {monthOptions[parseInt(row.date.split('-')[1])-1].name.substring(0,3)}</td>
-                                            {expenseMapSequence.map(e => <td key={e.key} className="border border-black p-0 text-center font-medium text-[8.5pt]">{row.categories[e.key] > 0 ? row.categories[e.key].toLocaleString() : '-'}</td>)}
-                                            <td className="border border-black p-0 text-center font-black bg-gray-50 text-[9pt]">৳{row.total > 0 ? row.total.toLocaleString() : '-'}</td>
+                                        <tr key={row.date} className="hover:bg-blue-50 transition-colors h-[22px] print:h-[5.7mm]">
+                                            <td className="border border-black p-0 text-center font-['JetBrains_Mono'] font-bold text-[8.5pt] whitespace-nowrap bg-gray-50">{row.date.split('-')[2]} {monthOptions[parseInt(row.date.split('-')[1])-1].name.substring(0,3)}</td>
+                                            {expenseMapSequence.map(e => <td key={e.key} className="border border-black p-0 text-center font-medium text-[9pt]">{row.categories[e.key] > 0 ? row.categories[e.key].toLocaleString() : '-'}</td>)}
+                                            <td className="border border-black p-0 px-1 text-left font-black bg-gray-50 text-[9.5pt]">{row.total > 0 ? row.total.toLocaleString() : '-'}</td>
                                         </tr>
                                     ))}
                                     {/* Padding Empty Rows if needed to fill the month */}
                                     {expenseSheetData.rows.length < 31 && Array.from({length: 31 - expenseSheetData.rows.length}).map((_, i) => (
-                                        <tr key={`empty-${i}`} className="h-[23px] print:h-[5.3mm]">
+                                        <tr key={`empty-${i}`} className="h-[22px] print:h-[5.7mm]">
                                             <td className="border border-black bg-gray-50"></td>
                                             {expenseMapSequence.map(e => <td key={e.key} className="border border-black"></td>)}
                                             <td className="border border-black bg-gray-50"></td>
                                         </tr>
                                     ))}
                                 </tbody>
-                                <tfoot className="bg-gray-100 font-black h-[30px] print:h-[6.1mm]">
+                                <tfoot className="bg-gray-100 font-black h-[28px] print:h-[6.8mm]">
                                     <tr>
-                                        <td className="border-2 border-black p-0 text-center text-[8pt] uppercase">TOTAL:</td>
-                                        {expenseMapSequence.map(e => <td key={e.key} className="border-2 border-black p-0 text-center text-blue-900 text-[8.5pt]">{expenseSheetData.columnTotals[e.key] > 0 ? expenseSheetData.columnTotals[e.key].toLocaleString() : '-'}</td>)}
-                                        <td className="border-2 border-black p-0 text-center text-emerald-700 bg-emerald-50 font-black text-[10pt]">৳{expenseSheetData.grandTotal.toLocaleString()}</td>
+                                        <td className="border-2 border-black p-0 text-center text-[7.5pt] uppercase">TOTAL:</td>
+                                        {expenseMapSequence.map(e => <td key={e.key} className="border-2 border-black p-0 text-center text-blue-900 text-[8pt]">{expenseSheetData.columnTotals[e.key] > 0 ? expenseSheetData.columnTotals[e.key].toLocaleString() : '-'}</td>)}
+                                        <td className="border-2 border-black p-0 px-1 text-left text-emerald-700 bg-emerald-50 font-black text-[9pt]">{expenseSheetData.grandTotal.toLocaleString()}</td>
                                     </tr>
                                 </tfoot>
                             </table>
@@ -783,17 +790,17 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                 {activeTab === 'accounts' && (
                     <div id="section-accounts" className="relative animate-fade-in h-full">
                         <button onClick={() => handlePrintSpecific('section-accounts')} className="no-print absolute top-2 right-2 p-2 bg-blue-600 text-white rounded-full shadow-lg"><FileTextIcon className="w-5 h-5" /></button>
-                        <main className="p-8 max-w-[210mm] mx-auto w-full bg-white text-black shadow-2xl flex flex-col border border-gray-300 font-['Inter'] min-h-full">
-                            <div className="flex justify-between items-end mb-5 border-b-2 border-black pb-1 shrink-0">
+                        <main className="p-4 sm:p-6 max-w-[210mm] mx-auto w-full bg-white text-black shadow-2xl flex flex-col border border-gray-300 font-['Inter'] min-h-0 print:border-2 print:border-black print:shadow-none print:m-0">
+                            <div className="flex justify-between items-end mb-10 border-b-2 border-black pb-1 shrink-0">
                                 <div>
-                                    <h1 className="text-2xl font-black uppercase text-blue-900 leading-none">Niramoy Clinic & Diagnostic</h1>
-                                    <p className="text-xs font-bold mt-1">Enayetpur, Sirajgonj | Mobile: 01730 923007</p>
+                                    <h1 className="text-xl font-black uppercase text-blue-900 leading-none">Niramoy Clinic & Diagnostic</h1>
+                                    <p className="text-[10px] font-bold mt-0.5">Enayetpur, Sirajgonj | Mobile: 01730 923007</p>
                                 </div>
-                                <h3 className="text-base font-bold underline uppercase tracking-widest bg-gray-50 px-3 py-1 border border-black font-['Hind_Siliguri']">অ্যাকাউন্টস শিট : {monthOptions[selectedMonth].name}, {selectedYear}</h3>
+                                <h3 className="text-sm font-bold underline uppercase tracking-widest bg-gray-50 px-3 py-1 border border-black font-['Hind_Siliguri']">অ্যাকাউন্টস শিট : {monthOptions[selectedMonth].name}, {selectedYear}</h3>
                             </div>
-                            <div className="grid grid-cols-2 gap-6 flex-1">
-                                <div className="space-y-3">
-                                    <div className="bg-gray-100 text-slate-900 border-2 border-black p-1.5 text-center font-black text-sm font-['Hind_Siliguri'] uppercase shadow-sm relative overflow-hidden">
+                            <div className="grid grid-cols-2 gap-8 flex-1">
+                                <div className="space-y-4">
+                                    <div className="bg-gray-100 text-slate-900 border-2 border-black p-1 text-center font-black text-xs font-['Hind_Siliguri'] uppercase shadow-sm relative overflow-hidden">
                                         <div className="absolute inset-0 opacity-10 pointer-events-none bg-[radial-gradient(#000_1px,transparent_1px)] [background-size:10px_10px]"></div>
                                         কালেকশন এর হিসাব
                                     </div>
@@ -876,8 +883,8 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                         </table>
                                     </div>
                                 </div>
-                                <div className="space-y-3 flex flex-col">
-                                    <div className="bg-gray-100 text-slate-900 border-2 border-black p-1.5 text-center font-black text-sm font-['Hind_Siliguri'] uppercase shadow-sm relative overflow-hidden">
+                                <div className="space-y-4 flex flex-col">
+                                    <div className="bg-gray-100 text-slate-900 border-2 border-black p-1 text-center font-black text-xs font-['Hind_Siliguri'] uppercase shadow-sm relative overflow-hidden">
                                         <div className="absolute inset-0 opacity-10 pointer-events-none bg-[radial-gradient(#000_1px,transparent_1px)] [background-size:10px_10px]"></div>
                                         খরচের হিসাব
                                     </div>
