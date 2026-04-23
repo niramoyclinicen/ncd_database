@@ -903,7 +903,7 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
             <SearchableSelect
               theme="dark"
               label="Referrar"
-              options={referrars.map(r => ({ id: r.ref_id, name: r.ref_name, details: `${r.ref_degrees}${r.ref_organization ? ` | ${r.ref_organization}` : ''}${r.ref_address ? ` | ${r.ref_address}` : ''}` }))}
+              options={referrars.map(r => ({ id: r.ref_id, name: r.ref_name, details: `${r.ref_degrees}${r.area ? ` | ${r.area}` : ''}${r.address ? ` | ${r.address}` : ''}` }))}
               value={formData.referrar_id || ''}
               onChange={handleReferrarSelect}
               onAddNew={() => setShowNewReferrarForm(true)}
