@@ -314,20 +314,30 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
   };
 
   const handleGetNewId = () => {
-    const today = new Date();
-    const year = today.getFullYear();
-    const month = String(today.getMonth() + 1).padStart(2, '0');
-    const day = String(today.getDate()).padStart(2, '0');
-    const invoicesTodayCount = invoices.filter(inv => inv.invoice_id.startsWith(`INV-${year}-${month}-${day}`)).length;
+    // Convert current selected date or today to parts
+    const baseDate = formData.invoice_date ? new Date(formData.invoice_date) : new Date();
+    const year = baseDate.getFullYear();
+    const month = String(baseDate.getMonth() + 1).padStart(2, '0');
+    const day = String(baseDate.getDate()).padStart(2, '0');
+    
+    // Date string for filtering invoices by ID prefix
+    const datePrefix = `INV-${year}-${month}-${day}`;
+    
+    // Find how many invoices already exist for this SPECIFIC selected date
+    const invoicesTodayCount = invoices.filter(inv => inv.invoice_id.startsWith(datePrefix)).length;
     const newSerial = String(invoicesTodayCount + 1).padStart(3, '0');
-    const newId = `INV-${year}-${month}-${day}-${newSerial}`;
+    const newId = `${datePrefix}-${newSerial}`;
+    
+    // Preserve the current date if it was manually selected
+    const preservedDate = formData.invoice_date || `${year}-${month}-${day}`;
+    
     resetForm();
     setFormData(prev => ({
       ...prev,
       invoice_id: newId,
-      invoice_date: `${year}-${month}-${day}`,
-      date_created: formatDateTime(today),
-      last_modified: formatDateTime(today),
+      invoice_date: preservedDate,
+      date_created: formatDateTime(new Date()),
+      last_modified: formatDateTime(new Date()),
     }));
   };
 

@@ -712,6 +712,15 @@ const DiagnosticAccountsPage: React.FC<any> = ({
     const [successMessage, setSuccessMessage] = useState('');
 
     const [editingItem, setEditingItem] = useState<any>(null);
+    const [trackedTests, setTrackedTests] = useState<string[]>(() => {
+        const saved = localStorage.getItem('diagnostic_tracked_tests');
+        return saved ? JSON.parse(saved) : ['CBC', 'Lipid Profile', 'Blood Sugar', 'HBsAg', 'Urine R/E', 'S. Creatinine', 'Widal Test', 'TSH', 'S. Bilirubin', 'VDRL'];
+    });
+    const [isEditingTracked, setIsEditingTracked] = useState(false);
+
+    useEffect(() => {
+        localStorage.setItem('diagnostic_tracked_tests', JSON.stringify(trackedTests));
+    }, [trackedTests]);
 
     useEffect(() => {
         if (successMessage) { const t = setTimeout(() => setSuccessMessage(''), 3000); return () => clearTimeout(t); }
@@ -886,7 +895,7 @@ const DiagnosticAccountsPage: React.FC<any> = ({
         }, { totalBill: 0, totalDiscount: 0, paidAmount: 0, fixedPC: 0, specialPC: 0, totalPC: 0, usgFee: 0, netInstProfit: 0, count: 0 });
     }, [detailTableData]);
 
-    const categoryCounts = useMemo(() => {
+    const diagStats = useMemo(() => {
         const baseFiltered = (invoices || []).filter((inv: any) => {
             if (detailViewMode === 'today') return inv.invoice_date === todayStr;
             if (detailViewMode === 'date') return inv.invoice_date === selectedDate;
@@ -902,22 +911,42 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                    (inv.items || []).some((it: any) => (it.test_name || '').toLowerCase().includes(detailSearch.toLowerCase()));
         });
 
-        const counts: Record<string, number> = { All: baseFiltered.length };
+        const categoryCounts: Record<string, number> = { All: baseFiltered.length };
+        const customTestCounts: Record<string, number> = {};
+        trackedTests.forEach(t => customTestCounts[t] = 0);
+
         ['Pathology', 'USG', 'X-Ray', 'ECG', 'Hormone'].forEach(cat => {
-            counts[cat] = baseFiltered.filter(inv => {
-                return (inv.items || []).some((it: any) => {
+            categoryCounts[cat] = baseFiltered.filter(inv => {
+                let match = false;
+                (inv.items || []).forEach((it: any) => {
                     const name = (it.test_name || '').toLowerCase();
-                    if (cat === 'USG') return name.includes('usg') || name.includes('ultra');
-                    if (cat === 'X-Ray') return name.includes('x-ray') || name.includes('xray');
-                    if (cat === 'ECG') return name.includes('ecg');
-                    if (cat === 'Hormone') return name.includes('hormone');
-                    if (cat === 'Pathology') return !name.includes('usg') && !name.includes('ultra') && !name.includes('x-ray') && !name.includes('xray') && !name.includes('ecg') && !name.includes('hormone');
-                    return false;
+                    if (cat === 'USG' && (name.includes('usg') || name.includes('ultra'))) match = true;
+                    if (cat === 'X-Ray' && (name.includes('x-ray') || name.includes('xray'))) match = true;
+                    if (cat === 'ECG' && name.includes('ecg')) match = true;
+                    if (cat === 'Hormone' && name.includes('hormone')) match = true;
+                    if (cat === 'Pathology' && !name.includes('usg') && !name.includes('ultra') && !name.includes('x-ray') && !name.includes('xray') && !name.includes('ecg') && !name.includes('hormone')) match = true;
                 });
+                return match;
             }).length;
         });
-        return counts;
-    }, [invoices, detailSearch, selectedMonth, selectedYear, detailViewMode, selectedDate, todayStr]);
+
+        // Calculate Custom Tracked Tests from baseFiltered Invoices
+        baseFiltered.forEach(inv => {
+            (inv.items || []).forEach((it: any) => {
+                const name = (it.test_name || '').toLowerCase();
+                trackedTests.forEach(tracked => {
+                    if (tracked && name.includes(tracked.toLowerCase())) {
+                        customTestCounts[tracked] += it.quantity;
+                    }
+                });
+            });
+        });
+
+        return { categoryCounts, customTestCounts };
+    }, [invoices, detailSearch, selectedMonth, selectedYear, detailViewMode, selectedDate, todayStr, trackedTests]);
+
+    const categoryCounts = diagStats.categoryCounts;
+    const customTestCounts = diagStats.customTestCounts;
 
     const stats = useMemo(() => {
         const getRangeStats = (rangeType: 'daily' | 'monthly' | 'yearly') => {
@@ -1394,14 +1423,24 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                             <div className="flex flex-wrap justify-between items-center gap-6 border-b border-slate-700 pb-6 no-print">
                                 <div className="flex items-center gap-6 flex-wrap">
                                     <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Journal Details</h3>
-                                    <div className="flex bg-slate-900 p-1 rounded-2xl border border-slate-700">
-                                        <button onClick={() => setDetailViewMode('today')} className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${detailViewMode === 'today' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500'}`}>Today</button>
-                                        <button onClick={() => setDetailViewMode('month')} className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${detailViewMode === 'month' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500'}`}>Monthly</button>
-                                        <button onClick={() => setDetailViewMode('year')} className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${detailViewMode === 'year' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500'}`}>Yearly</button>
-                                        <button onClick={() => setDetailViewMode('date')} className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${detailViewMode === 'date' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500'}`}>Specific Date</button>
+                                    <div className="flex bg-slate-900 p-1 rounded-2xl border border-slate-700 overflow-hidden">
+                                        <button onClick={() => setDetailViewMode('today')} className={`px-5 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all ${detailViewMode === 'today' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-200'}`}>Today</button>
+                                        <button onClick={() => setDetailViewMode('month')} className={`px-5 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all ${detailViewMode === 'month' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-200'}`}>Monthly</button>
+                                        <button onClick={() => setDetailViewMode('year')} className={`px-5 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all ${detailViewMode === 'year' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-200'}`}>Yearly</button>
                                     </div>
                                     
-                                    {detailViewMode === 'date' && <input type="date" value={selectedDate} onChange={e=>setSelectedDate(e.target.value)} className="bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white text-xs font-bold" />}
+                                    <div className="flex items-center gap-3 bg-slate-900 p-1 rounded-2xl border border-slate-700 shadow-inner">
+                                        <input 
+                                            type="date" 
+                                            value={selectedDate} 
+                                            onChange={(e) => {
+                                                setSelectedDate(e.target.value);
+                                                setDetailViewMode('date');
+                                            }} 
+                                            className="bg-slate-950 border-none rounded-xl px-4 py-2 text-white text-xs font-black outline-none focus:ring-1 focus:ring-blue-500" 
+                                        />
+                                        <span className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase ${detailViewMode === 'date' ? 'bg-indigo-600 text-white' : 'text-slate-500'}`}>Selected</span>
+                                    </div>
                                     {detailViewMode === 'month' && (
                                         <div className="flex gap-2">
                                             <select value={selectedMonth} onChange={e=>setSelectedMonth(parseInt(e.target.value))} className="bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white text-xs font-bold">{monthOptions.map(m=><option key={m.value} value={m.value}>{m.name}</option>)}</select>
@@ -1418,12 +1457,49 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                                 </div>
                             </div>
                             
-                            <div className="flex flex-wrap gap-3 no-print border-b border-slate-700 pb-6">
-                                {['All', 'Pathology', 'USG', 'X-Ray', 'ECG', 'Hormone'].map(cat => (
-                                    <button key={cat} onClick={()=>setDetailFilterCategory(cat)} className={`px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase border transition-all ${detailFilterCategory === cat ? 'bg-indigo-600 text-white border-indigo-400 shadow-lg' : 'bg-slate-900 text-slate-500 border-slate-700 hover:text-slate-300'}`}>
-                                        {cat} <span className={`ml-2 px-2 py-0.5 rounded-full ${detailFilterCategory === cat ? 'bg-white/20' : 'bg-slate-800'}`}>{categoryCounts[cat] || 0}</span>
-                                    </button>
-                                ))}
+                            <div className="flex flex-col lg:flex-row gap-6 no-print border-b border-slate-700 pb-6">
+                                <div className="flex flex-wrap gap-2 flex-grow">
+                                    {['All', 'Pathology', 'USG', 'X-Ray', 'ECG', 'Hormone'].map(cat => (
+                                        <button key={cat} onClick={()=>setDetailFilterCategory(cat)} className={`px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase border transition-all ${detailFilterCategory === cat ? 'bg-indigo-600 text-white border-indigo-400 shadow-lg' : 'bg-slate-900 text-slate-500 border-slate-700 hover:text-slate-300'}`}>
+                                            {cat} <span className={`ml-2 px-2 py-0.5 rounded-full ${detailFilterCategory === cat ? 'bg-white/20' : 'bg-slate-800'}`}>{categoryCounts[cat] || 0}</span>
+                                        </button>
+                                    ))}
+                                </div>
+                                <div className="bg-slate-900/80 p-4 rounded-3xl border border-slate-700 w-full lg:w-[450px]">
+                                    <div className="flex justify-between items-center mb-3">
+                                        <p className="text-[10px] font-black text-white uppercase tracking-widest flex items-center gap-2">
+                                            <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse"></div>
+                                            Tracked Tests Counts
+                                        </p>
+                                        <button onClick={() => setIsEditingTracked(!isEditingTracked)} className="text-[9px] font-black text-sky-500 hover:text-white uppercase transition-colors">
+                                            {isEditingTracked ? 'Save List' : 'Change Tests'}
+                                        </button>
+                                    </div>
+                                    <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+                                        {trackedTests.map((test, i) => (
+                                            <div key={i} className="bg-slate-950 p-2 rounded-xl border border-slate-800 relative group">
+                                                {isEditingTracked ? (
+                                                    <input 
+                                                        type="text" 
+                                                        value={test} 
+                                                        onChange={(e) => {
+                                                            const n = [...trackedTests];
+                                                            n[i] = e.target.value;
+                                                            setTrackedTests(n);
+                                                        }}
+                                                        className="w-full bg-slate-900 border-none text-[9px] text-white p-0.5 outline-none font-bold placeholder:text-slate-700" 
+                                                        placeholder="Test..."
+                                                    />
+                                                ) : (
+                                                    <div>
+                                                        <p className="text-[8px] font-bold text-slate-500 uppercase truncate" title={test}>{test || '---'}</p>
+                                                        <p className="text-sm font-black text-indigo-400">{customTestCounts[test] || 0}</p>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
                             </div>
 
                             <div className="overflow-x-auto rounded-2xl border border-slate-700 bg-slate-900/50">
