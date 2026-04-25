@@ -17,37 +17,86 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ passwords, onSave, onBack
   const [success, setSuccess] = useState(false);
   const [resetStep, setResetStep] = useState(0); // 0: None, 1: Confirm, 2: Backup Prompt, 3: Final Type Check
   const [finalConfirmText, setFinalConfirmText] = useState('');
-  const [isRestoring, setIsRestoring] = useState(false);
+    const [isRestoring, setIsRestoring] = useState(false);
+    const [showManualPaste, setShowManualPaste] = useState(false);
+    const [pastedJson, setPastedJson] = useState('');
 
-  const handleRestoreFromCache = async () => {
-    const backup = dbService.getLocalBackup();
-    if (!backup || Object.keys(backup).length === 0) {
-      alert("ব্রাউজারে কোন ব্যাকআপ ডাটা পাওয়া যায়নি!");
-      return;
-    }
+    const handleRestoreFromCache = async () => {
+        const backup = dbService.getLocalBackup();
+        if (!backup || Object.keys(backup).length === 0) {
+            alert("এই ব্রাউজারে কোন ব্যাকআপ ডাটা পাওয়া যায়নি! আপনি যদি অন্য কম্পিউটার বা লিঙ্কে ডাটা এন্ট্রি করে থাকেন, তবে ম্যানুয়াল পেস্ট (Manual Paste) অপশনটি ব্যবহার করুন।");
+            return;
+        }
+        processRestore(backup);
+    };
 
-    const patientCount = backup.patients?.length || 0;
-    const invoiceCount = backup.labInvoices?.length || 0;
-    
-    const confirmRestore = window.confirm(`ব্রাউজারে ব্যাকআপ পাওয়া গেছে:\n- রোগী: ${patientCount}\n- ইনভয়েস: ${invoiceCount}\n\nআপনি কি এই ডাটাগুলো ক্লাউডে (Supabase) রিস্টোর করতে চান? এটি বর্তমান ক্লাউড ডাটাকে মুছে ফেলবে।`);
-    
-    if (!confirmRestore) return;
+    const handleManualRestore = async () => {
+        if (!pastedJson.trim()) return;
+        try {
+            const backup = JSON.parse(pastedJson);
+            if (!backup.patients && !backup.labInvoices) {
+                alert("ভুল ডাটা! দয়া করে সঠিক JSON ডাটা পেস্ট করুন।");
+                return;
+            }
+            processRestore(backup);
+        } catch (e) {
+            alert("ডাটা ফরম্যাট সঠিক নয়!");
+        }
+    };
 
-    setIsRestoring(true);
-    try {
-      const success = await performBlockingSync(backup);
-      if (success) {
-        alert("সফলভাবে লোকাল ব্যাকআপ থেকে ডাটা রিস্টোর করা হয়েছে! পেজটি রিলোড হবে।");
-        window.location.reload();
-      } else {
-        alert("রিস্টোর ব্যর্থ হয়েছে। ইন্টারনেটে কানেকশন চেক করুন।");
-      }
-    } catch (e) {
-      alert("একটি ত্রুটি ঘটেছে!");
-    } finally {
-      setIsRestoring(false);
-    }
-  };
+    const processRestore = async (backup: any) => {
+        const patientCount = (backup.patients || []).length;
+        const invoiceCount = (backup.labInvoices || []).length;
+        
+        const confirmRestore = window.confirm(`ডাটা পাওয়া গেছে:\n- রোগী: ${patientCount}\n- ইনভয়েস: ${invoiceCount}\n\nআপনি কি এই ডাটাগুলো ক্লাউডে (Supabase) রিস্টোর করতে চান?`);
+        
+        if (!confirmRestore) return;
+
+        setIsRestoring(true);
+        try {
+            const success = await performBlockingSync(backup);
+            if (success) {
+                alert("সফলভাবে ডাটা ক্লাউডে রিস্টোর করা হয়েছে! এখন অন্য সব কম্পিউটার থেকেও এই ডাটা দেখা যাবে।");
+                window.location.reload();
+            } else {
+                alert("রিস্টোর ব্যর্থ হয়েছে। ইন্টারনেট কানেকশন চেক করুন।");
+            }
+        } catch (e) {
+            alert("একটি ত্রুটি ঘটেছে!");
+        } finally {
+            setIsRestoring(false);
+        }
+    };
+
+    const handleDeepRecovery = async () => {
+        const recoveredData = dbService.deepScanRecovery();
+        if (!recoveredData || Object.keys(recoveredData).length === 0) {
+            alert("ব্রাউজারে কোন পুরাতন ডাটা পাওয়া যায়নি!");
+            return;
+        }
+
+        const patientCount = (recoveredData.patients || []).length;
+        const invoiceCount = (recoveredData.labInvoices || []).length;
+        
+        const confirmRestore = window.confirm(`গভীর অনুসন্ধানে (Deep Scan) ডাটা পাওয়া গেছে:\n- রোগী: ${patientCount}\n- ইনভয়েস: ${invoiceCount}\n\nআপনি কি এই ডাটাগুলো ক্লাউডে (Supabase) রিস্টোর করতে চান? এটি বর্তমান ডাটাকে রিপ্লেস করবে।`);
+        
+        if (!confirmRestore) return;
+
+        setIsRestoring(true);
+        try {
+            const success = await performBlockingSync(recoveredData);
+            if (success) {
+                alert("সফলভাবে পুরাতন ডাটা রিকভার করা হয়েছে! পেজটি রিলোড হবে।");
+                window.location.reload();
+            } else {
+                alert("রিস্টোর ব্যর্থ হয়েছে। ইন্টারনেটে কানেকশন চেক করুন।");
+            }
+        } catch (e) {
+            alert("একটি ত্রুটি ঘটেছে!");
+        } finally {
+            setIsRestoring(false);
+        }
+    };
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
@@ -158,6 +207,20 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ passwords, onSave, onBack
                             <span className="text-[9px] text-emerald-900 group-hover:text-emerald-100 font-bold uppercase">Recover from local cache (Browser)</span>
                         </div>
                         <RefreshIcon size={24} className={`text-emerald-600 group-hover:text-white transition-all ${isRestoring ? 'animate-spin' : ''}`} />
+                    </button>
+
+                    <button 
+                        onClick={handleDeepRecovery} 
+                        disabled={isRestoring}
+                        className="w-full bg-blue-900/20 hover:bg-blue-600 border border-blue-900/50 p-5 rounded-2xl flex items-center justify-between group transition-all disabled:opacity-50"
+                    >
+                        <div className="text-left">
+                            <span className="block text-blue-500 group-hover:text-white font-black text-sm uppercase">
+                                Deep Scan Recovery
+                            </span>
+                            <span className="text-[9px] text-blue-900 group-hover:text-blue-100 font-bold uppercase">Scan all legacy keys for lost data</span>
+                        </div>
+                        <DatabaseIcon size={24} className={`text-blue-600 group-hover:text-white transition-all ${isRestoring ? 'animate-spin' : ''}`} />
                     </button>
 
                     <button onClick={handleDownloadBackup} className="w-full bg-slate-800 hover:bg-slate-700 border border-slate-700 p-5 rounded-2xl flex items-center justify-between group transition-all">

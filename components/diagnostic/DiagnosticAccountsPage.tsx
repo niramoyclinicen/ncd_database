@@ -636,12 +636,14 @@ const DailyExpenseForm: React.FC<any> = ({
                     <input 
                         type="date" 
                         defaultValue={selectedDate} 
-                        key={selectedDate}
                         onChange={(e) => {
-                            if (e.target.value.length === 10) handleDateChange(e.target.value);
+                            // Only trigger parent update if it's a full 10-char date (YYYY-MM-DD)
+                            if (e.target.value.length === 10) {
+                                onDateChange(e.target.value);
+                            }
                         }}
-                        onBlur={(e) => handleDateChange(e.target.value)}
-                        className="bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white text-sm font-black" 
+                        onBlur={(e) => onDateChange(e.target.value)}
+                        className="bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white text-sm font-black focus:ring-2 focus:ring-sky-500 focus:outline-none" 
                     />
                 </div>
                 <div className="overflow-x-auto min-h-[150px]">
