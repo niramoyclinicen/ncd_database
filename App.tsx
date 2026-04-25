@@ -37,7 +37,7 @@ const App: React.FC = () => {
       CLINIC: 'clinic123',
       ACCOUNTING: 'acc123',
       MEDICINE: 'med123',
-      ADMIN: 'admin123'
+      ADMIN: 'niramoy123'
     };
   });
 
@@ -68,6 +68,10 @@ const App: React.FC = () => {
   const [attendanceLog, setAttendanceLog] = useState<Record<string, any>>({});
   const [leaveLog, setLeaveLog] = useState<Record<string, any>>({});
   const [monthlyRoster, setMonthlyRoster] = useState<Record<string, string[]>>({});
+  const [diagnosticSettings, setDiagnosticSettings] = useState<any>(() => {
+    const saved = localStorage.getItem('diag_settings');
+    return saved ? JSON.parse(saved) : { customSubCategories: {}, trackedTests: [] };
+  });
 
   // --- DATA LOADING ---
   useEffect(() => {
@@ -97,6 +101,10 @@ const App: React.FC = () => {
           if (loadedData.attendanceLog) setAttendanceLog(loadedData.attendanceLog);
           if (loadedData.leaveLog) setLeaveLog(loadedData.leaveLog);
           if (loadedData.monthlyRoster) setMonthlyRoster(loadedData.monthlyRoster);
+          if (loadedData.diagnosticSettings) {
+            setDiagnosticSettings(loadedData.diagnosticSettings);
+            localStorage.setItem('diag_settings', JSON.stringify(loadedData.diagnosticSettings));
+          }
         }
         
         setIsDataLoaded(true);
@@ -120,10 +128,11 @@ const App: React.FC = () => {
       dueCollections, reports, employees, medicines, clinicalDrugs,
       purchaseInvoices, salesInvoices, admissions, indoorInvoices,
       detailedExpenses, prescriptions, appointments, attendanceLog, leaveLog, monthlyRoster,
+      diagnosticSettings,
       last_updated_at: new Date().toISOString(),
       ...overrides
     };
-  }, [patients, doctors, referrars, tests, reagents, labInvoices, dueCollections, reports, employees, medicines, clinicalDrugs, purchaseInvoices, salesInvoices, admissions, indoorInvoices, detailedExpenses, prescriptions, appointments, attendanceLog, leaveLog, monthlyRoster]);
+  }, [patients, doctors, referrars, tests, reagents, labInvoices, dueCollections, reports, employees, medicines, clinicalDrugs, purchaseInvoices, salesInvoices, admissions, indoorInvoices, detailedExpenses, prescriptions, appointments, attendanceLog, leaveLog, monthlyRoster, diagnosticSettings]);
 
   // Blocking Manual Sync Handler
   const performBlockingSync = useCallback(async (overrides?: any) => {
@@ -168,7 +177,7 @@ const App: React.FC = () => {
     patients, doctors, referrars, tests, reagents, labInvoices, 
     dueCollections, reports, employees, medicines, clinicalDrugs,
     purchaseInvoices, salesInvoices, admissions, indoorInvoices,
-    detailedExpenses, prescriptions, appointments, attendanceLog, leaveLog, monthlyRoster, employeeReferrerMap, isDataLoaded, getCurrentState, isManualSyncing
+    detailedExpenses, prescriptions, appointments, attendanceLog, leaveLog, monthlyRoster, diagnosticSettings, isDataLoaded, getCurrentState, isManualSyncing
   ]);
 
   // --- HANDLERS ---
@@ -342,6 +351,9 @@ const App: React.FC = () => {
             monthlyRoster={monthlyRoster} setMonthlyRoster={setMonthlyRoster}
             patients={patients}
             doctors={doctors}
+            diagnosticSettings={diagnosticSettings}
+            setDiagnosticSettings={setDiagnosticSettings}
+            performBlockingSync={performBlockingSync}
           />
         );
 
@@ -364,7 +376,8 @@ const App: React.FC = () => {
           <AdminSettings 
             passwords={passwords} 
             onSave={(newPwds) => {setPasswords(newPwds); localStorage.setItem('ncd_passwords', JSON.stringify(newPwds));}} 
-            onBack={() => setViewState(ViewState.DASHBOARD)} 
+            onBack={() => setViewState(ViewState.DASHBOARD)}
+            performBlockingSync={performBlockingSync}
           />
         );
 

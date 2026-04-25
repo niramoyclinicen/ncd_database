@@ -28,6 +28,9 @@ const MASTER_RECORD_ID = 1;
 export const dbService = {
   saveToCloud: async (appState: any) => {
     try {
+      // Always save a local backup first
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(appState));
+
       if (supabase) {
         const { error } = await supabase
           .from('ncd_state')
@@ -56,23 +59,41 @@ export const dbService = {
           .single();
         
         if (error) {
-          // PGRST116 means no rows found - this is normal for a new app
           if (error.code === 'PGRST116') {
-            return {}; 
+            return null; // Explicitly return null if no cloud data
           }
           throw error;
         }
 
         if (record && record.data) {
+          // If we got cloud data, update local backup
+          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(record.data));
           return record.data;
         }
       }
-      // Return empty object instead of null to allow local testing if Supabase is not configured
-      return {}; 
+      return null; 
     } catch (error) {
       console.error("Cloud Connection Error:", error);
-      // Return empty object on error to allow the app to function locally
-      return {}; 
+      // Fallback to local storage if cloud fails
+      const localData = localStorage.getItem(LOCAL_STORAGE_KEY);
+      if (localData) {
+        try {
+          return JSON.parse(localData);
+        } catch {
+          return null;
+        }
+      }
+      return null; 
+    }
+  },
+
+  getLocalBackup: () => {
+    const data = localStorage.getItem(LOCAL_STORAGE_KEY);
+    if (!data) return null;
+    try {
+      return JSON.parse(data);
+    } catch {
+      return null;
     }
   }
 };

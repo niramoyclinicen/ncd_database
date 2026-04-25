@@ -3,18 +3,51 @@ import React, { useState } from 'react';
 /* Added Activity to the imports from ./Icons */
 import { BackIcon, SettingsIcon, SaveIcon, DownloadIcon, TrashIcon, DatabaseIcon, RefreshIcon, Activity } from './Icons';
 import { DepartmentPasswords } from '../types';
+import { dbService } from '../dbService';
 
 interface AdminSettingsProps {
   passwords: DepartmentPasswords;
   onSave: (newPasswords: DepartmentPasswords) => void;
   onBack: () => void;
+  performBlockingSync: (overrides?: any) => Promise<boolean>;
 }
 
-const AdminSettings: React.FC<AdminSettingsProps> = ({ passwords, onSave, onBack }) => {
+const AdminSettings: React.FC<AdminSettingsProps> = ({ passwords, onSave, onBack, performBlockingSync }) => {
   const [localPasswords, setLocalPasswords] = useState<DepartmentPasswords>(passwords);
   const [success, setSuccess] = useState(false);
   const [resetStep, setResetStep] = useState(0); // 0: None, 1: Confirm, 2: Backup Prompt, 3: Final Type Check
   const [finalConfirmText, setFinalConfirmText] = useState('');
+  const [isRestoring, setIsRestoring] = useState(false);
+
+  const handleRestoreFromCache = async () => {
+    const backup = dbService.getLocalBackup();
+    if (!backup || Object.keys(backup).length === 0) {
+      alert("ব্রাউজারে কোন ব্যাকআপ ডাটা পাওয়া যায়নি!");
+      return;
+    }
+
+    const patientCount = backup.patients?.length || 0;
+    const invoiceCount = backup.labInvoices?.length || 0;
+    
+    const confirmRestore = window.confirm(`ব্রাউজারে ব্যাকআপ পাওয়া গেছে:\n- রোগী: ${patientCount}\n- ইনভয়েস: ${invoiceCount}\n\nআপনি কি এই ডাটাগুলো ক্লাউডে (Supabase) রিস্টোর করতে চান? এটি বর্তমান ক্লাউড ডাটাকে মুছে ফেলবে।`);
+    
+    if (!confirmRestore) return;
+
+    setIsRestoring(true);
+    try {
+      const success = await performBlockingSync(backup);
+      if (success) {
+        alert("সফলভাবে লোকাল ব্যাকআপ থেকে ডাটা রিস্টোর করা হয়েছে! পেজটি রিলোড হবে।");
+        window.location.reload();
+      } else {
+        alert("রিস্টোর ব্যর্থ হয়েছে। ইন্টারনেটে কানেকশন চেক করুন।");
+      }
+    } catch (e) {
+      alert("একটি ত্রুটি ঘটেছে!");
+    } finally {
+      setIsRestoring(false);
+    }
+  };
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
@@ -113,6 +146,20 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ passwords, onSave, onBack
                 <h3 className="text-sm font-black text-amber-500 uppercase tracking-widest flex items-center gap-2"><DatabaseIcon size={14}/> System Maintenance</h3>
                 
                 <div className="space-y-4">
+                    <button 
+                        onClick={handleRestoreFromCache} 
+                        disabled={isRestoring}
+                        className="w-full bg-emerald-900/20 hover:bg-emerald-600 border border-emerald-900/50 p-5 rounded-2xl flex items-center justify-between group transition-all disabled:opacity-50"
+                    >
+                        <div className="text-left">
+                            <span className="block text-emerald-500 group-hover:text-white font-black text-sm uppercase">
+                                {isRestoring ? 'Restoring...' : 'Emergency Restore'}
+                            </span>
+                            <span className="text-[9px] text-emerald-900 group-hover:text-emerald-100 font-bold uppercase">Recover from local cache (Browser)</span>
+                        </div>
+                        <RefreshIcon size={24} className={`text-emerald-600 group-hover:text-white transition-all ${isRestoring ? 'animate-spin' : ''}`} />
+                    </button>
+
                     <button onClick={handleDownloadBackup} className="w-full bg-slate-800 hover:bg-slate-700 border border-slate-700 p-5 rounded-2xl flex items-center justify-between group transition-all">
                         <div className="text-left">
                             <span className="block text-white font-black text-sm uppercase">Export Backup</span>

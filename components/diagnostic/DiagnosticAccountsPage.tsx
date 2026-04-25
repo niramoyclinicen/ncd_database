@@ -1,6 +1,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { LabInvoice as Invoice, DueCollection, ExpenseItem, Employee, testCategories } from '../DiagnosticData';
 import { Activity, BackIcon, FileTextIcon, SearchIcon, PrinterIcon, XIcon } from '../Icons';
+import { Settings } from 'lucide-react';
 
 // --- Configuration & Data ---
 const expenseCategories = [
@@ -306,8 +307,12 @@ const HistoryModal: React.FC<{ item: ExpenseItem, onClose: () => void }> = ({ it
     </div>
 );
 
-const DailyExpenseForm: React.FC<any> = ({ selectedDate, onDateChange, allDetailedExpenses, onSave, onDelete, onEdit, employees, monthlyRoster, editingItem }) => {
+const DailyExpenseForm: React.FC<any> = ({ 
+    selectedDate, onDateChange, allDetailedExpenses, onSave, onDelete, onEdit, 
+    employees, monthlyRoster, editingItem, diagnosticSettings, setDiagnosticSettings, performBlockingSync 
+}) => {
     const dailyExpenseItems = (allDetailedExpenses && allDetailedExpenses[selectedDate]) || [];
+    const [isSaving, setIsSaving] = useState(false);
     const [items, setItems] = useState<ExpenseItem[]>(() => {
         if (editingItem && editingItem.date === selectedDate) {
             return [{ ...editingItem }];
@@ -383,30 +388,55 @@ const DailyExpenseForm: React.FC<any> = ({ selectedDate, onDateChange, allDetail
         }
     };
 
-    const handleSave = () => {
+    const handleSave = async () => {
+        if (items.every(it => it.paidAmount <= 0 && !it.subCategory && !it.description)) {
+            alert("দয়া করে অন্তত একটি খরচের হিসাব সঠিকভাবে লিখুন।");
+            return;
+        }
+
         const updatedDailyItems = [...dailyExpenseItems];
+        
+        // Filter out empty rows if any
+        const validItems = items.filter(it => it.paidAmount > 0 || it.subCategory || it.description);
+
+        setIsSaving(true);
+
+        const currentExpenses = { ...allDetailedExpenses };
         
         // If we are editing and the date changed, we need to remove it from the old date
         if (editingItem && editingItem.date !== selectedDate) {
-            onDelete(editingItem.date, editingItem.id);
+            const oldDateItems = (currentExpenses[editingItem.date] || []).filter((it: any) => it.id !== editingItem.id);
+            currentExpenses[editingItem.date] = oldDateItems;
         }
 
-        items.forEach(formItem => {
-            const existingIdx = updatedDailyItems.findIndex(di => di.id === formItem.id);
+        const dateSpecificItems = [...(currentExpenses[selectedDate] || [])];
+        
+        validItems.forEach(formItem => {
+            const existingIdx = dateSpecificItems.findIndex(di => di.id === formItem.id);
             if (existingIdx !== -1) {
-                updatedDailyItems[existingIdx] = { 
+                dateSpecificItems[existingIdx] = { 
                     ...formItem, 
                     dept: 'Diagnostic'
                 };
             } else {
-                updatedDailyItems.push({ ...formItem, dept: 'Diagnostic' });
+                dateSpecificItems.push({ ...formItem, dept: 'Diagnostic' });
             }
         });
 
-        onSave(selectedDate, updatedDailyItems);
-        setItems([{
-            id: Date.now(), category: expenseCategories[0], subCategory: '', description: '', billAmount: 0, paidAmount: 0, dept: 'Diagnostic'
-        }]);
+        currentExpenses[selectedDate] = dateSpecificItems;
+
+        // Perform blocking sync
+        const success = await performBlockingSync({ detailedExpenses: currentExpenses });
+        
+        setIsSaving(false);
+
+        if (success) {
+            onSave(selectedDate, dateSpecificItems);
+            setItems([{
+                id: Date.now(), category: expenseCategories[0], subCategory: '', description: '', billAmount: 0, paidAmount: 0, dept: 'Diagnostic'
+            }]);
+            alert("সফলভাবে সেভ করা হয়েছে!");
+        }
     };
 
     const totalPaid = items.reduce((acc, item) => acc + (Number(item.paidAmount) || 0), 0);
@@ -461,7 +491,18 @@ const DailyExpenseForm: React.FC<any> = ({ selectedDate, onDateChange, allDetail
                     if (item.subCategory && item.description) {
                         const key = `${item.category}|${item.subCategory}`;
                         if (!suggestions[key]) suggestions[key] = new Set();
-                        suggestions[key].add(item.description);
+                        
+                        // Capitalize and unique check (case insensitive)
+                        const desc = item.description.trim().replace(/\s+/g, ' ');
+                        if (desc) {
+                            const titleCaseDesc = desc.split(' ').map((word: string) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ');
+                            
+                            // Check if a similar description already exists (case-insensitive check)
+                            const currentDescList = Array.from(suggestions[key]);
+                            if (!currentDescList.some(s => s.toLowerCase() === titleCaseDesc.toLowerCase())) {
+                                suggestions[key].add(titleCaseDesc);
+                            }
+                        }
                     }
                 });
             }
@@ -469,13 +510,139 @@ const DailyExpenseForm: React.FC<any> = ({ selectedDate, onDateChange, allDetail
         return suggestions;
     }, [allDetailedExpenses]);
 
+    const [showSubCatSettings, setShowSubCatSettings] = useState(false);
+    const [editingCategory, setEditingCategory] = useState('');
+    const customSubCategories = diagnosticSettings?.customSubCategories || {};
+
+    const getSubCategories = (category: string) => {
+        const defaultSubs = subCategoryMap[category] || [];
+        const customSubs = customSubCategories[category] || [];
+        return Array.from(new Set([...defaultSubs, ...customSubs]));
+    };
+
+    const handleAddCustomSubCat = async (category: string, newSub: string) => {
+        if (!newSub.trim()) return;
+        const newSettings = {
+            ...diagnosticSettings,
+            customSubCategories: {
+                ...customSubCategories,
+                [category]: Array.from(new Set([...(customSubCategories[category] || []), newSub.trim()]))
+            }
+        };
+        setDiagnosticSettings(newSettings);
+        // Sync to cloud
+        await performBlockingSync({ diagnosticSettings: newSettings });
+    };
+
+    const handleRemoveCustomSubCat = async (category: string, subToRemove: string) => {
+        const newSettings = {
+            ...diagnosticSettings,
+            customSubCategories: {
+                ...customSubCategories,
+                [category]: (customSubCategories[category] || []).filter((s: string) => s !== subToRemove)
+            }
+        };
+        setDiagnosticSettings(newSettings);
+        // Sync to cloud
+        await performBlockingSync({ diagnosticSettings: newSettings });
+    };
+
     return (
         <div className="space-y-10">
-            <div className="bg-sky-950/40 rounded-[2rem] p-8 border border-sky-800 shadow-xl no-print">
+            <div className="bg-sky-950/40 rounded-[2rem] p-8 border border-sky-800 shadow-xl no-print relative">
                 {historyItem && <HistoryModal item={historyItem} onClose={() => setHistoryItem(null)} />}
+                
+                {/* Custom Sub-Category Settings Modal */}
+                {showSubCatSettings && (
+                    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[150] flex items-center justify-center p-4">
+                        <div className="bg-slate-900 border border-slate-700 rounded-3xl w-full max-w-md shadow-2xl overflow-hidden animate-zoom-in">
+                            <div className="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-800/50">
+                                <div>
+                                    <h3 className="font-black text-sky-400 uppercase text-sm tracking-widest">Manage Items</h3>
+                                    <p className="text-[10px] text-slate-500 font-bold uppercase">{editingCategory}</p>
+                                </div>
+                                <button onClick={() => setShowSubCatSettings(false)} className="text-slate-400 hover:text-white transition-colors">
+                                    <XIcon size={20} />
+                                </button>
+                            </div>
+                            <div className="p-6">
+                                <div className="space-y-4">
+                                    <div>
+                                        <label className="text-[10px] font-black text-slate-500 uppercase mb-2 block">Add New Item</label>
+                                        <div className="flex gap-2">
+                                            <input 
+                                                type="text" 
+                                                id="new-sub-input"
+                                                className="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-4 py-2 text-sm text-white focus:border-sky-500 outline-none"
+                                                placeholder="Enter item name..."
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter') {
+                                                        const val = (e.target as HTMLInputElement).value;
+                                                        handleAddCustomSubCat(editingCategory, val);
+                                                        (e.target as HTMLInputElement).value = '';
+                                                    }
+                                                }}
+                                            />
+                                            <button 
+                                                onClick={() => {
+                                                    const input = document.getElementById('new-sub-input') as HTMLInputElement;
+                                                    handleAddCustomSubCat(editingCategory, input.value);
+                                                    input.value = '';
+                                                }}
+                                                className="bg-sky-600 hover:bg-sky-500 text-white px-4 py-2 rounded-xl text-xs font-black uppercase transition-colors"
+                                            >
+                                                Add
+                                            </button>
+                                        </div>
+                                    </div>
+                                    
+                                    <div>
+                                        <label className="text-[10px] font-black text-slate-500 uppercase mb-2 block">Your Custom Items</label>
+                                        <div className="max-h-[200px] overflow-y-auto space-y-2 bg-slate-950/50 p-3 rounded-2xl border border-slate-800">
+                                            {(!customSubCategories[editingCategory] || customSubCategories[editingCategory].length === 0) ? (
+                                                <p className="text-center text-slate-600 text-[10px] py-4 italic">No custom items added yet.</p>
+                                            ) : (
+                                                customSubCategories[editingCategory].map((sub, i) => (
+                                                    <div key={i} className="flex justify-between items-center bg-slate-800 px-3 py-2 rounded-xl text-xs border border-slate-700/50">
+                                                        <span className="text-slate-200 font-bold">{sub}</span>
+                                                        <button onClick={() => handleRemoveCustomSubCat(editingCategory, sub)} className="text-rose-500 hover:text-rose-400 transition-colors">
+                                                            <XIcon size={14} />
+                                                        </button>
+                                                    </div>
+                                                ))
+                                            )}
+                                        </div>
+                                        <p className="text-[9px] text-slate-600 mt-2 italic font-medium">* System categories cannot be removed.</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="p-4 bg-slate-800/30 border-t border-slate-800 text-center">
+                                <button onClick={() => setShowSubCatSettings(false)} className="bg-slate-700 hover:bg-slate-600 text-white px-8 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">Close Editor</button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Blocking Loader for Save */}
+                {isSaving && (
+                    <div className="absolute inset-0 z-[200] bg-slate-900/60 backdrop-blur-[2px] rounded-[2rem] flex flex-col items-center justify-center text-white">
+                        <div className="w-12 h-12 border-4 border-sky-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+                        <p className="font-black uppercase tracking-widest text-[10px] animate-pulse">সংরক্ষণ করা হচ্ছে...</p>
+                    </div>
+                )}
+
                 <div className="flex justify-between items-center mb-6 border-b border-sky-800 pb-4">
                     <h3 className="text-xl font-black text-sky-100 flex items-center gap-3"><Activity className="w-6 h-6 text-sky-400" /> Daily Expense Entry</h3>
-                    <input type="date" value={selectedDate} onChange={(e) => handleDateChange(e.target.value)} className="bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white text-sm font-black" />
+                    <input 
+                        type="date" 
+                        defaultValue={selectedDate} 
+                        key={selectedDate}
+                        onChange={(e) => {
+                            if (e.target.value.length === 10) handleDateChange(e.target.value);
+                        }}
+                        onBlur={(e) => handleDateChange(e.target.value)}
+                        className="bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white text-sm font-black" 
+                    />
                 </div>
                 <div className="overflow-x-auto min-h-[150px]">
                     <table className="w-full text-left">
@@ -515,12 +682,17 @@ const DailyExpenseForm: React.FC<any> = ({ selectedDate, onDateChange, allDetail
                                                     className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 pr-10 text-white text-sm font-black outline-none focus:border-blue-500" 
                                                     placeholder="Sub-category..." 
                                                 />
-                                                <button className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-sky-400 transition-colors" title="Add custom sub-category">
-                                                    <span className="text-lg font-bold">+</span>
-                                                </button>
                                                 <datalist id={`list-${item.id}`}>
-                                                    {subCategoryMap[item.category]?.map((sub, i) => <option key={i} value={sub} />)}
+                                                    {getSubCategories(item.category).map((sub, i) => <option key={i} value={sub} />)}
                                                 </datalist>
+                                                <button 
+                                                    type="button"
+                                                    onClick={() => { setEditingCategory(item.category); setShowSubCatSettings(true); }}
+                                                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-sky-400 transition-colors bg-slate-900/50 p-1 rounded" 
+                                                    title="Manage sub-categories"
+                                                >
+                                                    <Settings size={14} />
+                                                </button>
                                             </div>
                                         )}
                                     </td>
@@ -682,7 +854,7 @@ const DailyExpenseForm: React.FC<any> = ({ selectedDate, onDateChange, allDetail
 
 const DiagnosticAccountsPage: React.FC<any> = ({ 
     onBack, invoices, dueCollections, employees, detailedExpenses, setDetailedExpenses, monthlyRoster,
-    patients, doctors 
+    patients, doctors, diagnosticSettings, setDiagnosticSettings, performBlockingSync
 }) => {
     const todayStr = new Date().toISOString().split('T')[0];
     const [selectedDate, setSelectedDate] = useState(todayStr);
@@ -1299,7 +1471,10 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                             onEdit={setEditingItem}
                             editingItem={editingItem}
                             employees={employees} 
-                            monthlyRoster={monthlyRoster} 
+                            monthlyRoster={monthlyRoster}
+                            diagnosticSettings={diagnosticSettings}
+                            setDiagnosticSettings={setDiagnosticSettings}
+                            performBlockingSync={performBlockingSync}
                         />
                     </div>
                 )}

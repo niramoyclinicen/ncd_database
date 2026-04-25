@@ -37,6 +37,9 @@ interface AccountingPageProps {
   setMonthlyRoster: React.Dispatch<React.SetStateAction<Record<string, string[]>>>;
   patients: Patient[];
   doctors: Doctor[];
+  diagnosticSettings: any;
+  setDiagnosticSettings: React.Dispatch<React.SetStateAction<any>>;
+  performBlockingSync: (overrides?: any) => Promise<boolean>;
 }
 
 interface AccountingButtonProps {
@@ -116,7 +119,8 @@ const AccountingPage: React.FC<AccountingPageProps> = ({
   onBack, invoices, dueCollections, detailedExpenses, setDetailedExpenses, employees, setEmployees,
   purchaseInvoices, salesInvoices, indoorInvoices, medicines, setReagents,
   attendanceLog, setAttendanceLog, leaveLog, setLeaveLog,
-  monthlyRoster, setMonthlyRoster, patients, doctors
+  monthlyRoster, setMonthlyRoster, patients, doctors,
+  diagnosticSettings, setDiagnosticSettings, performBlockingSync
 }) => {
   const [activeView, setActiveView] = useState<'main' | 'diagnostic' | 'clinic_accounts' | 'employee_info' | 'medicine_accounts' | 'consolidated'>('main');
 
@@ -133,6 +137,9 @@ const AccountingPage: React.FC<AccountingPageProps> = ({
             monthlyRoster={monthlyRoster}
             patients={patients}
             doctors={doctors}
+            diagnosticSettings={diagnosticSettings}
+            setDiagnosticSettings={setDiagnosticSettings}
+            performBlockingSync={performBlockingSync}
         />
     );
   }
