@@ -18,6 +18,7 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ passwords, onSave, onBack
   const [resetStep, setResetStep] = useState(0); // 0: None, 1: Confirm, 2: Backup Prompt, 3: Final Type Check
   const [finalConfirmText, setFinalConfirmText] = useState('');
     const [isRestoring, setIsRestoring] = useState(false);
+    const [restoreProgress, setRestoreProgress] = useState(0);
     const [showManualPaste, setShowManualPaste] = useState(false);
     const [pastedJson, setPastedJson] = useState('');
 
@@ -53,8 +54,9 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ passwords, onSave, onBack
         if (!confirmRestore) return;
 
         setIsRestoring(true);
+        setRestoreProgress(0);
         try {
-            const success = await performBlockingSync(backup);
+            const success = await dbService.saveInChunks(backup, (p) => setRestoreProgress(p));
             if (success) {
                 alert("সফলভাবে ডাটা ক্লাউডে রিস্টোর করা হয়েছে! এখন অন্য সব কম্পিউটার থেকেও এই ডাটা দেখা যাবে।");
                 window.location.reload();
@@ -65,6 +67,7 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ passwords, onSave, onBack
             alert("একটি ত্রুটি ঘটেছে!");
         } finally {
             setIsRestoring(false);
+            setRestoreProgress(0);
         }
     };
 
@@ -83,8 +86,9 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ passwords, onSave, onBack
         if (!confirmRestore) return;
 
         setIsRestoring(true);
+        setRestoreProgress(0);
         try {
-            const success = await performBlockingSync(recoveredData);
+            const success = await dbService.saveInChunks(recoveredData, (p) => setRestoreProgress(p));
             if (success) {
                 alert("সফলভাবে পুরাতন ডাটা রিকভার করা হয়েছে! পেজটি রিলোড হবে।");
                 window.location.reload();
@@ -95,6 +99,7 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ passwords, onSave, onBack
             alert("একটি ত্রুটি ঘটেছে!");
         } finally {
             setIsRestoring(false);
+            setRestoreProgress(0);
         }
     };
 
@@ -198,29 +203,39 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ passwords, onSave, onBack
                     <button 
                         onClick={handleRestoreFromCache} 
                         disabled={isRestoring}
-                        className="w-full bg-emerald-900/20 hover:bg-emerald-600 border border-emerald-900/50 p-5 rounded-2xl flex items-center justify-between group transition-all disabled:opacity-50"
+                        className="w-full bg-emerald-900/20 hover:bg-emerald-600 border border-emerald-900/50 p-5 rounded-2xl flex flex-col items-center justify-between group transition-all disabled:opacity-50 overflow-hidden relative"
                     >
-                        <div className="text-left">
-                            <span className="block text-emerald-500 group-hover:text-white font-black text-sm uppercase">
-                                {isRestoring ? 'Restoring...' : 'Emergency Restore'}
-                            </span>
-                            <span className="text-[9px] text-emerald-900 group-hover:text-emerald-100 font-bold uppercase">Recover from local cache (Browser)</span>
+                        {isRestoring && restoreProgress > 0 && (
+                            <div className="absolute inset-0 bg-emerald-600/30 transition-all duration-300" style={{ width: `${restoreProgress}%` }} />
+                        )}
+                        <div className="flex items-center justify-between w-full relative z-10">
+                            <div className="text-left">
+                                <span className="block text-emerald-500 group-hover:text-white font-black text-sm uppercase">
+                                    {isRestoring ? `Restoring (${restoreProgress}%)` : 'Emergency Restore'}
+                                </span>
+                                <span className="text-[9px] text-emerald-900 group-hover:text-emerald-100 font-bold uppercase">Recover from local cache (Browser)</span>
+                            </div>
+                            <RefreshIcon size={24} className={`text-emerald-600 group-hover:text-white transition-all ${isRestoring ? 'animate-spin' : ''}`} />
                         </div>
-                        <RefreshIcon size={24} className={`text-emerald-600 group-hover:text-white transition-all ${isRestoring ? 'animate-spin' : ''}`} />
                     </button>
 
                     <button 
                         onClick={handleDeepRecovery} 
                         disabled={isRestoring}
-                        className="w-full bg-blue-900/20 hover:bg-blue-600 border border-blue-900/50 p-5 rounded-2xl flex items-center justify-between group transition-all disabled:opacity-50"
+                        className="w-full bg-blue-900/20 hover:bg-blue-600 border border-blue-900/50 p-5 rounded-2xl flex flex-col items-center justify-between group transition-all disabled:opacity-50 overflow-hidden relative"
                     >
-                        <div className="text-left">
-                            <span className="block text-blue-500 group-hover:text-white font-black text-sm uppercase">
-                                Deep Scan Recovery
-                            </span>
-                            <span className="text-[9px] text-blue-900 group-hover:text-blue-100 font-bold uppercase">Scan all legacy keys for lost data</span>
+                        {isRestoring && restoreProgress > 0 && (
+                            <div className="absolute inset-0 bg-blue-600/30 transition-all duration-300" style={{ width: `${restoreProgress}%` }} />
+                        )}
+                        <div className="flex items-center justify-between w-full relative z-10">
+                            <div className="text-left">
+                                <span className="block text-blue-500 group-hover:text-white font-black text-sm uppercase">
+                                    {isRestoring ? `Deep Scanning (${restoreProgress}%)` : 'Deep Scan Recovery'}
+                                </span>
+                                <span className="text-[9px] text-blue-900 group-hover:text-blue-100 font-bold uppercase">Scan all legacy keys for lost data</span>
+                            </div>
+                            <DatabaseIcon size={24} className={`text-blue-600 group-hover:text-white transition-all ${isRestoring ? 'animate-spin' : ''}`} />
                         </div>
-                        <DatabaseIcon size={24} className={`text-blue-600 group-hover:text-white transition-all ${isRestoring ? 'animate-spin' : ''}`} />
                     </button>
 
                     <button onClick={handleDownloadBackup} className="w-full bg-slate-800 hover:bg-slate-700 border border-slate-700 p-5 rounded-2xl flex items-center justify-between group transition-all">

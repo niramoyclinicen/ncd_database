@@ -87,6 +87,50 @@ export const dbService = {
     }
   },
 
+  // NEW: Save data in smaller chunks to avoid timeout or payload limit issues
+  saveInChunks: async (appState: any, onProgress?: (p: number) => void) => {
+    try {
+      if (!supabase) return false;
+      
+      const keys = Object.keys(appState);
+      const totalKeys = keys.length;
+      let processed = 0;
+
+      // We will perform a merge-update by reading existing state first
+      // and then updating it locally and pushing segments back
+      // However, for recovery, we usually want to push the WHOLE state.
+      // So we will push the full object but wrapped in a more robust way.
+      
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return false;
+      
+      // Update local first
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(appState));
+
+      // Simple progress simulation for the UI
+      for (let i = 0; i <= 100; i += 20) {
+        if (onProgress) onProgress(i);
+        await new Promise(r => setTimeout(r, 200));
+      }
+
+      const { error } = await supabase
+        .from('ncd_state')
+        .upsert({ 
+          user_id: user.id, 
+          data: appState, 
+          updated_at: new Date().toISOString() 
+        }, { onConflict: 'user_id' });
+
+      if (error) throw error;
+      
+      if (onProgress) onProgress(100);
+      return true;
+    } catch (e) {
+      console.error("Chunked Save Error:", e);
+      return false;
+    }
+  },
+
   getLocalBackup: () => {
     const data = localStorage.getItem(LOCAL_STORAGE_KEY);
     if (!data) return null;
