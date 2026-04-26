@@ -92,34 +92,23 @@ export const dbService = {
     try {
       if (!supabase) return false;
       
-      const keys = Object.keys(appState);
-      const totalKeys = keys.length;
-      let processed = 0;
-
-      // We will perform a merge-update by reading existing state first
-      // and then updating it locally and pushing segments back
-      // However, for recovery, we usually want to push the WHOLE state.
-      // So we will push the full object but wrapped in a more robust way.
-      
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return false;
-      
       // Update local first
       localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(appState));
 
       // Simple progress simulation for the UI
-      for (let i = 0; i <= 100; i += 20) {
+      for (let i = 0; i <= 60; i += 20) {
         if (onProgress) onProgress(i);
-        await new Promise(r => setTimeout(r, 200));
+        await new Promise(r => setTimeout(r, 100));
       }
 
+      // Use the original fixed ID pattern from saveToCloud
       const { error } = await supabase
         .from('ncd_state')
         .upsert({ 
-          user_id: user.id, 
+          id: 1, 
           data: appState, 
           updated_at: new Date().toISOString() 
-        }, { onConflict: 'user_id' });
+        }, { onConflict: 'id' });
 
       if (error) throw error;
       
@@ -210,24 +199,38 @@ export const dbService = {
   normalizeRecoveredData: (raw: any) => {
     let normalized: any = {};
 
-    // Case 1: Raw LocalStorage dump (keys prefixed with ncd_)
-    if (raw.ncd_offline_cache_v1) {
-      try {
-        const cache = typeof raw.ncd_offline_cache_v1 === 'string' 
-          ? JSON.parse(raw.ncd_offline_cache_v1) 
-          : raw.ncd_offline_cache_v1;
-        normalized = { ...normalized, ...cache };
-      } catch(e) {}
-    }
+    // 1. Unpack everything that looks like stringified JSON
+    const unpacked: any = {};
+    Object.entries(raw).forEach(([key, val]) => {
+      if (typeof val === 'string' && (val.trim().startsWith('{') || val.trim().startsWith('['))) {
+        try {
+          unpacked[key] = JSON.parse(val);
+        } catch(e) {
+          unpacked[key] = val;
+        }
+      } else {
+        unpacked[key] = val;
+      }
+    });
 
-    // Map individual ncd_ keys to their state counterparts
+    // 2. If any unpacked value is an object that contains 'patients', merge its contents
+    Object.values(unpacked).forEach((val: any) => {
+      if (val && typeof val === 'object' && !Array.isArray(val)) {
+        Object.entries(val).forEach(([k, v]) => {
+            if (!normalized[k] || (Array.isArray(normalized[k]) && normalized[k].length === 0)) {
+                normalized[k] = v;
+            }
+        });
+      }
+    });
+
+    // 3. Map individual keys to their state counterparts
     const mapping: Record<string, string> = {
       'ncd_patients': 'patients',
       'ncd_lab_invoices': 'labInvoices',
       'ncd_doctors': 'doctors',
       'ncd_referrars': 'referrars',
       'ncd_tests': 'tests',
-      'ncd_reagents': 'reagents',
       'ncd_due_collections': 'dueCollections',
       'ncd_reports': 'reports',
       'ncd_employees': 'employees',
@@ -252,19 +255,15 @@ export const dbService = {
     };
 
     Object.entries(mapping).forEach(([storageKey, stateKey]) => {
-      if (raw[storageKey] && (!normalized[stateKey] || (Array.isArray(normalized[stateKey]) && normalized[stateKey].length === 0))) {
-        try {
-          normalized[stateKey] = typeof raw[storageKey] === 'string' ? JSON.parse(raw[storageKey]) : raw[storageKey];
-        } catch(e) {
-          normalized[stateKey] = raw[storageKey];
-        }
+      if (unpacked[storageKey] && (!normalized[stateKey] || (Array.isArray(normalized[stateKey]) && normalized[stateKey].length === 0))) {
+        normalized[stateKey] = unpacked[storageKey];
       }
     });
 
-    // Case 2: Simple direct keys (if they pasted only the cache content)
-    Object.keys(raw).forEach(key => {
-      if (!key.startsWith('ncd_') && !normalized[key]) {
-        normalized[key] = raw[key];
+    // 4. Merge remaining direct keys
+    Object.entries(unpacked).forEach(([key, val]) => {
+      if (!key.startsWith('ncd_') && (!normalized[key] || (Array.isArray(normalized[key]) && normalized[key].length === 0))) {
+        normalized[key] = val;
       }
     });
 

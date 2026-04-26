@@ -50,10 +50,17 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ passwords, onSave, onBack
     const isConnected = dbService.isSupabaseConnected();
 
     const processRestore = async (backup: any) => {
-        const patientCount = (backup.patients || []).length;
-        const invoiceCount = (backup.labInvoices || []).length;
+        const entitiesFound = Object.entries(backup)
+            .filter(([_, v]) => Array.isArray(v) && v.length > 0)
+            .map(([k, v]) => `- ${k}: ${(v as any[]).length}`)
+            .join('\n');
         
-        const confirmRestore = window.confirm(`ডাটা পাওয়া গেছে:\n- রোগী: ${patientCount}\n- ইনভয়েস: ${invoiceCount}\n\nআপনি কি এই ডাটাগুলো ক্লাউডে (Supabase) রিস্টোর করতে চান?`);
+        if (!entitiesFound) {
+            alert("পিক আপ করার মতো কোন ডাটা পাওয়া যায়নি! দয়া করে সঠিক কোডটি কপি করেছেন কিনা নিশ্চিত হয়ে নিন।");
+            return;
+        }
+
+        const confirmRestore = window.confirm(`নিচের ডাটাগুলো পাওয়া গেছে:\n${entitiesFound}\n\nআপনি কি এই ডাটাগুলো ক্লাউডে (Supabase) রিস্টোর করতে চান? এটি বর্তমান ডাটাকে রিপ্লেস করবে।`);
         
         if (!confirmRestore) return;
 
