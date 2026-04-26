@@ -50,6 +50,7 @@ interface DiagnosticPageProps {
   employeeReferrerMap: Record<string, string[]>;
   setEmployeeReferrerMap: React.Dispatch<React.SetStateAction<Record<string, string[]>>>;
   performBlockingSync?: (stateOverride?: any) => Promise<boolean>;
+  currentUserEmail?: string;
 }
 
 const TopBarButton: React.FC<{ label: string; icon?: React.ReactNode; isActive: boolean; onClick: () => void; disabled?: boolean }> = ({ label, icon, isActive, onClick, disabled = false }) => (
@@ -118,7 +119,8 @@ const DiagnosticPage: React.FC<DiagnosticPageProps> = ({
   appointments, setAppointments,
   monthlyRoster, setMonthlyRoster,
   employeeReferrerMap, setEmployeeReferrerMap,
-  performBlockingSync
+  performBlockingSync,
+  currentUserEmail = 'Anonymous'
 }) => {
   const isLabReporter = userRole === 'LAB_REPORTER';
   const isDiagAdmin = userRole === 'DIAGNOSTIC_ADMIN';
@@ -126,6 +128,42 @@ const DiagnosticPage: React.FC<DiagnosticPageProps> = ({
   const [activeTab, setActiveTab] = useState<DiagnosticSubPage>(() => isLabReporter ? 'lab_reporting' : 'doctor_appointment');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [preSelectedInvoiceId, setPreSelectedInvoiceId] = useState<string | null>(null);
+  const [moduleLock, setModuleLock] = useState<{isLocked: boolean, owner: string | null}>({isLocked: false, owner: null});
+
+  // Handle Tab Switching with Concurrency Lock
+  const handleTabChange = (tab: DiagnosticSubPage) => {
+    setActiveTab(tab);
+    
+    // Handle locks in background
+    const syncLocks = async () => {
+      // Release old lock if we were in lab_invoice
+      if (activeTab === 'lab_invoice' && tab !== 'lab_invoice') {
+        dbService.releaseLock('lab_invoice', currentUserEmail);
+      }
+
+      if (tab === 'lab_invoice') {
+        const lockResult = await dbService.acquireLock('lab_invoice', currentUserEmail);
+        if (!lockResult.success) {
+          setModuleLock({ isLocked: true, owner: lockResult.owner || 'Another user' });
+        } else {
+          setModuleLock({ isLocked: false, owner: null });
+        }
+      } else {
+        setModuleLock({ isLocked: false, owner: null });
+      }
+    };
+
+    syncLocks();
+  };
+
+  // Release lock on unmount
+  useEffect(() => {
+    return () => {
+      if (activeTab === 'lab_invoice') {
+        dbService.releaseLock('lab_invoice', currentUserEmail);
+      }
+    };
+  }, [activeTab, currentUserEmail]);
   
   const renderContent = () => {
     switch (activeTab) {
@@ -162,6 +200,14 @@ const DiagnosticPage: React.FC<DiagnosticPageProps> = ({
                  </div>
                </div>
              )}
+             
+             {moduleLock.isLocked && (
+               <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[60] bg-amber-500 text-black px-6 py-3 rounded-full font-black shadow-2xl flex items-center gap-3 border-2 border-amber-300 animate-bounce">
+                 <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" /></svg>
+                 <span>সতর্কতা: "{moduleLock.owner}" বর্তমানে ল্যাব ইনভয়েস এ ডাটা এন্ট্রি করছেন। আপনি একই সাথে এন্ট্রি করতে পারবেন না।</span>
+               </div>
+             )}
+
             <LabInvoicingPage 
                 patients={patients}
                 setPatients={setPatients}
@@ -180,6 +226,7 @@ const DiagnosticPage: React.FC<DiagnosticPageProps> = ({
                 initialInvoiceId={preSelectedInvoiceId}
                 onClearInitialInvoice={() => setPreSelectedInvoiceId(null)}
                 performBlockingSync={performBlockingSync}
+                readOnly={moduleLock.isLocked}
             />
           </div>
         );
@@ -361,28 +408,28 @@ const DiagnosticPage: React.FC<DiagnosticPageProps> = ({
                 label="Doctor Appointment" 
                 icon={<CalendarIcon className="w-5 h-5" />} 
                 isActive={activeTab === 'doctor_appointment'} 
-                onClick={() => setActiveTab('doctor_appointment')} 
+                onClick={() => handleTabChange('doctor_appointment')} 
                 disabled={isLabReporter}
               />
               <TopBarButton 
                 label="Lab Invoice" 
                 icon={<MoneyIcon className="w-5 h-5" />} 
                 isActive={activeTab === 'lab_invoice'} 
-                onClick={() => setActiveTab('lab_invoice')} 
+                onClick={() => handleTabChange('lab_invoice')} 
                 disabled={isLabReporter}
               />
               <TopBarButton 
                 label="Previous Due Collection" 
                 icon={<Activity className="w-5 h-5" />} 
                 isActive={activeTab === 'due_collection'} 
-                onClick={() => setActiveTab('due_collection')} 
+                onClick={() => handleTabChange('due_collection')} 
                 disabled={isLabReporter}
               />
               <TopBarButton 
                 label="Lab Reporting" 
                 icon={<FileTextIcon className="w-5 h-5" />} 
                 isActive={activeTab === 'lab_reporting'} 
-                onClick={() => setActiveTab('lab_reporting')} 
+                onClick={() => handleTabChange('lab_reporting')} 
                 disabled={isDiagAdmin}
               />
            </div>

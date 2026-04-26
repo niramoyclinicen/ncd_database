@@ -28,6 +28,7 @@ interface AccountingPageProps {
   salesInvoices: SalesInvoice[];
   indoorInvoices: IndoorInvoice[];
   medicines: Medicine[];
+  tests: Test[];
   setReagents: React.Dispatch<React.SetStateAction<Reagent[]>>;
   attendanceLog: Record<string, any>;
   setAttendanceLog: React.Dispatch<React.SetStateAction<Record<string, any>>>;
@@ -117,7 +118,7 @@ const BackgroundGraphic = () => (
 
 const AccountingPage: React.FC<AccountingPageProps> = ({ 
   onBack, invoices, dueCollections, detailedExpenses, setDetailedExpenses, employees, setEmployees,
-  purchaseInvoices, salesInvoices, indoorInvoices, medicines, setReagents,
+  purchaseInvoices, salesInvoices, indoorInvoices, medicines, tests, setReagents,
   attendanceLog, setAttendanceLog, leaveLog, setLeaveLog,
   monthlyRoster, setMonthlyRoster, patients, doctors,
   diagnosticSettings, setDiagnosticSettings, performBlockingSync
@@ -134,6 +135,7 @@ const AccountingPage: React.FC<AccountingPageProps> = ({
             detailedExpenses={detailedExpenses} 
             setDetailedExpenses={setDetailedExpenses}
             setReagents={setReagents} 
+            availableTests={tests}
             monthlyRoster={monthlyRoster}
             patients={patients}
             doctors={doctors}

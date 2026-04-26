@@ -27,6 +27,7 @@ interface LabInvoicingPageProps {
   initialInvoiceId?: string | null;
   onClearInitialInvoice?: () => void;
   performBlockingSync?: (stateOverride?: any) => Promise<boolean>;
+  readOnly?: boolean;
 }
 
 const monthOptions = [
@@ -53,7 +54,8 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
   monthlyRoster,
   initialInvoiceId,
   onClearInitialInvoice,
-  performBlockingSync
+  performBlockingSync,
+  readOnly = false
 }) => {
   const [formData, setFormData] = useState<LabInvoice>(emptyLabInvoice);
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
@@ -457,32 +459,41 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
       status: totals.status
     };
 
+    // Duplicate check in local buffer first
+    if (!isEditing && invoices.some(inv => inv.invoice_id === invoiceToSave.invoice_id)) {
+      alert('সতর্কতা: এই ইনভয়েস আইডিটি ইতিমধ্যে ব্যবহৃত হয়েছে। দয়া করে নতুন আইডি নিন।');
+      return;
+    }
+
     const newInvoices = isEditing 
       ? invoices.map(inv => inv.invoice_id === invoiceToSave.invoice_id ? invoiceToSave : inv)
       : [invoiceToSave, ...invoices];
 
-    if (!isEditing && invoices.some(inv => inv.invoice_id === invoiceToSave.invoice_id)) {
-      alert('Invoice ID already exists. Please get a new ID.');
-      return;
-    }
-
-    // Update local state first for immediate UI response (though overlay will block)
-    setInvoices(newInvoices);
-
+    // CRITICAL: We DO NOT setInvoices(newInvoices) yet. 
+    // We wait for cloud success to tell the user it's REALLY saved.
+    
     // If performBlockingSync is available, use it to ensure cloud save
     if (performBlockingSync) {
-      // Pass the updated invoices to ensure the sync uses the latest data
-      const success = await performBlockingSync({ labInvoices: newInvoices });
-      if (success) {
-        setSuccessMessage('ইনভয়েস ডাটা সফলভাবে সেভ করা হয়েছে!');
-        resetForm();
-      } else {
-        // If it failed, the App.tsx will show the error modal
-        // We don't reset the form so the user can retry
+      try {
+        console.log("Initiating Cloud Save for Invoice:", invoiceToSave.invoice_id);
+        const success = await performBlockingSync({ labInvoices: newInvoices });
+        
+        if (success) {
+          // Sync successful - only now update the local state and reset form
+          setInvoices(newInvoices);
+          setSuccessMessage('ইনভয়েস ডাটা ক্লাউডে সফলভাবে সেভ করা হয়েছে!');
+          resetForm();
+        } else {
+          // Error modal is handled by App.tsx, we keep form data intact for retry
+          console.error("Cloud save returned unsuccessful status.");
+        }
+      } catch (err) {
+        alert("ইন্টারনেট সংযোগ বিচ্ছিন্ন হয়েছে। ডাটা সেভ করা যায়নি। সংযোগ ফিরে আসলে আবার চেষ্টা করুন।");
       }
     } else {
-      // Fallback if no blocking sync is provided
-      setSuccessMessage('ইনভয়েস ডাটা সেভ করা হয়েছে!');
+      // Offline mode fallback (Development only)
+      setInvoices(newInvoices);
+      setSuccessMessage('সতর্কতা: অফলাইন মোডে সেভ করা হয়েছে (Not Synced to Cloud)');
       resetForm();
     }
   };
@@ -770,12 +781,12 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
                     <label htmlFor="invoice_id" className="font-semibold text-slate-300 whitespace-nowrap text-xs">Invoice Id:</label>
                     <input type="text" id="invoice_id" name="invoice_id" disabled value={formData.invoice_id} className={`w-36 border rounded-md shadow-sm text-xs px-2 py-1 bg-slate-700 text-slate-400 ${errors.invoice_id ? 'border-red-500 ring-1 ring-red-500' : 'border-slate-600'}`} />
                 </div>
-                <button type="button" onClick={handleGetNewId} className="px-3 py-1.5 text-[10px] font-bold text-white bg-blue-600 rounded-md hover:bg-blue-500 uppercase tracking-tighter shadow-md">Get New Invoice</button>
-                <button type="submit" form="invoice-form" className="px-3 py-1.5 text-[10px] font-bold text-white bg-green-600 rounded-md hover:bg-green-500 uppercase tracking-tighter shadow-md">Save Invoice</button>
-                <button type="button" onClick={resetForm} className="px-3 py-1.5 text-[10px] font-bold text-slate-200 bg-slate-600 rounded-md hover:bg-slate-500 uppercase tracking-tighter shadow-md">Clear Form</button>
-                <button type="button" onClick={handleEditInvoice} disabled={!selectedInvoiceId} className="px-3 py-1.5 text-[10px] font-bold text-white bg-yellow-500 rounded-md hover:bg-yellow-400 uppercase tracking-tighter shadow-md disabled:opacity-50">Edit</button>
-                <button type="button" onClick={handleCancelInvoice} disabled={!selectedInvoiceId || invoices.find(inv => inv.invoice_id === selectedInvoiceId)?.status === 'Cancelled'} className="px-3 py-1.5 text-[10px] font-bold text-white bg-red-600 rounded-md hover:bg-red-700 uppercase tracking-tighter shadow-md disabled:opacity-50">Invoice Cancel</button>
-                <button type="button" onClick={handleReturnInvoice} disabled={!selectedInvoiceId || invoices.find(inv => inv.invoice_id === selectedInvoiceId)?.status === 'Returned'} className="px-3 py-1.5 text-[10px] font-bold text-white bg-rose-600 rounded-md hover:bg-rose-700 uppercase tracking-tighter shadow-md disabled:opacity-50">Return / Refund</button>
+                <button type="button" onClick={handleGetNewId} disabled={readOnly} className="px-3 py-1.5 text-[10px] font-bold text-white bg-blue-600 rounded-md hover:bg-blue-500 uppercase tracking-tighter shadow-md disabled:opacity-50">Get New Invoice</button>
+                <button type="submit" form="invoice-form" disabled={readOnly} className="px-3 py-1.5 text-[10px] font-bold text-white bg-green-600 rounded-md hover:bg-green-500 uppercase tracking-tighter shadow-md disabled:opacity-50">Save Invoice</button>
+                <button type="button" onClick={resetForm} disabled={readOnly} className="px-3 py-1.5 text-[10px] font-bold text-slate-200 bg-slate-600 rounded-md hover:bg-slate-500 uppercase tracking-tighter shadow-md disabled:opacity-50">Clear Form</button>
+                <button type="button" onClick={handleEditInvoice} disabled={!selectedInvoiceId || readOnly} className="px-3 py-1.5 text-[10px] font-bold text-white bg-yellow-500 rounded-md hover:bg-yellow-400 uppercase tracking-tighter shadow-md disabled:opacity-50">Edit</button>
+                <button type="button" onClick={handleCancelInvoice} disabled={!selectedInvoiceId || invoices.find(inv => inv.invoice_id === selectedInvoiceId)?.status === 'Cancelled' || readOnly} className="px-3 py-1.5 text-[10px] font-bold text-white bg-red-600 rounded-md hover:bg-red-700 uppercase tracking-tighter shadow-md disabled:opacity-50">Invoice Cancel</button>
+                <button type="button" onClick={handleReturnInvoice} disabled={!selectedInvoiceId || invoices.find(inv => inv.invoice_id === selectedInvoiceId)?.status === 'Returned' || readOnly} className="px-3 py-1.5 text-[10px] font-bold text-white bg-rose-600 rounded-md hover:bg-rose-700 uppercase tracking-tighter shadow-md disabled:opacity-50">Return / Refund</button>
                 <button type="button" onClick={handlePrintInvoice} disabled={!selectedInvoiceId} className="px-3 py-1.5 text-[10px] font-bold text-white bg-indigo-600 rounded-md hover:bg-indigo-500 uppercase tracking-tighter shadow-md disabled:opacity-50">Print</button>
             </div>
         </div>

@@ -27,6 +27,13 @@ const App: React.FC = () => {
   const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(false);
   const [isDataLoaded, setIsDataLoaded] = useState(false);
   const [connectionError, setConnectionError] = useState(false);
+  const [currentUserEmail] = useState(() => {
+    const existing = localStorage.getItem('ncd_user_email');
+    if (existing) return existing;
+    const newId = `User-${Date.now().toString(36)}-${Math.floor(Math.random() * 1000)}`;
+    localStorage.setItem('ncd_user_email', newId);
+    return newId;
+  });
 
   // Authentication & Passwords
   const [passwords, setPasswords] = useState<DepartmentPasswords>(() => {
@@ -73,47 +80,67 @@ const App: React.FC = () => {
     return saved ? JSON.parse(saved) : { customSubCategories: {}, trackedTests: [] };
   });
 
-  // --- DATA LOADING ---
+  // --- DATA LOADING & REAL-TIME SYNC ---
   useEffect(() => {
     const loadData = async () => {
       const loadedData = await dbService.loadFromCloud();
       
       if (loadedData) {
         if (Object.keys(loadedData).length > 0) {
-          if (loadedData.patients) setPatients(loadedData.patients);
-          if (loadedData.doctors) setDoctors(loadedData.doctors);
-          if (loadedData.referrars) setReferrars(loadedData.referrars);
-          if (loadedData.tests) setTests(loadedData.tests);
-          if (loadedData.reagents) setReagents(loadedData.reagents);
-          if (loadedData.labInvoices) setLabInvoices(loadedData.labInvoices);
-          if (loadedData.dueCollections) setDueCollections(loadedData.dueCollections);
-          if (loadedData.reports) setReports(loadedData.reports);
-          if (loadedData.employees) setEmployees(loadedData.employees);
-          if (loadedData.medicines) setMedicines(loadedData.medicines);
-          if (loadedData.clinicalDrugs) setClinicalDrugs(loadedData.clinicalDrugs);
-          if (loadedData.purchaseInvoices) setPurchaseInvoices(loadedData.purchaseInvoices);
-          if (loadedData.salesInvoices) setSalesInvoices(loadedData.salesInvoices);
-          if (loadedData.admissions) setAdmissions(loadedData.admissions);
-          if (loadedData.indoorInvoices) setIndoorInvoices(loadedData.indoorInvoices);
-          if (loadedData.detailedExpenses) setDetailedExpenses(loadedData.detailedExpenses);
-          if (loadedData.prescriptions) setPrescriptions(loadedData.prescriptions);
-          if (loadedData.appointments) setAppointments(loadedData.appointments);
-          if (loadedData.attendanceLog) setAttendanceLog(loadedData.attendanceLog);
-          if (loadedData.leaveLog) setLeaveLog(loadedData.leaveLog);
-          if (loadedData.monthlyRoster) setMonthlyRoster(loadedData.monthlyRoster);
-          if (loadedData.diagnosticSettings) {
-            setDiagnosticSettings(loadedData.diagnosticSettings);
-            localStorage.setItem('diag_settings', JSON.stringify(loadedData.diagnosticSettings));
-          }
+          updateLocalState(loadedData);
         }
-        
         setIsDataLoaded(true);
-        setConnectionError(false);
+        // Show indicator if offline, but don't block
+        setConnectionError(!dbService.isSupabaseConnected());
       } else {
+        // Fallback to local backup to ensure app opens
+        const localBackup = dbService.getLocalBackup();
+        if (localBackup) updateLocalState(localBackup);
+        setIsDataLoaded(true);
         setConnectionError(true);
       }
     };
+
+    // Helper to batch state updates
+    const updateLocalState = (data: any) => {
+      if (data.patients) setPatients(data.patients);
+      if (data.doctors) setDoctors(data.doctors);
+      if (data.referrars) setReferrars(data.referrars);
+      if (data.tests) setTests(data.tests);
+      if (data.reagents) setReagents(data.reagents);
+      if (data.labInvoices) setLabInvoices(data.labInvoices);
+      if (data.dueCollections) setDueCollections(data.dueCollections);
+      if (data.reports) setReports(data.reports);
+      if (data.employees) setEmployees(data.employees);
+      if (data.medicines) setMedicines(data.medicines);
+      if (data.clinicalDrugs) setClinicalDrugs(data.clinicalDrugs);
+      if (data.purchaseInvoices) setPurchaseInvoices(data.purchaseInvoices);
+      if (data.salesInvoices) setSalesInvoices(data.salesInvoices);
+      if (data.admissions) setAdmissions(data.admissions);
+      if (data.indoorInvoices) setIndoorInvoices(data.indoorInvoices);
+      if (data.detailedExpenses) setDetailedExpenses(data.detailedExpenses);
+      if (data.prescriptions) setPrescriptions(data.prescriptions);
+      if (data.appointments) setAppointments(data.appointments);
+      if (data.attendanceLog) setAttendanceLog(data.attendanceLog);
+      if (data.leaveLog) setLeaveLog(data.leaveLog);
+      if (data.monthlyRoster) setMonthlyRoster(data.monthlyRoster);
+      if (data.diagnosticSettings) setDiagnosticSettings(data.diagnosticSettings);
+    };
+
     loadData();
+
+    // REAL-TIME LISTENER: Listen for changes from other users
+    const subscription = dbService.subscribeToChanges((newData) => {
+      if (newData && Object.keys(newData).length > 0) {
+        // Only update if the cloud is newer (simple timestamp check or always update)
+        // Here we always update to ensure all tabs see the same data
+        updateLocalState(newData);
+      }
+    });
+
+    return () => {
+      if (subscription) subscription.unsubscribe();
+    };
   }, []);
 
   const [isSyncing, setIsSyncing] = useState(false);
@@ -229,23 +256,14 @@ const App: React.FC = () => {
     }
   };
 
-  if (connectionError) {
+  if (connectionError && !isDataLoaded) {
+    // We only show this if it's the absolute first time and no local backup
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
         <div className="bg-slate-800 border-2 border-red-500/50 p-8 rounded-3xl max-w-md w-full text-center shadow-2xl">
-          <div className="w-20 h-20 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
-            <svg className="w-10 h-10 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-            </svg>
-          </div>
-          <h2 className="text-2xl font-black text-white mb-4">ইন্টারনেট কানেকশন নেই!</h2>
-          <p className="text-slate-400 mb-8">সফটওয়্যারটি এখন সরাসরি অনলাইন মোডে কাজ করছে। ডাটা দেখার জন্য আপনার ইন্টারনেট কানেকশন প্রয়োজন। দয়া করে ইন্টারনেট চেক করে আবার চেষ্টা করুন।</p>
-          <button 
-            onClick={() => window.location.reload()} 
-            className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-4 rounded-2xl transition-all shadow-lg uppercase tracking-widest"
-          >
-            আবার চেষ্টা করুন (Retry)
-          </button>
+          <h2 className="text-2xl font-black text-white mb-4">ক্লাউড কানেকশন সমস্যা</h2>
+          <p className="text-slate-400 mb-8">ইন্টারনেট কানেকশন চেক করুন। প্রথমবারের মত ডাটা লোড করার জন্য কানেকশন প্রয়োজন।</p>
+          <button onClick={() => window.location.reload()} className="w-full bg-blue-600 py-4 rounded-2xl text-white font-bold">RETRY</button>
         </div>
       </div>
     );
@@ -301,6 +319,7 @@ const App: React.FC = () => {
             monthlyRoster={monthlyRoster} setMonthlyRoster={setMonthlyRoster}
             employeeReferrerMap={employeeReferrerMap} setEmployeeReferrerMap={setEmployeeReferrerMap}
             performBlockingSync={performBlockingSync}
+            currentUserEmail={currentUserEmail}
           />
         );
 
@@ -345,6 +364,7 @@ const App: React.FC = () => {
             salesInvoices={salesInvoices}
             indoorInvoices={indoorInvoices}
             medicines={medicines}
+            tests={tests}
             setReagents={setReagents}
             attendanceLog={attendanceLog} setAttendanceLog={setAttendanceLog}
             leaveLog={leaveLog} setLeaveLog={setLeaveLog}
@@ -354,6 +374,7 @@ const App: React.FC = () => {
             diagnosticSettings={diagnosticSettings}
             setDiagnosticSettings={setDiagnosticSettings}
             performBlockingSync={performBlockingSync}
+            currentUserEmail={currentUserEmail}
           />
         );
 

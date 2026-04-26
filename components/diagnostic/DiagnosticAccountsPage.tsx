@@ -856,7 +856,7 @@ const DailyExpenseForm: React.FC<any> = ({
 
 const DiagnosticAccountsPage: React.FC<any> = ({ 
     onBack, invoices, dueCollections, employees, detailedExpenses, setDetailedExpenses, monthlyRoster,
-    patients, doctors, diagnosticSettings, setDiagnosticSettings, performBlockingSync
+    patients, doctors, diagnosticSettings, setDiagnosticSettings, performBlockingSync, availableTests = []
 }) => {
     const todayStr = new Date().toISOString().split('T')[0];
     const [selectedDate, setSelectedDate] = useState(todayStr);
@@ -1634,43 +1634,51 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                                 </div>
                             </div>
                             
-                            <div className="flex flex-col lg:flex-row gap-6 no-print border-b border-slate-700 pb-6">
-                                <div className="flex flex-wrap gap-2 flex-grow">
+                            <div className="flex flex-col lg:flex-row gap-6 no-print border-b border-slate-700 pb-4">
+                                <div className="flex flex-wrap gap-2 flex-grow items-center">
                                     {['All', 'Pathology', 'USG', 'X-Ray', 'ECG', 'Hormone'].map(cat => (
-                                        <button key={cat} onClick={()=>setDetailFilterCategory(cat)} className={`px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase border transition-all ${detailFilterCategory === cat ? 'bg-indigo-600 text-white border-indigo-400 shadow-lg' : 'bg-slate-900 text-slate-500 border-slate-700 hover:text-slate-300'}`}>
-                                            {cat} <span className={`ml-2 px-2 py-0.5 rounded-full ${detailFilterCategory === cat ? 'bg-white/20' : 'bg-slate-800'}`}>{categoryCounts[cat] || 0}</span>
+                                        <button key={cat} onClick={()=>setDetailFilterCategory(cat)} className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase border transition-all ${detailFilterCategory === cat ? 'bg-indigo-600 text-white border-indigo-400 shadow-lg' : 'bg-slate-900 text-slate-500 border-slate-700 hover:text-slate-300'}`}>
+                                            {cat} <span className={`ml-1.5 px-2 py-0.5 rounded-full ${detailFilterCategory === cat ? 'bg-white/20' : 'bg-slate-800'}`}>{categoryCounts[cat] || 0}</span>
                                         </button>
                                     ))}
                                 </div>
-                                <div className="bg-slate-900/80 p-4 rounded-3xl border border-slate-700 w-full lg:w-[450px]">
-                                    <div className="flex justify-between items-center mb-3">
-                                        <p className="text-[10px] font-black text-white uppercase tracking-widest flex items-center gap-2">
+                                <div className="bg-slate-900/80 p-3 rounded-2xl border border-slate-700 w-full lg:w-[500px]">
+                                    <div className="flex justify-between items-center mb-2">
+                                        <p className="text-[9px] font-black text-white uppercase tracking-widest flex items-center gap-2">
                                             <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse"></div>
                                             Tracked Tests Counts
                                         </p>
-                                        <button onClick={() => setIsEditingTracked(!isEditingTracked)} className="text-[9px] font-black text-sky-500 hover:text-white uppercase transition-colors">
-                                            {isEditingTracked ? 'Save List' : 'Change Tests'}
+                                        <button onClick={() => setIsEditingTracked(!isEditingTracked)} className="text-[8px] font-black text-sky-500 hover:text-white uppercase transition-colors">
+                                            {isEditingTracked ? 'Confirm List' : 'Set Custom Tests'}
                                         </button>
                                     </div>
-                                    <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+                                    <div className="flex flex-wrap gap-1.5 overflow-x-auto pb-1 max-h-[60px]">
                                         {trackedTests.map((test, i) => (
-                                            <div key={i} className="bg-slate-950 p-2 rounded-xl border border-slate-800 relative group">
+                                            <div key={i} className="bg-slate-950 px-2 py-1.5 rounded-lg border border-slate-800 relative group min-w-[70px]">
                                                 {isEditingTracked ? (
-                                                    <input 
-                                                        type="text" 
-                                                        value={test} 
-                                                        onChange={(e) => {
-                                                            const n = [...trackedTests];
-                                                            n[i] = e.target.value;
-                                                            setTrackedTests(n);
-                                                        }}
-                                                        className="w-full bg-slate-900 border-none text-[9px] text-white p-0.5 outline-none font-bold placeholder:text-slate-700" 
-                                                        placeholder="Test..."
-                                                    />
-                                                ) : (
                                                     <div>
-                                                        <p className="text-[8px] font-bold text-slate-500 uppercase truncate" title={test}>{test || '---'}</p>
-                                                        <p className="text-sm font-black text-indigo-400">{customTestCounts[test] || 0}</p>
+                                                        <input 
+                                                            list="available-tests-list"
+                                                            type="text" 
+                                                            value={test} 
+                                                            onChange={(e) => {
+                                                                const n = [...trackedTests];
+                                                                n[i] = e.target.value;
+                                                                setTrackedTests(n);
+                                                            }}
+                                                            className="w-full bg-slate-900 border-none text-[8px] text-white p-0 outline-none font-bold placeholder:text-slate-700" 
+                                                            placeholder="Select..."
+                                                        />
+                                                        <datalist id="available-tests-list">
+                                                            {availableTests.map((t: any) => (
+                                                                <option key={t.test_id} value={t.test_name} />
+                                                            ))}
+                                                        </datalist>
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex flex-col">
+                                                        <p className="text-[7px] font-bold text-slate-500 uppercase truncate w-[60px]" title={test}>{test || '---'}</p>
+                                                        <p className="text-xs font-black text-indigo-400 leading-none">{customTestCounts[test] || 0}</p>
                                                     </div>
                                                 )}
                                             </div>

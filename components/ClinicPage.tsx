@@ -2008,7 +2008,7 @@ const IndoorInvoicePage: React.FC<{
         const month = calculateStatsForPeriod(currentMonthStr, 'month');
         const year = calculateStatsForPeriod(currentYearStr, 'year');
         const safeInvoices = Array.isArray(indoorInvoices) ? indoorInvoices : [];
-        const totalDue = safeInvoices.filter(i => i && i.status !== 'Returned' && i.status !== 'Cancelled').reduce((s, i) => s + (i.due_bill || 0), 0);
+        const totalDue = safeInvoices.filter(i => i && i.status !== 'Returned' && i.status !== 'Cancelled' && i.status !== 'Deleted').reduce((s, i) => s + (i.due_bill || 0), 0);
 
         return { today, month, year, totalDue };
     }, [indoorInvoices]);
@@ -2368,6 +2368,13 @@ const IndoorInvoicePage: React.FC<{
         win.document.write(html); win.document.close(); win.print();
     };
 
+    const handleDeleteInvoice = (inv: IndoorInvoice) => {
+        if (window.confirm(`আপনি কি এই ইনভয়েসটি ডিলিট করতে চান? ডিলিট করলে এটি একাউন্ট থেকে বাতিল হয়ে যাবে কিন্তু লগ হিসেবে সংরক্ষিত থাকবে।`)) {
+            setIndoorInvoices((prev: IndoorInvoice[]) => (Array.isArray(prev) ? prev : []).map(item => item && item.daily_id === inv.daily_id ? { ...item, status: 'Deleted' } : item));
+            setSuccessMessage("Invoice Marked as Deleted!");
+        }
+    };
+
     const handleLoadInvoice = (inv: IndoorInvoice) => {
         if (!inv) return;
         const patient = (Array.isArray(patients) ? patients : []).find(p => p && p.pt_id === inv.patient_id);
@@ -2433,7 +2440,7 @@ const IndoorInvoicePage: React.FC<{
 
     // --- Core logic to categorize an invoice (Mapping Category Breakdown) ---
     const categorizeInvoiceData = (inv: IndoorInvoice) => {
-        if (!inv || inv.status === 'Cancelled' || inv.status === 'Returned') {
+        if (!inv || inv.status === 'Cancelled' || inv.status === 'Returned' || inv.status === 'Deleted') {
             return { admFee: 0, oxygen: 0, conservative: 0, nvd: 0, dc: 0, lscs_ot: 0, gb_ot: 0, others_ot: 0, dressing: 0, others: 0, pcAmount: 0, clinicNet: 0 };
         }
 
@@ -3010,7 +3017,7 @@ const IndoorInvoicePage: React.FC<{
                                         <td className="p-3 text-right text-rose-600 font-black font-mono">৳{Number(inv.due_bill || 0).toFixed(2)}</td>
                                         <td className="p-3 text-right text-sky-600 font-bold font-mono">
                                             {(() => {
-                                                if (inv.status === 'Cancelled') return '৳0.00';
+                                                if (inv.status === 'Cancelled' || inv.status === 'Deleted') return '৳0.00';
                                                 const items = Array.isArray(inv.items) ? inv.items : [];
                                                 const nonFundedCost = items
                                                     .filter(it => it && !it.isClinicFund)
@@ -3020,13 +3027,14 @@ const IndoorInvoicePage: React.FC<{
                                                 return `৳${(inv.status === 'Returned' ? -net : net).toFixed(2)}`;
                                             })()}
                                         </td>
-                                        <td className="p-3 text-center"><span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase ${inv.status==='Returned'?'bg-rose-600 text-white':inv.status==='Cancelled'?'bg-slate-700 text-slate-300':'bg-blue-600 text-white'}`}>{inv.status}</span></td>
+                                        <td className="p-3 text-center"><span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase ${inv.status==='Returned'?'bg-rose-600 text-white':(inv.status==='Cancelled'||inv.status==='Deleted')?'bg-slate-700 text-slate-300':'bg-blue-600 text-white'}`}>{inv.status}</span></td>
                                         <td className="p-3 text-center space-x-3" onClick={e=>e.stopPropagation()}>
                                             <button onClick={(e) => { e.stopPropagation(); handlePrintInvoice(inv); }} className="text-sky-600 hover:text-sky-800 text-xs font-bold underline">Print</button>
-                                            {inv.status !== 'Returned' && inv.status !== 'Cancelled' && (
+                                            {inv.status !== 'Returned' && inv.status !== 'Cancelled' && inv.status !== 'Deleted' && (
                                                 <>
                                                     <button onClick={(e) => { e.stopPropagation(); handleReturnInvoice(inv); }} className="text-amber-600 hover:text-amber-800 text-xs font-bold underline">Return</button>
-                                                    <button onClick={(e) => { e.stopPropagation(); handleCancelInvoice(inv); }} className="text-rose-600 hover:text-rose-800 text-xs font-bold underline">Cancel</button>
+                                                    <button onClick={(e) => { e.stopPropagation(); handleDeleteInvoice(inv); }} className="text-rose-600 hover:text-rose-800 text-xs font-bold underline">Delete</button>
+                                                    <button onClick={(e) => { e.stopPropagation(); handleCancelInvoice(inv); }} className="text-slate-400 hover:text-slate-600 text-xs font-bold underline">Cancel</button>
                                                 </>
                                             )}
                                         </td>
@@ -3214,9 +3222,9 @@ const ReportSummaryPage: React.FC<{
 // 5. Bed Management
 const BedManagementPage: React.FC<{ admissions: AdmissionRecord[]; setAdmissions: React.Dispatch<React.SetStateAction<AdmissionRecord[]>>; setSuccessMessage: (msg: string) => void; }> = ({ admissions, setAdmissions, setSuccessMessage }) => {
     const wards = [
-        { id: 'male_ward', name: 'Male Ward', beds: Array.from({length: 5}, (_, i) => `M-${String(i+1).padStart(2, '0')}`) },
+        { id: 'cabin', name: 'Cabins', beds: ['CAB-101', 'CAB-102', 'CAB-103'] },
         { id: 'female_ward', name: 'Female Ward', beds: Array.from({length: 5}, (_, i) => `F-${String(i+1).padStart(2, '0')}`) },
-        { id: 'cabin', name: 'Cabins', beds: ['CAB-101', 'CAB-102', 'CAB-103', 'CAB-104', 'VIP-01'] }
+        { id: 'male_ward', name: 'Male Ward', beds: Array.from({length: 2}, (_, i) => `M-${String(i+1).padStart(2, '0')}`) }
     ];
 
     const getBedStatus = (bedId: string) => {

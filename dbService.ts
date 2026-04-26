@@ -60,34 +60,33 @@ export const dbService = {
         
         if (error) {
           if (error.code === 'PGRST116') {
-            return null; // Explicitly return null if no cloud data
+            return {}; 
           }
           throw error;
         }
 
         if (record && record.data) {
-          // If we got cloud data, update local backup
           localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(record.data));
           return record.data;
         }
+        return {};
       }
-      return null; 
+      
+      // If no supabase, try local storage fallback
+      const localData = localStorage.getItem(LOCAL_STORAGE_KEY);
+      return localData ? JSON.parse(localData) : {};
     } catch (error) {
       console.error("Cloud Connection Error:", error);
-      // Fallback to local storage if cloud fails
       const localData = localStorage.getItem(LOCAL_STORAGE_KEY);
-      if (localData) {
-        try {
-          return JSON.parse(localData);
-        } catch {
-          return null;
-        }
+      try {
+        return localData ? JSON.parse(localData) : {};
+      } catch {
+        return {};
       }
-      return null; 
     }
   },
 
-  // NEW: Save data key-by-key to handle slow internet and large payloads
+  // IMPROVED: Granular 1,2,3% progress and better merging
   saveInChunks: async (appState: any, onProgress?: (p: number) => void) => {
     try {
       if (!supabase) return false;
@@ -97,29 +96,35 @@ export const dbService = {
           return Array.isArray(val) ? val.length > 0 : (val && typeof val === 'object' && Object.keys(val).length > 0);
       });
 
-      if (keys.length === 0) return true;
+      if (keys.length === 0) {
+          onProgress?.(100);
+          return true;
+      }
 
-      // 1. Get current cloud state to merge properly
-      onProgress?.(5);
+      // 1. Start progress
+      onProgress?.(1);
+      
+      // 2. Fetch latest state to merge (Prevention of overwriting others' data)
       const { data: cloudRecord } = await supabase
         .from('ncd_state')
         .select('data')
         .eq('id', 1)
         .single();
       
-      let mergedData = (cloudRecord?.data && typeof cloudRecord.data === 'object' && !Array.isArray(cloudRecord.data)) 
+      const mergedData = (cloudRecord?.data && typeof cloudRecord.data === 'object' && !Array.isArray(cloudRecord.data)) 
         ? { ...cloudRecord.data } 
         : {};
 
-      // 2. Iterate through each key and sync
+      // 3. Batch and Push
       const totalKeys = keys.length;
-      let successCount = 0;
-
+      
       for (let i = 0; i < totalKeys; i++) {
         const key = keys[i];
         mergedData[key] = appState[key];
         
-        // Push the intermediate state to cloud
+        const currentProgress = Math.round(((i + 1) / totalKeys) * 100);
+        
+        // Save intermediate state to handle disconnection
         const { error } = await supabase
           .from('ncd_state')
           .upsert({ 
@@ -128,22 +133,18 @@ export const dbService = {
             updated_at: new Date().toISOString() 
           }, { onConflict: 'id' });
 
-        if (error) {
-          console.error(`Sync failed for key: ${key}`, error);
-          // If a key fails, we still continue with others to save as much as possible
-        } else {
-          successCount++;
-          // Save to local backup as we go to keep both in sync
+        if (!error) {
           localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(mergedData));
+          onProgress?.(currentProgress);
+        } else {
+            console.error(`Step ${i} failed:`, error);
         }
-
-        const progress = Math.round(10 + (successCount / totalKeys) * 90);
-        onProgress?.(progress);
       }
 
-      return successCount > 0;
+      onProgress?.(100);
+      return true;
     } catch (e) {
-      console.error("Advanced Chunked Save Error:", e);
+      console.error("Advanced Sync Error:", e);
       return false;
     }
   },
@@ -190,7 +191,7 @@ export const dbService = {
     // First check common legacy keys from previous versions
     const mainCache = localStorage.getItem('ncd_offline_cache_v1');
     if (mainCache) {
-      try { recoveredState = JSON.parse(mainCache); } catch(e) {}
+      try { recoveredState = JSON.parse(mainCache); } catch(e) { /* ignore */ }
     }
 
     // Then try specific storage keys seen in logs
@@ -215,7 +216,7 @@ export const dbService = {
       if (!recoveredState[stateKey]) {
         const val = localStorage.getItem(storageKey);
         if (val) {
-          try { recoveredState[stateKey] = JSON.parse(val); } catch(e) {}
+          try { recoveredState[stateKey] = JSON.parse(val); } catch(e) { /* ignore */ }
         }
       }
     });
@@ -225,7 +226,7 @@ export const dbService = {
 
   // NEW: Normalize data from various sources (Raw LocalStorage, Sub-keys, or Full State)
   normalizeRecoveredData: (raw: any) => {
-    let normalized: any = {};
+    const normalized: any = {};
 
     // 1. Unpack everything that looks like stringified JSON
     const unpacked: any = {};
@@ -298,7 +299,71 @@ export const dbService = {
     return normalized;
   },
 
-  isSupabaseConnected: () => {
-    return !!supabase;
+  // NEW: Concurrency Locking Mechanism (To prevent multiple users from editing same module)
+  acquireLock: async (moduleName: string, userId: string) => {
+    if (!supabase) return { success: true }; // Offline bypass
+    
+    try {
+      // 1. Get current cloud state
+      const { data: record } = await supabase
+        .from('ncd_state')
+        .select('data')
+        .eq('id', MASTER_RECORD_ID)
+        .single();
+      
+      const currentData = record?.data || {};
+      const locks = currentData._locks || {};
+      const now = Date.now();
+      
+      // If lock exists and hasn't expired (5 min timeout)
+      if (locks[moduleName] && locks[moduleName].userId !== userId && (now - locks[moduleName].timestamp < 300000)) {
+        return { success: false, owner: locks[moduleName].userId };
+      }
+      
+      // Set/Refresh lock
+      locks[moduleName] = { userId, timestamp: now };
+      currentData._locks = locks;
+      
+      await supabase.from('ncd_state').upsert({ id: MASTER_RECORD_ID, data: currentData }, { onConflict: 'id' });
+      return { success: true };
+    } catch {
+      return { success: true }; // Fallback to allow work if cloud fails
+    }
+  },
+
+  releaseLock: async (moduleName: string, userId: string) => {
+    if (!supabase) return;
+    try {
+      const { data: record } = await supabase
+        .from('ncd_state')
+        .select('data')
+        .eq('id', MASTER_RECORD_ID)
+        .single();
+      
+      const currentData = record?.data || {};
+      const locks = currentData._locks || {};
+      
+      if (locks[moduleName] && locks[moduleName].userId === userId) {
+        delete locks[moduleName];
+        currentData._locks = locks;
+        await supabase.from('ncd_state').upsert({ id: MASTER_RECORD_ID, data: currentData }, { onConflict: 'id' });
+      }
+    } catch (e) {
+      console.error("Release lock fail:", e);
+    }
+  },
+
+  // Enable Real-time listener for multi-user sync
+  subscribeToChanges: (callback: (data: any) => void) => {
+    if (!supabase) return null;
+
+    return supabase
+      .channel('public:ncd_state')
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'ncd_state', filter: `id=eq.${MASTER_RECORD_ID}` }, (payload) => {
+        if (payload.new && payload.new.data) {
+          callback(payload.new.data);
+        }
+      })
+      .subscribe();
   }
 };

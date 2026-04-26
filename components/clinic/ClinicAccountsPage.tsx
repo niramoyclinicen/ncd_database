@@ -326,7 +326,7 @@ const ClinicAccountsPage: React.FC<any> = ({
 
     // --- Core logic to categorize an invoice (Mapping Category Breakdown) ---
     const categorizeInvoiceData = React.useCallback((inv: any) => {
-        if (!inv || inv.status === 'Cancelled' || inv.status === 'Returned') {
+        if (!inv || inv.status === 'Cancelled' || inv.status === 'Returned' || inv.status === 'Deleted') {
             return { admFee: 0, oxygen: 0, conservative: 0, nvd: 0, dc: 0, lscs_ot: 0, gb_ot: 0, others_ot: 0, dressing: 0, others: 0, pcAmount: 0, clinicNet: 0 };
         }
 
@@ -420,7 +420,7 @@ const ClinicAccountsPage: React.FC<any> = ({
         }, { admFee: 0, oxygen: 0, conservative: 0, nvd: 0, dc: 0, lscs_ot: 0, gb_ot: 0, others_ot: 0, dressing: 0, others: 0, totalPC: 0 });
 
         const totalClinicNetOnly = monthInvoices.reduce((sum:any, inv:any) => {
-            if (inv.status === 'Cancelled' || inv.status === 'Returned') return sum;
+            if (inv.status === 'Cancelled' || inv.status === 'Returned' || inv.status === 'Deleted') return sum;
             const catData = categorizeInvoiceData(inv);
             return sum + catData.clinicNet;
         }, 0);
@@ -538,7 +538,7 @@ const ClinicAccountsPage: React.FC<any> = ({
         }, { admFee: 0, oxygen: 0, conservative: 0, nvd: 0, dc: 0, lscs_ot: 0, gb_ot: 0, others_ot: 0, dressing: 0, others: 0, totalPC: 0 });
 
         const totalClinicNetOnly = dayInvoices.reduce((sum: any, inv: any) => {
-             if (inv.status === 'Cancelled' || inv.status === 'Returned') return sum;
+             if (inv.status === 'Cancelled' || inv.status === 'Returned' || inv.status === 'Deleted') return sum;
              const catData = categorizeInvoiceData(inv);
              return sum + catData.clinicNet;
         }, 0);
@@ -631,7 +631,7 @@ const ClinicAccountsPage: React.FC<any> = ({
     }, [invoices, invoiceSearch, invoiceDateSearch, invoiceMonthSearch, invoiceYearSearch, selectedDate]);
     const reportTotals = useMemo(() => {
         return collectionReportData.reduce((acc, curr) => {
-            if (curr.status !== 'Cancelled' && curr.status !== 'Returned') {
+            if (curr.status !== 'Cancelled' && curr.status !== 'Returned' && curr.status !== 'Deleted') {
                 acc.admFee += curr.admFeeCol;
                 if (curr.admFeeCol > 0) acc.admFeeCount++;
 
@@ -733,7 +733,7 @@ const ClinicAccountsPage: React.FC<any> = ({
                         </thead>
                         <tbody>
                             ${collectionReportData.map((inv, idx) => `
-                                <tr class="${inv.status === 'Cancelled' ? 'opacity-30 line-through' : inv.status === 'Returned' ? 'bg-red-50' : ''}">
+                                <tr class="${inv.status === 'Cancelled' || inv.status === 'Deleted' ? 'opacity-30 line-through' : inv.status === 'Returned' ? 'bg-red-50' : ''}">
                                     <td>${idx + 1}</td>
                                     <td>${inv.admission_id}</td>
                                     <td>${inv.invoice_date || inv.admission_date}</td>
@@ -1302,53 +1302,53 @@ const ClinicAccountsPage: React.FC<any> = ({
                                 </div>
                             </div>
 
-                            <div className="overflow-x-auto min-h-[500px] border border-slate-700 rounded-xl bg-slate-950/20 shadow-inner w-full">
+                            <div className="overflow-x-auto min-h-[650px] border border-slate-700 rounded-xl bg-slate-950/20 shadow-inner w-full">
                                 <table className="w-full text-left text-[11px] border-collapse min-w-[1500px]">
-                                    <thead className="bg-slate-900/80 text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-700">
+                                    <thead className="bg-slate-900/80 text-[9px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-700">
                                         <tr>
-                                            <th className="p-3 whitespace-nowrap">SL</th>
-                                            <th className="p-3 whitespace-nowrap">Adm. ID</th>
-                                            <th className="p-3 whitespace-nowrap">Date</th>
-                                            <th className="p-3 whitespace-nowrap">Patient Name</th>
-                                            <th className="p-3 whitespace-nowrap">Service Taken</th>
-                                            <th className="p-3 text-right">Admission</th>
-                                            <th className="p-3 text-right">LSCS_OT</th>
-                                            <th className="p-3 text-right">GB_OT</th>
-                                            <th className="p-3 text-right">Others_OT</th>
-                                            <th className="p-3 text-right">NVD</th>
-                                            <th className="p-3 text-right">D&C</th>
-                                            <th className="p-3 text-right">Cons.</th>
-                                            <th className="p-3 text-right">O2/Neb</th>
-                                            <th className="p-3 text-right">Dress</th>
-                                            <th className="p-3 text-right">Misc</th>
-                                            <th className="p-3 text-right bg-emerald-900/10 text-emerald-100 font-black">Paid Total</th>
-                                            <th className="p-3 text-right bg-rose-900/10 text-rose-300 font-black border-l-2 border-rose-800/30">PC (Comm)</th>
-                                            <th className="p-3 text-right bg-blue-900/10 text-sky-200 font-black border-l-2 border-blue-800/30">Clinic Net</th>
-                                            <th className="p-3 text-center">Status</th>
+                                            <th className="p-2 whitespace-nowrap">SL</th>
+                                            <th className="p-2 whitespace-nowrap">Adm. ID</th>
+                                            <th className="p-2 whitespace-nowrap">Date</th>
+                                            <th className="p-2 whitespace-nowrap">Patient Name</th>
+                                            <th className="p-2 whitespace-nowrap">Service Taken</th>
+                                            <th className="p-2 text-right">Admission</th>
+                                            <th className="p-2 text-right">LSCS_OT</th>
+                                            <th className="p-2 text-right">GB_OT</th>
+                                            <th className="p-2 text-right">Others_OT</th>
+                                            <th className="p-2 text-right">NVD</th>
+                                            <th className="p-2 text-right">D&C</th>
+                                            <th className="p-2 text-right">Cons.</th>
+                                            <th className="p-2 text-right">O2/Neb</th>
+                                            <th className="p-2 text-right">Dress</th>
+                                            <th className="p-2 text-right">Misc</th>
+                                            <th className="p-2 text-right bg-emerald-900/10 text-emerald-100 font-black">Paid Total</th>
+                                            <th className="p-2 text-right bg-rose-900/10 text-rose-300 font-black border-l-2 border-rose-800/30">PC (Comm)</th>
+                                            <th className="p-2 text-right bg-blue-900/10 text-sky-200 font-black border-l-2 border-blue-800/30">Clinic Net</th>
+                                            <th className="p-2 text-center">Status</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-800">
                                         {collectionReportData.length > 0 ? collectionReportData.map((inv: any, idx: number) => (
-                                            <tr key={inv.daily_id} className={`hover:bg-slate-700/30 transition-colors ${inv.status === 'Cancelled' ? 'opacity-30 line-through grayscale' : inv.status === 'Returned' ? 'bg-rose-900/5' : ''}`}>
-                                                <td className="p-3 border-r border-slate-800/50 text-slate-500 font-mono">{idx + 1}</td>
-                                                <td className="p-3 font-mono text-sky-500 border-r border-slate-800/50">{inv.admission_id}</td>
-                                                <td className="p-3 border-r border-slate-800/50 whitespace-nowrap">{inv.invoice_date || inv.admission_date}</td>
-                                                <td className="p-3 font-black text-slate-200 border-r border-slate-800/50 uppercase whitespace-nowrap">{inv.patient_name}</td>
-                                                <td className="p-3 text-sky-400 font-bold border-r border-slate-800/50 truncate max-w-[120px]" title={inv.subCategory}>{inv.subCategory || '-'}</td>
-                                                <td className="p-3 text-right border-r border-slate-800/50">৳{inv.admFeeCol.toLocaleString()}</td>
-                                                <td className="p-3 text-right border-r border-slate-800/50">৳{inv.lscsOtCol.toLocaleString()}</td>
-                                                <td className="p-3 text-right border-r border-slate-800/50">৳{inv.gbCol.toLocaleString()}</td>
-                                                <td className="p-3 text-right border-r border-slate-800/50">৳{inv.othersOtCol.toLocaleString()}</td>
-                                                <td className="p-3 text-right border-r border-slate-800/50">৳{inv.nvdCol.toLocaleString()}</td>
-                                                <td className="p-3 text-right border-r border-slate-800/50">৳{inv.dcCol.toLocaleString()}</td>
-                                                <td className="p-3 text-right border-r border-slate-800/50">৳{inv.consCol.toLocaleString()}</td>
-                                                <td className="p-3 text-right border-r border-slate-800/50">৳{inv.o2NebCol.toLocaleString()}</td>
-                                                <td className="p-3 text-right border-r border-slate-800/50">৳{inv.dressCol.toLocaleString()}</td>
-                                                <td className="p-3 text-right border-r border-slate-800/50">৳{inv.othersCol.toLocaleString()}</td>
-                                                <td className="p-3 text-right font-black text-emerald-400 bg-emerald-900/10">৳ {(inv.status === 'Cancelled' || inv.status === 'Returned') ? '0' : inv.paid_amount.toLocaleString()}</td>
-                                                <td className="p-3 text-right font-black text-rose-400 bg-rose-900/10 border-l-2 border-rose-800/30">৳ {inv.pcCol.toLocaleString()}</td>
-                                                <td className="p-3 text-right font-black text-sky-300 bg-blue-900/10 border-l-2 border-blue-800/30">৳ {inv.netClinicCol.toLocaleString()}</td>
-                                                <td className="p-3 text-center"><span className="text-[7px] font-black uppercase px-1 rounded bg-slate-900">{inv.status}</span></td>
+                                            <tr key={inv.daily_id} className={`hover:bg-slate-700/30 transition-colors ${inv.status === 'Cancelled' || inv.status === 'Deleted' ? 'opacity-30 line-through grayscale' : inv.status === 'Returned' ? 'bg-rose-900/5' : ''}`}>
+                                                <td className="p-2 border-r border-slate-800/50 text-slate-500 font-mono">{idx + 1}</td>
+                                                <td className="p-2 font-mono text-sky-500 border-r border-slate-800/50">{inv.admission_id}</td>
+                                                <td className="p-2 border-r border-slate-800/50 whitespace-nowrap">{inv.invoice_date || inv.admission_date}</td>
+                                                <td className="p-2 font-black text-slate-200 border-r border-slate-800/50 uppercase whitespace-nowrap">{inv.patient_name}</td>
+                                                <td className="p-2 text-sky-400 font-bold border-r border-slate-800/50 truncate max-w-[120px]" title={inv.subCategory}>{inv.subCategory || '-'}</td>
+                                                <td className="p-2 text-right border-r border-slate-800/50">৳{inv.admFeeCol.toLocaleString()}</td>
+                                                <td className="p-2 text-right border-r border-slate-800/50">৳{inv.lscsOtCol.toLocaleString()}</td>
+                                                <td className="p-2 text-right border-r border-slate-800/50">৳{inv.gbCol.toLocaleString()}</td>
+                                                <td className="p-2 text-right border-r border-slate-800/50">৳{inv.othersOtCol.toLocaleString()}</td>
+                                                <td className="p-2 text-right border-r border-slate-800/50">৳{inv.nvdCol.toLocaleString()}</td>
+                                                <td className="p-2 text-right border-r border-slate-800/50">৳{inv.dcCol.toLocaleString()}</td>
+                                                <td className="p-2 text-right border-r border-slate-800/50">৳{inv.consCol.toLocaleString()}</td>
+                                                <td className="p-2 text-right border-r border-slate-800/50">৳{inv.o2NebCol.toLocaleString()}</td>
+                                                <td className="p-2 text-right border-r border-slate-800/50">৳{inv.dressCol.toLocaleString()}</td>
+                                                <td className="p-2 text-right border-r border-slate-800/50">৳{inv.othersCol.toLocaleString()}</td>
+                                                <td className="p-2 text-right font-black text-emerald-400 bg-emerald-900/10">৳ {(inv.status === 'Cancelled' || inv.status === 'Returned' || inv.status === 'Deleted') ? '0' : inv.paid_amount.toLocaleString()}</td>
+                                                <td className="p-2 text-right font-black text-rose-400 bg-rose-900/10 border-l-2 border-rose-800/30">৳ {inv.pcCol.toLocaleString()}</td>
+                                                <td className="p-2 text-right font-black text-sky-300 bg-blue-900/10 border-l-2 border-blue-800/30">৳ {inv.netClinicCol.toLocaleString()}</td>
+                                                <td className="p-2 text-center"><span className="text-[7px] font-black uppercase px-1 rounded bg-slate-900">{inv.status}</span></td>
                                             </tr>
                                         )) : (
                                             <tr><td colSpan={19} className="p-20 text-center text-slate-600 italic font-black uppercase opacity-30 text-xl tracking-[0.2em]">No Collection Records Found</td></tr>
@@ -1357,50 +1357,50 @@ const ClinicAccountsPage: React.FC<any> = ({
                                     {collectionReportData.length > 0 && (
                                         <tfoot className="bg-slate-900 text-slate-200 font-black border-t-2 border-slate-700 sticky bottom-0">
                                             <tr>
-                                                <td colSpan={5} className="p-4 text-right uppercase tracking-widest text-[11px]">Grand Summary Totals (Active Only):</td>
-                                                <td className="p-4 text-right">
+                                                <td colSpan={5} className="p-2 text-right uppercase tracking-widest text-[10px]">Grand Summary Totals (Active Only):</td>
+                                                <td className="p-2 text-right">
                                                     <div className="text-emerald-400">৳{reportTotals.admFee.toLocaleString()}</div>
-                                                    <div className="text-[9px] text-slate-500 font-bold">Qty: {reportTotals.admFeeCount}</div>
+                                                    <div className="text-[8px] text-slate-500 font-bold leading-tight">Qty: {reportTotals.admFeeCount}</div>
                                                 </td>
-                                                <td className="p-4 text-right">
+                                                <td className="p-2 text-right">
                                                     <div className="text-emerald-400">৳{reportTotals.lscs_ot.toLocaleString()}</div>
-                                                    <div className="text-[9px] text-slate-500 font-bold">Qty: {reportTotals.lscs_otCount}</div>
+                                                    <div className="text-[8px] text-slate-500 font-bold leading-tight">Qty: {reportTotals.lscs_otCount}</div>
                                                 </td>
-                                                <td className="p-4 text-right">
+                                                <td className="p-2 text-right">
                                                     <div className="text-emerald-400">৳{reportTotals.gb.toLocaleString()}</div>
-                                                    <div className="text-[9px] text-slate-500 font-bold">Qty: {reportTotals.gbCount}</div>
+                                                    <div className="text-[8px] text-slate-500 font-bold leading-tight">Qty: {reportTotals.gbCount}</div>
                                                 </td>
-                                                <td className="p-4 text-right">
+                                                <td className="p-2 text-right">
                                                     <div className="text-emerald-400">৳{reportTotals.others_ot.toLocaleString()}</div>
-                                                    <div className="text-[9px] text-slate-500 font-bold">Qty: {reportTotals.others_otCount}</div>
+                                                    <div className="text-[8px] text-slate-500 font-bold leading-tight">Qty: {reportTotals.others_otCount}</div>
                                                 </td>
-                                                <td className="p-4 text-right">
+                                                <td className="p-2 text-right">
                                                     <div className="text-emerald-400">৳{reportTotals.nvd.toLocaleString()}</div>
-                                                    <div className="text-[9px] text-slate-500 font-bold">Qty: {reportTotals.nvdCount}</div>
+                                                    <div className="text-[8px] text-slate-500 font-bold leading-tight">Qty: {reportTotals.nvdCount}</div>
                                                 </td>
-                                                <td className="p-4 text-right">
+                                                <td className="p-2 text-right">
                                                     <div className="text-emerald-400">৳{reportTotals.dc.toLocaleString()}</div>
-                                                    <div className="text-[9px] text-slate-500 font-bold">Qty: {reportTotals.dcCount}</div>
+                                                    <div className="text-[8px] text-slate-500 font-bold leading-tight">Qty: {reportTotals.dcCount}</div>
                                                 </td>
-                                                <td className="p-4 text-right">
+                                                <td className="p-2 text-right">
                                                     <div className="text-emerald-400">৳{reportTotals.cons.toLocaleString()}</div>
-                                                    <div className="text-[9px] text-slate-500 font-bold">Qty: {reportTotals.consCount}</div>
+                                                    <div className="text-[8px] text-slate-500 font-bold leading-tight">Qty: {reportTotals.consCount}</div>
                                                 </td>
-                                                <td className="p-4 text-right">
+                                                <td className="p-2 text-right">
                                                     <div className="text-emerald-400">৳{reportTotals.o2neb.toLocaleString()}</div>
-                                                    <div className="text-[9px] text-slate-500 font-bold">Qty: {reportTotals.o2nebCount}</div>
+                                                    <div className="text-[8px] text-slate-500 font-bold leading-tight">Qty: {reportTotals.o2nebCount}</div>
                                                 </td>
-                                                <td className="p-4 text-right">
+                                                <td className="p-2 text-right">
                                                     <div className="text-emerald-400">৳{reportTotals.dress.toLocaleString()}</div>
-                                                    <div className="text-[9px] text-slate-500 font-bold">Qty: {reportTotals.dressCount}</div>
+                                                    <div className="text-[8px] text-slate-500 font-bold leading-tight">Qty: {reportTotals.dressCount}</div>
                                                 </td>
-                                                <td className="p-4 text-right">
+                                                <td className="p-2 text-right">
                                                     <div className="text-emerald-400">৳{reportTotals.others.toLocaleString()}</div>
-                                                    <div className="text-[9px] text-slate-500 font-bold">Qty: {reportTotals.othersCount}</div>
+                                                    <div className="text-[8px] text-slate-500 font-bold leading-tight">Qty: {reportTotals.othersCount}</div>
                                                 </td>
-                                                <td className="p-4 text-right text-emerald-400 text-lg">৳ {reportTotals.paidTotal.toLocaleString()}</td>
-                                                <td className="p-4 text-right text-rose-400 text-lg">৳ {reportTotals.pc.toLocaleString()}</td>
-                                                <td className="p-4 text-right text-sky-400 text-2xl underline decoration-double">৳ {reportTotals.netClinic.toLocaleString()}</td>
+                                                <td className="p-2 text-right text-emerald-400 text-base">৳ {reportTotals.paidTotal.toLocaleString()}</td>
+                                                <td className="p-2 text-right text-rose-400 text-base">৳ {reportTotals.pc.toLocaleString()}</td>
+                                                <td className="p-2 text-right text-sky-400 text-xl underline decoration-double">৳ {reportTotals.netClinic.toLocaleString()}</td>
                                                 <td></td>
                                             </tr>
                                         </tfoot>
