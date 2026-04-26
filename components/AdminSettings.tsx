@@ -34,16 +34,20 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ passwords, onSave, onBack
     const handleManualRestore = async () => {
         if (!pastedJson.trim()) return;
         try {
-            const backup = JSON.parse(pastedJson);
-            if (!backup.patients && !backup.labInvoices) {
-                alert("ভুল ডাটা! দয়া করে সঠিক JSON ডাটা পেস্ট করুন।");
+            const rawData = JSON.parse(pastedJson);
+            const normalized = dbService.normalizeRecoveredData(rawData);
+            
+            if (Object.keys(normalized).length < 2) {
+                alert("সঠিক ডাটা পাওয়া যায়নি! দয়া করে পুরো টেক্সটটি কপি করে পেস্ট করুন।");
                 return;
             }
-            processRestore(backup);
+            processRestore(normalized);
         } catch (e) {
-            alert("ডাটা ফরম্যাট সঠিক নয়!");
+            alert("ডাটা ফরম্যাট সঠিক নয়! ব্রাউজার কনসোল থেকে পুরো টেক্সটটি কপি করুন।");
         }
     };
+
+    const isConnected = dbService.isSupabaseConnected();
 
     const processRestore = async (backup: any) => {
         const patientCount = (backup.patients || []).length;
@@ -167,7 +171,13 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ passwords, onSave, onBack
                 </div>
                 <div>
                     <h2 className="text-2xl font-black text-white uppercase tracking-tighter">System Control Panel</h2>
-                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Global Configuration & Security</p>
+                    <div className="flex items-center gap-2">
+                        <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Global Configuration & Security</p>
+                        <div className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
+                        <span className={`text-[8px] font-black uppercase ${isConnected ? 'text-emerald-500' : 'text-rose-500'}`}>
+                            {isConnected ? 'Cloud Connected' : 'Cloud Disconnected'}
+                        </span>
+                    </div>
                 </div>
             </div>
             <button onClick={onBack} className="p-3 bg-slate-800 rounded-2xl hover:bg-rose-600 transition-all group shadow-xl">

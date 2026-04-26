@@ -204,5 +204,74 @@ export const dbService = {
     });
 
     return Object.keys(recoveredState).length > 0 ? recoveredState : null;
+  },
+
+  // NEW: Normalize data from various sources (Raw LocalStorage, Sub-keys, or Full State)
+  normalizeRecoveredData: (raw: any) => {
+    let normalized: any = {};
+
+    // Case 1: Raw LocalStorage dump (keys prefixed with ncd_)
+    if (raw.ncd_offline_cache_v1) {
+      try {
+        const cache = typeof raw.ncd_offline_cache_v1 === 'string' 
+          ? JSON.parse(raw.ncd_offline_cache_v1) 
+          : raw.ncd_offline_cache_v1;
+        normalized = { ...normalized, ...cache };
+      } catch(e) {}
+    }
+
+    // Map individual ncd_ keys to their state counterparts
+    const mapping: Record<string, string> = {
+      'ncd_patients': 'patients',
+      'ncd_lab_invoices': 'labInvoices',
+      'ncd_doctors': 'doctors',
+      'ncd_referrars': 'referrars',
+      'ncd_tests': 'tests',
+      'ncd_reagents': 'reagents',
+      'ncd_due_collections': 'dueCollections',
+      'ncd_reports': 'reports',
+      'ncd_employees': 'employees',
+      'ncd_medicines': 'medicines',
+      'ncd_clinical_drugs': 'clinicalDrugs',
+      'ncd_purchase_invoices': 'purchaseInvoices',
+      'ncd_sales_invoices': 'salesInvoices',
+      'ncd_admissions': 'admissions',
+      'ncd_indoor_invoices': 'indoorInvoices',
+      'ncd_detailed_expenses': 'detailedExpenses',
+      'ncd_prescriptions': 'prescriptions',
+      'ncd_appointments': 'appointments',
+      'ncd_attendance_log': 'attendanceLog',
+      'ncd_leave_log': 'leaveLog',
+      'ncd_monthly_roster': 'monthlyRoster',
+      'ncd_diagnostic_settings': 'diagnosticSettings',
+      'ncd_monthly_adjustments': 'monthlyAdjustments',
+      'ncd_shareholders': 'shareholders',
+      'ncd_mkt_payments': 'marketingPayments',
+      'ncd_mkt_targets_v2': 'marketingTargets',
+      'ncd_mkt_visits': 'marketingVisits'
+    };
+
+    Object.entries(mapping).forEach(([storageKey, stateKey]) => {
+      if (raw[storageKey] && (!normalized[stateKey] || (Array.isArray(normalized[stateKey]) && normalized[stateKey].length === 0))) {
+        try {
+          normalized[stateKey] = typeof raw[storageKey] === 'string' ? JSON.parse(raw[storageKey]) : raw[storageKey];
+        } catch(e) {
+          normalized[stateKey] = raw[storageKey];
+        }
+      }
+    });
+
+    // Case 2: Simple direct keys (if they pasted only the cache content)
+    Object.keys(raw).forEach(key => {
+      if (!key.startsWith('ncd_') && !normalized[key]) {
+        normalized[key] = raw[key];
+      }
+    });
+
+    return normalized;
+  },
+
+  isSupabaseConnected: () => {
+    return !!supabase;
   }
 };
