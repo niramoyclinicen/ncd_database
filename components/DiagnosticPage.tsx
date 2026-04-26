@@ -53,6 +53,37 @@ interface DiagnosticPageProps {
   currentUserEmail?: string;
 }
 
+// Standard Error Boundary to catch render crashes in sub-pages
+class DiagnosticErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean; error: any }> {
+  constructor(props: any) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error: any) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error: any, errorInfo: any) {
+    console.error("Diagnostic Page Error:", error, errorInfo);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="p-10 bg-red-950/20 border border-red-500/30 rounded-[2rem] text-red-200">
+          <h2 className="text-2xl font-black mb-4">Module Error</h2>
+          <p className="mb-6 opacity-80">This module encountered a technical error: {this.state.error?.message}</p>
+          <button 
+            onClick={() => window.location.reload()} 
+            className="px-6 py-3 bg-red-600 rounded-xl font-bold hover:bg-red-500 transition-colors shadow-lg shadow-red-900/40"
+          >
+            Reload Application
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 const TopBarButton: React.FC<{ label: string; icon?: React.ReactNode; isActive: boolean; onClick: () => void; disabled?: boolean }> = ({ label, icon, isActive, onClick, disabled = false }) => (
   <button
     onClick={onClick}
@@ -126,48 +157,57 @@ const DiagnosticPage: React.FC<DiagnosticPageProps> = ({
   const isDiagAdmin = userRole === 'DIAGNOSTIC_ADMIN';
   
   const [activeTab, setActiveTab] = useState<DiagnosticSubPage>(() => isLabReporter ? 'lab_reporting' : 'doctor_appointment');
+  const activeTabRef = useRef(activeTab);
+
+  useEffect(() => {
+    activeTabRef.current = activeTab;
+  }, [activeTab]);
+
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [preSelectedInvoiceId, setPreSelectedInvoiceId] = useState<string | null>(null);
   const [moduleLock, setModuleLock] = useState<{isLocked: boolean, owner: string | null}>({isLocked: false, owner: null});
 
   // Handle Tab Switching with Concurrency Lock
-  const handleTabChange = (tab: DiagnosticSubPage) => {
+  const handleTabChange = useCallback((tab: DiagnosticSubPage) => {
+    const previousTab = activeTabRef.current;
     setActiveTab(tab);
     
-    // Handle locks in background
     const syncLocks = async () => {
-      // Release old lock if we were in lab_invoice
-      if (activeTab === 'lab_invoice' && tab !== 'lab_invoice') {
-        dbService.releaseLock('lab_invoice', currentUserEmail);
-      }
-
-      if (tab === 'lab_invoice') {
-        const lockResult = await dbService.acquireLock('lab_invoice', currentUserEmail);
-        if (!lockResult.success) {
-          setModuleLock({ isLocked: true, owner: lockResult.owner || 'Another user' });
+      try {
+        if (previousTab === 'lab_invoice' && tab !== 'lab_invoice') {
+          await dbService.releaseLock('lab_invoice', currentUserEmail);
+        }
+        if (tab === 'lab_invoice') {
+          const lockResult = await dbService.acquireLock('lab_invoice', currentUserEmail);
+          setModuleLock({ 
+            isLocked: !lockResult.success, 
+            owner: lockResult.success ? null : (lockResult.owner || 'Another user') 
+          });
         } else {
           setModuleLock({ isLocked: false, owner: null });
         }
-      } else {
-        setModuleLock({ isLocked: false, owner: null });
+      } catch (err) {
+        console.error("Lock sync error:", err);
       }
     };
-
     syncLocks();
-  };
+  }, [currentUserEmail]);
 
   // Release lock on unmount
   useEffect(() => {
     return () => {
-      if (activeTab === 'lab_invoice') {
+      if (activeTabRef.current === 'lab_invoice') {
         dbService.releaseLock('lab_invoice', currentUserEmail);
       }
     };
-  }, [activeTab, currentUserEmail]);
+  }, [currentUserEmail]); // Dependencies adjusted to run mainly on true unmount or email change
   
   const renderContent = () => {
-    switch (activeTab) {
-      case 'doctor_appointment':
+    try {
+      if (!activeTab) return <div className="p-8 text-slate-500 font-bold">Initializing...</div>;
+
+      switch (activeTab) {
+        case 'doctor_appointment':
         return (
           <div className="animate-fade-in relative h-full">
             {isLabReporter && (
@@ -219,7 +259,7 @@ const DiagnosticPage: React.FC<DiagnosticPageProps> = ({
                 setTests={setTests}
                 reagents={reagents}
                 employees={employees}
-                onNavigateSubPage={setActiveTab}
+                onNavigateSubPage={handleTabChange}
                 invoices={labInvoices}
                 setInvoices={setLabInvoices}
                 monthlyRoster={monthlyRoster}
@@ -248,7 +288,7 @@ const DiagnosticPage: React.FC<DiagnosticPageProps> = ({
                 employees={employees}
                 onViewInvoice={(id) => {
                   setPreSelectedInvoiceId(id);
-                  setActiveTab('lab_invoice');
+                  handleTabChange('lab_invoice');
                 }}
             />
           </div>
@@ -310,7 +350,17 @@ const DiagnosticPage: React.FC<DiagnosticPageProps> = ({
             </div>
         );
       default:
-        return null;
+        return <div className="p-8 text-slate-500">Select a module from the sidebar.</div>;
+      }
+    } catch (error) {
+      console.error("Diagnostic Shell Error:", error);
+      return (
+        <div className="p-10 bg-red-950/20 border border-red-500/30 rounded-[2rem] text-red-200">
+          <h2 className="text-2xl font-black mb-4">Navigation Error</h2>
+          <p className="mb-6 opacity-80">An unexpected error occurred while switching modules.</p>
+          <button onClick={() => window.location.reload()} className="px-6 py-3 bg-red-600 rounded-xl font-bold">Reload Application</button>
+        </div>
+      );
     }
   };
 
@@ -333,11 +383,11 @@ const DiagnosticPage: React.FC<DiagnosticPageProps> = ({
               Data Entry / Setup
             </div>
             <div className="space-y-1">
-              <SidebarItem id="patient_info" label={isSidebarOpen ? "Patient Information" : ""} icon={<UsersIcon className="w-5 h-5" />} activeTab={activeTab} onClick={setActiveTab} disabled={isLabReporter} />
-              <SidebarItem id="doctor_info" label={isSidebarOpen ? "Doctor Information" : ""} icon={<StethoscopeIcon className="w-5 h-5" />} activeTab={activeTab} onClick={setActiveTab} disabled={isLabReporter} />
-              <SidebarItem id="referrer_info" label={isSidebarOpen ? "Referrer Information" : ""} icon={<UserPlusIcon className="w-5 h-5" />} activeTab={activeTab} onClick={setActiveTab} disabled={isLabReporter} />
-              <SidebarItem id="test_info" label={isSidebarOpen ? "Test Information" : ""} icon={<DnaIcon className="w-5 h-5" />} activeTab={activeTab} onClick={setActiveTab} disabled={isLabReporter} />
-              <SidebarItem id="reagent_info" label={isSidebarOpen ? "Reagent Information" : ""} icon={<TestTubeIcon className="w-5 h-5" />} activeTab={activeTab} onClick={setActiveTab} disabled={isLabReporter} />
+              <SidebarItem id="patient_info" label={isSidebarOpen ? "Patient Information" : ""} icon={<UsersIcon className="w-5 h-5" />} activeTab={activeTab} onClick={handleTabChange} disabled={isLabReporter} />
+              <SidebarItem id="doctor_info" label={isSidebarOpen ? "Doctor Information" : ""} icon={<StethoscopeIcon className="w-5 h-5" />} activeTab={activeTab} onClick={handleTabChange} disabled={isLabReporter} />
+              <SidebarItem id="referrer_info" label={isSidebarOpen ? "Referrer Information" : ""} icon={<UserPlusIcon className="w-5 h-5" />} activeTab={activeTab} onClick={handleTabChange} disabled={isLabReporter} />
+              <SidebarItem id="test_info" label={isSidebarOpen ? "Test Information" : ""} icon={<DnaIcon className="w-5 h-5" />} activeTab={activeTab} onClick={handleTabChange} disabled={isLabReporter} />
+              <SidebarItem id="reagent_info" label={isSidebarOpen ? "Reagent Information" : ""} icon={<TestTubeIcon className="w-5 h-5" />} activeTab={activeTab} onClick={handleTabChange} disabled={isLabReporter} />
             </div>
 
             <div className={`mt-8 px-4 mb-2 text-xs font-semibold text-slate-500 uppercase tracking-wider transition-opacity duration-300 ${!isSidebarOpen ? 'md:opacity-0' : 'opacity-100'}`}>
@@ -436,9 +486,11 @@ const DiagnosticPage: React.FC<DiagnosticPageProps> = ({
         </div>
 
         <div className={`flex-1 ${activeTab === 'lab_reporting' ? 'overflow-hidden p-0' : 'overflow-y-auto p-4 md:p-6'} bg-slate-900/50 relative z-10`}>
-          <div className="w-full h-full">
-            {renderContent()}
-          </div>
+          <DiagnosticErrorBoundary key={activeTab}>
+            <div className="w-full h-full">
+              {renderContent()}
+            </div>
+          </DiagnosticErrorBoundary>
         </div>
       </main>
     </div>

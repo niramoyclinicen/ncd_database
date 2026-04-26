@@ -159,6 +159,10 @@ export const dbService = {
     }
   },
 
+  isSupabaseConnected: () => {
+    return !!supabase;
+  },
+
   // NEW: Deep scan of all potential legacy localStorage keys to recover lost data
   deepScanRecovery: () => {
     const keysMapping: Record<string, string> = {

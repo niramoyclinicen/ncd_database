@@ -7,9 +7,12 @@ interface Props {
     reagents: Reagent[];
     tests: Test[];
     setTests: React.Dispatch<React.SetStateAction<Test[]>>;
+    isEmbedded?: boolean;
+    onClose?: () => void;
+    onSaveAndSelect?: (id: string, name: string) => void;
 }
 
-const TestInfoPage: React.FC<Props> = ({ reagents, tests, setTests }) => {
+const TestInfoPage: React.FC<Props> = ({ reagents, tests, setTests, isEmbedded = false, onClose, onSaveAndSelect }) => {
   const [formData, setFormData] = useState<Test>(emptyTest);
   const [selectedTestId, setSelectedTestId] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState<boolean>(false);
@@ -79,6 +82,7 @@ const TestInfoPage: React.FC<Props> = ({ reagents, tests, setTests }) => {
     setSelectedTestId(null);
     setIsEditing(false);
     setTempSubTests([]);
+    if (isEmbedded && onClose) onClose();
   };
 
   const handleGetNewId = () => {
@@ -94,13 +98,22 @@ const TestInfoPage: React.FC<Props> = ({ reagents, tests, setTests }) => {
     e.preventDefault();
     if (!formData.test_id || !formData.test_name || !formData.category) return alert("Missing info");
     const finalTest = { ...formData, sub_tests: formData.is_group_test ? tempSubTests : [] };
+    
     if (isEditing) {
       setTests(tests.map(t => t.test_id === finalTest.test_id ? finalTest : t));
     } else {
       setTests([finalTest, ...tests]);
+      if (isEmbedded && onSaveAndSelect) {
+        onSaveAndSelect(finalTest.test_id, finalTest.test_name);
+      }
     }
     setSuccessMessage('টেস্ট ডাটা সফলভাবে সেভ করা হয়েছে!');
-    resetForm();
+    
+    if (isEmbedded && onClose) {
+      setTimeout(() => onClose(), 1500); 
+    } else {
+      resetForm();
+    }
   };
 
   const handleRowClick = (test: Test) => {

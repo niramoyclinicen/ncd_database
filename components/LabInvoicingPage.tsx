@@ -851,10 +851,10 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
       )}
 
       {showNewTestForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-            <div className="w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-xl shadow-2xl border border-slate-600 bg-slate-900 relative">
-                <button onClick={() => setShowNewTestForm(false)} className="absolute top-4 right-4 text-slate-400 hover:text-white z-10">&times;</button>
-                <div className="p-4"><TestInfoPage reagents={reagents} tests={tests} setTests={setTests} /></div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" onClick={() => setShowNewTestForm(false)}>
+            <div className="w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-xl shadow-2xl border border-slate-600 bg-slate-900 relative" onClick={e => e.stopPropagation()}>
+                <button onClick={() => setShowNewTestForm(false)} className="absolute top-4 right-4 text-slate-400 hover:text-white z-10 text-2xl">&times;</button>
+                <div className="p-4"><TestInfoPage reagents={reagents} tests={tests} setTests={setTests} isEmbedded onClose={() => setShowNewTestForm(false)} onSaveAndSelect={handleTestSelect} /></div>
             </div>
         </div>
       )}
@@ -1211,7 +1211,17 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
                   <td className="px-4 py-4 whitespace-nowrap text-sm text-slate-400 font-bold">{index + 1}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300 font-mono text-xs">{invoice.invoice_id}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300">{invoice.invoice_date}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-100 font-black uppercase">{invoice.patient_name}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-100 uppercase">
+                    <div className="flex flex-col">
+                      <span className="font-black">{invoice.patient_name}</span>
+                      <span className="text-[10px] text-slate-400 normal-case font-medium">
+                        {(() => {
+                          const p = patients.find(pt => pt.pt_id === invoice.patient_id);
+                          return p ? `${p.ageY}Y, ${p.address}` : 'N/A';
+                        })()}
+                      </span>
+                    </div>
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300 font-medium">{invoice.doctor_name || 'N/A'}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-400 italic">{invoice.referrar_name || 'N/A'}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300 text-right">{(invoice.total_amount || 0).toFixed(2)}</td>

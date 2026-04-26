@@ -1595,12 +1595,12 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                 )}
 
                 {activeTab === 'detail' && (
-                    <div className="animate-fade-in space-y-8">
-                        <div className="bg-slate-800 p-8 rounded-[2.5rem] border border-slate-700 shadow-2xl flex flex-col gap-8">
-                            <div className="flex flex-wrap justify-between items-center gap-6 border-b border-slate-700 pb-6 no-print">
-                                <div className="flex items-center gap-6 flex-wrap">
-                                    <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Journal Details</h3>
-                                    <div className="flex bg-slate-900 p-1 rounded-2xl border border-slate-700 overflow-hidden">
+                    <div className="animate-fade-in space-y-4">
+                        <div className="bg-slate-800/80 p-6 rounded-[2rem] border border-slate-700 shadow-2xl flex flex-col gap-4">
+                            <div className="flex flex-wrap justify-between items-center gap-4 border-b border-slate-700 pb-3 no-print">
+                                <div className="flex items-center gap-4 flex-wrap">
+                                    <h3 className="text-xl font-black text-white uppercase tracking-tighter">Collection Record Detail</h3>
+                                    <div className="flex bg-slate-900 p-1 rounded-xl border border-slate-700 overflow-hidden shadow-inner">
                                         <button onClick={() => setDetailViewMode('today')} className={`px-5 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all ${detailViewMode === 'today' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-200'}`}>Today</button>
                                         <button onClick={() => setDetailViewMode('month')} className={`px-5 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all ${detailViewMode === 'month' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-200'}`}>Monthly</button>
                                         <button onClick={() => setDetailViewMode('year')} className={`px-5 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all ${detailViewMode === 'year' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-200'}`}>Yearly</button>
@@ -1634,25 +1634,25 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                                 </div>
                             </div>
                             
-                            <div className="flex flex-col lg:flex-row gap-6 no-print border-b border-slate-700 pb-4">
+                            <div className="flex flex-col lg:flex-row gap-4 no-print border-b border-slate-700 pb-3">
                                 <div className="flex flex-wrap gap-2 flex-grow items-center">
                                     {['All', 'Pathology', 'USG', 'X-Ray', 'ECG', 'Hormone'].map(cat => (
-                                        <button key={cat} onClick={()=>setDetailFilterCategory(cat)} className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase border transition-all ${detailFilterCategory === cat ? 'bg-indigo-600 text-white border-indigo-400 shadow-lg' : 'bg-slate-900 text-slate-500 border-slate-700 hover:text-slate-300'}`}>
-                                            {cat} <span className={`ml-1.5 px-2 py-0.5 rounded-full ${detailFilterCategory === cat ? 'bg-white/20' : 'bg-slate-800'}`}>{categoryCounts[cat] || 0}</span>
+                                        <button key={cat} onClick={()=>setDetailFilterCategory(cat)} className={`px-4 py-1.5 rounded-lg text-[9px] font-black uppercase border transition-all ${detailFilterCategory === cat ? 'bg-indigo-600 text-white border-indigo-400 shadow-lg' : 'bg-slate-900 text-slate-500 border-slate-700 hover:text-slate-300'}`}>
+                                            {cat} <span className={`ml-1 px-1.5 py-0.5 rounded-full text-[8px] ${detailFilterCategory === cat ? 'bg-white/20' : 'bg-slate-800'}`}>{categoryCounts[cat] || 0}</span>
                                         </button>
                                     ))}
                                 </div>
-                                <div className="bg-slate-900/80 p-3 rounded-2xl border border-slate-700 w-full lg:w-[500px]">
-                                    <div className="flex justify-between items-center mb-2">
-                                        <p className="text-[9px] font-black text-white uppercase tracking-widest flex items-center gap-2">
-                                            <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse"></div>
-                                            Tracked Tests Counts
+                                <div className="bg-slate-900/60 p-2.5 rounded-xl border border-slate-700/50 w-full lg:w-[450px]">
+                                    <div className="flex justify-between items-center mb-1.5">
+                                        <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest flex items-center gap-2">
+                                            <div className="w-1.5 h-1.5 bg-blue-500 rounded-full shadow-[0_0_8px_rgba(59,130,246,0.6)]"></div>
+                                            Tracked Tests
                                         </p>
-                                        <button onClick={() => setIsEditingTracked(!isEditingTracked)} className="text-[8px] font-black text-sky-500 hover:text-white uppercase transition-colors">
-                                            {isEditingTracked ? 'Confirm List' : 'Set Custom Tests'}
+                                        <button onClick={() => setIsEditingTracked(!isEditingTracked)} className="text-[8px] font-black text-sky-500 hover:text-sky-400 uppercase transition-colors">
+                                            {isEditingTracked ? '[ Save List ]' : '[ Custom Set ]'}
                                         </button>
                                     </div>
-                                    <div className="flex flex-wrap gap-1.5 overflow-x-auto pb-1 max-h-[60px]">
+                                    <div className="flex flex-wrap gap-1 overflow-x-auto pb-1 max-h-[50px]">
                                         {trackedTests.map((test, i) => (
                                             <div key={i} className="bg-slate-950 px-2 py-1.5 rounded-lg border border-slate-800 relative group min-w-[70px]">
                                                 {isEditingTracked ? (
@@ -1690,14 +1690,14 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                             <div className="overflow-x-auto rounded-2xl border border-slate-700 bg-slate-900/50">
                                 <table className="w-full text-left text-[11px] border-collapse">
                                     <thead className="bg-slate-950 text-slate-500 font-black uppercase tracking-widest border-b border-slate-800">
-                                        <tr className="bg-slate-900/80 text-white font-black border-b border-slate-700 no-print">
-                                            <td colSpan={4} className="p-4 text-right text-[10px] text-slate-500 uppercase tracking-widest">Summary Totals:</td>
-                                            <td className="p-4 text-right text-blue-400">৳{reportSummary.totalBill.toLocaleString()}</td>
-                                            <td className="p-4 text-right text-rose-400">৳{reportSummary.totalDiscount.toLocaleString()}</td>
-                                            <td className="p-4 text-right text-emerald-400 font-black">৳{reportSummary.paidAmount.toLocaleString()}</td>
-                                            <td className="p-4 text-right text-amber-500">৳{reportSummary.totalPC.toLocaleString()}</td>
-                                            <td className="p-4 text-right text-sky-400">৳{reportSummary.usgFee.toLocaleString()}</td>
-                                            <td className="p-4 text-right bg-blue-600 text-white text-sm">৳{reportSummary.netInstProfit.toLocaleString()}</td>
+                                        <tr className="bg-slate-900 text-white font-black border-b border-slate-700 shadow-lg no-print">
+                                            <td colSpan={4} className="p-4 text-right text-[10px] text-slate-500 uppercase tracking-widest bg-slate-950">Grand Summary:</td>
+                                            <td className="p-4 text-right text-blue-400 bg-slate-900">৳{reportSummary.totalBill.toLocaleString()}</td>
+                                            <td className="p-4 text-right text-rose-400 bg-slate-950">৳{reportSummary.totalDiscount.toLocaleString()}</td>
+                                            <td className="p-4 text-right text-emerald-400 font-black bg-slate-900 border-x border-slate-800">৳{reportSummary.paidAmount.toLocaleString()}</td>
+                                            <td className="p-4 text-right text-amber-500 bg-slate-950">৳{reportSummary.totalPC.toLocaleString()}</td>
+                                            <td className="p-4 text-right text-sky-400 bg-slate-900">৳{reportSummary.usgFee.toLocaleString()}</td>
+                                            <td className="p-4 text-right bg-blue-600 text-white text-sm shadow-inner">৳{reportSummary.netInstProfit.toLocaleString()}</td>
                                         </tr>
                                         <tr>
                                             <th className="p-4">SL</th>
@@ -1723,7 +1723,17 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                                             >
                                                 <td className="p-4 text-slate-500 font-bold">{idx+1}</td>
                                                 <td className="p-4 font-mono text-cyan-400 font-bold">{inv.invoice_id}</td>
-                                                <td className="p-4 font-black uppercase text-slate-200">{inv.patient_name}</td>
+                                                <td className="p-4">
+                                                    <div className="flex flex-col">
+                                                        <span className="font-black uppercase text-slate-100 text-xs tracking-tight">{inv.patient_name}</span>
+                                                        <span className="text-[10px] text-slate-500 font-bold uppercase mt-0.5">
+                                                            {(() => {
+                                                                const p = patients.find((pt: any) => pt.pt_id === inv.patient_id);
+                                                                return p ? `${p.ageY}Y, ${p.address}, ${p.mobile}` : 'Details N/A';
+                                                            })()}
+                                                        </span>
+                                                    </div>
+                                                </td>
                                                 <td className="p-4 text-slate-400 font-bold italic truncate max-w-[120px]">{inv.referrar_name || 'Self'}</td>
                                                 <td className="p-4 text-right font-medium text-slate-300">{inv.billVal.toLocaleString()}</td>
                                                 <td className="p-4 text-right text-rose-400/70">{inv.discVal.toLocaleString()}</td>
