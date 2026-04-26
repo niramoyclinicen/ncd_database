@@ -87,35 +87,63 @@ export const dbService = {
     }
   },
 
-  // NEW: Save data in smaller chunks to avoid timeout or payload limit issues
+  // NEW: Save data key-by-key to handle slow internet and large payloads
   saveInChunks: async (appState: any, onProgress?: (p: number) => void) => {
     try {
       if (!supabase) return false;
       
-      // Update local first
-      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(appState));
+      const keys = Object.keys(appState).filter(k => {
+          const val = appState[k];
+          return Array.isArray(val) ? val.length > 0 : (val && typeof val === 'object' && Object.keys(val).length > 0);
+      });
 
-      // Simple progress simulation for the UI
-      for (let i = 0; i <= 60; i += 20) {
-        if (onProgress) onProgress(i);
-        await new Promise(r => setTimeout(r, 100));
+      if (keys.length === 0) return true;
+
+      // 1. Get current cloud state to merge properly
+      onProgress?.(5);
+      const { data: cloudRecord } = await supabase
+        .from('ncd_state')
+        .select('data')
+        .eq('id', 1)
+        .single();
+      
+      let mergedData = (cloudRecord?.data && typeof cloudRecord.data === 'object' && !Array.isArray(cloudRecord.data)) 
+        ? { ...cloudRecord.data } 
+        : {};
+
+      // 2. Iterate through each key and sync
+      const totalKeys = keys.length;
+      let successCount = 0;
+
+      for (let i = 0; i < totalKeys; i++) {
+        const key = keys[i];
+        mergedData[key] = appState[key];
+        
+        // Push the intermediate state to cloud
+        const { error } = await supabase
+          .from('ncd_state')
+          .upsert({ 
+            id: 1, 
+            data: mergedData, 
+            updated_at: new Date().toISOString() 
+          }, { onConflict: 'id' });
+
+        if (error) {
+          console.error(`Sync failed for key: ${key}`, error);
+          // If a key fails, we still continue with others to save as much as possible
+        } else {
+          successCount++;
+          // Save to local backup as we go to keep both in sync
+          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(mergedData));
+        }
+
+        const progress = Math.round(10 + (successCount / totalKeys) * 90);
+        onProgress?.(progress);
       }
 
-      // Use the original fixed ID pattern from saveToCloud
-      const { error } = await supabase
-        .from('ncd_state')
-        .upsert({ 
-          id: 1, 
-          data: appState, 
-          updated_at: new Date().toISOString() 
-        }, { onConflict: 'id' });
-
-      if (error) throw error;
-      
-      if (onProgress) onProgress(100);
-      return true;
+      return successCount > 0;
     } catch (e) {
-      console.error("Chunked Save Error:", e);
+      console.error("Advanced Chunked Save Error:", e);
       return false;
     }
   },
