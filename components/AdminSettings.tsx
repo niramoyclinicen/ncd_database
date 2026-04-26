@@ -238,6 +238,37 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ passwords, onSave, onBack
                         </div>
                     </button>
 
+                    <div className="pt-4 border-t border-slate-800">
+                        <button 
+                            onClick={() => setShowManualPaste(!showManualPaste)} 
+                            className="text-[10px] font-black text-blue-400 hover:text-white transition-colors uppercase tracking-widest flex items-center gap-2"
+                        >
+                            {showManualPaste ? 'Hide Manual Recovery' : 'Try Manual Recovery (Paste JSON)'}
+                        </button>
+                        
+                        {showManualPaste && (
+                            <div className="mt-4 space-y-3 animate-fade-in">
+                                <p className="text-[9px] text-slate-500 font-bold uppercase leading-relaxed">
+                                    আপনার ব্রাউজার থেকে কপি করা ডাটা (JSON) নিচের বক্সে পেস্ট করুন। এটি আপনার হারানো ডাটা পুনরুদ্ধারে সাহায্য করবে।
+                                </p>
+                                <textarea 
+                                    rows={4}
+                                    value={pastedJson}
+                                    onChange={(e) => setPastedJson(e.target.value)}
+                                    placeholder='{"patients": [...], "labInvoices": [...]}'
+                                    className="w-full bg-slate-900 border border-slate-800 rounded-xl p-4 text-[10px] font-mono text-blue-300 outline-none focus:border-blue-500 transition-all"
+                                />
+                                <button 
+                                    onClick={handleManualRestore}
+                                    disabled={isRestoring || !pastedJson.trim()}
+                                    className="w-full bg-blue-600 hover:bg-blue-500 text-white p-3 rounded-xl font-black uppercase text-[10px] disabled:opacity-50 transition-all shadow-lg"
+                                >
+                                    {isRestoring ? `Restoring (${restoreProgress}%)` : 'Verify & Restore Now'}
+                                </button>
+                            </div>
+                        )}
+                    </div>
+
                     <button onClick={handleDownloadBackup} className="w-full bg-slate-800 hover:bg-slate-700 border border-slate-700 p-5 rounded-2xl flex items-center justify-between group transition-all">
                         <div className="text-left">
                             <span className="block text-white font-black text-sm uppercase">Export Backup</span>
