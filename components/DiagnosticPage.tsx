@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   BackIcon, UsersIcon, ClipboardIcon, BeakerIcon, StethoscopeIcon, UserPlusIcon,
   CalendarIcon, MoneyIcon, FileTextIcon, ChartIcon, SettingsIcon, Activity, DiagnosticIcon,
@@ -16,6 +16,7 @@ import LabReportingPage from './LabReportingPage';
 import EmployeeInfoPage from './EmployeeInfoPage';
 import { Patient, Doctor, Referrar, Reagent, Test, LabInvoice, Employee, DueCollection, DiagnosticSubPage, ExpenseItem, LabReport, Appointment } from './DiagnosticData';
 import { UserRole } from '../types';
+import { dbService } from '../dbService';
 
 interface DiagnosticPageProps {
   onBack: () => void;

@@ -146,7 +146,18 @@ const TestInfoPage: React.FC<Props> = ({ reagents, tests, setTests, isEmbedded =
                 </div>
                 <div className="flex items-center gap-3">
                     <button type="submit" form="test-form" className="px-10 py-2.5 text-xs font-black text-white bg-emerald-600 rounded-xl hover:bg-emerald-500 shadow-xl active:scale-95 transition-all uppercase tracking-widest">Save Test</button>
-                    <button type="button" onClick={resetForm} className="px-6 py-2.5 text-xs font-black text-sky-200 bg-slate-800 rounded-xl hover:bg-slate-700 transition-all uppercase tracking-widest">Cancel</button>
+                    <button type="button" onClick={resetForm} className="px-6 py-2.5 text-xs font-black text-sky-200 bg-slate-800 rounded-xl hover:bg-slate-700 transition-all uppercase tracking-widest">
+                        {isEmbedded ? 'Discard & Close' : 'Cancel'}
+                    </button>
+                    {isEmbedded && (
+                        <button 
+                            type="button" 
+                            onClick={onClose} 
+                            className="px-6 py-2.5 text-xs font-black text-white bg-rose-600 rounded-xl hover:bg-rose-500 shadow-lg transition-all uppercase tracking-widest"
+                        >
+                            Quick Close
+                        </button>
+                    )}
                 </div>
             </div>
 

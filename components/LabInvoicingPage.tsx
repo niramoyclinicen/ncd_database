@@ -851,10 +851,38 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
       )}
 
       {showNewTestForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" onClick={() => setShowNewTestForm(false)}>
-            <div className="w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-xl shadow-2xl border border-slate-600 bg-slate-900 relative" onClick={e => e.stopPropagation()}>
-                <button onClick={() => setShowNewTestForm(false)} className="absolute top-4 right-4 text-slate-400 hover:text-white z-10 text-2xl">&times;</button>
-                <div className="p-4"><TestInfoPage reagents={reagents} tests={tests} setTests={setTests} isEmbedded onClose={() => setShowNewTestForm(false)} onSaveAndSelect={handleTestSelect} /></div>
+        <div className="fixed inset-0 z-100 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-fade-in" onClick={() => setShowNewTestForm(false)}>
+            <div className="w-full max-w-5xl max-h-[95vh] overflow-hidden rounded-[2.5rem] shadow-[0_0_80px_rgba(0,0,0,0.8)] border border-slate-700 bg-slate-900 relative flex flex-col" onClick={e => e.stopPropagation()}>
+                {/* Visual Header for Modal */}
+                <div className="flex justify-between items-center px-10 py-6 border-b border-white/5 bg-slate-950/20">
+                    <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-2xl bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400">
+                           <DnaIcon className="w-7 h-7" />
+                        </div>
+                        <div>
+                            <h2 className="text-2xl font-black text-white tracking-tighter uppercase">Master Test Configuration</h2>
+                            <p className="text-xs text-slate-500 font-bold tracking-widest uppercase">Add or Modify Diagnostic Tests System-wide</p>
+                        </div>
+                    </div>
+                    <button 
+                        onClick={() => setShowNewTestForm(false)} 
+                        className="w-14 h-14 flex items-center justify-center rounded-2xl bg-red-950/30 border border-red-500/20 text-red-500 hover:bg-red-600 hover:text-white transition-all duration-300 shadow-lg group"
+                        title="Close Dialog"
+                    >
+                        <span className="text-3xl font-light transform transition-transform group-hover:rotate-90">&times;</span>
+                    </button>
+                </div>
+                
+                <div className="flex-1 overflow-y-auto p-2">
+                    <TestInfoPage 
+                        reagents={reagents} 
+                        tests={tests} 
+                        setTests={setTests} 
+                        isEmbedded 
+                        onClose={() => setShowNewTestForm(false)} 
+                        onSaveAndSelect={handleTestSelect} 
+                    />
+                </div>
             </div>
         </div>
       )}
