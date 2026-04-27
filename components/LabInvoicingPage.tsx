@@ -107,7 +107,8 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
     name: '',
     mobile: '',
     address: '',
-    thana: ''
+    thana: '',
+    age: ''
   });
   const [showNewPatientForm, setShowNewPatientForm] = useState(false);
   const [showNewDoctorForm, setShowNewDoctorForm] = useState(false);
@@ -352,10 +353,12 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
 
   const filteredPatients = useMemo(() => {
     return patients.filter(p => {
+      const pAge = String(p.ageY || '');
       return (p.pt_name || '').toLowerCase().includes(patientSearchFilters.name.toLowerCase()) &&
              (p.mobile || '').toLowerCase().includes(patientSearchFilters.mobile.toLowerCase()) &&
              (p.address || '').toLowerCase().includes(patientSearchFilters.address.toLowerCase()) &&
-             (p.thana || '').toLowerCase().includes(patientSearchFilters.thana.toLowerCase());
+             (p.thana || '').toLowerCase().includes(patientSearchFilters.thana.toLowerCase()) &&
+             (pAge.includes(patientSearchFilters.age));
     });
   }, [patients, patientSearchFilters]);
 
@@ -805,14 +808,14 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
                         <input type="text" id="invoice_id" name="invoice_id" disabled value={formData.invoice_id} className="w-28 border border-slate-700 rounded-md shadow-inner text-[10px] px-2 py-1 bg-slate-800 text-slate-400 font-mono" />
                     </div>
                     
-                    <div className="flex items-center gap-2 pl-3 border-l border-slate-700/50">
-                        <button type="button" onClick={handleGetNewId} disabled={readOnly} className="min-w-[70px] px-3 py-1.5 text-[10px] font-black text-white bg-blue-600 rounded-md hover:bg-blue-500 uppercase tracking-tighter shadow-md disabled:opacity-50 transition-all border border-blue-400/20 active:scale-95">New ID</button>
-                        <button type="submit" form="invoice-form" disabled={readOnly} className="min-w-[80px] px-3 py-1.5 text-[10px] font-black text-white bg-emerald-600 rounded-md hover:bg-emerald-500 uppercase tracking-tighter shadow-md disabled:opacity-50 transition-all border border-emerald-400/20 active:scale-95">Save Inv</button>
-                        <button type="button" onClick={resetForm} disabled={readOnly} className="min-w-[70px] px-3 py-1.5 text-[10px] font-black text-slate-200 bg-slate-700 rounded-md hover:bg-slate-600 uppercase tracking-tighter shadow-md disabled:opacity-50 transition-all border border-slate-600/50 active:scale-95">Clear</button>
-                        <button type="button" onClick={handleEditInvoice} disabled={!selectedInvoiceId || readOnly} className="min-w-[60px] px-3 py-1.5 text-[10px] font-black text-white bg-amber-500 rounded-md hover:bg-amber-400 uppercase tracking-tighter shadow-md disabled:opacity-50 transition-all border border-amber-400/20 active:scale-95">Edit</button>
-                        <button type="button" onClick={handleCancelInvoice} disabled={!selectedInvoiceId || invoices.find(inv => inv.invoice_id === selectedInvoiceId)?.status === 'Cancelled' || readOnly} className="min-w-[80px] px-3 py-1.5 text-[10px] font-black text-white bg-rose-600 rounded-md hover:bg-rose-700 uppercase tracking-tighter shadow-md disabled:opacity-50 transition-all border border-rose-400/20 active:scale-95">Cancel</button>
-                        <button type="button" onClick={handleReturnInvoice} disabled={!selectedInvoiceId || invoices.find(inv => inv.invoice_id === selectedInvoiceId)?.status === 'Returned' || readOnly} className="min-w-[80px] px-3 py-1.5 text-[10px] font-black text-white bg-pink-700 rounded-md hover:bg-pink-600 uppercase tracking-tighter shadow-md disabled:opacity-50 transition-all border border-pink-400/20 active:scale-95">Return</button>
-                        <button type="button" onClick={handlePrintInvoice} disabled={!selectedInvoiceId} className="min-w-[70px] px-3 py-1.5 text-[10px] font-black text-white bg-indigo-600 rounded-md hover:bg-indigo-500 uppercase tracking-tighter shadow-md transition-all border border-indigo-400/20 active:scale-95">Print</button>
+                    <div className="flex items-center gap-2.5 pl-3 border-l border-slate-700/50">
+                        <button type="button" onClick={handleGetNewId} disabled={readOnly} className="min-w-[100px] px-4 py-1.5 text-[10px] font-black text-white bg-blue-600 rounded-md hover:bg-blue-500 uppercase tracking-tighter shadow-md disabled:opacity-50 transition-all border border-blue-400/20 active:scale-95">Get New ID</button>
+                        <button type="submit" form="invoice-form" disabled={readOnly} className="min-w-[110px] px-4 py-1.5 text-[10px] font-black text-white bg-emerald-600 rounded-md hover:bg-emerald-500 uppercase tracking-tighter shadow-md disabled:opacity-50 transition-all border border-emerald-400/20 active:scale-95">Save Invoice</button>
+                        <button type="button" onClick={resetForm} disabled={readOnly} className="min-w-[90px] px-4 py-1.5 text-[10px] font-black text-slate-200 bg-slate-700 rounded-md hover:bg-slate-600 uppercase tracking-tighter shadow-md disabled:opacity-50 transition-all border border-slate-600/50 active:scale-95">Clear Form</button>
+                        <button type="button" onClick={handleEditInvoice} disabled={!selectedInvoiceId || readOnly} className="min-w-[90px] px-4 py-1.5 text-[10px] font-black text-white bg-amber-500 rounded-md hover:bg-amber-400 uppercase tracking-tighter shadow-md disabled:opacity-50 transition-all border border-amber-400/20 active:scale-95">Edit Invoice</button>
+                        <button type="button" onClick={handleCancelInvoice} disabled={!selectedInvoiceId || invoices.find(inv => inv.invoice_id === selectedInvoiceId)?.status === 'Cancelled' || readOnly} className="min-w-[110px] px-4 py-1.5 text-[10px] font-black text-white bg-rose-600 rounded-md hover:bg-rose-700 uppercase tracking-tighter shadow-md disabled:opacity-50 transition-all border border-rose-400/20 active:scale-95">Cancel Invoice</button>
+                        <button type="button" onClick={handleReturnInvoice} disabled={!selectedInvoiceId || invoices.find(inv => inv.invoice_id === selectedInvoiceId)?.status === 'Returned' || readOnly} className="min-w-[110px] px-4 py-1.5 text-[10px] font-black text-white bg-pink-700 rounded-md hover:bg-pink-600 uppercase tracking-tighter shadow-md disabled:opacity-50 transition-all border border-pink-400/20 active:scale-95">Return Invoice</button>
+                        <button type="button" onClick={handlePrintInvoice} disabled={!selectedInvoiceId} className="min-w-[100px] px-4 py-1.5 text-[10px] font-black text-white bg-indigo-600 rounded-md hover:bg-indigo-500 uppercase tracking-tighter shadow-md transition-all border border-indigo-400/20 active:scale-95">Print Invoice</button>
                     </div>
                 </div>
 
@@ -868,7 +871,7 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
             </div>
 
             {/* Modal Content - SEARCH FILTERS */}
-            <div className="px-8 py-5 bg-slate-950/20 grid grid-cols-1 md:grid-cols-4 gap-6 border-b border-white/5 shrink-0">
+            <div className="px-8 py-5 bg-slate-950/20 grid grid-cols-1 md:grid-cols-5 gap-6 border-b border-white/5 shrink-0">
               <div className="space-y-2">
                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Search Name</label>
                 <div className="relative group">
@@ -882,6 +885,16 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
                     autoFocus
                   />
                 </div>
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Age</label>
+                <input 
+                  type="text" 
+                  placeholder="Age..."
+                  value={patientSearchFilters.age}
+                  onChange={(e) => setPatientSearchFilters(prev => ({ ...prev, age: e.target.value }))}
+                  className="w-full bg-slate-950/50 border-2 border-slate-800 focus:border-blue-500 rounded-xl py-3 px-4 text-sm text-white placeholder:text-slate-700 outline-none transition-all shadow-inner"
+                />
               </div>
               <div className="space-y-2">
                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Mobile Number</label>
@@ -933,6 +946,7 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
                     <div 
                       key={p.pt_id}
                       onClick={() => handlePatientSelect(p.pt_id, p.pt_name)}
+                      onDoubleClick={() => handlePatientSelect(p.pt_id, p.pt_name)}
                       className="px-6 py-4 bg-slate-800/20 hover:bg-blue-600/10 border border-slate-800 hover:border-blue-500/50 rounded-2xl grid grid-cols-12 gap-5 items-center cursor-pointer transition-all group active:scale-[0.99]"
                     >
                       <div className="col-span-1 font-mono text-xs text-slate-600">{p.pt_id}</div>
@@ -1011,9 +1025,9 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
                 <PatientInfoPage 
                     patients={patients} 
                     setPatients={setPatients} 
-                    embedded={true} 
+                    isEmbedded={true} 
                     onClose={() => setShowNewPatientForm(false)} 
-                    onSelect={handlePatientSelect}
+                    onSaveAndSelect={handlePatientSelect}
                 />
              </div>
           </div>
