@@ -102,6 +102,13 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
   const [reportDate, setReportDate] = useState<string>(todayDateString);
 
   // State for embedded forms
+  const [showPatientSearchModal, setShowPatientSearchModal] = useState(false);
+  const [patientSearchFilters, setPatientSearchFilters] = useState({
+    name: '',
+    mobile: '',
+    address: '',
+    thana: ''
+  });
   const [showNewPatientForm, setShowNewPatientForm] = useState(false);
   const [showNewDoctorForm, setShowNewDoctorForm] = useState(false);
   const [showNewReferrarForm, setShowNewReferrarForm] = useState(false);
@@ -343,10 +350,25 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
     }));
   };
 
+  const filteredPatients = useMemo(() => {
+    return patients.filter(p => {
+      return (p.pt_name || '').toLowerCase().includes(patientSearchFilters.name.toLowerCase()) &&
+             (p.mobile || '').toLowerCase().includes(patientSearchFilters.mobile.toLowerCase()) &&
+             (p.address || '').toLowerCase().includes(patientSearchFilters.address.toLowerCase()) &&
+             (p.thana || '').toLowerCase().includes(patientSearchFilters.thana.toLowerCase());
+    });
+  }, [patients, patientSearchFilters]);
+
   const handlePatientSelect = (id: string, name: string) => {
     setFormData(prev => ({ ...prev, patient_id: id, patient_name: name }));
     if (errors.patient_id) setErrors(prev => ({ ...prev, patient_id: false }));
+    setShowPatientSearchModal(false);
     setShowNewPatientForm(false);
+  };
+
+  const openAdvancedPatientSearch = (currentTerm: string) => {
+     setPatientSearchFilters(prev => ({ ...prev, name: currentTerm }));
+     setShowPatientSearchModal(true);
   };
 
   const handleBarcodeScan = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -775,60 +797,226 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
             </div>
         )}
         
-        <div className="border-b border-slate-700 pb-4 mb-4">
-            <div className="max-w-5xl flex flex-wrap items-center gap-2">
-                <div className="flex items-center gap-2">
-                    <label htmlFor="invoice_id" className="font-semibold text-slate-300 whitespace-nowrap text-xs">Invoice Id:</label>
-                    <input type="text" id="invoice_id" name="invoice_id" disabled value={formData.invoice_id} className={`w-36 border rounded-md shadow-sm text-xs px-2 py-1 bg-slate-700 text-slate-400 ${errors.invoice_id ? 'border-red-500 ring-1 ring-red-500' : 'border-slate-600'}`} />
+        <div className="border-b border-slate-700 pb-2 mb-4">
+            <div className="flex flex-row items-center justify-between gap-2 overflow-x-auto no-scrollbar">
+                <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
+                        <label htmlFor="invoice_id" className="font-bold text-slate-400 whitespace-nowrap text-[10px] uppercase tracking-tighter">Invoice Id:</label>
+                        <input type="text" id="invoice_id" name="invoice_id" disabled value={formData.invoice_id} className="w-28 border border-slate-700 rounded-md shadow-inner text-[10px] px-2 py-1 bg-slate-800 text-slate-400 font-mono" />
+                    </div>
+                    
+                    <div className="flex items-center gap-2 pl-3 border-l border-slate-700/50">
+                        <button type="button" onClick={handleGetNewId} disabled={readOnly} className="min-w-[70px] px-3 py-1.5 text-[10px] font-black text-white bg-blue-600 rounded-md hover:bg-blue-500 uppercase tracking-tighter shadow-md disabled:opacity-50 transition-all border border-blue-400/20 active:scale-95">New ID</button>
+                        <button type="submit" form="invoice-form" disabled={readOnly} className="min-w-[80px] px-3 py-1.5 text-[10px] font-black text-white bg-emerald-600 rounded-md hover:bg-emerald-500 uppercase tracking-tighter shadow-md disabled:opacity-50 transition-all border border-emerald-400/20 active:scale-95">Save Inv</button>
+                        <button type="button" onClick={resetForm} disabled={readOnly} className="min-w-[70px] px-3 py-1.5 text-[10px] font-black text-slate-200 bg-slate-700 rounded-md hover:bg-slate-600 uppercase tracking-tighter shadow-md disabled:opacity-50 transition-all border border-slate-600/50 active:scale-95">Clear</button>
+                        <button type="button" onClick={handleEditInvoice} disabled={!selectedInvoiceId || readOnly} className="min-w-[60px] px-3 py-1.5 text-[10px] font-black text-white bg-amber-500 rounded-md hover:bg-amber-400 uppercase tracking-tighter shadow-md disabled:opacity-50 transition-all border border-amber-400/20 active:scale-95">Edit</button>
+                        <button type="button" onClick={handleCancelInvoice} disabled={!selectedInvoiceId || invoices.find(inv => inv.invoice_id === selectedInvoiceId)?.status === 'Cancelled' || readOnly} className="min-w-[80px] px-3 py-1.5 text-[10px] font-black text-white bg-rose-600 rounded-md hover:bg-rose-700 uppercase tracking-tighter shadow-md disabled:opacity-50 transition-all border border-rose-400/20 active:scale-95">Cancel</button>
+                        <button type="button" onClick={handleReturnInvoice} disabled={!selectedInvoiceId || invoices.find(inv => inv.invoice_id === selectedInvoiceId)?.status === 'Returned' || readOnly} className="min-w-[80px] px-3 py-1.5 text-[10px] font-black text-white bg-pink-700 rounded-md hover:bg-pink-600 uppercase tracking-tighter shadow-md disabled:opacity-50 transition-all border border-pink-400/20 active:scale-95">Return</button>
+                        <button type="button" onClick={handlePrintInvoice} disabled={!selectedInvoiceId} className="min-w-[70px] px-3 py-1.5 text-[10px] font-black text-white bg-indigo-600 rounded-md hover:bg-indigo-500 uppercase tracking-tighter shadow-md transition-all border border-indigo-400/20 active:scale-95">Print</button>
+                    </div>
                 </div>
-                <button type="button" onClick={handleGetNewId} disabled={readOnly} className="px-3 py-1.5 text-[10px] font-bold text-white bg-blue-600 rounded-md hover:bg-blue-500 uppercase tracking-tighter shadow-md disabled:opacity-50">Get New Invoice</button>
-                <button type="submit" form="invoice-form" disabled={readOnly} className="px-3 py-1.5 text-[10px] font-bold text-white bg-green-600 rounded-md hover:bg-green-500 uppercase tracking-tighter shadow-md disabled:opacity-50">Save Invoice</button>
-                <button type="button" onClick={resetForm} disabled={readOnly} className="px-3 py-1.5 text-[10px] font-bold text-slate-200 bg-slate-600 rounded-md hover:bg-slate-500 uppercase tracking-tighter shadow-md disabled:opacity-50">Clear Form</button>
-                <button type="button" onClick={handleEditInvoice} disabled={!selectedInvoiceId || readOnly} className="px-3 py-1.5 text-[10px] font-bold text-white bg-yellow-500 rounded-md hover:bg-yellow-400 uppercase tracking-tighter shadow-md disabled:opacity-50">Edit</button>
-                <button type="button" onClick={handleCancelInvoice} disabled={!selectedInvoiceId || invoices.find(inv => inv.invoice_id === selectedInvoiceId)?.status === 'Cancelled' || readOnly} className="px-3 py-1.5 text-[10px] font-bold text-white bg-red-600 rounded-md hover:bg-red-700 uppercase tracking-tighter shadow-md disabled:opacity-50">Invoice Cancel</button>
-                <button type="button" onClick={handleReturnInvoice} disabled={!selectedInvoiceId || invoices.find(inv => inv.invoice_id === selectedInvoiceId)?.status === 'Returned' || readOnly} className="px-3 py-1.5 text-[10px] font-bold text-white bg-rose-600 rounded-md hover:bg-rose-700 uppercase tracking-tighter shadow-md disabled:opacity-50">Return / Refund</button>
-                <button type="button" onClick={handlePrintInvoice} disabled={!selectedInvoiceId} className="px-3 py-1.5 text-[10px] font-bold text-white bg-indigo-600 rounded-md hover:bg-indigo-500 uppercase tracking-tighter shadow-md disabled:opacity-50">Print</button>
+
+                <div className="flex items-center gap-2 bg-sky-950/20 p-1 rounded-lg border border-sky-400/20">
+                    <div className="bg-sky-500 p-1 rounded-md text-white shadow-[0_0_10px_rgba(14,165,233,0.3)]">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M7 12h10"/></svg>
+                    </div>
+                    <label htmlFor="barcode_scanner_inv" className="font-black text-[9px] text-sky-400 uppercase tracking-widest whitespace-nowrap">Scanner Mode:</label>
+                    <input
+                        type="text"
+                        id="barcode_scanner_inv"
+                        placeholder="Scan..."
+                        value={barcodeInput}
+                        onChange={(e) => setBarcodeInput(e.target.value)}
+                        onKeyDown={handleBarcodeScan}
+                        className="w-32 py-1 px-2 border border-sky-500/30 bg-slate-950 text-white rounded text-[10px] font-mono focus:ring-1 focus:ring-sky-400 focus:outline-none placeholder:text-slate-700"
+                        autoComplete="off"
+                    />
+                </div>
             </div>
         </div>
 
-
-      <div className="mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="flex items-center gap-2">
-            <label htmlFor="search_invoice" className="font-semibold text-slate-300 whitespace-nowrap">Search Invoice:</label>
-            <input
-            type="text"
-            id="search_invoice"
-            name="search_invoice"
-            placeholder="Search by ID, Patient or Doctor"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="flex-1 border border-slate-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-slate-700 text-slate-200 py-2 px-3" />
-        </div>
-
-        <div className="flex items-center gap-2 bg-slate-700/50 p-1.5 rounded-lg border border-sky-500/30">
-            <div className="bg-sky-600 p-1.5 rounded-md text-white shadow-lg animate-pulse">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M7 12h10"/></svg>
+      {showPatientSearchModal && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/90 backdrop-blur-xl p-4 animate-in fade-in zoom-in duration-300">
+          <div className="bg-slate-900 border border-slate-700 w-full max-w-6xl max-h-[95vh] rounded-[2rem] shadow-[0_0_100px_rgba(0,0,0,0.8)] flex flex-col overflow-hidden">
+            
+            {/* Modal Header */}
+            <div className="px-8 py-6 border-b border-white/5 bg-slate-950/40 flex justify-between items-center shrink-0">
+              <div className="flex items-center gap-5">
+                <div className="w-14 h-14 bg-blue-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-blue-900/50">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><circle cx="19" cy="11" r="2"/><path d="M19 8v1"/><path d="M19 13v1"/></svg>
+                </div>
+                <div>
+                  <h2 className="text-3xl font-black text-white uppercase tracking-tighter">Advanced Patient Search</h2>
+                  <p className="text-xs text-slate-500 font-bold uppercase tracking-widest leading-none mt-1">Search by Name, mobile, address or Upazila</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-4">
+                 <button 
+                  onClick={() => setShowNewPatientForm(true)}
+                  className="flex items-center gap-3 px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-sm font-black uppercase tracking-widest transition-all active:scale-95 shadow-xl shadow-emerald-900/20"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                  New Patient
+                </button>
+                <button 
+                  onClick={() => setShowPatientSearchModal(false)}
+                  className="w-12 h-12 flex items-center justify-center bg-slate-800 hover:bg-red-600 text-slate-400 hover:text-white rounded-xl transition-all duration-300"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+              </div>
             </div>
-            <label htmlFor="barcode_scanner_inv" className="font-black text-xs text-sky-400 uppercase tracking-tighter whitespace-nowrap">Scanner Mode:</label>
-            <input
-                type="text"
-                id="barcode_scanner_inv"
-                placeholder="Scan Patient or Previous Invoice ID..."
-                value={barcodeInput}
-                onChange={(e) => setBarcodeInput(e.target.value)}
-                onKeyDown={handleBarcodeScan}
-                className="flex-1 py-1.5 px-3 border-2 border-sky-500/50 bg-slate-900 text-white rounded-md shadow-xl focus:ring-2 focus:ring-sky-400 focus:border-sky-400 sm:text-sm font-mono"
-                autoComplete="off"
-            />
+
+            {/* Modal Content - SEARCH FILTERS */}
+            <div className="px-8 py-5 bg-slate-950/20 grid grid-cols-1 md:grid-cols-4 gap-6 border-b border-white/5 shrink-0">
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Search Name</label>
+                <div className="relative group">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-blue-500 transition-colors"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                  <input 
+                    type="text" 
+                    placeholder="Khushi..."
+                    value={patientSearchFilters.name}
+                    onChange={(e) => setPatientSearchFilters(prev => ({ ...prev, name: e.target.value }))}
+                    className="w-full bg-slate-950/50 border-2 border-slate-800 focus:border-blue-500 rounded-xl py-3 pl-12 pr-4 text-sm text-white placeholder:text-slate-700 outline-none transition-all shadow-inner"
+                    autoFocus
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Mobile Number</label>
+                <input 
+                  type="text" 
+                  placeholder="017..."
+                  value={patientSearchFilters.mobile}
+                  onChange={(e) => setPatientSearchFilters(prev => ({ ...prev, mobile: e.target.value }))}
+                  className="w-full bg-slate-950/50 border-2 border-slate-800 focus:border-blue-500 rounded-xl py-3 px-4 text-sm text-white placeholder:text-slate-700 outline-none transition-all shadow-inner"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Address / Village</label>
+                <input 
+                  type="text" 
+                  placeholder="Address..."
+                  value={patientSearchFilters.address}
+                  onChange={(e) => setPatientSearchFilters(prev => ({ ...prev, address: e.target.value }))}
+                  className="w-full bg-slate-950/50 border-2 border-slate-800 focus:border-blue-500 rounded-xl py-3 px-4 text-sm text-white placeholder:text-slate-700 outline-none transition-all shadow-inner"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Upazila / Thana</label>
+                <input 
+                  type="text" 
+                  placeholder="Thana..."
+                  value={patientSearchFilters.thana}
+                  onChange={(e) => setPatientSearchFilters(prev => ({ ...prev, thana: e.target.value }))}
+                  className="w-full bg-slate-950/50 border-2 border-slate-800 focus:border-blue-500 rounded-xl py-3 px-4 text-sm text-white placeholder:text-slate-700 outline-none transition-all shadow-inner"
+                />
+              </div>
+            </div>
+
+            {/* List Header */}
+            <div className="bg-slate-950 px-10 py-3 border-b border-white/5 grid grid-cols-12 gap-5 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] shrink-0">
+              <div className="col-span-1">ID</div>
+              <div className="col-span-3">Patient Name</div>
+              <div className="col-span-2">Age/Sex</div>
+              <div className="col-span-2">Mobile</div>
+              <div className="col-span-2">Address / Thana</div>
+              <div className="col-span-2 text-right">Selection</div>
+            </div>
+
+            {/* Scrolling List */}
+            <div className="flex-1 overflow-y-auto p-4 no-scrollbar bg-slate-900/20">
+              {filteredPatients.length > 0 ? (
+                <div className="grid grid-cols-1 gap-2">
+                  {filteredPatients.map(p => (
+                    <div 
+                      key={p.pt_id}
+                      onClick={() => handlePatientSelect(p.pt_id, p.pt_name)}
+                      className="px-6 py-4 bg-slate-800/20 hover:bg-blue-600/10 border border-slate-800 hover:border-blue-500/50 rounded-2xl grid grid-cols-12 gap-5 items-center cursor-pointer transition-all group active:scale-[0.99]"
+                    >
+                      <div className="col-span-1 font-mono text-xs text-slate-600">{p.pt_id}</div>
+                      <div className="col-span-3">
+                        <p className="text-base font-black text-slate-200 group-hover:text-blue-400 transition-colors uppercase tracking-tight">{p.pt_name}</p>
+                      </div>
+                      <div className="col-span-2">
+                        <span className="px-2 py-1 bg-slate-800 rounded-md text-[10px] font-black text-slate-400 uppercase">{p.ageY}Y | {p.gender}</span>
+                      </div>
+                      <div className="col-span-2">
+                        <p className="text-sm font-mono text-slate-500">{p.mobile || '---'}</p>
+                      </div>
+                      <div className="col-span-2">
+                        <p className="text-xs text-slate-600 truncate leading-tight">{p.address}{p.thana ? `\n${p.thana}` : ''}</p>
+                      </div>
+                      <div className="col-span-2 text-right">
+                        <button className="px-5 py-2 bg-blue-600/20 hover:bg-blue-600 text-blue-400 hover:text-white border border-blue-500/30 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">Select</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-20 text-slate-700">
+                   <div className="w-24 h-24 bg-slate-800/50 rounded-full flex items-center justify-center mb-6 opacity-30">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="17" y1="8" x2="17" y2="14"/><line x1="14" y1="11" x2="20" y2="11"/></svg>
+                   </div>
+                  <p className="text-2xl font-black uppercase tracking-tighter opacity-50 mb-2">Patient Not Found</p>
+                  <p className="text-xs font-bold uppercase tracking-widest opacity-30 max-w-xs text-center leading-relaxed">The searched record does not exist in our database. You can add a new one.</p>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-10 py-5 bg-slate-950/60 border-t border-white/5 flex justify-between items-center shrink-0">
+              <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></div>
+                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Total Records: {patients.length}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
+                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Filter Results: {filteredPatients.length}</span>
+                  </div>
+              </div>
+              <div className="flex items-center gap-3">
+                 <button 
+                    onClick={() => setShowPatientSearchModal(false)}
+                    className="px-8 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-black uppercase tracking-widest transition-all"
+                >
+                    Close
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
 
       {showNewPatientForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-            <div className="w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-xl shadow-2xl border border-slate-600 bg-slate-900 relative">
-                <button onClick={() => setShowNewPatientForm(false)} className="absolute top-4 right-4 text-slate-400 hover:text-white z-10">&times;</button>
-                <div className="p-2"><PatientInfoPage patients={patients} setPatients={setPatients} isEmbedded onClose={() => setShowNewPatientForm(false)} onSaveAndSelect={handlePatientSelect} /></div>
-            </div>
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/90 backdrop-blur-xl p-4 animate-in fade-in slide-in-from-bottom-10 duration-500">
+          <div className="bg-slate-900 border-2 border-emerald-500/30 w-full max-w-5xl rounded-[3rem] shadow-[0_0_150px_rgba(16,185,129,0.3)] overflow-hidden flex flex-col max-h-[95vh]">
+             <div className="p-8 border-b border-white/5 bg-slate-950/40 flex justify-between items-center">
+                <div className="flex items-center gap-4">
+                  <div className="w-14 h-14 bg-emerald-600 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-emerald-950/50">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="16" y1="11" x2="22" y2="11"/></svg>
+                  </div>
+                  <div>
+                    <h2 className="text-3xl font-black text-white uppercase tracking-tighter">Register New Patient</h2>
+                    <p className="text-xs text-emerald-500 font-bold uppercase tracking-widest leading-none mt-1">Add comprehensive details for medical records</p>
+                  </div>
+                </div>
+                <button onClick={() => setShowNewPatientForm(false)} className="w-12 h-12 flex items-center justify-center bg-slate-800 hover:bg-red-600 text-white rounded-xl transition-all duration-300">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+             </div>
+             <div className="flex-1 overflow-y-auto p-4">
+                <PatientInfoPage 
+                    patients={patients} 
+                    setPatients={setPatients} 
+                    embedded={true} 
+                    onClose={() => setShowNewPatientForm(false)} 
+                    onSelect={handlePatientSelect}
+                />
+             </div>
+          </div>
         </div>
       )}
 
@@ -914,7 +1102,8 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
                 options={patients.map(p => ({ id: p.pt_id, name: p.pt_name, details: `ID: ${p.pt_id} | ${p.gender}, ${p.ageY}Y | ${p.address} | ${p.mobile}` }))}
                 value={formData.patient_id}
                 onChange={handlePatientSelect}
-                onAddNew={() => setShowNewPatientForm(true)}
+                onAddNew={() => openAdvancedPatientSearch('')}
+                onEnter={(term) => openAdvancedPatientSearch(term)}
                 placeholder="Search or add new patient"
                 required
                 inputHeightClass="h-10"

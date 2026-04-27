@@ -486,7 +486,7 @@ const DiagnosticPage: React.FC<DiagnosticPageProps> = ({
            </div>
         </div>
 
-        <div className={`flex-1 ${activeTab === 'lab_reporting' ? 'overflow-hidden p-0' : 'overflow-y-auto p-4 md:p-6'} bg-slate-900/50 relative z-10`}>
+        <div className={`flex-1 ${activeTab === 'lab_reporting' ? 'overflow-hidden p-0' : 'overflow-y-auto p-4 md:p-6'} bg-slate-900/50 relative`}>
           <DiagnosticErrorBoundary key={activeTab}>
             <div className="w-full h-full">
               {renderContent()}

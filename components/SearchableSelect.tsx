@@ -18,6 +18,8 @@ interface SearchableSelectProps {
   theme?: 'light' | 'dark';
   inputHeightClass?: string;
   allowCustom?: boolean;
+  onEnter?: (term: string) => void;
+  onSearchChange?: (term: string) => void;
 }
 
 const SearchableSelect: React.FC<SearchableSelectProps> = ({
@@ -26,6 +28,8 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
   value,
   onChange,
   onAddNew,
+  onEnter,
+  onSearchChange,
   placeholder = 'Select...',
   required = false,
   theme = 'light',
@@ -105,8 +109,18 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
       const newVal = e.target.value;
       setSearchTerm(newVal);
       setIsOpen(true);
+      if (onSearchChange) onSearchChange(newVal);
       if (allowCustom) {
           onChange(newVal, newVal);
+      }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === 'Enter') {
+          if (onEnter) {
+              onEnter(searchTerm);
+              setIsOpen(false);
+          }
       }
   };
 
@@ -132,6 +146,7 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
             placeholder={placeholder}
             value={searchTerm}
             onChange={handleInputChange}
+            onKeyDown={handleKeyDown}
             onClick={() => setIsOpen(true)}
             onFocus={(e) => e.target.select()} 
             required={required}

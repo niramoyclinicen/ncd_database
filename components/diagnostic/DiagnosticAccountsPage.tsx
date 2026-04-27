@@ -262,15 +262,15 @@ const SummaryBox = ({ title, items, totalLabel, totalValue, colorClass }: any) =
         <h4 className={`text-lg font-black ${colorClass} mb-4 uppercase border-b border-slate-700 pb-2 text-white`}>{title}</h4>
         <div className="space-y-3 flex-1">
             {items.map((it: any, idx: number) => (
-                <div key={idx} className="flex justify-between items-center text-sm border-b border-slate-700/30 pb-1 text-slate-300">
-                    <span className="font-bold">{it.label}:</span>
-                    <span className="font-black text-white">{it.value.toLocaleString()}</span>
-                </div>
+                    <div key={idx} className="flex justify-between items-center text-base border-b border-slate-700/30 pb-3 text-slate-200">
+                        <span className="font-bold">{it.label}:</span>
+                        <span className="font-black text-white">{it.value.toLocaleString()}</span>
+                    </div>
             ))}
         </div>
         <div className={`mt-4 pt-3 border-t-2 border-slate-700 flex justify-between items-center`}>
-            <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest">{totalLabel}</span>
-            <span className={`text-xl font-black ${colorClass}`}>{totalValue.toLocaleString()} ৳</span>
+            <span className="text-xs font-black text-slate-400 uppercase tracking-widest">{totalLabel}</span>
+            <span className={`text-2xl font-black ${colorClass}`}>{totalValue.toLocaleString()} ৳</span>
         </div>
     </div>
 );
@@ -1642,19 +1642,19 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                                         </button>
                                     ))}
                                 </div>
-                                <div className="bg-slate-900/60 p-2.5 rounded-xl border border-slate-700/50 w-full lg:w-[450px]">
-                                    <div className="flex justify-between items-center mb-1.5">
-                                        <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest flex items-center gap-2">
+                                <div className="bg-slate-900/60 p-2.5 rounded-xl border border-slate-700/50 flex-grow">
+                                    <div className="flex justify-between items-center mb-1.5 px-1">
+                                        <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest flex items-center gap-2">
                                             <div className="w-1.5 h-1.5 bg-blue-500 rounded-full shadow-[0_0_8px_rgba(59,130,246,0.6)]"></div>
-                                            Tracked Tests
+                                            Tracked Tests Overview
                                         </p>
-                                        <button onClick={() => setIsEditingTracked(!isEditingTracked)} className="text-[8px] font-black text-sky-500 hover:text-sky-400 uppercase transition-colors">
+                                        <button onClick={() => setIsEditingTracked(!isEditingTracked)} className="text-[9px] font-black text-sky-500 hover:text-sky-400 uppercase transition-colors">
                                             {isEditingTracked ? '[ Save List ]' : '[ Custom Set ]'}
                                         </button>
                                     </div>
-                                    <div className="flex flex-wrap gap-1 overflow-x-auto pb-1 max-h-[50px]">
+                                    <div className="flex flex-row gap-2 overflow-x-auto pb-1 no-scrollbar items-center">
                                         {trackedTests.map((test, i) => (
-                                            <div key={i} className="bg-slate-950 px-2 py-1.5 rounded-lg border border-slate-800 relative group min-w-[70px]">
+                                            <div key={i} className="bg-slate-950 px-3 py-1.5 rounded-lg border border-slate-800 flex-shrink-0 relative group min-w-[90px]">
                                                 {isEditingTracked ? (
                                                     <div>
                                                         <input 
@@ -1676,9 +1676,9 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                                                         </datalist>
                                                     </div>
                                                 ) : (
-                                                    <div className="flex flex-col">
-                                                        <p className="text-[7px] font-bold text-slate-500 uppercase truncate w-[60px]" title={test}>{test || '---'}</p>
-                                                        <p className="text-xs font-black text-indigo-400 leading-none">{customTestCounts[test] || 0}</p>
+                                                    <div className="flex items-center gap-2">
+                                                        <p className="text-[10px] font-bold text-slate-500 uppercase truncate max-w-[120px]" title={test}>{test || '---'}</p>
+                                                        <p className="text-sm font-black text-indigo-400 leading-none">{customTestCounts[test] || 0}</p>
                                                     </div>
                                                 )}
                                             </div>
@@ -1691,25 +1691,25 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                                 <table className="w-full text-left text-[11px] border-collapse">
                                     <thead className="bg-slate-950 text-slate-500 font-black uppercase tracking-widest border-b border-slate-800">
                                         <tr className="bg-slate-900 text-white font-black border-b border-slate-700 shadow-lg no-print">
-                                            <td colSpan={4} className="p-4 text-right text-[10px] text-slate-500 uppercase tracking-widest bg-slate-950">Grand Summary:</td>
-                                            <td className="p-4 text-right text-blue-400 bg-slate-900">৳{reportSummary.totalBill.toLocaleString()}</td>
-                                            <td className="p-4 text-right text-rose-400 bg-slate-950">৳{reportSummary.totalDiscount.toLocaleString()}</td>
-                                            <td className="p-4 text-right text-emerald-400 font-black bg-slate-900 border-x border-slate-800">৳{reportSummary.paidAmount.toLocaleString()}</td>
-                                            <td className="p-4 text-right text-amber-500 bg-slate-950">৳{reportSummary.totalPC.toLocaleString()}</td>
-                                            <td className="p-4 text-right text-sky-400 bg-slate-900">৳{reportSummary.usgFee.toLocaleString()}</td>
-                                            <td className="p-4 text-right bg-blue-600 text-white text-sm shadow-inner">৳{reportSummary.netInstProfit.toLocaleString()}</td>
+                                            <td colSpan={4} className="px-4 py-1.5 text-right text-sm text-slate-400 uppercase tracking-widest bg-slate-950 font-bold">Grand Summary Totals:</td>
+                                            <td className="px-4 py-1.5 text-right text-base text-blue-400 bg-slate-900 font-bold">৳{reportSummary.totalBill.toLocaleString()}</td>
+                                            <td className="px-4 py-1.5 text-right text-base text-rose-400 bg-slate-950 font-bold">৳{reportSummary.totalDiscount.toLocaleString()}</td>
+                                            <td className="px-4 py-1.5 text-right text-lg text-emerald-400 font-black bg-slate-900 border-x border-slate-800">৳{reportSummary.paidAmount.toLocaleString()}</td>
+                                            <td className="px-4 py-1.5 text-right text-base text-amber-500 bg-slate-950 font-bold">৳{reportSummary.totalPC.toLocaleString()}</td>
+                                            <td className="px-4 py-1.5 text-right text-base text-sky-400 bg-slate-900 font-bold">৳{reportSummary.usgFee.toLocaleString()}</td>
+                                            <td className="px-4 py-1.5 text-right bg-blue-600 text-white text-xl shadow-inner font-black">৳{reportSummary.netInstProfit.toLocaleString()}</td>
                                         </tr>
                                         <tr>
-                                            <th className="p-4">SL</th>
-                                            <th className="p-4">Invoice ID</th>
-                                            <th className="p-4">Patient Name</th>
-                                            <th className="p-4">Referrer</th>
-                                            <th className="p-4 text-right">Bill</th>
-                                            <th className="p-4 text-right text-rose-300">Disc</th>
-                                            <th className="p-4 text-right text-emerald-400">Paid</th>
-                                            <th className="p-4 text-right text-amber-500">Paid PC</th>
-                                            <th className="p-4 text-right text-sky-400">USG Fee</th>
-                                            <th className="p-4 text-right bg-blue-900/20 text-white">Net Profit</th>
+                                            <th className="px-4 py-2">SL</th>
+                                            <th className="px-4 py-2">Invoice ID</th>
+                                            <th className="px-4 py-2">Patient Name</th>
+                                            <th className="px-4 py-2">Referrer</th>
+                                            <th className="px-4 py-2 text-right">Bill</th>
+                                            <th className="px-4 py-2 text-right text-rose-300">Disc</th>
+                                            <th className="px-4 py-2 text-right text-emerald-400">Paid</th>
+                                            <th className="px-4 py-2 text-right text-amber-500">Paid PC</th>
+                                            <th className="px-4 py-2 text-right text-sky-400">USG Fee</th>
+                                            <th className="px-4 py-2 text-right bg-blue-900/20 text-white">Net Profit</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-800">
