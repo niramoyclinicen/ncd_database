@@ -48,6 +48,7 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
   const [successMessage, setSuccessMessage] = useState('');
   const [errors, setErrors] = useState<Record<string, boolean>>({});
+  const [loading, setLoading] = useState(false);
 
   const [editingPurchaseId, setEditingPurchaseId] = useState<string | null>(null);
   const [isOpeningStock, setIsOpeningStock] = useState(false);
@@ -784,7 +785,22 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
                     <div className="flex justify-between items-center text-red-500 font-black text-3xl uppercase tracking-tighter"><span>DUE AMOUNT:</span> <span>৳{salesFormData.dueAmount.toFixed(2)}</span></div>
                 </div>
             </div>
-            <div className="mt-10 flex justify-end gap-5"><button onClick={()=>{setSellViewMode('list'); setErrors({}); setEditingInvoiceId(null);}} className="px-10 py-5 bg-slate-700 text-white rounded-2xl font-black hover:bg-slate-600 shadow-xl transition-all uppercase tracking-widest">Cancel</button><button onClick={handleSaveSales} className="px-20 py-5 bg-emerald-600 text-white rounded-2xl font-black shadow-2xl hover:bg-emerald-500 transform active:scale-95 transition-all text-xl uppercase tracking-widest">{sellViewMode === 'edit' ? 'Update Corrections' : 'Complete Sale'}</button></div>
+          <div className="mt-10 flex justify-end gap-5">
+            <button 
+              onClick={()=>{setSellViewMode('list'); setErrors({}); setEditingInvoiceId(null);}} 
+              className="px-10 py-5 bg-slate-700 text-white rounded-2xl font-black hover:bg-slate-600 shadow-xl transition-all uppercase tracking-widest"
+              disabled={loading}
+            >
+              Cancel
+            </button>
+            <button 
+              onClick={handleSaveSales} 
+              disabled={loading}
+              className={`px-20 py-5 bg-emerald-600 text-white rounded-2xl font-black shadow-2xl transform transition-all text-xl uppercase tracking-widest ${loading ? 'opacity-50 cursor-not-allowed' : 'hover:bg-emerald-500 active:scale-95'}`}
+            >
+              {loading ? 'Processing...' : (sellViewMode === 'edit' ? 'Update Corrections' : 'Complete Sale')}
+            </button>
+          </div>
         </div>
     );
   };
