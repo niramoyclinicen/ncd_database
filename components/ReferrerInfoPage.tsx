@@ -118,7 +118,14 @@ const ReferrarInfoPage: React.FC<ReferrarInfoPageProps> = ({
     return (
         <div className={`bg-slate-900 p-6 rounded-xl ${isEmbedded ? '' : 'min-h-screen'}`}>
             <div className="flex justify-between items-center mb-6 border-b border-sky-800 pb-4">
-                <h2 className="text-xl font-bold text-white uppercase">Referrer Profile</h2>
+                <div className="flex items-center gap-3">
+                    <h2 className="text-xl font-bold text-white uppercase">Referrer Profile</h2>
+                    {isEditing && (
+                        <span className="bg-amber-500/20 text-amber-500 px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-tighter border border-amber-500/30">
+                            Editing Mode
+                        </span>
+                    )}
+                </div>
                 {!isEmbedded && <button onClick={handleGetNewId} className="bg-blue-600 px-4 py-2 rounded text-xs font-bold text-white uppercase tracking-widest hover:bg-blue-500 transition-colors">Generate New ID</button>}
             </div>
 
@@ -159,10 +166,31 @@ const ReferrarInfoPage: React.FC<ReferrarInfoPageProps> = ({
                 </div>
 
                 <div className="md:col-span-2 flex gap-4 mt-6">
-                    <button type="submit" className="flex-1 bg-emerald-600 py-3 text-sm font-bold text-white uppercase tracking-widest rounded-lg hover:bg-emerald-500 transition-all active:scale-95 shadow-lg">Save Referrer</button>
+                    <button type="submit" className={`flex-1 ${isEditing ? 'bg-amber-600 hover:bg-amber-500' : 'bg-emerald-600 hover:bg-emerald-500'} py-3 text-sm font-bold text-white uppercase tracking-widest rounded-lg transition-all active:scale-95 shadow-lg`}>
+                        {isEditing ? 'Update Referrer' : 'Save Referrer'}
+                    </button>
+                    {isEditing && (
+                        <button 
+                            type="button" 
+                            onClick={() => {
+                                handleGetNewId();
+                                setIsEditing(false);
+                            }} 
+                            className="bg-sky-600 px-6 py-3 text-sm font-bold text-white uppercase tracking-widest rounded-lg hover:bg-sky-500 transition-all active:scale-95 shadow-lg"
+                        >
+                            Add New
+                        </button>
+                    )}
                     {onClose && <button type="button" onClick={onClose} className="px-6 bg-slate-700 text-slate-300 font-bold uppercase py-3 rounded-lg hover:bg-slate-600 text-xs">Cancel</button>}
                 </div>
             </form>
+
+            {successMessage && (
+                <div className="mt-4 p-3 bg-emerald-900/30 border border-emerald-500/50 rounded-lg flex items-center gap-3 text-emerald-400">
+                    <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
+                    <span className="text-xs font-bold uppercase tracking-wider">{successMessage}</span>
+                </div>
+            )}
 
             {!isEmbedded && (
                 <div className="mt-12 space-y-4">

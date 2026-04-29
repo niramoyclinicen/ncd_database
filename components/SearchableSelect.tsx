@@ -38,6 +38,7 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [dropdownDirection, setDropdownDirection] = useState<'down' | 'up'>('down');
   const wrapperRef = useRef<HTMLDivElement>(null);
 
   // Sync internal search term with external value (ID) -> Name
@@ -124,6 +125,19 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
       }
   };
 
+  useEffect(() => {
+    if (isOpen && wrapperRef.current) {
+        const handlePosition = () => {
+            if (!wrapperRef.current) return;
+            const rect = wrapperRef.current.getBoundingClientRect();
+            const spaceBelow = window.innerHeight - rect.bottom;
+            setDropdownDirection(spaceBelow < 280 ? 'up' : 'down');
+        };
+        
+        requestAnimationFrame(handlePosition);
+    }
+  }, [isOpen]);
+
   const labelColor = theme === 'dark' ? 'text-sky-300' : 'text-gray-700';
   const inputBg = theme === 'dark' ? 'bg-sky-900/50' : 'bg-white';
   const inputBorder = theme === 'dark' ? 'border-sky-800' : 'border-gray-300';
@@ -172,7 +186,7 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
       </div>
 
       {isOpen && filteredOptions.length > 0 && (
-        <ul className={`absolute z-50 mt-1 w-full rounded-md shadow-lg border ${inputBorder} ${dropdownBg} max-h-60 overflow-y-auto`}>
+        <ul className={`absolute z-50 w-full rounded-md shadow-lg border ${inputBorder} ${dropdownBg} max-h-60 overflow-y-auto ${dropdownDirection === 'up' ? 'bottom-full mb-1' : 'mt-1'}`}>
             {filteredOptions.map((option) => (
             <li
                 key={option.id}
@@ -196,7 +210,7 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
         </ul>
       )}
       {isOpen && filteredOptions.length === 0 && searchTerm !== '' && !allowCustom && (
-           <ul className={`absolute z-50 mt-1 w-full rounded-md shadow-lg border ${inputBorder} ${dropdownBg}`}>
+           <ul className={`absolute z-50 w-full rounded-md shadow-lg border ${inputBorder} ${dropdownBg} ${dropdownDirection === 'up' ? 'bottom-full mb-1' : 'mt-1'}`}>
                 <li className={`py-2 pl-3 pr-9 ${dropdownText} opacity-50`}>No results found</li>
            </ul>
       )}

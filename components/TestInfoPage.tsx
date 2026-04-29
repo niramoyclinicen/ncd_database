@@ -42,8 +42,9 @@ const TestInfoPage: React.FC<Props> = ({ reagents, tests, setTests, isEmbedded =
   }, [searchTerm, tests, selectedFilterCategory]);
 
   const getCategoryCount = (cat: string) => {
-    if (cat === 'All') return tests.length;
-    return tests.filter(t => t.category === cat).length;
+    const safeTests = Array.isArray(tests) ? tests : [];
+    if (cat === 'All') return safeTests.length;
+    return safeTests.filter(t => t && t.category === cat).length;
   };
 
   useEffect(() => {

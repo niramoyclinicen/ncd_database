@@ -7,7 +7,7 @@ import PatientInfoPage from './PatientInfoPage';
 import DoctorInfoPage from './DoctorInfoPage';
 import ReferrerInfoPage from './ReferrerInfoPage';
 import TestInfoPage from './TestInfoPage';
-import { TrashIcon } from './Icons';
+import { TrashIcon, DnaIcon } from './Icons';
 
 interface LabInvoicingPageProps {
   patients: Patient[];
@@ -89,6 +89,7 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
   const [tableFilterMonth, setTableFilterMonth] = useState('');
   const [tableFilterYear, setTableFilterYear] = useState('');
   const [tableFilterDoctorId, setTableFilterDoctorId] = useState('');
+  const [tableFilterReferrarId, setTableFilterReferrarId] = useState('');
   const [tableFilterPatientName, setTableFilterPatientName] = useState('');
   const [tableFilterDueOnly, setTableFilterDueOnly] = useState(false);
 
@@ -205,12 +206,13 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
       const matchesYear = !tableFilterYear || (invDateObj && String(invDateObj.getFullYear()) === tableFilterYear);
       
       const matchesDoctor = !tableFilterDoctorId || invoice.doctor_id === tableFilterDoctorId;
+      const matchesReferrar = !tableFilterReferrarId || invoice.referrar_id === tableFilterReferrarId;
       const matchesPatient = !tableFilterPatientName || (invoice.patient_name || '').toLowerCase().includes(tableFilterPatientName.toLowerCase());
       const matchesDue = !tableFilterDueOnly || (invoice.due_amount > 0 && invoice.status !== 'Cancelled' && invoice.status !== 'Returned');
 
-      return matchesSearch && matchesDate && matchesMonth && matchesYear && matchesDoctor && matchesPatient && matchesDue;
+      return matchesSearch && matchesDate && matchesMonth && matchesYear && matchesDoctor && matchesReferrar && matchesPatient && matchesDue;
     });
-  }, [searchTerm, tableFilterDate, tableFilterMonth, tableFilterYear, tableFilterDoctorId, tableFilterPatientName, tableFilterDueOnly, invoices]);
+  }, [searchTerm, tableFilterDate, tableFilterMonth, tableFilterYear, tableFilterDoctorId, tableFilterReferrarId, tableFilterPatientName, tableFilterDueOnly, invoices]);
 
 
   const filteredTestsForSelect = useMemo(() => {
@@ -367,6 +369,14 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
     if (errors.patient_id) setErrors(prev => ({ ...prev, patient_id: false }));
     setShowPatientSearchModal(false);
     setShowNewPatientForm(false);
+    // Reset search filters for next time
+    setPatientSearchFilters({
+      name: '',
+      mobile: '',
+      address: '',
+      thana: '',
+      age: ''
+    });
   };
 
   const openAdvancedPatientSearch = (currentTerm: string) => {
@@ -770,6 +780,7 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
     setTableFilterMonth('');
     setTableFilterYear('');
     setTableFilterDoctorId('');
+    setTableFilterReferrarId('');
     setTableFilterPatientName('');
     setTableFilterDueOnly(false);
   };
@@ -862,7 +873,10 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
                   New Patient
                 </button>
                 <button 
-                  onClick={() => setShowPatientSearchModal(false)}
+                  onClick={() => {
+                    setShowPatientSearchModal(false);
+                    setPatientSearchFilters({ name: '', mobile: '', address: '', thana: '', age: '' });
+                  }}
                   className="w-12 h-12 flex items-center justify-center bg-slate-800 hover:bg-red-600 text-slate-400 hover:text-white rounded-xl transition-all duration-300"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -957,10 +971,10 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
                         <span className="px-2 py-1 bg-slate-800 rounded-md text-[10px] font-black text-slate-400 uppercase">{p.ageY}Y | {p.gender}</span>
                       </div>
                       <div className="col-span-2">
-                        <p className="text-sm font-mono text-slate-500">{p.mobile || '---'}</p>
+                        <p className="text-sm font-mono text-white/80">{p.mobile || '---'}</p>
                       </div>
                       <div className="col-span-2">
-                        <p className="text-xs text-slate-600 truncate leading-tight">{p.address}{p.thana ? `\n${p.thana}` : ''}</p>
+                        <p className="text-xs text-white/60 truncate leading-tight">{p.address}{p.thana ? `\n${p.thana}` : ''}</p>
                       </div>
                       <div className="col-span-2 text-right">
                         <button className="px-5 py-2 bg-blue-600/20 hover:bg-blue-600 text-blue-400 hover:text-white border border-blue-500/30 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">Select</button>
@@ -993,7 +1007,10 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
               </div>
               <div className="flex items-center gap-3">
                  <button 
-                    onClick={() => setShowPatientSearchModal(false)}
+                    onClick={() => {
+                      setShowPatientSearchModal(false);
+                      setPatientSearchFilters({ name: '', mobile: '', address: '', thana: '', age: '' });
+                    }}
                     className="px-8 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-black uppercase tracking-widest transition-all"
                 >
                     Close
@@ -1053,7 +1070,7 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
       )}
 
       {showNewTestForm && (
-        <div className="fixed inset-0 z-100 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-fade-in" onClick={() => setShowNewTestForm(false)}>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-fade-in" onClick={() => setShowNewTestForm(false)}>
             <div className="w-full max-w-5xl max-h-[95vh] overflow-hidden rounded-[2.5rem] shadow-[0_0_80px_rgba(0,0,0,0.8)] border border-slate-700 bg-slate-900 relative flex flex-col" onClick={e => e.stopPropagation()}>
                 {/* Visual Header for Modal */}
                 <div className="flex justify-between items-center px-10 py-6 border-b border-white/5 bg-slate-950/20">
@@ -1362,6 +1379,16 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
                         {doctors.map(d => <option key={d.doctor_id} value={d.doctor_id}>{d.doctor_name}</option>)}
                     </select>
                 </div>
+                <div className="w-40">
+                    <select 
+                        value={tableFilterReferrarId} 
+                        onChange={(e) => setTableFilterReferrarId(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-1.5 text-xs text-white font-bold outline-none focus:border-blue-500"
+                    >
+                        <option value="">Filter by Referrer...</option>
+                        {referrars.map(r => <option key={r.referrar_id} value={r.referrar_id}>{r.referrar_name}</option>)}
+                    </select>
+                </div>
                 <div className="flex items-center gap-2">
                     <input 
                         type="date" 
@@ -1400,10 +1427,11 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
                 </button>
                 <button 
                     onClick={resetTableFilters}
-                    className="p-1.5 bg-slate-600 hover:bg-rose-600 text-white rounded-lg transition-colors"
+                    className="px-4 py-1.5 bg-slate-900 border-2 border-slate-700 text-slate-400 hover:text-white hover:border-blue-500 rounded-lg flex items-center gap-2 text-xs font-black uppercase transition-all"
                     title="Clear All Table Filters"
                 >
-                    <TrashIcon size={14} />
+                    <TrashIcon size={12} />
+                    Clear Filters
                 </button>
             </div>
         </div>

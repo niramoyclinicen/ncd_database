@@ -194,13 +194,13 @@ const InvoiceViewModal: React.FC<{ inv: any, patients: any[], doctors: any[], on
                         </div>
 
                         {/* Info Header Table */}
-                        <div className="grid grid-cols-2 gap-px bg-slate-900 border border-slate-900 mb-8 rounded overflow-hidden">
-                            <div className="bg-white p-3"><span className="text-[10px] font-black uppercase text-gray-400 block mb-1">Invoice ID</span><span className="font-mono font-black text-blue-600">{inv.invoice_id}</span></div>
-                            <div className="bg-white p-3"><span className="text-[10px] font-black uppercase text-gray-400 block mb-1">Date</span><span className="font-bold text-gray-800">{inv.invoice_date}</span></div>
-                            <div className="bg-white p-3 col-span-2"><span className="text-[10px] font-black uppercase text-gray-400 block mb-1">Patient Name</span><span className="font-black text-gray-900 text-lg uppercase">{patient?.pt_name || 'N/A'}</span></div>
-                            <div className="bg-white p-3"><span className="text-[10px] font-black uppercase text-gray-400 block mb-1">Age / Gender</span><span className="font-bold text-gray-800">{patient?.ageY || 'N/A'}Y / {patient?.gender || 'N/A'}</span></div>
-                            <div className="bg-white p-3"><span className="text-[10px] font-black uppercase text-gray-400 block mb-1">Mobile</span><span className="font-mono font-bold text-gray-800">{patient?.mobile || 'N/A'}</span></div>
-                            <div className="bg-white p-3 col-span-2"><span className="text-[10px] font-black uppercase text-gray-400 block mb-1">Ref. Doctor</span><span className="font-bold text-blue-800">{doctor?.doctor_name || 'Self/Walk-in'} {doctor?.degree ? `(${doctor.degree})` : ''}</span></div>
+                        <div className="grid grid-cols-2 gap-px bg-slate-900 border border-slate-900 mb-6 rounded overflow-hidden shadow-sm">
+                            <div className="bg-white p-2.5"><span className="text-[9px] font-black uppercase text-gray-400 block mb-0.5">Invoice ID</span><span className="font-mono font-black text-blue-600 text-sm">{inv.invoice_id}</span></div>
+                            <div className="bg-white p-2.5"><span className="text-[9px] font-black uppercase text-gray-400 block mb-0.5">Date</span><span className="font-bold text-gray-800 text-sm">{inv.invoice_date}</span></div>
+                            <div className="bg-white p-2.5 col-span-2"><span className="text-[9px] font-black uppercase text-gray-400 block mb-0.5">Patient Name</span><span className="font-black text-gray-900 text-base uppercase">{patient?.pt_name || 'N/A'}</span></div>
+                            <div className="bg-white p-2.5"><span className="text-[9px] font-black uppercase text-gray-400 block mb-0.5">Age / Gender</span><span className="font-bold text-gray-800 text-sm">{patient?.ageY || 'N/A'}Y / {patient?.gender || 'N/A'}</span></div>
+                            <div className="bg-white p-2.5"><span className="text-[9px] font-black uppercase text-gray-400 block mb-0.5">Mobile</span><span className="font-mono font-bold text-gray-800 text-sm">{patient?.mobile || 'N/A'}</span></div>
+                            <div className="bg-white p-2.5 col-span-2"><span className="text-[9px] font-black uppercase text-gray-400 block mb-0.5">Ref. Doctor</span><span className="font-bold text-blue-800 text-sm truncate">{doctor?.doctor_name || 'Self/Walk-in'} {doctor?.degree ? `(${doctor.degree})` : ''}</span></div>
                         </div>
 
                         {/* Test Items Table */}
@@ -1648,27 +1648,40 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                                             <div className="w-1.5 h-1.5 bg-blue-500 rounded-full shadow-[0_0_8px_rgba(59,130,246,0.6)]"></div>
                                             Tracked Tests Overview
                                         </p>
-                                        <button onClick={() => setIsEditingTracked(!isEditingTracked)} className="text-[9px] font-black text-sky-500 hover:text-sky-400 uppercase transition-colors">
-                                            {isEditingTracked ? '[ Save List ]' : '[ Custom Set ]'}
+                                        <button 
+                                            onClick={() => setIsEditingTracked(!isEditingTracked)} 
+                                            className={`text-[9px] font-black px-2 py-1 rounded-md uppercase transition-all flex items-center gap-1 ${isEditingTracked ? 'bg-emerald-600 text-white animate-pulse' : 'bg-slate-700 text-sky-400 hover:bg-slate-600'}`}
+                                        >
+                                            {isEditingTracked ? '✓ Save Changes' : '⚙ Custom Set'}
                                         </button>
                                     </div>
                                     <div className="flex flex-row gap-2 overflow-x-auto pb-1 no-scrollbar items-center">
                                         {trackedTests.map((test, i) => (
-                                            <div key={i} className="bg-slate-950 px-3 py-1.5 rounded-lg border border-slate-800 flex-shrink-0 relative group min-w-[90px]">
+                                            <div 
+                                                key={i} 
+                                                className={`bg-slate-950 px-3 py-1.5 rounded-lg border flex-shrink-0 relative group min-w-[100px] transition-all ${isEditingTracked ? 'border-sky-500 ring-1 ring-sky-500/30 cursor-pointer' : 'border-slate-800'}`}
+                                                onClick={() => {
+                                                    if (isEditingTracked) {
+                                                        // In a real select we'd handle click, but here we use input + datalist
+                                                    }
+                                                }}
+                                            >
                                                 {isEditingTracked ? (
-                                                    <div>
+                                                    <div className="flex items-center">
                                                         <input 
                                                             list="available-tests-list"
                                                             type="text" 
                                                             value={test} 
+                                                            autoFocus={i === 0}
                                                             onChange={(e) => {
                                                                 const n = [...trackedTests];
                                                                 n[i] = e.target.value;
                                                                 setTrackedTests(n);
                                                             }}
-                                                            className="w-full bg-slate-900 border-none text-[8px] text-white p-0 outline-none font-bold placeholder:text-slate-700" 
-                                                            placeholder="Select..."
+                                                            className="w-full bg-slate-900 border-none text-[9px] text-white p-0 outline-none font-bold placeholder:text-slate-700" 
+                                                            placeholder="Click to pick..."
                                                         />
+                                                        <span className="text-sky-500 ml-1">▼</span>
                                                         <datalist id="available-tests-list">
                                                             {availableTests.map((t: any) => (
                                                                 <option key={t.test_id} value={t.test_name} />
@@ -1691,7 +1704,7 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                                 <table className="w-full text-left text-[11px] border-collapse">
                                     <thead className="bg-slate-950 text-slate-500 font-black uppercase tracking-widest border-b border-slate-800">
                                         <tr className="bg-slate-900 text-white font-black border-b border-slate-700 shadow-lg no-print">
-                                            <td colSpan={4} className="px-4 py-1.5 text-right text-sm text-slate-400 uppercase tracking-widest bg-slate-950 font-bold">Grand Summary Totals:</td>
+                                            <td colSpan={5} className="px-4 py-1.5 text-right text-sm text-slate-400 uppercase tracking-widest bg-slate-950 font-bold">Grand Summary Totals:</td>
                                             <td className="px-4 py-1.5 text-right text-base text-blue-400 bg-slate-900 font-bold">৳{reportSummary.totalBill.toLocaleString()}</td>
                                             <td className="px-4 py-1.5 text-right text-base text-rose-400 bg-slate-950 font-bold">৳{reportSummary.totalDiscount.toLocaleString()}</td>
                                             <td className="px-4 py-1.5 text-right text-lg text-emerald-400 font-black bg-slate-900 border-x border-slate-800">৳{reportSummary.paidAmount.toLocaleString()}</td>
@@ -1702,6 +1715,7 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                                         <tr>
                                             <th className="px-4 py-2">SL</th>
                                             <th className="px-4 py-2">Invoice ID</th>
+                                            <th className="px-4 py-2">Date</th>
                                             <th className="px-4 py-2">Patient Name</th>
                                             <th className="px-4 py-2">Referrer</th>
                                             <th className="px-4 py-2 text-right">Bill</th>
@@ -1723,6 +1737,7 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                                             >
                                                 <td className="p-4 text-slate-500 font-bold">{idx+1}</td>
                                                 <td className="p-4 font-mono text-cyan-400 font-bold">{inv.invoice_id}</td>
+                                                <td className="p-4 font-mono text-slate-400 font-bold">{inv.invoice_date}</td>
                                                 <td className="p-4">
                                                     <div className="flex flex-col">
                                                         <span className="font-black uppercase text-slate-100 text-xs tracking-tight">{inv.patient_name}</span>
@@ -1746,7 +1761,7 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                                     </tbody>
                                     <tfoot className="bg-slate-950 border-t-4 border-slate-700 text-[10px] font-black text-white">
                                         <tr className="h-16">
-                                            <td colSpan={4} className="p-4 text-right uppercase tracking-widest text-slate-400">Grand Summary Totals:</td>
+                                            <td colSpan={5} className="p-4 text-right uppercase tracking-widest text-slate-400">Grand Summary Totals:</td>
                                             <td className="p-4 text-right">৳{reportSummary.totalBill.toLocaleString()}</td>
                                             <td className="p-4 text-right text-rose-500">৳{reportSummary.totalDiscount.toLocaleString()}</td>
                                             <td className="p-4 text-right text-emerald-400">৳{reportSummary.paidAmount.toLocaleString()}</td>
