@@ -204,24 +204,24 @@ const InvoiceViewModal: React.FC<{ inv: any, patients: any[], doctors: any[], on
                         </div>
 
                         {/* Test Items Table */}
-                        <div className="mb-10 min-h-[300px]">
-                            <h3 className="text-center font-black text-xl mb-6 underline decoration-double underline-offset-8">TEST INVOICE</h3>
+                        <div className="mb-6 min-h-[200px]">
+                            <h3 className="text-center font-black text-xl mb-3 underline decoration-double underline-offset-8">TEST INVOICE</h3>
                             <table className="w-full border-collapse">
                                 <thead className="bg-slate-100 border-y-2 border-slate-900">
                                     <tr>
-                                        <th className="py-2 px-3 text-left border-r border-slate-300 tracking-tighter uppercase font-black text-xs">Test Name</th>
-                                        <th className="py-2 px-3 text-right border-r border-slate-300 tracking-tighter uppercase font-black text-xs">Price</th>
-                                        <th className="py-2 px-3 text-center border-r border-slate-300 tracking-tighter uppercase font-black text-xs">Qty</th>
-                                        <th className="py-2 px-3 text-right tracking-tighter uppercase font-black text-xs">Total</th>
+                                        <th className="py-1 px-3 text-left border-r border-slate-300 tracking-tighter uppercase font-black text-xs">Test Name</th>
+                                        <th className="py-1 px-3 text-right border-r border-slate-300 tracking-tighter uppercase font-black text-xs">Price</th>
+                                        <th className="py-1 px-3 text-center border-r border-slate-300 tracking-tighter uppercase font-black text-xs">Qty</th>
+                                        <th className="py-1 px-3 text-right tracking-tighter uppercase font-black text-xs">Total</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {inv.items.map((it: any, i: number) => (
                                         <tr key={i} className="border-b border-gray-200">
-                                            <td className="py-3 px-3 text-sm font-bold text-slate-800">{it.test_name}</td>
-                                            <td className="py-3 px-3 text-right text-sm">{it.price.toLocaleString()}</td>
-                                            <td className="py-3 px-3 text-center text-sm">{it.quantity}</td>
-                                            <td className="py-3 px-3 text-right font-bold text-slate-900 leading-none">{it.subtotal.toLocaleString()}</td>
+                                            <td className="py-1 px-3 text-sm font-bold text-slate-800">{it.test_name}</td>
+                                            <td className="py-1 px-3 text-right text-sm">{it.price.toLocaleString()}</td>
+                                            <td className="py-1 px-3 text-center text-sm">{it.quantity}</td>
+                                            <td className="py-1 px-3 text-right font-bold text-slate-900 leading-none">{it.subtotal.toLocaleString()}</td>
                                         </tr>
                                     ))}
                                 </tbody>
