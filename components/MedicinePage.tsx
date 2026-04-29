@@ -186,18 +186,44 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
   };
 
   const addPurchaseItem = () => {
-      if (!currentPurchaseItem.tradeName || (currentPurchaseItem.qtyBuying || 0) <= 0) return;
-      const existingMed = medicines.find(m => m.tradeName.trim().toLowerCase() === currentPurchaseItem.tradeName?.trim().toLowerCase());
+      const tradeName = currentPurchaseItem.tradeName?.trim();
+      const qty = Number(currentPurchaseItem.qtyBuying) || 0;
+      const buyPrice = Number(currentPurchaseItem.unitPriceBuy) || 0;
+      const sellPrice = Number(currentPurchaseItem.unitPriceSell) || 0;
+
+      if (!tradeName) {
+          alert("ঔষধের নাম (Trade Name) লিখুন!");
+          return;
+      }
+      if (qty <= 0) {
+          alert("ক্রয়ের পরিমাণ (Quantity) সঠিক হতে হবে!");
+          return;
+      }
+
+      const existingMed = medicines.find(m => m.tradeName.trim().toLowerCase() === tradeName.toLowerCase());
       let itemId = currentPurchaseItem.id;
       if (!itemId && existingMed) {
-          if (confirm(`"${existingMed.tradeName}" নামে ঔষধটি আগে থেকেই সিস্টেমে আছে। আপনি কি এই ঔষধটির সাথেই স্টক যোগ করতে চান?`)) {
+          if (confirm(`"${existingMed.tradeName}" নামে ঔষধটি আগে থেকেই তালিকায় আছে। আপনি কি এই ঔষধটির সাথেই নতুন স্টক যোগ করতে চান?`)) {
               itemId = existingMed.id;
           } else { return; }
       }
-      const newItem: InvoiceItem = { ...currentPurchaseItem as InvoiceItem, id: itemId || Date.now().toString(), lineTotalBuy: (Number(currentPurchaseItem.unitPriceBuy) || 0) * (Number(currentPurchaseItem.qtyBuying) || 0), stock: 0, defaultFrequency: '' };
+      
+      const newItem: InvoiceItem = { 
+          ...currentPurchaseItem as InvoiceItem, 
+          tradeName,
+          id: itemId || `NEW-${Date.now()}`, 
+          unitPriceBuy: buyPrice,
+          unitPriceSell: sellPrice,
+          qtyBuying: qty,
+          lineTotalBuy: buyPrice * qty, 
+          stock: 0, 
+          defaultFrequency: '' 
+      };
+      
       setPurchaseFormData(prev => ({ ...prev, items: [...prev.items, newItem] }));
       setCurrentPurchaseItem({ tradeName: '', genericName: '', formulation: 'Tab', strength: '', unitPriceBuy: 0, unitPriceSell: 0, qtyBuying: 0, lineTotalBuy: 0, expiryDate: '' });
-      setSearchTerm(''); setShowSuggestions(false);
+      setSearchTerm(''); 
+      setShowSuggestions(false);
   };
 
   const addSalesItem = () => {
@@ -228,8 +254,15 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
   const removeSalesItem = (index: number) => { setSalesFormData(prev => ({ ...prev, items: prev.items.filter((_, i) => i !== index) })); };
 
   const handleSavePurchase = () => {
-      if (!purchaseFormData.source) { setErrors({ source: true }); return; }
-      if (purchaseFormData.items.length === 0) return;
+      if (!purchaseFormData.source) { 
+          setErrors({ source: true }); 
+          alert("সাপ্লায়ার বা সোর্সের নাম লিখুন!");
+          return; 
+      }
+      if (purchaseFormData.items.length === 0) {
+          alert("অন্তত একটি ঔষধ তালিকায় যোগ করুন (Add বাটনে ক্লিক করে)!");
+          return;
+      }
       
       const finalStatus = isOpeningStock ? 'Initial' : 'Posted';
       
@@ -575,15 +608,15 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
                     </div>
                     <div className="w-20">
                         <label className="block text-[10px] font-black text-slate-500 mb-1 uppercase">Buy_Price</label>
-                        <input type="number" value={currentPurchaseItem.unitPriceBuy} onChange={e=>setCurrentPurchaseItem({...currentPurchaseItem, unitPriceBuy:parseFloat(e.target.value)})} onFocus={e=>e.target.select()} className="w-full bg-slate-800 border border-slate-600 rounded p-2 text-white text-sm font-black" />
+                        <input type="number" value={currentPurchaseItem.unitPriceBuy || ''} onChange={e=>setCurrentPurchaseItem({...currentPurchaseItem, unitPriceBuy:parseFloat(e.target.value) || 0})} onFocus={e=>e.target.select()} className="w-full bg-slate-800 border border-slate-600 rounded p-2 text-white text-sm font-black" />
                     </div>
                     <div className="w-20">
                         <label className="block text-[10px] font-black text-slate-500 mb-1 uppercase">Sell_Price</label>
-                        <input type="number" value={currentPurchaseItem.unitPriceSell} onChange={e=>setCurrentPurchaseItem({...currentPurchaseItem, unitPriceSell:parseFloat(e.target.value)})} onFocus={e=>e.target.select()} className="w-full bg-slate-800 border border-slate-600 rounded p-2 text-white text-sm font-black" />
+                        <input type="number" value={currentPurchaseItem.unitPriceSell || ''} onChange={e=>setCurrentPurchaseItem({...currentPurchaseItem, unitPriceSell:parseFloat(e.target.value) || 0})} onFocus={e=>e.target.select()} className="w-full bg-slate-800 border border-slate-600 rounded p-2 text-white text-sm font-black" />
                     </div>
                     <div className="w-16">
                         <label className="block text-[10px] font-black text-slate-500 mb-1 uppercase text-center">Qnty</label>
-                        <input type="number" value={currentPurchaseItem.qtyBuying} onChange={e=>setCurrentPurchaseItem({...currentPurchaseItem, qtyBuying:parseFloat(e.target.value)})} onFocus={e=>e.target.select()} className="w-full bg-slate-800 border border-slate-600 rounded p-2 text-white text-sm font-black text-center" />
+                        <input type="number" value={currentPurchaseItem.qtyBuying || ''} onChange={e=>setCurrentPurchaseItem({...currentPurchaseItem, qtyBuying:parseFloat(e.target.value) || 0})} onFocus={e=>e.target.select()} className="w-full bg-slate-800 border border-slate-600 rounded p-2 text-white text-sm font-black text-center" />
                     </div>
                     <button onClick={addPurchaseItem} className="bg-emerald-600 text-white px-4 py-2 rounded hover:bg-emerald-500 font-black shadow-lg text-sm uppercase">Add</button>
                 </div>
