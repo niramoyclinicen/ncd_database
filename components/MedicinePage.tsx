@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Medicine, Employee, PurchaseInvoice, InvoiceItem, Doctor, SalesInvoice, SalesItem, DrugMonograph, IndoorInvoice } from './DiagnosticData';
-import { BackIcon, MapPinIcon, PhoneIcon, MedicineIcon, FileTextIcon, Pill, SearchIcon, Activity, SaveIcon, TrashIcon, PlusIcon, TrendingDownIcon, RefreshIcon } from './Icons';
+import { BackIcon, MapPinIcon, PhoneIcon, MedicineIcon, FileTextIcon, Pill, SearchIcon, Activity, SaveIcon, TrashIcon, PlusIcon, TrendingDownIcon, RefreshIcon, AlertCircle } from './Icons';
 import SearchableSelect from './SearchableSelect';
 
 interface MedicinePageProps {
@@ -50,6 +50,17 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
   const [successMessage, setSuccessMessage] = useState('');
   const [errors, setErrors] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(false);
+  const [confirmModal, setConfirmModal] = useState<{
+      isOpen: boolean;
+      title: string;
+      message: string;
+      onConfirm: () => void;
+  }>({
+      isOpen: false,
+      title: '',
+      message: '',
+      onConfirm: () => {},
+  });
 
   const [editingPurchaseId, setEditingPurchaseId] = useState<string | null>(null);
   const [isOpeningStock, setIsOpeningStock] = useState(false);
@@ -280,99 +291,133 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
           return;
       }
       
-      const finalStatus = isOpeningStock ? 'Initial' : 'Posted';
-      
-      const newMedsArr = [...(Array.isArray(medicines) ? medicines : [])];
-      // If editing, reverse the previous invoice items quantities first
-      if(buyViewMode === 'edit' && editingPurchaseId) {
-          const oldInv = invoices.find(x => x.invoiceId === editingPurchaseId);
-          if(oldInv) {
-              oldInv.items.forEach(oldItem => {
-                  const mIdx = newMedsArr.findIndex(m => m.id === oldItem.id);
-                  if (mIdx >= 0) newMedsArr[mIdx] = { ...newMedsArr[mIdx], stock: Math.max(0, newMedsArr[mIdx].stock - oldItem.qtyBuying) };
-              });
-          }
-      }
-
-      // Apply current form quantities
-      purchaseFormData.items.forEach(item => {
-          const mIdx = newMedsArr.findIndex(m => m.id === item.id);
-          if (mIdx >= 0) { 
-              newMedsArr[mIdx] = { 
-                  ...newMedsArr[mIdx], 
-                  stock: newMedsArr[mIdx].stock + Number(item.qtyBuying),
-                  unitPriceBuy: Number(item.unitPriceBuy),
-                  unitPriceSell: Number(item.unitPriceSell),
-                  genericName: item.genericName,
-                  strength: item.strength,
-                  formulation: item.formulation,
-                  expiryDate: item.expiryDate
-              };
-          } else { 
-              newMedsArr.push({ 
-                  id: item.id, tradeName: item.tradeName, genericName: item.genericName, 
-                  formulation: item.formulation, strength: item.strength, 
-                  stock: Number(item.qtyBuying), unitPriceBuy: item.unitPriceBuy, 
-                  unitPriceSell: item.unitPriceSell, expiryDate: item.expiryDate 
-              }); 
-          }
+      setConfirmModal({
+          isOpen: true,
+          title: 'Confirm Purchase Save',
+          message: 'আপনি কি এই ক্রয় রশিদটি সেভ করতে চান?',
+          onConfirm: executeSavePurchase
       });
+  };
 
-      let newInvoicesArr = [...(Array.isArray(invoices) ? invoices : [])];
-      if (buyViewMode === 'edit') {
-          newInvoicesArr = newInvoicesArr.map(inv => inv.invoiceId === editingPurchaseId ? { ...purchaseFormData, status: finalStatus as any } : inv);
-      } else {
-          newInvoicesArr = [ { ...purchaseFormData, status: finalStatus as any, createdDate: new Date().toISOString() }, ...newInvoicesArr ];
-      }
+  const executeSavePurchase = async () => {
+      setConfirmModal(prev => ({ ...prev, isOpen: false }));
+      setLoading(true);
+      try {
+          const finalStatus = isOpeningStock ? 'Initial' : 'Posted';
+          
+          const newMedsArr = [...(Array.isArray(medicines) ? medicines : [])];
+          // If editing, reverse the previous invoice items quantities first
+          if(buyViewMode === 'edit' && editingPurchaseId) {
+              const oldInv = invoices.find(x => x.invoiceId === editingPurchaseId);
+              if(oldInv) {
+                  oldInv.items.forEach(oldItem => {
+                      const mIdx = newMedsArr.findIndex(m => m.id === oldItem.id);
+                      if (mIdx >= 0) newMedsArr[mIdx] = { ...newMedsArr[mIdx], stock: Math.max(0, newMedsArr[mIdx].stock - oldItem.qtyBuying) };
+                  });
+              }
+          }
 
-      if (performBlockingSync) {
-          const success = await performBlockingSync({ medicines: newMedsArr, purchaseInvoices: newInvoicesArr });
-          if (success) {
+          // Apply current form quantities
+          purchaseFormData.items.forEach(item => {
+              const mIdx = newMedsArr.findIndex(m => m.id === item.id);
+              if (mIdx >= 0) { 
+                  newMedsArr[mIdx] = { 
+                      ...newMedsArr[mIdx], 
+                      stock: newMedsArr[mIdx].stock + Number(item.qtyBuying),
+                      unitPriceBuy: Number(item.unitPriceBuy),
+                      unitPriceSell: Number(item.unitPriceSell),
+                      genericName: item.genericName,
+                      strength: item.strength,
+                      formulation: item.formulation,
+                      expiryDate: item.expiryDate
+                  };
+              } else { 
+                  newMedsArr.push({ 
+                      id: item.id, tradeName: item.tradeName, genericName: item.genericName, 
+                      formulation: item.formulation, strength: item.strength, 
+                      stock: Number(item.qtyBuying), unitPriceBuy: item.unitPriceBuy, 
+                      unitPriceSell: item.unitPriceSell, expiryDate: item.expiryDate 
+                  }); 
+              }
+          });
+
+          let newInvoicesArr = [...(Array.isArray(invoices) ? invoices : [])];
+          if (buyViewMode === 'edit') {
+              newInvoicesArr = newInvoicesArr.map(inv => inv.invoiceId === editingPurchaseId ? { ...purchaseFormData, status: finalStatus as any } : inv);
+          } else {
+              newInvoicesArr = [ { ...purchaseFormData, status: finalStatus as any, createdDate: new Date().toISOString() }, ...newInvoicesArr ];
+          }
+
+          if (performBlockingSync) {
+              const success = await performBlockingSync({ medicines: newMedsArr, purchaseInvoices: newInvoicesArr });
+              if (success) {
+                  setMedicines(newMedsArr);
+                  setInvoices(newInvoicesArr);
+                  setSuccessMessage("ডাটা সেভ হয়েছে");
+                  setBuyViewMode('list');
+                  setEditingPurchaseId(null);
+                  setIsOpeningStock(false);
+              }
+          } else {
               setMedicines(newMedsArr);
               setInvoices(newInvoicesArr);
-              setSuccessMessage("ডাটা সেভ হয়েছে");
+              setSuccessMessage(buyViewMode === 'edit' ? "Purchase invoice updated!" : "Purchase invoice saved!");
               setBuyViewMode('list');
               setEditingPurchaseId(null);
               setIsOpeningStock(false);
           }
-      } else {
-          setMedicines(newMedsArr);
-          setInvoices(newInvoicesArr);
-          setSuccessMessage(buyViewMode === 'edit' ? "Purchase invoice updated!" : "Purchase invoice saved!");
-          setBuyViewMode('list');
-          setEditingPurchaseId(null);
-          setIsOpeningStock(false);
+      } catch (err) {
+          console.error("Save error:", err);
+          alert("ডাটা সেভ করার সময় একটি ত্রুটি হয়েছে।");
+      } finally {
+          setLoading(false);
       }
   };
 
   const handleReturnPurchase = async (inv: PurchaseInvoice) => {
-    if(!confirm(`সাপ্লায়ার "${inv.source}" এর সকল ঔষধ ফেরত পাঠাতে চান? স্টক থেকে ঔষধ বিয়োগ হয়ে যাবে।`)) return;
-    
-    const newMedsArr = medicines.map(m => {
-        const returnedItem = inv.items.find(it => it.id === m.id);
-        if (returnedItem) {
-            return { ...m, stock: Math.max(0, m.stock - returnedItem.qtyBuying) };
-        }
-        return m;
+    setConfirmModal({
+        isOpen: true,
+        title: 'Confirm Return',
+        message: `সাপ্লায়ার "${inv.source}" এর সকল ঔষধ ফেরত পাঠাতে চান? স্টক থেকে ঔষধ বিয়োগ হয়ে যাবে।`,
+        onConfirm: () => executeReturnPurchase(inv)
     });
+  };
 
-    const newInvoicesArr = invoices.filter(x => x.invoiceId !== inv.invoiceId);
+  const executeReturnPurchase = async (inv: PurchaseInvoice) => {
+    setConfirmModal(prev => ({ ...prev, isOpen: false }));
+    setLoading(true);
+    try {
+        const newMedsArr = medicines.map(m => {
+            const returnedItem = inv.items.find(it => it.id === m.id);
+            if (returnedItem) {
+                return { ...m, stock: Math.max(0, m.stock - returnedItem.qtyBuying) };
+            }
+            return m;
+        });
 
-    if (performBlockingSync) {
-        const success = await performBlockingSync({ medicines: newMedsArr, purchaseInvoices: newInvoicesArr });
-        if (success) {
+        const newInvoicesArr = invoices.filter(x => x.invoiceId !== inv.invoiceId);
+
+        if (performBlockingSync) {
+            const success = await performBlockingSync({ medicines: newMedsArr, purchaseInvoices: newInvoicesArr });
+            if (success) {
+                setMedicines(newMedsArr);
+                setInvoices(newInvoicesArr);
+                setSuccessMessage("ডাটা সেভ হয়েছে");
+            }
+        } else {
             setMedicines(newMedsArr);
             setInvoices(newInvoicesArr);
-            setSuccessMessage("ডাটা সেভ হয়েছে");
+            setSuccessMessage("Purchase Invoice Returned & Stock Adjusted!");
         }
-    } else {
-        setMedicines(newMedsArr);
-        setInvoices(newInvoicesArr);
-        setSuccessMessage("Purchase Invoice Returned & Stock Adjusted!");
+    } catch (err) {
+        console.error("Return error:", err);
+        alert("ফেরত পাঠানোর সময় একটি ত্রুটি হয়েছে।");
+    } finally {
+        setLoading(false);
     }
   };
 
-  const handleSaveSales = async () => {
+  const handleSaveSales = () => {
       if (!salesFormData.customerName) { 
           setErrors({ customerName: true }); 
           alert("পেশেন্টের নাম লিখুন!");
@@ -383,6 +428,16 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
           return;
       }
       
+      setConfirmModal({
+          isOpen: true,
+          title: 'Confirm Save',
+          message: 'আপনি কি এই বিক্রয় রশিদটি সেভ করতে চান?',
+          onConfirm: () => executeSaveSales()
+      });
+  };
+
+  const executeSaveSales = async () => {
+      setConfirmModal(prev => ({ ...prev, isOpen: false }));
       setLoading(true);
       try {
           const newMedsArr = [...(Array.isArray(medicines) ? medicines : [])];
@@ -431,28 +486,44 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
       }
   };
 
-  const handleReturnSale = async (inv: SalesInvoice) => {
-    if(!confirm(`পেশেন্ট "${inv.customerName}" এর সকল ঔষধ ফেরত নিতে চান? স্টকে ঔষধ যোগ হয়ে যাবে।`)) return;
-    
-    const newMedsArr = medicines.map(m => {
-        const returnedItem = inv.items.find(it => it.id === m.id);
-        if (returnedItem) return { ...m, stock: m.stock + returnedItem.qtySelling };
-        return m;
-    });
-    
-    const newSalesArr = salesInvoices.filter(x => x.invoiceId !== inv.invoiceId);
+  const handleReturnSale = (inv: SalesInvoice) => {
+      setConfirmModal({
+          isOpen: true,
+          title: 'Confirm Return',
+          message: `পেশেন্ট "${inv.customerName}" এর সকল ঔষধ ফেরত নিতে চান? স্টকে ঔষধ যোগ হয়ে যাবে।`,
+          onConfirm: () => executeReturnSale(inv)
+      });
+  };
 
-    if (performBlockingSync) {
-        const success = await performBlockingSync({ medicines: newMedsArr, salesInvoices: newSalesArr });
-        if (success) {
+  const executeReturnSale = async (inv: SalesInvoice) => {
+    setConfirmModal(prev => ({ ...prev, isOpen: false }));
+    setLoading(true);
+    try {
+        const newMedsArr = medicines.map(m => {
+            const returnedItem = inv.items.find(it => it.id === m.id);
+            if (returnedItem) return { ...m, stock: m.stock + returnedItem.qtySelling };
+            return m;
+        });
+        
+        const newSalesArr = salesInvoices.filter(x => x.invoiceId !== inv.invoiceId);
+    
+        if (performBlockingSync) {
+            const success = await performBlockingSync({ medicines: newMedsArr, salesInvoices: newSalesArr });
+            if (success) {
+                setMedicines(newMedsArr);
+                setSalesInvoices(newSalesArr);
+                setSuccessMessage("ডাটা সঠিকভাবে সেভ হয়েছে!");
+            }
+        } else {
             setMedicines(newMedsArr);
             setSalesInvoices(newSalesArr);
-            setSuccessMessage("ডাটা সঠিকভাবে সেভ হয়েছে!");
+            setSuccessMessage("Return Processed! Stock Restored.");
         }
-    } else {
-        setMedicines(newMedsArr);
-        setSalesInvoices(newSalesArr);
-        setSuccessMessage("Return Processed! Stock Restored.");
+    } catch (err) {
+        console.error("Return error:", err);
+        alert("ফেরত নেওয়ার সময় একটি ত্রুটি হয়েছে।");
+    } finally {
+        setLoading(false);
     }
   };
 
@@ -1116,6 +1187,34 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
           {activeTab === 'hishab' && renderHishabTab()}
         </div>
       </div>
+      {confirmModal.isOpen && (
+        <div className="fixed inset-0 bg-black/90 z-[10000] flex items-center justify-center p-4 backdrop-blur-2xl animate-in fade-in duration-300">
+          <div className="bg-slate-900 border border-slate-700 w-full max-w-sm rounded-[2.5rem] p-10 shadow-2xl shadow-black/50 relative overflow-hidden group">
+            <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-rose-500 via-pink-500 to-purple-500 animate-pulse"></div>
+            <div className="flex flex-col items-center text-center space-y-6">
+              <div className="w-20 h-20 bg-rose-500/10 rounded-full flex items-center justify-center border border-rose-500/20 group-hover:scale-110 transition-transform duration-500">
+                <AlertCircle className="w-10 h-10 text-rose-400 animate-pulse" />
+              </div>
+              <h3 className="text-3xl font-black text-white uppercase tracking-tighter">{confirmModal.title}</h3>
+              <p className="text-slate-400 font-medium text-lg leading-relaxed">{confirmModal.message}</p>
+              <div className="flex gap-4 w-full pt-4">
+                <button 
+                  onClick={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+                  className="flex-1 px-6 py-4 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-2xl font-black uppercase text-xs tracking-widest transition-all border border-slate-700 active:scale-95"
+                >
+                  No, Cancel
+                </button>
+                <button 
+                  onClick={confirmModal.onConfirm}
+                  className="flex-1 px-6 py-4 bg-rose-600 hover:bg-rose-500 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-lg shadow-rose-900/40 transition-all active:scale-95 border border-rose-400/30"
+                >
+                  Yes, Confirm
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -38,6 +38,7 @@ import {
   Database,
   RefreshCw,
   Loader2,
+  AlertCircle,
   X
 } from 'lucide-react';
 
@@ -82,4 +83,5 @@ export const Trash2Icon = (props: any) => <Trash2 {...props} />;
 export const DatabaseIcon = (props: any) => <Database {...props} />;
 export const RefreshIcon = (props: any) => <RefreshCw {...props} />;
 export const XIcon = (props: any) => <X {...props} />;
-export { Pill, Search };
+export const AlertCircleIcon = (props: any) => <AlertCircle {...props} />;
+export { Pill, Search, AlertCircle };

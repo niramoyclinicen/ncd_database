@@ -5,7 +5,7 @@ import SearchableSelect from './SearchableSelect';
 import PatientInfoPage from './PatientInfoPage';
 import DoctorInfoPage from './DoctorInfoPage';
 import ReferrerInfoPage from './ReferrerInfoPage';
-import { BackIcon, ClinicIcon, StethoscopeIcon, ClipboardIcon, FileTextIcon, SettingsIcon, UserPlusIcon, Armchair, Activity, SaveIcon, MoneyIcon, TrashIcon, PrinterIcon, EyeIcon, SearchIcon, PlusIcon, RefreshIcon, Database as DatabaseIcon, Plus, Save, Trash2, Loader2, Trash2Icon } from './Icons';
+import { BackIcon, ClinicIcon, StethoscopeIcon, ClipboardIcon, FileTextIcon, SettingsIcon, UserPlusIcon, Armchair, Activity, SaveIcon, MoneyIcon, TrashIcon, PrinterIcon, EyeIcon, SearchIcon, PlusIcon, RefreshIcon, Database as DatabaseIcon, Plus, Save, Trash2, Loader2, Trash2Icon, AlertCircle } from './Icons';
 
 // Fixed Clinic Config
 const CLINIC_REGISTRATION = 'HSM76710';
@@ -790,6 +790,18 @@ const AdmissionAndTreatmentPage: React.FC<{
     const [performingNurse, setPerformingNurse] = useState('');
     const [newNurseNote, setNewNurseNote] = useState('');
     
+    const [confirmModal, setConfirmModal] = useState<{
+        isOpen: boolean;
+        title: string;
+        message: string;
+        onConfirm: () => void;
+    }>({
+        isOpen: false,
+        title: '',
+        message: '',
+        onConfirm: () => {},
+    });
+
     // Tracks source selection for each med being administered in the Nurse Chart
     const [medicationSources, setMedicationSources] = useState<{[key: string]: 'Clinic' | 'Outside'}>({});
     
@@ -825,7 +837,7 @@ const AdmissionAndTreatmentPage: React.FC<{
         });
     };
 
-    const handleSaveAdmission = async () => {
+    const handleSaveAdmission = () => {
         if (!admissionData.admission_id) {
             alert("Please click 'Add New' to generate an Admission ID first.");
             return;
@@ -835,6 +847,16 @@ const AdmissionAndTreatmentPage: React.FC<{
             return;
         }
 
+        setConfirmModal({
+            isOpen: true,
+            title: 'Confirm Admission',
+            message: 'আপনি কি এই ভর্তি ফরমটি সেভ করতে চান?',
+            onConfirm: executeSaveAdmission
+        });
+    };
+
+    const executeSaveAdmission = async () => {
+        setConfirmModal(prev => ({ ...prev, isOpen: false }));
         const safeAdmissions = Array.isArray(admissions) ? admissions : [];
         const idx = safeAdmissions.findIndex((a: AdmissionRecord) => a.admission_id === admissionData.admission_id);
         let newAdmissions = [...safeAdmissions];
@@ -1879,6 +1901,34 @@ const AdmissionAndTreatmentPage: React.FC<{
                     </div>
                 </div>
             )}
+            {confirmModal.isOpen && (
+                <div className="fixed inset-0 bg-black/90 z-[10000] flex items-center justify-center p-4 backdrop-blur-2xl animate-in fade-in duration-300">
+                    <div className="bg-slate-900 border border-slate-700 w-full max-w-sm rounded-[2.5rem] p-10 shadow-2xl shadow-black/50 relative overflow-hidden group">
+                        <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-blue-500 via-indigo-500 to-cyan-500 animate-pulse"></div>
+                        <div className="flex flex-col items-center text-center space-y-6">
+                            <div className="w-20 h-20 bg-blue-500/10 rounded-full flex items-center justify-center border border-blue-500/20 group-hover:scale-110 transition-transform duration-500">
+                                <AlertCircle className="w-10 h-10 text-blue-400 animate-pulse" />
+                            </div>
+                            <h3 className="text-3xl font-black text-white uppercase tracking-tighter">{confirmModal.title}</h3>
+                            <p className="text-slate-400 font-medium text-lg leading-relaxed">{confirmModal.message}</p>
+                            <div className="flex gap-4 w-full pt-4">
+                                <button 
+                                    onClick={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+                                    className="flex-1 px-6 py-4 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-2xl font-black uppercase text-xs tracking-widest transition-all border border-slate-700 active:scale-95"
+                                >
+                                    No, Cancel
+                                </button>
+                                <button 
+                                    onClick={confirmModal.onConfirm}
+                                    className="flex-1 px-6 py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-lg shadow-blue-900/40 transition-all active:scale-95 border border-blue-400/30"
+                                >
+                                    Yes, Confirm
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
@@ -1927,6 +1977,17 @@ const IndoorInvoicePage: React.FC<{
     const [showHistoryModal, setShowHistoryModal] = useState(false);
     const [historyInvoice, setHistoryInvoice] = useState<IndoorInvoice | null>(null);
     const [loading, setLoading] = useState(false);
+    const [confirmModal, setConfirmModal] = useState<{
+        isOpen: boolean;
+        title: string;
+        message: string;
+        onConfirm: () => void;
+    }>({
+        isOpen: false,
+        title: '',
+        message: '',
+        onConfirm: () => {},
+    });
 
     const filteredInvoices = useMemo(() => {
         const isDueSearch = tableSearchTerm.toLowerCase() === 'due';
@@ -2232,14 +2293,24 @@ const IndoorInvoicePage: React.FC<{
         setFormData(prev => ({ ...prev, items: updatedItems, ...totals }));
     };
 
-    const handleSaveInvoice = async (e: React.FormEvent) => {
-        e.preventDefault();
+    const handleSaveInvoice = (e?: React.FormEvent) => {
+        if (e) e.preventDefault();
         if (!formData.daily_id) return alert("Generate ID first");
         if (!formData.subCategory) {
             alert("সাব-ক্যাটাগরি লিস্ট (Sub_Category) এন্ট্রি করা বাধ্যতামূলক।");
             return;
         }
 
+        setConfirmModal({
+            isOpen: true,
+            title: 'Confirm Save',
+            message: 'আপনি কি এই ক্লিনিক বিলটি সেভ করতে চান?',
+            onConfirm: () => executeSaveInvoice()
+        });
+    };
+
+    const executeSaveInvoice = async () => {
+        setConfirmModal(prev => ({ ...prev, isOpen: false }));
         setLoading(true);
         try {
             const safeInvoices = Array.isArray(indoorInvoices) ? indoorInvoices : [];
@@ -2407,9 +2478,36 @@ const IndoorInvoicePage: React.FC<{
     };
 
     const handleDeleteInvoice = (inv: IndoorInvoice) => {
-        if (window.confirm(`আপনি কি এই ইনভয়েসটি ডিলিট করতে চান? ডিলিট করলে এটি একাউন্ট থেকে বাতিল হয়ে যাবে কিন্তু লগ হিসেবে সংরক্ষিত থাকবে।`)) {
-            setIndoorInvoices((prev: IndoorInvoice[]) => (Array.isArray(prev) ? prev : []).map(item => item && item.daily_id === inv.daily_id ? { ...item, status: 'Deleted' } : item));
-            setSuccessMessage("Invoice Marked as Deleted!");
+        setConfirmModal({
+            isOpen: true,
+            title: 'Confirm Delete',
+            message: `আপনি কি পেশেন্ট "${inv.patient_name}" এর এই ইনভয়েসটি ডিলিট করতে চান?`,
+            onConfirm: () => executeDeleteInvoice(inv)
+        });
+    };
+
+    const executeDeleteInvoice = async (inv: IndoorInvoice) => {
+        setConfirmModal(prev => ({ ...prev, isOpen: false }));
+        setLoading(true);
+        try {
+            const newInvoicesArr = (Array.isArray(indoorInvoices) ? indoorInvoices : [])
+                .map(i => (i && i.daily_id === inv.daily_id) ? { ...i, status: 'Deleted' } : i);
+            
+            if (performBlockingSync) {
+                const success = await performBlockingSync({ indoorInvoices: newInvoicesArr });
+                if (success) {
+                    setIndoorInvoices(newInvoicesArr);
+                    setSuccessMessage("ই্নভয়েস ডিলিট হয়েছে");
+                }
+            } else {
+                setIndoorInvoices(newInvoicesArr);
+                setSuccessMessage("Invoice Marked as Deleted Locally!");
+            }
+        } catch (err) {
+            console.error("Delete error:", err);
+            alert("ডিলিট করার সময় একটি ত্রুটি হয়েছে।");
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -3078,6 +3176,34 @@ const IndoorInvoicePage: React.FC<{
                     </div>
                 </div>
             </div>
+            {confirmModal.isOpen && (
+                <div className="fixed inset-0 bg-black/90 z-[10000] flex items-center justify-center p-4 backdrop-blur-2xl animate-in fade-in duration-300">
+                    <div className="bg-slate-900 border border-slate-700 w-full max-w-sm rounded-[2.5rem] p-10 shadow-2xl shadow-black/50 relative overflow-hidden group">
+                        <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-blue-500 via-indigo-500 to-cyan-500 animate-pulse"></div>
+                        <div className="flex flex-col items-center text-center space-y-6">
+                            <div className="w-20 h-20 bg-blue-500/10 rounded-full flex items-center justify-center border border-blue-500/20 group-hover:scale-110 transition-transform duration-500">
+                                <AlertCircle className="w-10 h-10 text-blue-400 animate-pulse" />
+                            </div>
+                            <h3 className="text-3xl font-black text-white uppercase tracking-tighter">{confirmModal.title}</h3>
+                            <p className="text-slate-400 font-medium text-lg leading-relaxed">{confirmModal.message}</p>
+                            <div className="flex gap-4 w-full pt-4">
+                                <button 
+                                    onClick={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+                                    className="flex-1 px-6 py-4 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-2xl font-black uppercase text-xs tracking-widest transition-all border border-slate-700 active:scale-95"
+                                >
+                                    No, Cancel
+                                </button>
+                                <button 
+                                    onClick={confirmModal.onConfirm}
+                                    className="flex-1 px-6 py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-lg shadow-blue-900/40 transition-all active:scale-95 border border-blue-400/30"
+                                >
+                                    Yes, Confirm
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

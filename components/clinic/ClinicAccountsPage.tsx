@@ -2,7 +2,7 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { ExpenseItem, Employee, DueCollection } from '../DiagnosticData';
 import { IndoorInvoice } from '../ClinicPage';
-import { ClinicIcon, Activity, BackIcon, FileTextIcon, PrinterIcon, SearchIcon } from '../Icons';
+import { ClinicIcon, Activity, BackIcon, FileTextIcon, PrinterIcon, SearchIcon, AlertCircle } from '../Icons';
 
 // --- Clinic Specific Categories ---
 const clinicExpenseCategories = [
@@ -271,10 +271,31 @@ const ClinicAccountsPage: React.FC<any> = ({
     const [ledgerHistoryItem, setLedgerHistoryItem] = useState<ExpenseItem | null>(null);
 
     const [successMsg, setSuccessMsg] = useState('');
+    const [confirmModal, setConfirmModal] = useState<{
+        isOpen: boolean;
+        title: string;
+        message: string;
+        onConfirm: () => void;
+    }>({
+        isOpen: false,
+        title: '',
+        message: '',
+        onConfirm: () => {},
+    });
 
     useEffect(() => { if(successMsg) setTimeout(() => setSuccessMsg(''), 3000); }, [successMsg]);
 
-    const handleSave = async (date: string, items: ExpenseItem[]) => {
+    const handleSave = (date: string, items: ExpenseItem[]) => {
+        setConfirmModal({
+            isOpen: true,
+            title: 'Confirm Save',
+            message: 'আপনি কি এই খরচগুলো সেভ করতে চান?',
+            onConfirm: () => executeSave(date, items)
+        });
+    };
+
+    const executeSave = async (date: string, items: ExpenseItem[]) => {
+        setConfirmModal(prev => ({ ...prev, isOpen: false }));
         const safePrev = detailedExpenses || {};
         const existingItems = safePrev[date] || [];
         // Keep Diagnostic items, replace Clinic items
@@ -290,9 +311,17 @@ const ClinicAccountsPage: React.FC<any> = ({
         }
     };
 
-    const handleLedgerDelete = async (date: string, itemId: number) => {
-        if (!window.confirm("Are you sure you want to delete this expense entry? It will be logged and removed from totals.")) return;
+    const handleLedgerDelete = (date: string, itemId: number) => {
+        setConfirmModal({
+            isOpen: true,
+            title: 'Confirm Delete',
+            message: 'আপনি কি এই খরচটি ডিলিট করতে চান?',
+            onConfirm: () => executeLedgerDelete(date, itemId)
+        });
+    };
 
+    const executeLedgerDelete = async (date: string, itemId: number) => {
+        setConfirmModal(prev => ({ ...prev, isOpen: false }));
         const safePrev = detailedExpenses || {};
         const dateItems = safePrev[date] || [];
         const updatedItems = dateItems.map((it: any) => {
@@ -626,7 +655,7 @@ const ClinicAccountsPage: React.FC<any> = ({
         });
 
         const totals = filtered.reduce((acc, inv) => {
-            if (inv.status !== 'Cancelled' && inv.status !== 'Returned') {
+            if (inv.status !== 'Cancelled' && inv.status !== 'Returned' && inv.status !== 'Deleted') {
                 acc.totalBill += inv.total_bill || 0;
                 acc.totalPaid += inv.paid_amount || 0;
                 acc.totalDue += inv.due_bill || 0;
@@ -1567,6 +1596,34 @@ const ClinicAccountsPage: React.FC<any> = ({
                     </div>
                 )}
             </main>
+            {confirmModal.isOpen && (
+                <div className="fixed inset-0 bg-black/90 z-[10000] flex items-center justify-center p-4 backdrop-blur-2xl animate-in fade-in duration-300">
+                    <div className="bg-slate-900 border border-slate-700 w-full max-w-sm rounded-[2.5rem] p-10 shadow-2xl shadow-black/50 relative overflow-hidden group">
+                        <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 animate-pulse"></div>
+                        <div className="flex flex-col items-center text-center space-y-6">
+                            <div className="w-20 h-20 bg-emerald-500/10 rounded-full flex items-center justify-center border border-emerald-500/20 group-hover:scale-110 transition-transform duration-500">
+                                <AlertCircle className="w-10 h-10 text-emerald-400 animate-pulse" />
+                            </div>
+                            <h3 className="text-3xl font-black text-white uppercase tracking-tighter">{confirmModal.title}</h3>
+                            <p className="text-slate-400 font-medium text-lg leading-relaxed">{confirmModal.message}</p>
+                            <div className="flex gap-4 w-full pt-4">
+                                <button 
+                                    onClick={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+                                    className="flex-1 px-6 py-4 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-2xl font-black uppercase text-xs tracking-widest transition-all border border-slate-700 active:scale-95"
+                                >
+                                    No, Cancel
+                                </button>
+                                <button 
+                                    onClick={confirmModal.onConfirm}
+                                    className="flex-1 px-6 py-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-lg shadow-emerald-900/40 transition-all active:scale-95 border border-emerald-400/30"
+                                >
+                                    Yes, Confirm
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

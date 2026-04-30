@@ -82,6 +82,7 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
   const [applyPC, setApplyPC] = useState(false); // State for Apply PC checkbox
   const [successMessage, setSuccessMessage] = useState('');
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false); // New state for confirmation modal
+  const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, boolean>>({}); // State for validation errors
 
   // Table Filter States
@@ -176,12 +177,18 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
   // Calculation Logic
   const totals = useMemo(() => {
     if (!formData || !Array.isArray(formData.items)) return { totalAmount: 0, netPayable: 0, dueAmount: 0, status: 'Paid' as const, tComm100: 0, commAfterDisc: 0, payableComm: 0, commDue: 0 };
-    const totalAmount = formData.items.reduce((sum, item) => sum + (item.price || 0) * (item.quantity || 0), 0);
+    const totalAmount = formData.items.reduce((sum, item) => {
+      if (!item) return sum;
+      return sum + (item.price || 0) * (item.quantity || 0);
+    }, 0);
     const netPayable = totalAmount - (formData.discount_amount || 0);
     const dueAmount = netPayable - (formData.paid_amount || 0);
     const status: LabInvoice['status'] = formData.status === 'Returned' ? 'Returned' : (dueAmount > 0.005 ? 'Due' : 'Paid');
 
-    const tComm100 = applyPC ? formData.items.reduce((sum, item) => sum + ((item.test_commission || 0) * (item.quantity || 0)), 0) : 0;
+    const tComm100 = applyPC ? formData.items.reduce((sum, item) => {
+      if (!item) return sum;
+      return sum + ((item.test_commission || 0) * (item.quantity || 0));
+    }, 0) : 0;
     const commAfterDisc = applyPC ? tComm100 - (formData.discount_amount || 0) : 0;
     const payableComm = applyPC ? (commAfterDisc + (formData.special_commission || 0)) - dueAmount : 0;
     const commDue = applyPC ? payableComm - (formData.commission_paid || 0) : 0;
@@ -543,45 +550,57 @@ pdate the local state and reset form
   */
 
   const executeSave = async () => {
-    const currentDateTime = formatDateTime(new Date());
-    const invoiceToSave = { 
-      ...formData, 
-      last_modified: currentDateTime,
-      total_amount: totals.totalAmount,
-      net_payable: totals.netPayable,
-      due_amount: totals.dueAmount,
-      status: totals.status
-    };
+    setLoading(true);
+    try {
+      const currentDateTime = formatDateTime(new Date());
+      const invoiceToSave = { 
+        ...formData, 
+        last_modified: currentDateTime,
+        total_amount: totals.totalAmount,
+        net_payable: totals.netPayable,
+        due_amount: totals.dueAmount,
+        status: totals.status
+      };
 
-    const safeInvoices = Array.isArray(invoices) ? invoices : [];
+      const safeInvoices = Array.isArray(invoices) ? invoices : [];
 
-    // Duplicate check in local buffer first
-    if (!isEditing && safeInvoices.some(inv => inv && inv.invoice_id === invoiceToSave.invoice_id)) {
-      alert('সতর্কতা: এই ইনভয়েস আইডিটি ইতিমধ্যে ব্যবহৃত হয়েছে। দয়া করে নতুন আইডি নিন।');
-      return;
-    }
-
-    const newInvoices = isEditing 
-      ? safeInvoices.map(inv => (inv && inv.invoice_id === invoiceToSave.invoice_id) ? invoiceToSave : inv)
-      : [invoiceToSave, ...safeInvoices];
-
-    // If performBlockingSync is available, use it to ensure cloud save
-    if (performBlockingSync) {
-      try {
-        const success = await performBlockingSync({ labInvoices: newInvoices });
-        
-        if (success) {
-          setInvoices(newInvoices);
-          setSuccessMessage('ডাটা সেভ হয়েছে');
-          resetForm();
-        }
-      } catch (err) {
-        alert("ইন্টারনেট সংযোগ বিচ্ছিন্ন হয়েছে। ডাটা সেভ করা যায়নি।");
+      // Duplicate check in local buffer first
+      if (!isEditing && safeInvoices.some(inv => inv && inv.invoice_id === invoiceToSave.invoice_id)) {
+        alert('সতর্কতা: এই ইনভয়েস আইডিটি ইতিমধ্যে ব্যবহৃত হয়েছে। দয়া করে নতুন আইডি নিন।');
+        setLoading(false);
+        return;
       }
-    } else {
-      setInvoices(newInvoices);
-      setSuccessMessage('ডাটা সেভ হয়েছে (অফলাইন মোড)');
-      resetForm();
+
+      const newInvoices = isEditing 
+        ? safeInvoices.map(inv => (inv && inv.invoice_id === invoiceToSave.invoice_id) ? invoiceToSave : inv)
+        : [invoiceToSave, ...safeInvoices];
+
+      // If performBlockingSync is available, use it to ensure cloud save
+      if (performBlockingSync) {
+        try {
+          const success = await performBlockingSync({ labInvoices: newInvoices });
+          
+          if (success) {
+            setInvoices(newInvoices);
+            setSuccessMessage('ডাটা সেভ হয়েছে');
+            resetForm();
+          } else {
+            alert("সার্ভারে ডাটা সেভ করতে ব্যর্থ হয়েছে। দয়া করে আপনার ইন্টারনেট চেক করুন।");
+          }
+        } catch (err) {
+          alert("ইন্টারনেট সংযোগ বিচ্ছিন্ন হয়েছে। ডাটা সেভ করা যায়নি।");
+        }
+      } else {
+        setInvoices(newInvoices);
+        setSuccessMessage('ডাটা সেভ হয়েছে (অফলাইন মোড)');
+        resetForm();
+      }
+    } catch (err) {
+      console.error("Save error:", err);
+      alert("ডাটা সেভ করার সময় একটি ত্রুটি হয়েছে।");
+    } finally {
+      setLoading(false);
+      setIsConfirmModalOpen(false);
     }
   };
 
@@ -844,6 +863,7 @@ pdate the local state and reset form
   };
 
   return (
+    <>
     <div className="bg-slate-800 rounded-xl shadow-md p-4 sm:p-6 text-slate-300">
         {/* IMPROVED SUCCESS MESSAGE UI */}
         {successMessage && (
@@ -1573,6 +1593,19 @@ pdate the local state and reset form
         </div>
       </div>
     </div>
+    {loading && (
+        <div className="fixed inset-0 z-[10002] bg-slate-900/90 backdrop-blur-xl flex flex-col items-center justify-center text-white">
+            <div className="relative mb-8">
+                <div className="w-24 h-24 border-4 border-blue-500/20 border-t-blue-500 rounded-full animate-spin"></div>
+                <div className="absolute inset-0 flex items-center justify-center">
+                    <Activity className="w-10 h-10 text-blue-500 animate-pulse" />
+                </div>
+            </div>
+            <h2 className="text-3xl font-black uppercase tracking-[0.2em] mb-2 font-['Hind_Siliguri']">ডাটা সেভ হচ্ছে...</h2>
+            <p className="text-blue-400 font-bold uppercase tracking-widest text-xs animate-pulse">Save operation in progress</p>
+        </div>
+    )}
+    </>
   );
 };
 
