@@ -336,7 +336,8 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
     const datePrefix = `INV-${year}-${month}-${day}`;
     
     // Find how many invoices already exist for this SPECIFIC selected date
-    const invoicesTodayCount = invoices.filter(inv => inv.invoice_id.startsWith(datePrefix)).length;
+    const safeInvoices = Array.isArray(invoices) ? invoices : [];
+    const invoicesTodayCount = safeInvoices.filter(inv => inv && inv.invoice_id && inv.invoice_id.startsWith(datePrefix)).length;
     const newSerial = String(invoicesTodayCount + 1).padStart(3, '0');
     const newId = `${datePrefix}-${newSerial}`;
     
@@ -354,7 +355,9 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
   };
 
   const filteredPatients = useMemo(() => {
-    return patients.filter(p => {
+    const safePatients = Array.isArray(patients) ? patients : [];
+    return safePatients.filter(p => {
+      if (!p) return false;
       const pAge = String(p.ageY || '');
       return (p.pt_name || '').toLowerCase().includes(patientSearchFilters.name.toLowerCase()) &&
              (p.mobile || '').toLowerCase().includes(patientSearchFilters.mobile.toLowerCase()) &&
@@ -390,13 +393,15 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
       if (!code) return;
 
       // 1. Search by Patient ID
-      let targetPatient = patients.find(p => p.pt_id === code);
+      const safePatients = Array.isArray(patients) ? patients : [];
+      const safeInvoices = Array.isArray(invoices) ? invoices : [];
+      let targetPatient = safePatients.find(p => p && p.pt_id === code);
       
       // 2. If not found, search by Invoice ID
       if (!targetPatient) {
-        const matchingInvoice = invoices.find(inv => inv.invoice_id === code);
+        const matchingInvoice = safeInvoices.find(inv => inv && inv.invoice_id === code);
         if (matchingInvoice) {
-          targetPatient = patients.find(p => p.pt_id === matchingInvoice.patient_id);
+          targetPatient = safePatients.find(p => p && p.pt_id === matchingInvoice.patient_id);
         }
       }
 
@@ -495,14 +500,15 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
     };
 
     // Duplicate check in local buffer first
-    if (!isEditing && invoices.some(inv => inv.invoice_id === invoiceToSave.invoice_id)) {
+    const safeInvoices = Array.isArray(invoices) ? invoices : [];
+    if (!isEditing && safeInvoices.some(inv => inv && inv.invoice_id === invoiceToSave.invoice_id)) {
       alert('সতর্কতা: এই ইনভয়েস আইডিটি ইতিমধ্যে ব্যবহৃত হয়েছে। দয়া করে নতুন আইডি নিন।');
       return;
     }
 
     const newInvoices = isEditing 
-      ? invoices.map(inv => inv.invoice_id === invoiceToSave.invoice_id ? invoiceToSave : inv)
-      : [invoiceToSave, ...invoices];
+      ? safeInvoices.map(inv => inv && inv.invoice_id === invoiceToSave.invoice_id ? invoiceToSave : inv)
+      : [invoiceToSave, ...safeInvoices];
 
     // CRITICAL: We DO NOT setInvoices(newInvoices) yet. 
     // We wait for cloud success to tell the user it's REALLY saved.
@@ -536,7 +542,8 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
 
   const handleEditInvoice = () => {
     if (!selectedInvoiceId) return alert("Please select an invoice.");
-    const invoiceToEdit = invoices.find(inv => inv.invoice_id === selectedInvoiceId);
+    const safeInvoices = Array.isArray(invoices) ? invoices : [];
+    const invoiceToEdit = safeInvoices.find(inv => inv && inv.invoice_id === selectedInvoiceId);
     if (invoiceToEdit) {
       setFormData(invoiceToEdit);
       setIsEditing(true);
@@ -546,7 +553,8 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
 
   const handleCancelInvoice = () => {
     if (!selectedInvoiceId) return alert("Please select an invoice.");
-    const invoiceToCancel = invoices.find(inv => inv.invoice_id === selectedInvoiceId);
+    const safeInvoices = Array.isArray(invoices) ? invoices : [];
+    const invoiceToCancel = safeInvoices.find(inv => inv && inv.invoice_id === selectedInvoiceId);
     if (invoiceToCancel && invoiceToCancel.status !== 'Cancelled') {
       if (window.confirm(`Are you sure you want to cancel invoice ${invoiceToCancel.invoice_id}?`)) {
         setInvoices(prevInvoices => prevInvoices.map(inv => inv.invoice_id === selectedInvoiceId ? { ...inv, status: 'Cancelled' } : inv));
@@ -565,7 +573,8 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
 
   const handleReturnInvoice = () => {
     if (!selectedInvoiceId) return alert("Please select an invoice.");
-    const invoiceToReturn = invoices.find(inv => inv.invoice_id === selectedInvoiceId);
+    const safeInvoices = Array.isArray(invoices) ? invoices : [];
+    const invoiceToReturn = safeInvoices.find(inv => inv && inv.invoice_id === selectedInvoiceId);
     if (invoiceToReturn && invoiceToReturn.status !== 'Returned') {
       if (window.confirm(`আপনি কি এই ইনভয়েসের (${invoiceToReturn.invoice_id}) টাকা রিফান্ড বা রিটার্ন করতে চান? এটি আজকের হিসাব থেকে মাইনাস হবে।`)) {
         setInvoices(prevInvoices => prevInvoices.map(inv => inv.invoice_id === selectedInvoiceId ? { ...inv, status: 'Returned', return_date: todayDateString } : inv));
@@ -577,10 +586,13 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
 
   const handlePrintInvoice = () => {
     if (!selectedInvoiceId) return;
-    const inv = invoices.find(i => i.invoice_id === selectedInvoiceId);
+    const safeInvoices = Array.isArray(invoices) ? invoices : [];
+    const safePatients = Array.isArray(patients) ? patients : [];
+    const safeDoctors = Array.isArray(doctors) ? doctors : [];
+    const inv = safeInvoices.find(i => i && i.invoice_id === selectedInvoiceId);
     if (!inv) return;
-    const patient = patients.find(p => p.pt_id === inv.patient_id);
-    const doctor = doctors.find(d => d.doctor_id === inv.doctor_id);
+    const patient = safePatients.find(p => p && p.pt_id === inv.patient_id);
+    const doctor = safeDoctors.find(d => d && d.doctor_id === inv.doctor_id);
 
     const itemsHtml = inv.items.map((item, idx) => `
       <tr>

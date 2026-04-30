@@ -112,31 +112,37 @@ const App: React.FC = () => {
         return;
       }
 
+      // Important: Update sync markers immediately to acknowledge this remote state
+      if (data.last_updated_at) {
+        lastSavedAtRef.current = data.last_updated_at;
+        setLastSavedAt(data.last_updated_at);
+      }
+
       // Batching updates without expensive JSON.stringify
-      if (data.patients !== undefined) setPatients(data.patients);
-      if (data.doctors !== undefined) setDoctors(data.doctors);
-      if (data.referrars !== undefined) setReferrars(data.referrars);
-      if (data.tests !== undefined) setTests(data.tests);
-      if (data.reagents !== undefined) setReagents(data.reagents);
-      if (data.labInvoices !== undefined) setLabInvoices(data.labInvoices);
-      if (data.dueCollections !== undefined) setDueCollections(data.dueCollections);
-      if (data.reports !== undefined) setReports(data.reports);
-      if (data.employees !== undefined) setEmployees(data.employees);
-      if (data.medicines !== undefined) setMedicines(data.medicines);
-      if (data.clinicalDrugs !== undefined) setClinicalDrugs(data.clinicalDrugs);
-      if (data.purchaseInvoices !== undefined) setPurchaseInvoices(data.purchaseInvoices);
-      if (data.salesInvoices !== undefined) setSalesInvoices(data.salesInvoices);
-      if (data.admissions !== undefined) setAdmissions(data.admissions);
-      if (data.indoorInvoices !== undefined) setIndoorInvoices(data.indoorInvoices);
-      if (data.detailedExpenses !== undefined) setDetailedExpenses(data.detailedExpenses);
-      if (data.prescriptions !== undefined) setPrescriptions(data.prescriptions);
-      if (data.appointments !== undefined) setAppointments(data.appointments);
-      if (data.attendanceLog !== undefined) setAttendanceLog(data.attendanceLog);
-      if (data.leaveLog !== undefined) setLeaveLog(data.leaveLog);
-      if (data.monthlyRoster !== undefined) setMonthlyRoster(data.monthlyRoster);
-      if (data.diagnosticSettings !== undefined) setDiagnosticSettings(data.diagnosticSettings);
-      if (data.employeeReferrerMap !== undefined) setEmployeeReferrerMap(data.employeeReferrerMap);
-      if (data.passwords !== undefined) setPasswords(data.passwords);
+      if (Array.isArray(data.patients)) setPatients(data.patients);
+      if (Array.isArray(data.doctors)) setDoctors(data.doctors);
+      if (Array.isArray(data.referrars)) setReferrars(data.referrars);
+      if (Array.isArray(data.tests)) setTests(data.tests);
+      if (Array.isArray(data.reagents)) setReagents(data.reagents);
+      if (Array.isArray(data.labInvoices)) setLabInvoices(data.labInvoices);
+      if (Array.isArray(data.dueCollections)) setDueCollections(data.dueCollections);
+      if (Array.isArray(data.reports)) setReports(data.reports);
+      if (Array.isArray(data.employees)) setEmployees(data.employees);
+      if (Array.isArray(data.medicines)) setMedicines(data.medicines);
+      if (Array.isArray(data.clinicalDrugs)) setClinicalDrugs(data.clinicalDrugs);
+      if (Array.isArray(data.purchaseInvoices)) setPurchaseInvoices(data.purchaseInvoices);
+      if (Array.isArray(data.salesInvoices)) setSalesInvoices(data.salesInvoices);
+      if (Array.isArray(data.admissions)) setAdmissions(data.admissions);
+      if (Array.isArray(data.indoorInvoices)) setIndoorInvoices(data.indoorInvoices);
+      if (data.detailedExpenses !== undefined) setDetailedExpenses(data.detailedExpenses || {});
+      if (Array.isArray(data.prescriptions)) setPrescriptions(data.prescriptions);
+      if (Array.isArray(data.appointments)) setAppointments(data.appointments);
+      if (data.attendanceLog !== undefined) setAttendanceLog(data.attendanceLog || {});
+      if (data.leaveLog !== undefined) setLeaveLog(data.leaveLog || {});
+      if (data.monthlyRoster !== undefined) setMonthlyRoster(data.monthlyRoster || {});
+      if (data.diagnosticSettings !== undefined) setDiagnosticSettings(data.diagnosticSettings || {});
+      if (data.employeeReferrerMap !== undefined) setEmployeeReferrerMap(data.employeeReferrerMap || {});
+      if (data.passwords !== undefined) setPasswords(data.passwords || {});
     };
 
     loadData();
@@ -162,8 +168,8 @@ const App: React.FC = () => {
   const [lastManualSyncTime, setLastManualSyncTime] = useState(0);
 
   const showSyncNotification = useMemo(() => {
-    return (isSyncing || syncError) && (Date.now() - lastManualSyncTime > 1500);
-  }, [isSyncing, syncError, lastManualSyncTime]);
+    return (isSyncing || syncError);
+  }, [isSyncing, syncError]);
 
   // Helper to get current state for syncing
   const getCurrentState = useCallback((overrides: any = {}) => {

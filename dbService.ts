@@ -28,8 +28,14 @@ const MASTER_RECORD_ID = 1;
 export const dbService = {
   saveToCloud: async (appState: any) => {
     try {
-      // Always save a local backup first
-      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(appState));
+      // Defer local storage to avoid blocking the cloud request start
+      setTimeout(() => {
+        try {
+          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(appState));
+        } catch (e) {
+          console.warn("LocalStorage backup failed (likely quota exceeded):", e);
+        }
+      }, 0);
 
       if (supabase) {
         const { error } = await supabase
@@ -134,11 +140,18 @@ export const dbService = {
           }, { onConflict: 'id' });
 
         if (!error) {
-          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(mergedData));
+          // localStorage removed from the loop; will save at the end or use saveToCloud logic
           onProgress?.(currentProgress);
         } else {
             console.error(`Step ${i} failed:`, error);
         }
+      }
+
+      // Final local storage sync after all chunks are done
+      try {
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(mergedData));
+      } catch (e) {
+        console.warn("Final localStorage sync failed in chunks:", e);
       }
 
       onProgress?.(100);

@@ -126,10 +126,10 @@ const PatientInfoPage: React.FC<PatientInfoPageProps> = ({
     );
   }, [searchTerm, patients, isEmbedded]);
 
-  const uniqueNames = useMemo(() => Array.from(new Set((Array.isArray(patients) ? patients : []).map(p => p?.pt_name).filter(Boolean))), [patients]);
-  const uniqueAddresses = useMemo(() => Array.from(new Set((Array.isArray(patients) ? patients : []).map(p => p?.address).filter(Boolean))), [patients]);
-  const uniqueThanas = useMemo(() => Array.from(new Set((Array.isArray(patients) ? patients : []).map(p => p?.thana).filter(Boolean))), [patients]);
-  const uniqueDistricts = useMemo(() => Array.from(new Set((Array.isArray(patients) ? patients : []).map(p => p?.district).filter(Boolean))), [patients]);
+  const uniqueNames = useMemo(() => Array.from(new Set((Array.isArray(patients) ? patients : []).map(p => p?.pt_name).filter(Boolean))).slice(0, 100), [patients]);
+  const uniqueAddresses = useMemo(() => Array.from(new Set((Array.isArray(patients) ? patients : []).map(p => p?.address).filter(Boolean))).slice(0, 50), [patients]);
+  const uniqueThanas = useMemo(() => Array.from(new Set((Array.isArray(patients) ? patients : []).map(p => p?.thana).filter(Boolean))).slice(0, 50), [patients]);
+  const uniqueDistricts = useMemo(() => Array.from(new Set((Array.isArray(patients) ? patients : []).map(p => p?.district).filter(Boolean))).slice(0, 50), [patients]);
 
   useEffect(() => {
     if (successMessage) {
@@ -247,10 +247,11 @@ const PatientInfoPage: React.FC<PatientInfoPageProps> = ({
     const currentDateTime = formatDateTime(new Date()); 
     const updatedPatient = { ...formData, date_modified: currentDateTime };
     let newPatients;
+    const safePatients = Array.isArray(patients) ? patients : [];
     if (isEditing) {
-      newPatients = patients.map(p => p.pt_id === formData.pt_id ? updatedPatient : p);
+      newPatients = safePatients.map(p => (p && p.pt_id === formData.pt_id) ? updatedPatient : p);
     } else {
-      newPatients = [updatedPatient, ...patients];
+      newPatients = [updatedPatient, ...safePatients];
     }
 
     if (performBlockingSync) {
@@ -280,7 +281,7 @@ const PatientInfoPage: React.FC<PatientInfoPageProps> = ({
         )}
       
       <div className="flex flex-col xl:flex-row gap-6">
-          {!isEmbedded && <div className="w-full xl:w-1/4 min-w-[250px]"><AddressPieChart patients={patients} /></div>}
+          {!isEmbedded && patients.length > 0 && <div className="hidden lg:block w-full xl:w-1/4 min-w-[250px]"><AddressPieChart patients={patients} /></div>}
           <div className={`flex-1 bg-slate-900 rounded-xl p-4 sm:p-6 ${isEmbedded ? 'border-2 border-blue-600 mt-4' : 'border border-slate-800 shadow-xl'}`}>
             {!isEmbedded && <h2 className="text-2xl font-bold text-white mb-6 border-b border-slate-800 pb-4">Patient Information</h2>}
             {!isEmbedded && (

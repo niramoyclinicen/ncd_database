@@ -130,20 +130,21 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
 
   const handleSearchChange = (term: string, type: 'buy' | 'sell') => {
     setSearchTerm(term);
+    const safeMedicines = Array.isArray(medicines) ? medicines : [];
     if (type === 'buy') {
         setCurrentPurchaseItem(prev => ({ ...prev, tradeName: term }));
         if (term.length > 0) {
-            const matches = medicines.filter(m => m.tradeName.toLowerCase().includes(term.toLowerCase()) || m.genericName.toLowerCase().includes(term.toLowerCase()));
+            const matches = safeMedicines.filter(m => m && (m.tradeName || '').toLowerCase().includes(term.toLowerCase()) || (m.genericName || '').toLowerCase().includes(term.toLowerCase()));
             setSuggestions(matches);
             setShowSuggestions(true);
         } else { setSuggestions([]); setShowSuggestions(false); }
     } else {
         setCurrentSalesItem(prev => ({ ...prev, tradeName: term }));
         if (term.length === 0) {
-            setSuggestions(medicines.filter(m => m.stock > 0));
+            setSuggestions(safeMedicines.filter(m => m && m.stock > 0));
             setShowSuggestions(true);
         } else {
-            const matches = medicines.filter(m => (m.tradeName.toLowerCase().includes(term.toLowerCase()) || m.genericName.toLowerCase().includes(term.toLowerCase())));
+            const matches = safeMedicines.filter(m => m && ((m.tradeName || '').toLowerCase().includes(term.toLowerCase()) || (m.genericName || '').toLowerCase().includes(term.toLowerCase())));
             setSuggestions(matches);
             setShowSuggestions(true);
         }
@@ -152,10 +153,11 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
 
   const handleSupplierChange = (val: string) => {
       setPurchaseFormData(prev => ({ ...prev, source: val }));
-      const historySuppliers = Array.from(new Set(invoices.map(i => i.source))).filter((s): s is string => !!s);
+      const safeInvoices = Array.isArray(invoices) ? invoices : [];
+      const historySuppliers = Array.from(new Set(safeInvoices.map(i => i && i.source))).filter((s): s is string => !!s);
       const allSuppliers = Array.from(new Set([...defaultSuppliers, ...historySuppliers]));
       if (val) {
-          const matches = allSuppliers.filter(s => s.toLowerCase().includes(val.toLowerCase()));
+          const matches = allSuppliers.filter(s => s && s.toLowerCase().includes(val.toLowerCase()));
           setSupplierSuggestions(matches);
       } else { setSupplierSuggestions(allSuppliers); }
       setShowSupplierSuggestions(true);

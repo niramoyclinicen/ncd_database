@@ -1933,12 +1933,18 @@ const IndoorInvoicePage: React.FC<{
         const safeInvoices = Array.isArray(indoorInvoices) ? indoorInvoices : [];
         const safePatients = Array.isArray(patients) ? patients : [];
         
+        // Optimize patient lookup with a Map
+        const patientMap = new Map();
+        safePatients.forEach(p => {
+          if (p && p.pt_id) patientMap.set(p.pt_id, p);
+        });
+        
         return safeInvoices.filter(inv => {
             if (!inv) return false;
             if (isDueSearch) {
                 return (inv.due_bill || 0) > 0;
             }
-            const p = safePatients.find(pt => pt && pt.pt_id === inv.patient_id);
+            const p = patientMap.get(inv.patient_id);
             const matchesSearch = (inv.patient_name || '').toLowerCase().includes(tableSearchTerm.toLowerCase()) ||
                 (inv.daily_id || '').toLowerCase().includes(tableSearchTerm.toLowerCase()) ||
                 (inv.patient_id || '').toLowerCase().includes(tableSearchTerm.toLowerCase()) ||
@@ -2236,14 +2242,14 @@ const IndoorInvoicePage: React.FC<{
 
         setLoading(true);
         try {
+            const safeInvoices = Array.isArray(indoorInvoices) ? indoorInvoices : [];
             // Check if date has changed for an existing invoice
             const finalInvoice = { ...formData };
-            const oldInvoice = selectedInvoiceId ? indoorInvoices.find(inv => inv.daily_id === selectedInvoiceId) : null;
+            const oldInvoice = selectedInvoiceId ? safeInvoices.find(inv => inv && inv.daily_id === selectedInvoiceId) : null;
             const isDateChanged = selectedInvoiceId && formData.invoice_date !== oldInvoice?.invoice_date;
 
             if (isDateChanged) {
                 const dateToUse = formData.invoice_date;
-                const safeInvoices = Array.isArray(indoorInvoices) ? indoorInvoices : [];
                 const count = safeInvoices.filter(i => i && i.invoice_date === dateToUse).length + 1;
                 const newId = `CLIN-${dateToUse}-${String(count).padStart(3, '0')}`;
                 finalInvoice.daily_id = newId;
