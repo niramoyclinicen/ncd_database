@@ -516,7 +516,7 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
         if (success) {
           // Sync successful - only now update the local state and reset form
           setInvoices(newInvoices);
-          setSuccessMessage('ইনভয়েস ডাটা ক্লাউডে সফলভাবে সেভ করা হয়েছে!');
+          setSuccessMessage('ডাটা সঠিকভাবে সেভ হয়েছে!');
           resetForm();
         } else {
           // Error modal is handled by App.tsx, we keep form data intact for retry
@@ -1045,6 +1045,7 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
                     isEmbedded={true} 
                     onClose={() => setShowNewPatientForm(false)} 
                     onSaveAndSelect={handlePatientSelect}
+                    performBlockingSync={performBlockingSync}
                 />
              </div>
           </div>
@@ -1055,7 +1056,7 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
             <div className="w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-xl shadow-2xl border border-slate-600 bg-slate-900 relative">
                 <button onClick={() => setShowNewDoctorForm(false)} className="absolute top-4 right-4 text-slate-400 hover:text-white z-10">&times;</button>
-                <div className="p-2"><DoctorInfoPage doctors={doctors} setDoctors={setDoctors} isEmbedded onClose={() => setShowNewDoctorForm(false)} onSaveAndSelect={handleDoctorSelect} /></div>
+                <div className="p-2"><DoctorInfoPage doctors={doctors} setDoctors={setDoctors} isEmbedded onClose={() => setShowNewDoctorForm(false)} onSaveAndSelect={handleDoctorSelect} performBlockingSync={performBlockingSync} /></div>
             </div>
         </div>
       )}
@@ -1064,7 +1065,7 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
             <div className="w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-xl shadow-2xl border border-slate-600 bg-slate-900 relative">
                 <button onClick={() => setShowNewReferrarForm(false)} className="absolute top-4 right-4 text-slate-400 hover:text-white z-10">&times;</button>
-                <div className="p-2"><ReferrerInfoPage referrars={referrars} setReferrars={setReferrars} isEmbedded onClose={() => setShowNewReferrarForm(false)} onSaveAndSelect={handleReferrarSelect} /></div>
+                <div className="p-2"><ReferrerInfoPage referrars={referrars} setReferrars={setReferrars} isEmbedded onClose={() => setShowNewReferrarForm(false)} onSaveAndSelect={handleReferrarSelect} performBlockingSync={performBlockingSync} /></div>
             </div>
         </div>
       )}
@@ -1100,6 +1101,7 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
                         isEmbedded 
                         onClose={() => setShowNewTestForm(false)} 
                         onSaveAndSelect={handleTestSelect} 
+                        performBlockingSync={performBlockingSync}
                     />
                 </div>
             </div>

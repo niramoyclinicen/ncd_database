@@ -238,7 +238,7 @@ const DailyExpenseForm: React.FC<any> = ({ selectedDate, onDateChange, items: in
 };
 
 const ClinicAccountsPage: React.FC<any> = ({ 
-  onBack, invoices, dueCollections, employees, detailedExpenses, setDetailedExpenses 
+  onBack, invoices, dueCollections, employees, detailedExpenses, setDetailedExpenses, performBlockingSync
 }) => {
     const todayStr = new Date().toISOString().split('T')[0];
     const [selectedDate, setSelectedDate] = useState(todayStr);
@@ -274,47 +274,54 @@ const ClinicAccountsPage: React.FC<any> = ({
 
     useEffect(() => { if(successMsg) setTimeout(() => setSuccessMsg(''), 3000); }, [successMsg]);
 
-    const handleSave = (date: string, items: ExpenseItem[]) => {
-        setDetailedExpenses((prev: any) => {
-            const safePrev = prev || {};
-            const existingItems = safePrev[date] || [];
-            // Keep Diagnostic items, replace Clinic items
-            const otherDeptItems = existingItems.filter((it: any) => it.dept !== 'Clinic');
-            const clinicItems = (items || []).map(it => ({ ...it, dept: 'Clinic' as const, date: date }));
-            const newState = { ...safePrev, [date]: [...otherDeptItems, ...clinicItems] };
-            
-            return newState;
-        });
-        setSuccessMsg("Clinic Expense Saved! Syncing to cloud...");
+    const handleSave = async (date: string, items: ExpenseItem[]) => {
+        const safePrev = detailedExpenses || {};
+        const existingItems = safePrev[date] || [];
+        // Keep Diagnostic items, replace Clinic items
+        const otherDeptItems = existingItems.filter((it: any) => it.dept !== 'Clinic');
+        const clinicItems = (items || []).map(it => ({ ...it, dept: 'Clinic' as const, date: date }));
+        const newState = { ...safePrev, [date]: [...otherDeptItems, ...clinicItems] };
+        
+        const success = await performBlockingSync({ detailedExpenses: newState });
+
+        if (success) {
+            setDetailedExpenses(newState);
+            setSuccessMsg("Clinic Expense Saved! Syncing to cloud...");
+        }
     };
 
-    const handleLedgerDelete = (date: string, itemId: number) => {
+    const handleLedgerDelete = async (date: string, itemId: number) => {
         if (!window.confirm("Are you sure you want to delete this expense entry? It will be logged and removed from totals.")) return;
 
-        setDetailedExpenses((prev: any) => {
-            const safePrev = prev || {};
-            const dateItems = safePrev[date] || [];
-            const updatedItems = dateItems.map((it: any) => {
-                if (it.id === itemId) {
-                    const history = it.editHistory || [];
-                    const newLog = {
-                        timestamp: new Date().toISOString(),
-                        field: 'DELETED',
-                        oldValue: 'Active',
-                        newValue: 'Deleted'
-                    };
-                    return { 
-                        ...it, 
-                        isDeleted: true, 
-                        deletedAt: new Date().toISOString(),
-                        editHistory: [...history, newLog]
-                    };
-                }
-                return it;
-            });
-            return { ...prev, [date]: updatedItems };
+        const safePrev = detailedExpenses || {};
+        const dateItems = safePrev[date] || [];
+        const updatedItems = dateItems.map((it: any) => {
+            if (it.id === itemId) {
+                const history = it.editHistory || [];
+                const newLog = {
+                    timestamp: new Date().toISOString(),
+                    field: 'DELETED',
+                    oldValue: 'Active',
+                    newValue: 'Deleted'
+                };
+                return { 
+                    ...it, 
+                    isDeleted: true, 
+                    deletedAt: new Date().toISOString(),
+                    editHistory: [...history, newLog]
+                };
+            }
+            return it;
         });
-        setSuccessMsg("Expense Entry Deleted (Logged)");
+
+        const newState = { ...safePrev, [date]: updatedItems };
+
+        const success = await performBlockingSync({ detailedExpenses: newState });
+
+        if (success) {
+            setDetailedExpenses(newState);
+            setSuccessMsg("Expense Entry Deleted (Logged)");
+        }
     };
 
     // --- Helper function for keyword matching ---
@@ -961,12 +968,12 @@ const ClinicAccountsPage: React.FC<any> = ({
                         }
                         th, td { 
                             border: 1px solid black; 
-                            padding: 1px; 
+                            padding: 2px; 
                             text-align: center; 
                             font-size: 7.5pt; 
                             word-wrap: break-word; 
                             line-height: 1;
-                            height: 13.8pt;
+                            height: 18pt;
                         }
                         th { 
                             background: #f3f4f6; 
@@ -1434,14 +1441,14 @@ const ClinicAccountsPage: React.FC<any> = ({
                                 </thead>
                                 <tbody className="text-[11px]">
                                     {clinicMonthlyExpenseSheetData.rows.map((row) => (
-                                        <tr key={row.date} className="hover:bg-slate-50 transition-colors border-b border-slate-100">
-                                            <td className="p-2 border border-slate-200 font-bold text-slate-700">{row.date.split('-')[2]} {monthOptions[selectedMonth].name.substring(0,3)}</td>
+                                        <tr key={row.date} className="hover:bg-slate-50 transition-colors border-b border-slate-100 h-[32px]">
+                                            <td className="p-1 border border-slate-200 font-bold text-slate-700">{row.date.split('-')[2]} {monthOptions[selectedMonth].name.substring(0,3)}</td>
                                             {clinicExpenseCategories.map(cat => (
-                                                <td key={cat} className="p-2 border border-slate-200 text-center text-slate-600">
+                                                <td key={cat} className="p-1 border border-slate-200 text-center text-slate-600">
                                                     {row.categories[cat] > 0 ? row.categories[cat].toLocaleString() : '-'}
                                                 </td>
                                             ))}
-                                            <td className="p-2 border border-slate-200 text-right font-black text-rose-600 bg-rose-50/30">
+                                            <td className="p-1 border border-slate-200 text-right font-black text-rose-600 bg-rose-50/30">
                                                 ৳{row.total > 0 ? row.total.toLocaleString() : '-'}
                                             </td>
                                         </tr>

@@ -14,6 +14,7 @@ interface EmployeeInfoPageProps {
   setLeaveLog: React.Dispatch<React.SetStateAction<Record<string, any>>>;
   monthlyRoster: Record<string, string[]>;
   setMonthlyRoster: React.Dispatch<React.SetStateAction<Record<string, string[]>>>;
+  performBlockingSync?: (overrides?: any) => Promise<boolean>;
 }
 
 const initialJobPositions = [
@@ -43,7 +44,7 @@ const monthOptions = [
 const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({ 
   employees, setEmployees, onBack, detailedExpenses = {}, 
   attendanceLog, setAttendanceLog, leaveLog, setLeaveLog,
-  monthlyRoster, setMonthlyRoster
+  monthlyRoster, setMonthlyRoster, performBlockingSync
 }) => {
   const [activeTab, setActiveTab] = useState<EmployeeTab>('attendance');
   const [searchTerm, setSearchTerm] = useState('');
@@ -125,7 +126,7 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
   };
 
   // --- UPDATED MACHINE SYNC LOGIC (MULTI-SESSION ACCUMULATION) ---
-  const handleMachineSync = () => {
+  const handleMachineSync = async () => {
     if (!machineCfg.ipAddress) {
         alert("মেশিন আইপি সেট করা নেই। কনসোল থেকে আইপি সেট করুন।");
         return;
@@ -133,85 +134,95 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
 
     setMachineCfg(prev => ({ ...prev, status: 'Syncing' }));
     
-    setTimeout(() => {
-        const now = new Date();
-        setMachineCfg(prev => ({ ...prev, status: 'Online', lastSync: now.toLocaleString() }));
-        
-        const newLog = { ...attendanceLog };
-        let matchCount = 0;
+    // Original logic had a setTimeout, but we need to stay async for the sync call
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    const now = new Date();
+    setMachineCfg(prev => ({ ...prev, status: 'Online', lastSync: now.toLocaleString() }));
+    
+    const newLog = { ...attendanceLog };
+    let matchCount = 0;
 
-        periodEmployees.forEach(emp => {
-            if (emp.machine_id) {
-                const key = `${attendanceDate}_${emp.emp_id}`;
-                
-                // Simulation: Generating paired punches (In, Out, In, Out)
-                // Session 1: Morning Shift
-                // Session 2: Evening Shift
-                const punches = [
-                    "08:45", "12:00", // Shift 1 (In at 8:45, Out at 12:00)
-                    "17:00", "20:30"  // Shift 2 (In at 5:00, Out at 8:30)
-                ].sort();
+    periodEmployees.forEach(emp => {
+        if (emp.machine_id) {
+            const key = `${attendanceDate}_${emp.emp_id}`;
+            const punches = ["08:45", "12:00", "17:00", "20:30"].sort();
 
-                let totalMinutes = 0;
-                const sessionDetails = [];
+            let totalMinutes = 0;
+            const sessionDetails = [];
 
-                // Pair the sorted punches: (1,2), (3,4), etc.
-                for (let i = 0; i < punches.length; i += 2) {
-                    if (punches[i] && punches[i+1]) {
-                        const start = punches[i];
-                        const end = punches[i+1];
-                        const diff = calculateDuration(start, end);
-                        if (diff > 0) {
-                            totalMinutes += diff;
-                            sessionDetails.push(`${start}-${end}`);
-                        }
+            for (let i = 0; i < punches.length; i += 2) {
+                if (punches[i] && punches[i+1]) {
+                    const start = punches[i];
+                    const end = punches[i+1];
+                    const diff = calculateDuration(start, end);
+                    if (diff > 0) {
+                        totalMinutes += diff;
+                        sessionDetails.push(`${start}-${end}`);
                     }
                 }
-
-                const totalDutyStr = formatMinsToDuration(totalMinutes);
-
-                // Only sync if status is empty or already a machine record
-                if (!newLog[key] || newLog[key].status === '' || newLog[key].isMachineRecord) {
-                    newLog[key] = { 
-                        status: 'Present', 
-                        inTime: punches[0], 
-                        outTime: punches[punches.length - 1], 
-                        notes: `Total: ${totalDutyStr} | Sessions: ${sessionDetails.join(', ')}`, 
-                        totalMinutes: totalMinutes,
-                        isMachineRecord: true 
-                    };
-                    matchCount++;
-                }
             }
-        });
 
-        setAttendanceLog(newLog);
-        setSuccessMessage(`সফলভাবে ${matchCount} জন এমপ্লয়ীর উপস্থিতির "মোট কর্মঘণ্টা" সিঙ্ক করা হয়েছে।`);
-    }, 2000);
+            const totalDutyStr = formatMinsToDuration(totalMinutes);
+
+            if (!newLog[key] || newLog[key].status === '' || newLog[key].isMachineRecord) {
+                newLog[key] = { 
+                    status: 'Present', 
+                    inTime: punches[0], 
+                    outTime: punches[punches.length - 1], 
+                    notes: `Total: ${totalDutyStr} | Sessions: ${sessionDetails.join(', ')}`, 
+                    totalMinutes: totalMinutes,
+                    isMachineRecord: true 
+                };
+                matchCount++;
+            }
+        }
+    });
+
+    if (performBlockingSync) {
+      const success = await performBlockingSync({ attendanceLog: newLog });
+      if (!success) return;
+    }
+
+    setAttendanceLog(newLog);
+    setSuccessMessage(`সফলভাবে ${matchCount} জন এমপ্লয়ীর উপস্থিতির "মোট কর্মঘণ্টা" সিঙ্ক করা হয়েছে।`);
   };
 
-  const handleSaveProfile = () => {
+  const handleSaveProfile = async () => {
     if (!formData.emp_name) {
         alert("দয়া করে নাম প্রদান করুন।");
         return;
     }
-    setEmployees(prev => {
-        const exists = prev.some(e => e.emp_id === formData.emp_id);
-        if (exists) {
-            return prev.map(e => e.emp_id === formData.emp_id ? formData : e);
-        }
-        return [formData, ...prev];
-    });
+    
+    let newEmployees;
+    const exists = employees.some(e => e.emp_id === formData.emp_id);
+    if (exists) {
+        newEmployees = employees.map(e => e.emp_id === formData.emp_id ? formData : e);
+    } else {
+        newEmployees = [formData, ...employees];
+    }
+
+    if (performBlockingSync) {
+      const success = await performBlockingSync({ employees: newEmployees });
+      if (!success) return;
+    }
+
+    setEmployees(newEmployees);
     setSuccessMessage(selectedEmployeeId ? "প্রোফাইল আপডেট করা হয়েছে!" : "নতুন এমপ্লয়ী যুক্ত করা হয়েছে!");
     if (!selectedEmployeeId) { setFormData(emptyEmployee); setSelectedEmployeeId(null); }
   };
 
-  const toggleRosterStatus = (empId: string) => {
-    setMonthlyRoster(prev => {
-        const currentList = prev[currentPeriodKey] || [];
-        const newList = currentList.includes(empId) ? currentList.filter(id => id !== empId) : [...currentList, empId];
-        return { ...prev, [currentPeriodKey]: newList };
-    });
+  const toggleRosterStatus = async (empId: string) => {
+    const currentList = monthlyRoster[currentPeriodKey] || [];
+    const newList = currentList.includes(empId) ? currentList.filter(id => id !== empId) : [...currentList, empId];
+    const newMonthlyRoster = { ...monthlyRoster, [currentPeriodKey]: newList };
+
+    if (performBlockingSync) {
+      const success = await performBlockingSync({ monthlyRoster: newMonthlyRoster });
+      if (!success) return;
+    }
+
+    setMonthlyRoster(newMonthlyRoster);
   };
 
   const resetFormForNew = () => {
@@ -520,6 +531,17 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
       </div>
   );
 
+  const handleFinalizePayroll = async () => {
+    if (performBlockingSync) {
+      const success = await performBlockingSync({ 
+        attendanceLog, 
+        leaveLog 
+      });
+      if (!success) return;
+    }
+    setSuccessMessage('Payroll Adjustments Saved Successfully!');
+  };
+
   const renderLeaveManagementTab = () => {
     const getAutoAbsentCount = (empId: string) => {
         const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
@@ -571,7 +593,7 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
                   </tbody>
               </table>
           </div>
-          <div className="mt-12 flex justify-end"><button onClick={() => setSuccessMessage('Payroll Adjustments Saved Successfully!')} className="bg-emerald-600 text-white px-16 py-4 rounded-3xl font-bold uppercase text-xs shadow-xl hover:bg-emerald-700 transition-all">Update Calculations</button></div>
+          <div className="mt-12 flex justify-end"><button onClick={handleFinalizePayroll} className="bg-emerald-600 text-white px-16 py-4 rounded-3xl font-bold uppercase text-xs shadow-xl hover:bg-emerald-700 transition-all">Update Calculations</button></div>
       </div>
     );
   };

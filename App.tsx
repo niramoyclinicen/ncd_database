@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { ViewState, UserRole, DepartmentPasswords } from './types';
 import Dashboard from './components/Dashboard';
 import DiagnosticPage from './components/DiagnosticPage';
@@ -125,6 +125,8 @@ const App: React.FC = () => {
       if (data.leaveLog) setLeaveLog(data.leaveLog);
       if (data.monthlyRoster) setMonthlyRoster(data.monthlyRoster);
       if (data.diagnosticSettings) setDiagnosticSettings(data.diagnosticSettings);
+      if (data.employeeReferrerMap) setEmployeeReferrerMap(data.employeeReferrerMap);
+      if (data.passwords) setPasswords(data.passwords);
     };
 
     loadData();
@@ -147,6 +149,11 @@ const App: React.FC = () => {
   const [isManualSyncing, setIsManualSyncing] = useState(false);
   const [manualSyncError, setManualSyncError] = useState<string | null>(null);
   const [syncError, setSyncError] = useState(false);
+  const [lastManualSyncTime, setLastManualSyncTime] = useState(0);
+
+  const showSyncNotification = useMemo(() => {
+    return (isSyncing || syncError) && (Date.now() - lastManualSyncTime > 1500);
+  }, [isSyncing, syncError, lastManualSyncTime]);
 
   // Helper to get current state for syncing
   const getCurrentState = useCallback((overrides: any = {}) => {
@@ -155,11 +162,12 @@ const App: React.FC = () => {
       dueCollections, reports, employees, medicines, clinicalDrugs,
       purchaseInvoices, salesInvoices, admissions, indoorInvoices,
       detailedExpenses, prescriptions, appointments, attendanceLog, leaveLog, monthlyRoster,
-      diagnosticSettings,
+      diagnosticSettings, employeeReferrerMap,
+      passwords,
       last_updated_at: new Date().toISOString(),
       ...overrides
     };
-  }, [patients, doctors, referrars, tests, reagents, labInvoices, dueCollections, reports, employees, medicines, clinicalDrugs, purchaseInvoices, salesInvoices, admissions, indoorInvoices, detailedExpenses, prescriptions, appointments, attendanceLog, leaveLog, monthlyRoster, diagnosticSettings]);
+  }, [patients, doctors, referrars, tests, reagents, labInvoices, dueCollections, reports, employees, medicines, clinicalDrugs, purchaseInvoices, salesInvoices, admissions, indoorInvoices, detailedExpenses, prescriptions, appointments, attendanceLog, leaveLog, monthlyRoster, diagnosticSettings, employeeReferrerMap, passwords]);
 
   // Blocking Manual Sync Handler
   const performBlockingSync = useCallback(async (overrides?: any) => {
@@ -174,6 +182,7 @@ const App: React.FC = () => {
       if (result.success) {
         setIsManualSyncing(false);
         setSyncError(false);
+        setLastManualSyncTime(Date.now());
         return true;
       } else {
         setManualSyncError("Internet Connection Failure. Please check your connection and try again.");
@@ -335,6 +344,7 @@ const App: React.FC = () => {
             admissions={admissions} setAdmissions={setAdmissions}
             indoorInvoices={indoorInvoices} setIndoorInvoices={setIndoorInvoices}
             detailedExpenses={detailedExpenses}
+            performBlockingSync={performBlockingSync}
           />
         );
 
@@ -349,6 +359,7 @@ const App: React.FC = () => {
             invoices={purchaseInvoices} setInvoices={setPurchaseInvoices}
             salesInvoices={salesInvoices} setSalesInvoices={setSalesInvoices}
             indoorInvoices={indoorInvoices}
+            performBlockingSync={performBlockingSync}
           />
         );
 
@@ -389,6 +400,7 @@ const App: React.FC = () => {
             employees={employees}
             employeeReferrerMap={employeeReferrerMap}
             setEmployeeReferrerMap={setEmployeeReferrerMap}
+            performBlockingSync={performBlockingSync}
           />
         );
 
@@ -416,6 +428,7 @@ const App: React.FC = () => {
             onLogout={() => setViewState(ViewState.DASHBOARD)}
             drugDatabase={clinicalDrugs}
             availableTests={tests}
+            performBlockingSync={performBlockingSync}
           />
         );
 
@@ -450,30 +463,40 @@ const App: React.FC = () => {
         />
       )}
 
+      {/* CLOUD SAVE SUCCESS MESSAGE - Temporary Toast */}
+      {/* (Sub-pages show their own persistent success messages often, but we could add a central toast here if needed) */}
+
       {/* BLOCKING MANUAL SYNC OVERLAY */}
       {isManualSyncing && (
-        <div className="fixed inset-0 z-[10000] bg-slate-900/80 backdrop-blur-md flex flex-col items-center justify-center text-white">
-           <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-           <h2 className="text-2xl font-black uppercase tracking-[0.2em] animate-pulse">ডাটা সেভ হচ্ছে...</h2>
-           <p className="mt-2 text-slate-400 font-medium">অনুগ্রহ করে অপেক্ষা করুন, সার্ভারে ডাটা পাঠানো হচ্ছে।</p>
-           <p className="mt-1 text-xs text-blue-400 opacity-70 italic">Saving to cloud, please do not close the window...</p>
+        <div className="fixed inset-0 z-[10000] bg-slate-900/90 backdrop-blur-xl flex flex-col items-center justify-center text-white">
+           <div className="relative mb-8">
+             <div className="w-24 h-24 border-4 border-blue-500/20 border-t-blue-500 rounded-full animate-spin"></div>
+             <div className="absolute inset-0 flex items-center justify-center">
+               <Activity className="w-10 h-10 text-blue-500 animate-pulse" />
+             </div>
+           </div>
+           <h2 className="text-3xl font-black uppercase tracking-[0.2em] mb-2 font-['Hind_Siliguri']">অনলাইনে সেভ হচ্ছে...</h2>
+           <p className="text-blue-400 font-bold uppercase tracking-widest text-xs animate-pulse">Saving to Online Cloud Portal</p>
+           <div className="mt-8 px-6 py-2 bg-blue-500/10 border border-blue-500/20 rounded-full">
+             <span className="text-[10px] text-blue-300 font-medium italic whitespace-nowrap">অপেক্ষ করুন, ডাটা ক্লাউড সার্ভারে নিরাপদে সংরক্ষিত হচ্ছে।</span>
+           </div>
         </div>
       )}
 
       {/* MANUAL SYNC ERROR MODAL */}
       {manualSyncError && (
         <div className="fixed inset-0 z-[10001] bg-black/90 backdrop-blur-lg flex items-center justify-center p-4">
-           <div className="bg-slate-800 border-2 border-red-500 p-8 rounded-2xl shadow-2xl max-w-md w-full flex flex-col items-center text-center">
-             <div className="w-20 h-20 bg-red-500/20 rounded-full flex items-center justify-center text-red-500 text-4xl mb-6">⚠️</div>
-             <h3 className="text-2xl font-black text-white uppercase mb-2">সেভ ব্যর্থ হয়েছে!</h3>
+           <div className="bg-slate-800 border-2 border-red-500 p-8 rounded-[2.5rem] shadow-2xl max-w-md w-full flex flex-col items-center text-center">
+             <div className="w-20 h-20 bg-red-500/20 rounded-full flex items-center justify-center text-red-500 text-4xl mb-6 shadow-[0_0_30px_rgba(239,68,68,0.3)]">⚠️</div>
+             <h3 className="text-2xl font-black text-white uppercase mb-2 font-['Hind_Siliguri']">সেভ ব্যর্থ হয়েছে!</h3>
              <p className="text-slate-300 mb-8 leading-relaxed font-medium">
-               আপনার ইন্টারনেট কানেকশন চেক করুন। সার্ভারে ডাটা পাঠাতে ব্যর্থ হয়েছে। 
+               আপনার ইন্টারনেট কানেকশন চেক করুন। ক্লাউড সার্ভারে ডাটা পাঠাতে ব্যর্থ হয়েছে। 
                <br/>
-               <span className="text-red-400 text-sm mt-2 block italic">{manualSyncError}</span>
+               <span className="text-red-400 text-sm mt-3 block italic bg-red-900/20 py-2 px-4 rounded-xl border border-red-500/20">{manualSyncError}</span>
              </p>
              <button 
                onClick={() => setManualSyncError(null)}
-               className="w-full bg-red-600 hover:bg-red-700 text-white font-black py-4 rounded-xl transition-all shadow-lg active:scale-95"
+               className="w-full bg-red-600 hover:bg-red-700 text-white font-black py-5 rounded-2xl transition-all shadow-xl active:scale-95 text-lg"
              >
                আবার চেষ্টা করুন (Retry)
              </button>
@@ -481,12 +504,12 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {/* Cloud Sync Indicator */}
-      {(isSyncing || syncError) && (
-        <div className={`fixed bottom-4 right-4 z-[9999] flex items-center gap-2 bg-slate-800/90 backdrop-blur-sm border ${syncError ? 'border-red-500/50' : 'border-cyan-500/50'} px-4 py-2 rounded-full shadow-lg ${!syncError ? 'animate-pulse' : ''}`}>
-          <div className={`w-2 h-2 ${syncError ? 'bg-red-500' : 'bg-cyan-500'} rounded-full ${!syncError ? 'animate-ping' : ''}`}></div>
-          <span className={`text-[10px] font-bold ${syncError ? 'text-red-400' : 'text-cyan-400'} uppercase tracking-widest`}>
-            {syncError ? 'Sync Failed (Offline)' : 'Syncing to Cloud...'}
+      {/* Cloud Sync Indicator (Background) - Suppressed if manual sync was recent */}
+      {showSyncNotification && (
+        <div className={`fixed bottom-4 right-4 z-[9999] flex items-center gap-2 bg-slate-800/95 backdrop-blur-md border ${syncError ? 'border-red-500/50' : 'border-cyan-500/50'} px-5 py-2.5 rounded-full shadow-2xl transition-all duration-500 ${!syncError ? 'animate-pulse' : ''}`}>
+          <div className={`w-2 h-2 ${syncError ? 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,1)]' : 'bg-cyan-500 shadow-[0_0_10px_rgba(6,182,212,1)]'} rounded-full ${!syncError ? 'animate-ping' : ''}`}></div>
+          <span className={`text-[10px] font-black ${syncError ? 'text-red-400' : 'text-cyan-400'} uppercase tracking-[0.2em]`}>
+            {syncError ? 'Sync Failed (Offline)' : 'Update Synced'}
           </span>
         </div>
       )}

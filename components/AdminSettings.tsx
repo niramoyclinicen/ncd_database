@@ -114,11 +114,21 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ passwords, onSave, onBack
         }
     };
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    onSave(localPasswords);
-    setSuccess(true);
-    setTimeout(() => setSuccess(false), 3000);
+    
+    if (performBlockingSync) {
+        const success = await performBlockingSync({ passwords: localPasswords });
+        if (success) {
+            onSave(localPasswords);
+            setSuccess(true);
+            setTimeout(() => setSuccess(false), 3000);
+        }
+    } else {
+        onSave(localPasswords);
+        setSuccess(true);
+        setTimeout(() => setSuccess(false), 3000);
+    }
   };
 
   const handleDownloadBackup = () => {

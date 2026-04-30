@@ -10,6 +10,7 @@ interface Props {
     setDueCollections: React.Dispatch<React.SetStateAction<DueCollection[]>>;
     employees: Employee[];
     onViewInvoice?: (invoiceId: string) => void;
+    performBlockingSync?: (overrides?: any) => Promise<boolean>;
 }
 
 const monthOptions = [
@@ -19,7 +20,7 @@ const monthOptions = [
     { value: "10", name: 'October' }, { value: "11", name: 'November' }, { value: "12", name: 'December' }
 ];
 
-const PrevDueCollectionPage: React.FC<Props> = ({ invoices, setInvoices, dueCollections, setDueCollections, employees, onViewInvoice }) => {
+const PrevDueCollectionPage: React.FC<Props> = ({ invoices, setInvoices, dueCollections, setDueCollections, employees, onViewInvoice, performBlockingSync }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [filterDay, setFilterDay] = useState('');
     const [filterMonth, setFilterMonth] = useState('');
@@ -74,7 +75,7 @@ const PrevDueCollectionPage: React.FC<Props> = ({ invoices, setInvoices, dueColl
         win.document.write(html); win.document.close(); win.print();
     };
 
-    const handleConfirmCollection = () => {
+    const handleConfirmCollection = async () => {
         if (!selectedInvoice || collectionAmount <= 0 || collectionAmount > selectedInvoice.due_amount + 0.1) {
             alert("ভুল অ্যামাউন্ট!"); return;
         }
@@ -83,12 +84,25 @@ const PrevDueCollectionPage: React.FC<Props> = ({ invoices, setInvoices, dueColl
         
         const updatedInvoice: LabInvoice = { ...selectedInvoice, paid_amount: selectedInvoice.paid_amount + collectionAmount, due_amount: selectedInvoice.due_amount - collectionAmount, status: (selectedInvoice.due_amount - collectionAmount) <= 0.5 ? 'Paid' : 'Due', last_modified: collectionDate };
 
-        setDueCollections(prev => [...prev, newCol]);
-        setInvoices(prev => prev.map(inv => inv.invoice_id === updatedInvoice.invoice_id ? updatedInvoice : inv));
-        
-        handlePrintReceipt(selectedInvoice, collectionAmount);
-        setSuccessMessage(`সফলভাবে ${collectionAmount} টাকা আদায় হয়েছে।`);
-        setShowModal(false); setSelectedInvoice(null);
+        const newCols = [...dueCollections, newCol];
+        const newInvs = invoices.map(inv => inv.invoice_id === updatedInvoice.invoice_id ? updatedInvoice : inv);
+
+        if (performBlockingSync) {
+            const success = await performBlockingSync({ dueCollections: newCols, labInvoices: newInvs });
+            if (success) {
+                setDueCollections(newCols);
+                setInvoices(newInvs);
+                handlePrintReceipt(selectedInvoice, collectionAmount);
+                setSuccessMessage('ডাটা সঠিকভাবে সেভ হয়েছে!');
+                setShowModal(false); setSelectedInvoice(null);
+            }
+        } else {
+            setDueCollections(newCols);
+            setInvoices(newInvs);
+            handlePrintReceipt(selectedInvoice, collectionAmount);
+            setSuccessMessage(`সফলভাবে ${collectionAmount} টাকা আদায় হয়েছে।`);
+            setShowModal(false); setSelectedInvoice(null);
+        }
     };
 
     return (

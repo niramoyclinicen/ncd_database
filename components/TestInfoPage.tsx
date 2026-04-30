@@ -10,9 +10,10 @@ interface Props {
     isEmbedded?: boolean;
     onClose?: () => void;
     onSaveAndSelect?: (id: string, name: string) => void;
+    performBlockingSync?: (overrides?: any) => Promise<boolean>;
 }
 
-const TestInfoPage: React.FC<Props> = ({ reagents, tests, setTests, isEmbedded = false, onClose, onSaveAndSelect }) => {
+const TestInfoPage: React.FC<Props> = ({ reagents, tests, setTests, isEmbedded = false, onClose, onSaveAndSelect, performBlockingSync }) => {
   const [formData, setFormData] = useState<Test>(emptyTest);
   const [selectedTestId, setSelectedTestId] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState<boolean>(false);
@@ -95,19 +96,28 @@ const TestInfoPage: React.FC<Props> = ({ reagents, tests, setTests, isEmbedded =
     setFormData({ ...emptyTest, test_id: newId });
   };
 
-  const handleSaveTest = (e: React.FormEvent) => {
+  const handleSaveTest = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.test_id || !formData.test_name || !formData.category) return alert("Missing info");
     const finalTest = { ...formData, sub_tests: formData.is_group_test ? tempSubTests : [] };
     
+    let newTests;
     if (isEditing) {
-      setTests(tests.map(t => t.test_id === finalTest.test_id ? finalTest : t));
+      newTests = tests.map(t => t.test_id === finalTest.test_id ? finalTest : t);
     } else {
-      setTests([finalTest, ...tests]);
-      if (isEmbedded && onSaveAndSelect) {
-        onSaveAndSelect(finalTest.test_id, finalTest.test_name);
-      }
+      newTests = [finalTest, ...tests];
     }
+
+    if (performBlockingSync) {
+      const success = await performBlockingSync({ tests: newTests });
+      if (!success) return;
+    }
+
+    setTests(newTests);
+    if (!isEditing && isEmbedded && onSaveAndSelect) {
+      onSaveAndSelect(finalTest.test_id, finalTest.test_name);
+    }
+
     setSuccessMessage('টেস্ট ডাটা সফলভাবে সেভ করা হয়েছে!');
     
     if (isEmbedded && onClose) {

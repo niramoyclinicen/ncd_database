@@ -9,6 +9,7 @@ interface PatientInfoPageProps {
   isEmbedded?: boolean; 
   onClose?: () => void; 
   onSaveAndSelect?: (id: string, name: string) => void; 
+  performBlockingSync?: (overrides?: any) => Promise<boolean>;
 }
 
 // --- Simple Pie Chart Component ---
@@ -91,7 +92,9 @@ const AddressPieChart: React.FC<{ patients: Patient[] }> = ({ patients }) => {
     );
 };
 
-const PatientInfoPage: React.FC<PatientInfoPageProps> = ({ patients, setPatients, isEmbedded = false, onClose, onSaveAndSelect }) => {
+const PatientInfoPage: React.FC<PatientInfoPageProps> = ({ 
+  patients, setPatients, isEmbedded = false, onClose, onSaveAndSelect, performBlockingSync 
+}) => {
   const [formData, setFormData] = useState<Patient>(emptyPatient);
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState<boolean>(false);
@@ -233,7 +236,7 @@ const PatientInfoPage: React.FC<PatientInfoPageProps> = ({ patients, setPatients
     }
   };
 
-  const handleSavePatient = (e: React.FormEvent) => {
+  const handleSavePatient = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.pt_id || !formData.pt_name) return alert('Patient ID and Name are required.');
     const rawMobile = formData.mobile.replace(/\D/g, '');
@@ -242,8 +245,20 @@ const PatientInfoPage: React.FC<PatientInfoPageProps> = ({ patients, setPatients
       return;
     }
     const currentDateTime = formatDateTime(new Date()); 
-    if (isEditing) setPatients(patients.map(p => p.pt_id === formData.pt_id ? { ...formData, date_modified: currentDateTime } : p));
-    else setPatients([{ ...formData, date_modified: currentDateTime }, ...patients]);
+    const updatedPatient = { ...formData, date_modified: currentDateTime };
+    let newPatients;
+    if (isEditing) {
+      newPatients = patients.map(p => p.pt_id === formData.pt_id ? updatedPatient : p);
+    } else {
+      newPatients = [updatedPatient, ...patients];
+    }
+
+    if (performBlockingSync) {
+      const success = await performBlockingSync({ patients: newPatients });
+      if (!success) return;
+    }
+
+    setPatients(newPatients);
     setSuccessMessage('Saved successfully!');
     if (isEmbedded && onSaveAndSelect) onSaveAndSelect(formData.pt_id, formData.pt_name);
     setFormData(emptyPatient);

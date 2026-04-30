@@ -17,6 +17,7 @@ interface MarketingPageProps {
   employees: Employee[];
   employeeReferrerMap: Record<string, string[]>;
   setEmployeeReferrerMap: React.Dispatch<React.SetStateAction<Record<string, string[]>>>;
+  performBlockingSync?: (overrides?: any) => Promise<boolean>;
 }
 
 const monthOptions = [
@@ -28,7 +29,7 @@ const monthOptions = [
 
 const MarketingPage: React.FC<MarketingPageProps> = ({ 
   onBack, referrars, labInvoices, indoorInvoices, patients, employees,
-  employeeReferrerMap, setEmployeeReferrerMap
+  employeeReferrerMap, setEmployeeReferrerMap, performBlockingSync
 }) => {
   const [activeTab, setActiveTab] = useState<'marketing_management' | 'analytics' | 'commission' | 'targets' | 'visits'>('marketing_management');
   const [searchTerm, setSearchTerm] = useState('');
@@ -246,18 +247,29 @@ const MarketingPage: React.FC<MarketingPageProps> = ({
     </div>
   );
 
-  const handleToggleReferrer = (staffId: string, refId: string) => {
-    setEmployeeReferrerMap(prev => {
-        const currentRefs = prev[staffId] || [];
-        const isAssigned = currentRefs.includes(refId);
-        const newMapping = { ...prev };
-        if (isAssigned) {
-            newMapping[staffId] = currentRefs.filter(id => id !== refId);
-        } else {
-            newMapping[staffId] = [...currentRefs, refId];
+  const handleToggleReferrer = async (staffId: string, refId: string) => {
+    const currentRefs = employeeReferrerMap[staffId] || [];
+    const isAssigned = currentRefs.includes(refId);
+    let newRefs: string[];
+    
+    if (isAssigned) {
+        newRefs = currentRefs.filter(id => id !== refId);
+    } else {
+        newRefs = [...currentRefs, refId];
+    }
+
+    const newMapping = { ...employeeReferrerMap, [staffId]: newRefs };
+    
+    if (performBlockingSync) {
+        const success = await performBlockingSync({ employeeReferrerMap: newMapping });
+        if (success) {
+            setEmployeeReferrerMap(newMapping);
+            setSuccessMessage("Referrer Assignment Updated!");
         }
-        return newMapping;
-    });
+    } else {
+        setEmployeeReferrerMap(newMapping);
+        setSuccessMessage("Referrer Assignment Updated (Local Only)!");
+    }
   };
 
   const renderTargetSystem = () => (

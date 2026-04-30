@@ -67,10 +67,11 @@ interface DoctorAppointmentPageProps {
   invoices?: LabInvoice[];
   appointments: Appointment[];
   setAppointments: React.Dispatch<React.SetStateAction<Appointment[]>>;
+  performBlockingSync?: (overrides?: any) => Promise<boolean>;
 }
 
 const DoctorAppointmentPage: React.FC<DoctorAppointmentPageProps> = ({ 
-  patients, setPatients, doctors, setDoctors, referrars, setReferrars, invoices = [], appointments, setAppointments 
+  patients, setPatients, doctors, setDoctors, referrars, setReferrars, invoices = [], appointments, setAppointments, performBlockingSync
 }) => {
   const [formData, setFormData] = useState<Appointment>(emptyAppointment);
   const [selectedAppointmentId, setSelectedAppointmentId] = useState<string | null>(null);
@@ -284,23 +285,33 @@ const DoctorAppointmentPage: React.FC<DoctorAppointmentPageProps> = ({
     setShowNewReferrarForm(false);
   };
 
-  const handleSaveAppointment = (e: React.FormEvent) => {
+  const handleSaveAppointment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.appointment_id || !formData.patient_id || !formData.doctor_id || !formData.appointment_date || !formData.appointment_time || !formData.reason || !formData.status) {
       alert('Error: Please fill in all required fields.');
       return;
     }
+    
+    let newAppointments;
     if (isEditing) {
-      setAppointments(prev => prev.map(a => a.appointment_id === formData.appointment_id ? formData : a));
-      setSuccessMessage('অ্যাপয়েন্টমেন্ট ডাটা সফলভাবে আপডেট করা হয়েছে!');
+      newAppointments = appointments.map(a => a.appointment_id === formData.appointment_id ? formData : a);
     } else {
       if (appointments.some(a => a.appointment_id === formData.appointment_id)) {
         alert('Error: Appointment ID already exists. Please get a new ID.');
         return;
       }
-      setAppointments(prev => [formData, ...prev]);
-      setSuccessMessage('নতুন অ্যাপয়েন্টমেন্ট সফলভাবে সেভ করা হয়েছে!');
+      newAppointments = [formData, ...appointments];
     }
+
+    if (performBlockingSync) {
+      const success = await performBlockingSync({ appointments: newAppointments });
+      if (!success) return;
+    }
+
+    setAppointments(newAppointments);
+    if (isEditing) setSuccessMessage('অ্যাপয়েন্টমেন্ট ডাটা সফলভাবে আপডেট করা হয়েছে!');
+    else setSuccessMessage('নতুন অ্যাপয়েন্টমেন্ট সফলভাবে সেভ করা হয়েছে!');
+    
     resetForm();
   };
 
@@ -313,24 +324,38 @@ const DoctorAppointmentPage: React.FC<DoctorAppointmentPageProps> = ({
     }
   };
 
-  const handleCancelAppointment = () => {
+  const handleCancelAppointment = async () => {
     if (!selectedAppointmentId) return alert("Please select an appointment.");
     const appointmentToCancel = appointments.find(a => a.appointment_id === selectedAppointmentId);
     if (appointmentToCancel && (appointmentToCancel.status === 'Scheduled' || appointmentToCancel.status === 'Completed')) {
       if (window.confirm(`Are you sure you want to cancel appointment ${appointmentToCancel.appointment_id}?`)) {
-        setAppointments(prev => prev.map(a => a.appointment_id === selectedAppointmentId ? { ...a, status: 'Cancelled' } : a));
+        const newAppointments = appointments.map(a => a.appointment_id === selectedAppointmentId ? { ...a, status: 'Cancelled' } : a);
+        
+        if (performBlockingSync) {
+          const success = await performBlockingSync({ appointments: newAppointments });
+          if (!success) return;
+        }
+
+        setAppointments(newAppointments);
         resetForm();
         setSuccessMessage('অ্যাপয়েন্টমেন্টটি বাতিল করা হয়েছে।');
       }
     }
   };
 
-  const handleReturnAppointment = () => {
+  const handleReturnAppointment = async () => {
     if (!selectedAppointmentId) return alert("Please select an appointment.");
     const appointmentToReturn = appointments.find(a => a.appointment_id === selectedAppointmentId);
     if (appointmentToReturn && appointmentToReturn.status !== 'Returned' && appointmentToReturn.status !== 'Cancelled') {
       if (window.confirm(`আপনি কি এই অ্যাপয়েন্টমেন্টের (${appointmentToReturn.appointment_id}) ফি রিফান্ড করতে চান? এটি আজকের হিসাব থেকে মাইনাস হবে।`)) {
-        setAppointments(prev => prev.map(a => a.appointment_id === selectedAppointmentId ? { ...a, status: 'Returned', return_date: todayDateString } : a));
+        const newAppointments = appointments.map(a => a.appointment_id === selectedAppointmentId ? { ...a, status: 'Returned', return_date: todayDateString } : a);
+        
+        if (performBlockingSync) {
+          const success = await performBlockingSync({ appointments: newAppointments });
+          if (!success) return;
+        }
+
+        setAppointments(newAppointments);
         resetForm();
         setSuccessMessage('পেশেন্ট ফি সফলভাবে রিটার্ন করা হয়েছে।');
       }
@@ -604,9 +629,9 @@ const DoctorAppointmentPage: React.FC<DoctorAppointmentPageProps> = ({
       </div>
 
       {/* EMBEDDED MODALS */}
-      {showNewPatientForm && <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/80 backdrop-blur-md p-4"><div className="w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-[2.5rem] border border-slate-700 bg-slate-900 relative shadow-[0_0_100px_rgba(0,0,0,0.8)]"><button onClick={() => setShowNewPatientForm(false)} className="absolute top-6 right-6 text-slate-500 hover:text-white z-10 p-2 bg-slate-800 rounded-full">&times;</button><div className="p-2"><PatientInfoPage patients={patients} setPatients={setPatients} isEmbedded onClose={() => setShowNewPatientForm(false)} onSaveAndSelect={handlePatientSelect} /></div></div></div>}
-      {showNewDoctorForm && <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/80 backdrop-blur-md p-4"><div className="w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-[2.5rem] border border-slate-700 bg-slate-900 relative shadow-[0_0_100px_rgba(0,0,0,0.8)]"><button onClick={() => setShowNewDoctorForm(false)} className="absolute top-6 right-6 text-slate-500 hover:text-white z-10 p-2 bg-slate-800 rounded-full">&times;</button><div className="p-2"><DoctorInfoPage doctors={doctors} setDoctors={setDoctors} isEmbedded onClose={() => setShowNewDoctorForm(false)} onSaveAndSelect={handleDoctorSelect} /></div></div></div>}
-      {showNewReferrarForm && <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/80 backdrop-blur-md p-4"><div className="w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-[2.5rem] border border-slate-700 bg-slate-900 relative shadow-[0_0_100px_rgba(0,0,0,0.8)]"><button onClick={() => setShowNewReferrarForm(false)} className="absolute top-6 right-6 text-slate-500 hover:text-white z-10 p-2 bg-slate-800 rounded-full">&times;</button><div className="p-2"><ReferrerInfoPage referrars={referrars} setReferrars={setReferrars} isEmbedded onClose={() => setShowNewReferrarForm(false)} onSaveAndSelect={handleReferrarSelect} /></div></div></div>}
+      {showNewPatientForm && <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/80 backdrop-blur-md p-4"><div className="w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-[2.5rem] border border-slate-700 bg-slate-900 relative shadow-[0_0_100px_rgba(0,0,0,0.8)]"><button onClick={() => setShowNewPatientForm(false)} className="absolute top-6 right-6 text-slate-500 hover:text-white z-10 p-2 bg-slate-800 rounded-full">&times;</button><div className="p-2"><PatientInfoPage patients={patients} setPatients={setPatients} isEmbedded onClose={() => setShowNewPatientForm(false)} onSaveAndSelect={handlePatientSelect} performBlockingSync={performBlockingSync} /></div></div></div>}
+      {showNewDoctorForm && <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/80 backdrop-blur-md p-4"><div className="w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-[2.5rem] border border-slate-700 bg-slate-900 relative shadow-[0_0_100px_rgba(0,0,0,0.8)]"><button onClick={() => setShowNewDoctorForm(false)} className="absolute top-6 right-6 text-slate-500 hover:text-white z-10 p-2 bg-slate-800 rounded-full">&times;</button><div className="p-2"><DoctorInfoPage doctors={doctors} setDoctors={setDoctors} isEmbedded onClose={() => setShowNewDoctorForm(false)} onSaveAndSelect={handleDoctorSelect} performBlockingSync={performBlockingSync} /></div></div></div>}
+      {showNewReferrarForm && <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/80 backdrop-blur-md p-4"><div className="w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-[2.5rem] border border-slate-700 bg-slate-900 relative shadow-[0_0_100px_rgba(0,0,0,0.8)]"><button onClick={() => setShowNewReferrarForm(false)} className="absolute top-6 right-6 text-slate-500 hover:text-white z-10 p-2 bg-slate-800 rounded-full">&times;</button><div className="p-2"><ReferrerInfoPage referrars={referrars} setReferrars={setReferrars} isEmbedded onClose={() => setShowNewReferrarForm(false)} onSaveAndSelect={handleReferrarSelect} performBlockingSync={performBlockingSync} /></div></div></div>}
     </div>
   );
 };

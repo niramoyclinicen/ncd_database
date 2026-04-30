@@ -317,13 +317,6 @@ const DailyExpenseForm: React.FC<any> = ({
         if (editingItem && editingItem.date === selectedDate) {
             return [{ ...editingItem }];
         }
-
-        const existingItems = (allDetailedExpenses && allDetailedExpenses[selectedDate]) || [];
-        const diagnosticItems = existingItems.filter((it: any) => !it.isDeleted && (it.dept === 'Diagnostic' || (!it.dept && expenseCategories.includes(it.category))));
-        
-        if (diagnosticItems.length > 0) {
-            return diagnosticItems.map(it => ({ ...it }));
-        }
         
         return [{
             id: Date.now(), category: expenseCategories[0], subCategory: '', description: '', billAmount: 0, paidAmount: 0, dept: 'Diagnostic'
@@ -382,9 +375,9 @@ const DailyExpenseForm: React.FC<any> = ({
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
-    const handleDeleteSavedItem = (savedItem: any) => {
+    const handleDeleteSavedItem = async (savedItem: any) => {
         if (window.confirm(`Are you sure you want to delete this expense entry (${savedItem.category}: ${savedItem.paidAmount}৳)?`)) {
-            onDelete(savedItem.date, savedItem.id);
+            await onDelete(savedItem.date, savedItem.id);
         }
     };
 
@@ -435,7 +428,7 @@ const DailyExpenseForm: React.FC<any> = ({
             setItems([{
                 id: Date.now(), category: expenseCategories[0], subCategory: '', description: '', billAmount: 0, paidAmount: 0, dept: 'Diagnostic'
             }]);
-            alert("সফলভাবে সেভ করা হয়েছে!");
+            alert("ডাটা সঠিকভাবে সেভ হয়েছে!");
         }
     };
 
@@ -922,26 +915,31 @@ const DiagnosticAccountsPage: React.FC<any> = ({
         setSuccessMessage("Expense data saved successfully! Syncing to cloud...");
     };
 
-    const handleDeleteExpense = (date: string, id: number) => {
-        setDetailedExpenses((prev: any) => {
-            const safePrev = prev || {};
-            const existingItems = safePrev[date] || [];
-            const updatedItems = existingItems.map((it: any) => {
-                if (it.id === id) {
-                    const history = it.editHistory || [];
-                    const newLog = {
-                        timestamp: new Date().toISOString(),
-                        field: 'DELETED',
-                        oldValue: 'Active',
-                        newValue: 'Deleted'
-                    };
-                    return { ...it, isDeleted: true, editHistory: [...history, newLog] };
-                }
-                return it;
-            });
-            return { ...prev, [date]: updatedItems };
+    const handleDeleteExpense = async (date: string, id: number) => {
+        const safeDetailedExpenses = detailedExpenses || {};
+        const existingItems = safeDetailedExpenses[date] || [];
+        const updatedItems = existingItems.map((it: any) => {
+            if (it.id === id) {
+                const history = it.editHistory || [];
+                const newLog = {
+                    timestamp: new Date().toISOString(),
+                    field: 'DELETED',
+                    oldValue: 'Active',
+                    newValue: 'Deleted'
+                };
+                return { ...it, isDeleted: true, editHistory: [...history, newLog] };
+            }
+            return it;
         });
-        setSuccessMessage("Expense item deleted successfully!");
+        
+        const newDetailedExpenses = { ...safeDetailedExpenses, [date]: updatedItems };
+        
+        const success = await performBlockingSync({ detailedExpenses: newDetailedExpenses });
+        
+        if (success) {
+            setDetailedExpenses(newDetailedExpenses);
+            setSuccessMessage("Expense item deleted successfully!");
+        }
     };
 
     const diagnosticExpenseSheetData = useMemo(() => {
@@ -1252,12 +1250,12 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                         }
                         th, td { 
                             border: 1px solid black; 
-                            padding: 1px; 
+                            padding: 2px; 
                             text-align: center; 
                             font-size: 7.5pt; 
                             word-wrap: break-word; 
                             line-height: 1.0; 
-                            height: 14.7pt;
+                            height: 18pt;
                         }
                         th { 
                             background: #f3f4f6; 
@@ -1509,16 +1507,16 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                                 </thead>
                                 <tbody className="text-[11px]">
                                     {diagnosticExpenseSheetData.rows.map(row => (
-                                        <tr key={row.date} className="hover:bg-blue-50 transition-colors border-b border-slate-200">
-                                            <td className="p-2 border border-slate-300 text-center font-mono font-bold bg-slate-50">
+                                        <tr key={row.date} className="hover:bg-blue-50 transition-colors border-b border-slate-200 h-[32px]">
+                                            <td className="p-1 border border-slate-300 text-center font-mono font-bold bg-slate-50">
                                                 {row.date.split('-')[2]} {monthOptions[selectedMonth].name.substring(0,3)}
                                             </td>
                                             {expenseCategories.map(cat => (
-                                                <td key={cat} className="p-2 border border-slate-300 text-center font-medium">
+                                                <td key={cat} className="p-1 border border-slate-300 text-center font-medium">
                                                     {row.categories[cat] > 0 ? row.categories[cat].toLocaleString() : '-'}
                                                 </td>
                                             ))}
-                                            <td className="p-2 border border-slate-300 text-right font-black bg-slate-50 text-slate-900">
+                                            <td className="p-1 border border-slate-300 text-right font-black bg-slate-50 text-slate-900">
                                                 ৳{row.total > 0 ? row.total.toLocaleString() : '-'}
                                             </td>
                                         </tr>

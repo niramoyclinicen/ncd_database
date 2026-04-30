@@ -16,6 +16,7 @@ interface MedicinePageProps {
   salesInvoices: SalesInvoice[];
   setSalesInvoices: React.Dispatch<React.SetStateAction<SalesInvoice[]>>;
   indoorInvoices: IndoorInvoice[];
+  performBlockingSync?: (overrides?: any) => Promise<boolean>;
 }
 
 type MedicineTab = 'buy' | 'due_paid' | 'sell' | 'store' | 'chart' | 'hishab';
@@ -38,7 +39,7 @@ const defaultSuppliers = [
 ];
 
 const MedicinePage: React.FC<MedicinePageProps> = ({ 
-    onBack, medicines, setMedicines, clinicalDrugs, setClinicalDrugs, employees, doctors, invoices, setInvoices, salesInvoices, setSalesInvoices, indoorInvoices
+    onBack, medicines, setMedicines, clinicalDrugs, setClinicalDrugs, employees, doctors, invoices, setInvoices, salesInvoices, setSalesInvoices, indoorInvoices, performBlockingSync
 }) => {
   const [activeTab, setActiveTab] = useState<MedicineTab>('sell');
   const [buyViewMode, setBuyViewMode] = useState<ViewMode>('list');
@@ -160,20 +161,32 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
       setShowSupplierSuggestions(true);
   };
 
-  const handleProcessDuePayment = () => {
+  const handleProcessDuePayment = async () => {
       const amt = parseFloat(paymentData.payAmount);
       if (isNaN(amt) || amt <= 0 || amt > paymentData.currentDue + 0.1) {
           alert("Invalid payment amount"); return;
       }
-      setInvoices(prev => prev.map(inv => {
+      
+      const newInvoicesArr = invoices.map(inv => {
           if (inv.invoiceId === paymentData.invoiceId) {
               const newPaid = inv.paidAmount + amt;
               return { ...inv, paidAmount: newPaid, dueAmount: inv.netPayable - newPaid };
           }
           return inv;
-      }));
-      setSuccessMessage("Supplier payment processed!");
-      setShowPaymentModal(false);
+      });
+
+      if (performBlockingSync) {
+          const success = await performBlockingSync({ purchaseInvoices: newInvoicesArr });
+          if (success) {
+              setInvoices(newInvoicesArr);
+              setSuccessMessage("ডাটা সঠিকভাবে সেভ হয়েছে!");
+              setShowPaymentModal(false);
+          }
+      } else {
+          setInvoices(newInvoicesArr);
+          setSuccessMessage("Supplier payment processed!");
+          setShowPaymentModal(false);
+      }
   };
 
   const selectMedicineForPurchase = (med: Medicine) => {
@@ -254,7 +267,7 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
   const removePurchaseItem = (index: number) => { setPurchaseFormData(prev => ({ ...prev, items: prev.items.filter((_, i) => i !== index) })); };
   const removeSalesItem = (index: number) => { setSalesFormData(prev => ({ ...prev, items: prev.items.filter((_, i) => i !== index) })); };
 
-  const handleSavePurchase = () => {
+  const handleSavePurchase = async () => {
       if (!purchaseFormData.source) { 
           setErrors({ source: true }); 
           alert("সাপ্লায়ার বা সোর্সের নাম লিখুন!");
@@ -267,74 +280,97 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
       
       const finalStatus = isOpeningStock ? 'Initial' : 'Posted';
       
-      setMedicines(prevMeds => {
-          const newMeds = [...prevMeds];
-          // If editing, reverse the previous invoice items quantities first
-          if(buyViewMode === 'edit' && editingPurchaseId) {
-              const oldInv = invoices.find(x => x.invoiceId === editingPurchaseId);
-              if(oldInv) {
-                  oldInv.items.forEach(oldItem => {
-                      const mIdx = newMeds.findIndex(m => m.id === oldItem.id);
-                      if (mIdx >= 0) newMeds[mIdx] = { ...newMeds[mIdx], stock: Math.max(0, newMeds[mIdx].stock - oldItem.qtyBuying) };
-                  });
-              }
+      const newMedsArr = [...(Array.isArray(medicines) ? medicines : [])];
+      // If editing, reverse the previous invoice items quantities first
+      if(buyViewMode === 'edit' && editingPurchaseId) {
+          const oldInv = invoices.find(x => x.invoiceId === editingPurchaseId);
+          if(oldInv) {
+              oldInv.items.forEach(oldItem => {
+                  const mIdx = newMedsArr.findIndex(m => m.id === oldItem.id);
+                  if (mIdx >= 0) newMedsArr[mIdx] = { ...newMedsArr[mIdx], stock: Math.max(0, newMedsArr[mIdx].stock - oldItem.qtyBuying) };
+              });
           }
+      }
 
-          // Apply current form quantities
-          purchaseFormData.items.forEach(item => {
-              const mIdx = newMeds.findIndex(m => m.id === item.id);
-              if (mIdx >= 0) { 
-                  newMeds[mIdx] = { 
-                      ...newMeds[mIdx], 
-                      stock: newMeds[mIdx].stock + Number(item.qtyBuying),
-                      unitPriceBuy: Number(item.unitPriceBuy),
-                      unitPriceSell: Number(item.unitPriceSell),
-                      genericName: item.genericName,
-                      strength: item.strength,
-                      formulation: item.formulation,
-                      expiryDate: item.expiryDate
-                  };
-              } else { 
-                  newMeds.push({ 
-                      id: item.id, tradeName: item.tradeName, genericName: item.genericName, 
-                      formulation: item.formulation, strength: item.strength, 
-                      stock: Number(item.qtyBuying), unitPriceBuy: item.unitPriceBuy, 
-                      unitPriceSell: item.unitPriceSell, expiryDate: item.expiryDate 
-                  }); 
-              }
-          });
-          return newMeds;
+      // Apply current form quantities
+      purchaseFormData.items.forEach(item => {
+          const mIdx = newMedsArr.findIndex(m => m.id === item.id);
+          if (mIdx >= 0) { 
+              newMedsArr[mIdx] = { 
+                  ...newMedsArr[mIdx], 
+                  stock: newMedsArr[mIdx].stock + Number(item.qtyBuying),
+                  unitPriceBuy: Number(item.unitPriceBuy),
+                  unitPriceSell: Number(item.unitPriceSell),
+                  genericName: item.genericName,
+                  strength: item.strength,
+                  formulation: item.formulation,
+                  expiryDate: item.expiryDate
+              };
+          } else { 
+              newMedsArr.push({ 
+                  id: item.id, tradeName: item.tradeName, genericName: item.genericName, 
+                  formulation: item.formulation, strength: item.strength, 
+                  stock: Number(item.qtyBuying), unitPriceBuy: item.unitPriceBuy, 
+                  unitPriceSell: item.unitPriceSell, expiryDate: item.expiryDate 
+              }); 
+          }
       });
 
+      let newInvoicesArr = [...(Array.isArray(invoices) ? invoices : [])];
       if (buyViewMode === 'edit') {
-          setInvoices(prev => prev.map(inv => inv.invoiceId === editingPurchaseId ? { ...purchaseFormData, status: finalStatus as any } : inv));
-          setSuccessMessage("Purchase invoice updated!");
+          newInvoicesArr = newInvoicesArr.map(inv => inv.invoiceId === editingPurchaseId ? { ...purchaseFormData, status: finalStatus as any } : inv);
       } else {
-          setInvoices([ { ...purchaseFormData, status: finalStatus as any, createdDate: new Date().toISOString() }, ...invoices ]);
-          setSuccessMessage("Purchase invoice saved!");
+          newInvoicesArr = [ { ...purchaseFormData, status: finalStatus as any, createdDate: new Date().toISOString() }, ...newInvoicesArr ];
       }
-      
-      setBuyViewMode('list');
-      setEditingPurchaseId(null);
-      setIsOpeningStock(false);
+
+      if (performBlockingSync) {
+          const success = await performBlockingSync({ medicines: newMedsArr, purchaseInvoices: newInvoicesArr });
+          if (success) {
+              setMedicines(newMedsArr);
+              setInvoices(newInvoicesArr);
+              setSuccessMessage("ডাটা সঠিকভাবে সেভ হয়েছে!");
+              setBuyViewMode('list');
+              setEditingPurchaseId(null);
+              setIsOpeningStock(false);
+          }
+      } else {
+          setMedicines(newMedsArr);
+          setInvoices(newInvoicesArr);
+          setSuccessMessage(buyViewMode === 'edit' ? "Purchase invoice updated!" : "Purchase invoice saved!");
+          setBuyViewMode('list');
+          setEditingPurchaseId(null);
+          setIsOpeningStock(false);
+      }
   };
 
-  const handleReturnPurchase = (inv: PurchaseInvoice) => {
+  const handleReturnPurchase = async (inv: PurchaseInvoice) => {
     if(!confirm(`সাপ্লায়ার "${inv.source}" এর সকল ঔষধ ফেরত পাঠাতে চান? স্টক থেকে ঔষধ বিয়োগ হয়ে যাবে।`)) return;
     
-    setMedicines(prevMeds => prevMeds.map(m => {
+    const newMedsArr = medicines.map(m => {
         const returnedItem = inv.items.find(it => it.id === m.id);
         if (returnedItem) {
             return { ...m, stock: Math.max(0, m.stock - returnedItem.qtyBuying) };
         }
         return m;
-    }));
+    });
 
-    setInvoices(prev => prev.filter(x => x.invoiceId !== inv.invoiceId));
-    setSuccessMessage("Purchase Invoice Returned & Stock Adjusted!");
+    const newInvoicesArr = invoices.filter(x => x.invoiceId !== inv.invoiceId);
+
+    if (performBlockingSync) {
+        const success = await performBlockingSync({ medicines: newMedsArr, purchaseInvoices: newInvoicesArr });
+        if (success) {
+            setMedicines(newMedsArr);
+            setInvoices(newInvoicesArr);
+            setSuccessMessage("ডাটা সঠিকভাবে সেভ হয়েছে!");
+        }
+    } else {
+        setMedicines(newMedsArr);
+        setInvoices(newInvoicesArr);
+        setSuccessMessage("Purchase Invoice Returned & Stock Adjusted!");
+    }
   };
 
-  const handleSaveSales = () => {
+  const handleSaveSales = async () => {
       if (!salesFormData.customerName) { 
           setErrors({ customerName: true }); 
           alert("পেশেন্টের নাম লিখুন!");
@@ -347,35 +383,46 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
       
       setLoading(true);
       try {
-          setMedicines(prevMeds => {
-              const newMeds = [...prevMeds];
-              if (sellViewMode === 'edit' && editingInvoiceId) {
-                  const oldInv = salesInvoices.find(x => x.invoiceId === editingInvoiceId);
-                  if (oldInv) {
-                      oldInv.items.forEach(oldItem => {
-                          const mIdx = newMeds.findIndex(m => m.id === oldItem.id);
-                          if (mIdx >= 0) newMeds[mIdx] = { ...newMeds[mIdx], stock: newMeds[mIdx].stock + oldItem.qtySelling };
-                      });
-                  }
+          const newMedsArr = [...(Array.isArray(medicines) ? medicines : [])];
+          if (sellViewMode === 'edit' && editingInvoiceId) {
+              const oldInv = salesInvoices.find(x => x.invoiceId === editingInvoiceId);
+              if (oldInv) {
+                  oldInv.items.forEach(oldItem => {
+                      const mIdx = newMedsArr.findIndex(m => m.id === oldItem.id);
+                      if (mIdx >= 0) newMedsArr[mIdx] = { ...newMedsArr[mIdx], stock: newMedsArr[mIdx].stock + oldItem.qtySelling };
+                  });
               }
-              salesFormData.items.forEach(newItem => {
-                  const mIdx = newMeds.findIndex(m => m.id === newItem.id);
-                  if (mIdx >= 0) newMeds[mIdx] = { ...newMeds[mIdx], stock: Math.max(0, newMeds[mIdx].stock - newItem.qtySelling) };
-              });
-              return newMeds;
+          }
+          salesFormData.items.forEach(newItem => {
+              const mIdx = newMedsArr.findIndex(m => m.id === newItem.id);
+              if (mIdx >= 0) newMedsArr[mIdx] = { ...newMedsArr[mIdx], stock: Math.max(0, newMedsArr[mIdx].stock - newItem.qtySelling) };
           });
 
+          let newSalesArr = [...(Array.isArray(salesInvoices) ? salesInvoices : [])];
           if (sellViewMode === 'edit') {
-              setSalesInvoices(prev => prev.map(inv => inv.invoiceId === editingInvoiceId ? { ...salesFormData, status: 'Posted' } : inv));
-              setSuccessMessage("Invoice Correction Saved!");
-              alert("Invoice Correction Saved Successfully!");
+              newSalesArr = newSalesArr.map(inv => inv.invoiceId === editingInvoiceId ? { ...salesFormData, status: 'Posted' } : inv);
           } else {
-              setSalesInvoices([ { ...salesFormData, status: 'Posted', createdDate: new Date().toISOString() }, ...salesInvoices ]);
-              setSuccessMessage("Sale Completed Successfully!");
+              newSalesArr = [ { ...salesFormData, status: 'Posted', createdDate: new Date().toISOString() }, ...newSalesArr ];
+          }
+
+          if (performBlockingSync) {
+              const success = await performBlockingSync({ medicines: newMedsArr, salesInvoices: newSalesArr });
+              if (success) {
+                  setMedicines(newMedsArr);
+                  setSalesInvoices(newSalesArr);
+                  setSuccessMessage("ডাটা সঠিকভাবে সেভ হয়েছে!");
+                  setSellViewMode('list');
+                  setEditingInvoiceId(null);
+                  alert("Sale Completed Successfully!");
+              }
+          } else {
+              setMedicines(newMedsArr);
+              setSalesInvoices(newSalesArr);
+              setSuccessMessage(sellViewMode === 'edit' ? "Invoice Correction Saved!" : "Sale Completed Successfully!");
+              setSellViewMode('list');
+              setEditingInvoiceId(null);
               alert("Sale Completed Successfully!");
           }
-          setSellViewMode('list');
-          setEditingInvoiceId(null);
       } catch (error) {
           console.error("Error saving sales:", error);
           alert("বিক্রি সেভ করার সময় একটি ত্রুটি হয়েছে।");
@@ -384,15 +431,29 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
       }
   };
 
-  const handleReturnSale = (inv: SalesInvoice) => {
+  const handleReturnSale = async (inv: SalesInvoice) => {
     if(!confirm(`পেশেন্ট "${inv.customerName}" এর সকল ঔষধ ফেরত নিতে চান? স্টকে ঔষধ যোগ হয়ে যাবে।`)) return;
-    setMedicines(prevMeds => prevMeds.map(m => {
+    
+    const newMedsArr = medicines.map(m => {
         const returnedItem = inv.items.find(it => it.id === m.id);
         if (returnedItem) return { ...m, stock: m.stock + returnedItem.qtySelling };
         return m;
-    }));
-    setSalesInvoices(prev => prev.filter(x => x.invoiceId !== inv.invoiceId));
-    setSuccessMessage("Return Processed! Stock Restored.");
+    });
+    
+    const newSalesArr = salesInvoices.filter(x => x.invoiceId !== inv.invoiceId);
+
+    if (performBlockingSync) {
+        const success = await performBlockingSync({ medicines: newMedsArr, salesInvoices: newSalesArr });
+        if (success) {
+            setMedicines(newMedsArr);
+            setSalesInvoices(newSalesArr);
+            setSuccessMessage("ডাটা সঠিকভাবে সেভ হয়েছে!");
+        }
+    } else {
+        setMedicines(newMedsArr);
+        setSalesInvoices(newSalesArr);
+        setSuccessMessage("Return Processed! Stock Restored.");
+    }
   };
 
   const startEditSale = (inv: SalesInvoice) => {
@@ -411,7 +472,7 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
     setSuccessMessage("Drug Database updated!");
   };
 
-  const handleManualAdjustment = () => {
+  const handleManualAdjustment = async () => {
     const qty = parseFloat(adjustmentData.adjustmentQty);
     const sellPrice = parseFloat(adjustmentData.newSellingPrice);
     if (isNaN(qty) || qty <= 0) {
@@ -423,7 +484,7 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
       return;
     }
 
-    setMedicines(prev => prev.map(m => {
+    const newMedsArr = medicines.map(m => {
       if (m.id === adjustmentData.medicineId) {
         const newStock = adjustmentData.adjustmentType === 'add' 
           ? m.stock + qty 
@@ -435,10 +496,20 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
         };
       }
       return m;
-    }));
+    });
 
-    setSuccessMessage(`Stock adjusted for ${adjustmentData.tradeName}`);
-    setShowAdjustmentModal(false);
+    if (performBlockingSync) {
+        const success = await performBlockingSync({ medicines: newMedsArr });
+        if (success) {
+            setMedicines(newMedsArr);
+            setSuccessMessage("ডাটা সঠিকভাবে সেভ হয়েছে!");
+            setShowAdjustmentModal(false);
+        }
+    } else {
+        setMedicines(newMedsArr);
+        setSuccessMessage(`Stock adjusted for ${adjustmentData.tradeName}`);
+        setShowAdjustmentModal(false);
+    }
   };
 
   // --- PRINT FUNCTIONS ---

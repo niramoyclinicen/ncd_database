@@ -13,9 +13,13 @@ interface DoctorPortalProps {
   onLogout: () => void;
   drugDatabase: DrugMonograph[]; 
   availableTests: Test[]; 
+  performBlockingSync?: (overrides?: any) => Promise<boolean>;
 }
 
-const DoctorPortal: React.FC<DoctorPortalProps> = ({ doctor, appointments, patients, prescriptions, setPrescriptions, onLogout, drugDatabase, availableTests }) => {
+const DoctorPortal: React.FC<DoctorPortalProps> = ({ 
+  doctor, appointments, patients, prescriptions, setPrescriptions, onLogout, 
+  drugDatabase, availableTests, performBlockingSync 
+}) => {
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
   const [existingPrescriptionData, setExistingPrescriptionData] = useState<PrescriptionRecord | undefined>(undefined);
   const [showPrescriptionModal, setShowPrescriptionModal] = useState(false);
@@ -45,17 +49,22 @@ const DoctorPortal: React.FC<DoctorPortalProps> = ({ doctor, appointments, patie
     setShowPrescriptionModal(true);
   };
 
-  const handleSavePrescription = (data: PrescriptionRecord) => {
-      setPrescriptions(prev => {
-          const index = prev.findIndex(p => p.id === data.id);
-          if (index >= 0) {
-              const updated = [...prev];
-              updated[index] = data;
-              return updated;
-          } else {
-              return [data, ...prev];
-          }
-      });
+  const handleSavePrescription = async (data: PrescriptionRecord) => {
+      let newPrescriptions;
+      const index = prescriptions.findIndex(p => p.id === data.id);
+      if (index >= 0) {
+          newPrescriptions = [...prescriptions];
+          newPrescriptions[index] = data;
+      } else {
+          newPrescriptions = [data, ...prescriptions];
+      }
+
+      if (performBlockingSync) {
+        const success = await performBlockingSync({ prescriptions: newPrescriptions });
+        if (!success) return;
+      }
+
+      setPrescriptions(newPrescriptions);
       setShowPrescriptionModal(false);
       setSelectedAppointment(null);
       setExistingPrescriptionData(undefined);

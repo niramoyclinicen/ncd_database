@@ -189,9 +189,6 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
     const handleSaveReport = async (reportData: any, isAutoSave: boolean = false) => {
         if (!selectedInvoiceId || !activeTestName) return;
         
-        let updatedReports: LabReport[] = [];
-        let finalUpdatedInvoices: Invoice[] = invoices;
-
         // 1. Calculate updated reports
         const existing = reports.find((r: LabReport) => r.invoice_id === selectedInvoiceId && r.test_name === activeTestName);
         const newReport: LabReport = {
@@ -201,10 +198,11 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
             technologistId: selectedTechnologistId, consultantId: selectedConsultantId,
             isDelivered: existing?.isDelivered || false
         };
-        updatedReports = reports.filter((r: LabReport) => !(r.invoice_id === selectedInvoiceId && r.test_name === activeTestName));
+        const updatedReports = reports.filter((r: LabReport) => !(r.invoice_id === selectedInvoiceId && r.test_name === activeTestName));
         updatedReports.push(newReport);
 
         // 2. Calculate updated invoices
+        let finalUpdatedInvoices = invoices;
         if (currentInvoice) {
             const completedTestsForInvoice = updatedReports.filter(r => r.invoice_id === selectedInvoiceId).map(r => r.test_name);
             const allTestsDone = currentInvoice.items.every((item: any) => completedTestsForInvoice.includes(item.test_name));
@@ -213,22 +211,25 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
             }
         }
 
-        // 3. Update local states
-        setReports(updatedReports);
-        if (finalUpdatedInvoices !== invoices) {
-            setInvoices(finalUpdatedInvoices);
-        }
-
-        // 4. Perform blocking sync if requested manually
+        // 3. Perform blocking sync if requested manually
         if (!isAutoSave && performBlockingSync) {
             const success = await performBlockingSync({ 
                 reports: updatedReports, 
                 labInvoices: finalUpdatedInvoices 
             });
             if (success) {
+                setReports(updatedReports);
+                if (finalUpdatedInvoices !== invoices) {
+                    setInvoices(finalUpdatedInvoices);
+                }
                 setSuccessMessage(`রিপোর্ট সফলভাবে সেভ হয়েছে!`);
             }
         } else {
+            // For auto-save or if no sync function provided
+            setReports(updatedReports);
+            if (finalUpdatedInvoices !== invoices) {
+                setInvoices(finalUpdatedInvoices);
+            }
             if (!isAutoSave) setSuccessMessage(`রিপোর্ট সফলভাবে সেভ হয়েছে!`);
         }
     };

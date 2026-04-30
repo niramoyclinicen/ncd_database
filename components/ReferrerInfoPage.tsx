@@ -12,6 +12,7 @@ interface ReferrarInfoPageProps {
   isEmbedded?: boolean;
   onClose?: () => void;
   onSaveAndSelect?: (id: string, name: string) => void;
+  performBlockingSync?: (overrides?: any) => Promise<boolean>;
 }
 
 const ReferrarInfoPage: React.FC<ReferrarInfoPageProps> = ({ 
@@ -19,7 +20,8 @@ const ReferrarInfoPage: React.FC<ReferrarInfoPageProps> = ({
     setReferrars, 
     isEmbedded = false, 
     onClose, 
-    onSaveAndSelect 
+    onSaveAndSelect,
+    performBlockingSync
 }) => {
     const [formData, setFormData] = useState<Referrar>(emptyReferrar);
     const [selectedReferrarId, setSelectedReferrarId] = useState<string | null>(null);
@@ -87,7 +89,7 @@ const ReferrarInfoPage: React.FC<ReferrarInfoPageProps> = ({
         }
     };
 
-    const handleSaveReferrar = (e: React.FormEvent) => {
+    const handleSaveReferrar = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!formData.ref_id || !formData.ref_name) {
             alert('Referrar ID and Name are required.');
@@ -100,11 +102,19 @@ const ReferrarInfoPage: React.FC<ReferrarInfoPageProps> = ({
             return;
         }
 
+        let newReferrars;
         if (isEditing) {
-            setReferrars(prev => prev.map(r => r.ref_id === formData.ref_id ? formData : r));
+            newReferrars = referrars.map(r => r.ref_id === formData.ref_id ? formData : r);
         } else {
-            setReferrars(prev => [formData, ...prev]);
+            newReferrars = [formData, ...referrars];
         }
+
+        if (performBlockingSync) {
+            const success = await performBlockingSync({ referrars: newReferrars });
+            if (!success) return;
+        }
+
+        setReferrars(newReferrars);
         
         if (onSaveAndSelect) {
             onSaveAndSelect(formData.ref_id, formData.ref_name);

@@ -8,9 +8,12 @@ interface DoctorInfoPageProps {
   isEmbedded?: boolean;
   onClose?: () => void;
   onSaveAndSelect?: (id: string, name: string) => void;
+  performBlockingSync?: (overrides?: any) => Promise<boolean>;
 }
 
-const DoctorInfoPage: React.FC<DoctorInfoPageProps> = ({ doctors, setDoctors, isEmbedded = false, onClose, onSaveAndSelect }) => {
+const DoctorInfoPage: React.FC<DoctorInfoPageProps> = ({ 
+  doctors, setDoctors, isEmbedded = false, onClose, onSaveAndSelect, performBlockingSync 
+}) => {
   const [formData, setFormData] = useState<Doctor>(emptyDoctor);
   const [selectedDoctorId, setSelectedDoctorId] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState<boolean>(false);
@@ -78,11 +81,23 @@ const DoctorInfoPage: React.FC<DoctorInfoPageProps> = ({ doctors, setDoctors, is
     }
   }, [isEmbedded, isEditing, formData.doctor_id, handleGetNewId]);
 
-  const handleSaveDoctor = (e: React.FormEvent) => {
+  const handleSaveDoctor = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.doctor_id || !formData.doctor_name) return alert('ID and Name required.');
-    if (isEditing) setDoctors(prev => prev.map(d => d.doctor_id === formData.doctor_id ? formData : d));
-    else setDoctors(prev => [formData, ...prev]);
+    
+    let newDoctors;
+    if (isEditing) {
+      newDoctors = doctors.map(d => d.doctor_id === formData.doctor_id ? formData : d);
+    } else {
+      newDoctors = [formData, ...doctors];
+    }
+
+    if (performBlockingSync) {
+      const success = await performBlockingSync({ doctors: newDoctors });
+      if (!success) return;
+    }
+
+    setDoctors(newDoctors);
     setSuccessMessage('Doctor info saved!');
     if (isEmbedded && onSaveAndSelect) onSaveAndSelect(formData.doctor_id, formData.doctor_name);
     setFormData(emptyDoctor);

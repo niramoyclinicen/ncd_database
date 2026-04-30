@@ -155,6 +155,7 @@ const AccountingPage: React.FC<AccountingPageProps> = ({
             employees={employees} 
             detailedExpenses={detailedExpenses} 
             setDetailedExpenses={setDetailedExpenses} 
+            performBlockingSync={performBlockingSync}
         />
     );
   }
@@ -172,6 +173,7 @@ const AccountingPage: React.FC<AccountingPageProps> = ({
             setLeaveLog={setLeaveLog}
             monthlyRoster={monthlyRoster}
             setMonthlyRoster={setMonthlyRoster}
+            performBlockingSync={performBlockingSync}
         />
     );
   }

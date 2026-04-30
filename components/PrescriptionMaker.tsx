@@ -22,7 +22,7 @@ interface PrescriptionMakerProps {
     availableTests: Test[];
     existingData?: PrescriptionRecord;
     allPrescriptions: PrescriptionRecord[];
-    onSave?: (data: PrescriptionRecord) => void;
+    onSave?: (data: PrescriptionRecord) => Promise<void>;
 }
 
 const initialComplaints = ['Fever', 'Headache', 'Cough', 'Abdominal Pain', 'Vomiting', 'Loose Motion', 'Back Pain', 'Joint Pain', 'Weakness', 'Vertigo', 'Chest Pain', 'Breathlessness'];
@@ -179,9 +179,9 @@ const PrescriptionMaker: React.FC<PrescriptionMakerProps> = ({ appointmentId, pa
         if (searchInputRef.current) searchInputRef.current.focus();
     };
 
-    const handleSave = () => {
+    const handleSave = async () => {
         const prescriptionData: PrescriptionRecord = { id: existingData?.id || `RX-${Date.now()}`, appointmentId, date: new Date().toISOString(), patientId: patient.pt_id, doctorId: doctor.doctor_id, complaints: selectedComplaints, diagnoses: selectedDiagnoses, onExam, vitals, tests: selectedTests, medicines, advice: adviceText, nextVisit };
-        if (onSave) onSave(prescriptionData);
+        if (onSave) await onSave(prescriptionData);
     };
 
     const handlePrint = () => {

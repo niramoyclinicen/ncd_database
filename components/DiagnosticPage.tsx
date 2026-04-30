@@ -228,6 +228,7 @@ const DiagnosticPage: React.FC<DiagnosticPageProps> = ({
                 invoices={labInvoices}
                 appointments={appointments}
                 setAppointments={setAppointments}
+                performBlockingSync={performBlockingSync}
             />
           </div>
         );
@@ -291,6 +292,7 @@ const DiagnosticPage: React.FC<DiagnosticPageProps> = ({
                   setPreSelectedInvoiceId(id);
                   handleTabChange('lab_invoice');
                 }}
+                performBlockingSync={performBlockingSync}
             />
           </div>
         );
@@ -321,13 +323,13 @@ const DiagnosticPage: React.FC<DiagnosticPageProps> = ({
           </div>
         );
       case 'patient_info':
-        return <div className="animate-fade-in"><PatientInfoPage patients={patients} setPatients={setPatients} /></div>;
+        return <div className="animate-fade-in"><PatientInfoPage patients={patients} setPatients={setPatients} performBlockingSync={performBlockingSync} /></div>;
       case 'doctor_info':
-        return <div className="animate-fade-in"><DoctorInfoPage doctors={doctors} setDoctors={setDoctors} /></div>;
+        return <div className="animate-fade-in"><DoctorInfoPage doctors={doctors} setDoctors={setDoctors} performBlockingSync={performBlockingSync} /></div>;
       case 'referrer_info':
-        return <div className="animate-fade-in"><ReferrerInfoPage referrars={referrars} setReferrars={setReferrars} /></div>;
+        return <div className="animate-fade-in"><ReferrerInfoPage referrars={referrars} setReferrars={setReferrars} performBlockingSync={performBlockingSync} /></div>;
       case 'test_info':
-        return <div className="animate-fade-in"><TestInfoPage tests={tests} setTests={setTests} reagents={reagents} /></div>;
+        return <div className="animate-fade-in"><TestInfoPage tests={tests} setTests={setTests} reagents={reagents} performBlockingSync={performBlockingSync} /></div>;
       case 'reagent_info':
         return <div className="animate-fade-in"><ReagentInfoPage reagents={reagents} setReagents={setReagents} /></div>;
       case 'employee_info':
@@ -344,6 +346,7 @@ const DiagnosticPage: React.FC<DiagnosticPageProps> = ({
                       setLeaveLog={setLeaveLog}
                       monthlyRoster={monthlyRoster}
                       setMonthlyRoster={setMonthlyRoster}
+                      performBlockingSync={performBlockingSync}
                     />
                 ) : (
                     <div className="text-center p-8 text-slate-500">Employee management is currently unavailable in this view.</div>
