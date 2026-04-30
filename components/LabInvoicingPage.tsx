@@ -81,8 +81,18 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
   const [selectedTestCategory, setSelectedTestCategory] = useState('All');
   const [applyPC, setApplyPC] = useState(false); // State for Apply PC checkbox
   const [successMessage, setSuccessMessage] = useState('');
-  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false); // New state for confirmation modal
   const [loading, setLoading] = useState(false);
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
   const [errors, setErrors] = useState<Record<string, boolean>>({}); // State for validation errors
 
   // Table Filter States
@@ -492,7 +502,12 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
         alert('Paid amount cannot be greater than Net Payable.');
         return;
     }
-    setIsConfirmModalOpen(true);
+    setConfirmModal({
+        isOpen: true,
+        title: 'Confirm Save',
+        message: 'আপনি কি এই ল্যাব ইনভয়েসটি সেভ করতে চান?',
+        onConfirm: () => executeSave()
+    });
   };
   
   /*
@@ -550,6 +565,7 @@ pdate the local state and reset form
   */
 
   const executeSave = async () => {
+    setConfirmModal(prev => ({ ...prev, isOpen: false }));
     setLoading(true);
     try {
       const currentDateTime = formatDateTime(new Date());
@@ -600,7 +616,6 @@ pdate the local state and reset form
       alert("ডাটা সেভ করার সময় একটি ত্রুটি হয়েছে।");
     } finally {
       setLoading(false);
-      setIsConfirmModalOpen(false);
     }
   };
 
@@ -621,11 +636,16 @@ pdate the local state and reset form
     const safeInvoices = Array.isArray(invoices) ? invoices : [];
     const invoiceToCancel = safeInvoices.find(inv => inv && inv.invoice_id === selectedInvoiceId);
     if (invoiceToCancel && invoiceToCancel.status !== 'Cancelled') {
-      if (window.confirm(`Are you sure you want to cancel invoice ${invoiceToCancel.invoice_id}?`)) {
-        setInvoices(prevInvoices => prevInvoices.map(inv => inv.invoice_id === selectedInvoiceId ? { ...inv, status: 'Cancelled' } : inv));
-        resetForm();
-        setSuccessMessage('Invoice cancelled successfully.');
-      }
+      setConfirmModal({
+        isOpen: true,
+        title: 'Confirm Cancel',
+        message: `আপনি কি পেশেন্ট "${invoiceToCancel.patient_name}" এর ইনভয়েসটি (${invoiceToCancel.invoice_id}) বাতিল করতে চান?`,
+        onConfirm: () => {
+          setInvoices(prevInvoices => prevInvoices.map(inv => inv.invoice_id === selectedInvoiceId ? { ...inv, status: 'Cancelled' } : inv));
+          resetForm();
+          setSuccessMessage('Invoice cancelled successfully.');
+        }
+      });
     }
   };
 
@@ -641,11 +661,16 @@ pdate the local state and reset form
     const safeInvoices = Array.isArray(invoices) ? invoices : [];
     const invoiceToReturn = safeInvoices.find(inv => inv && inv.invoice_id === selectedInvoiceId);
     if (invoiceToReturn && invoiceToReturn.status !== 'Returned') {
-      if (window.confirm(`আপনি কি এই ইনভয়েসের (${invoiceToReturn.invoice_id}) টাকা রিফান্ড বা রিটার্ন করতে চান? এটি আজকের হিসাব থেকে মাইনাস হবে।`)) {
-        setInvoices(prevInvoices => prevInvoices.map(inv => inv.invoice_id === selectedInvoiceId ? { ...inv, status: 'Returned', return_date: todayDateString } : inv));
-        resetForm();
-        setSuccessMessage('Invoice marked as Returned/Refunded.');
-      }
+      setConfirmModal({
+        isOpen: true,
+        title: 'Confirm Return',
+        message: `আপনি কি এই ইনভয়েসের (${invoiceToReturn.invoice_id}) টাকা রিফান্ড বা রিটার্ন করতে চান? এটি আজকের হিসাব থেকে মাইনাস হবে।`,
+        onConfirm: () => {
+          setInvoices(prevInvoices => prevInvoices.map(inv => inv.invoice_id === selectedInvoiceId ? { ...inv, status: 'Returned', return_date: todayDateString } : inv));
+          resetForm();
+          setSuccessMessage('Invoice marked as Returned/Refunded.');
+        }
+      });
     }
   };
 
@@ -876,14 +901,33 @@ pdate the local state and reset form
             </div>
         )}
 
-        {isConfirmModalOpen && (
-            <div className="fixed inset-0 bg-black bg-opacity-70 z-40 flex justify-center items-center" aria-modal="true" role="dialog">
-                <div className="bg-slate-800 border border-slate-700 p-6 rounded-lg shadow-xl z-50 w-full max-w-md">
-                    <h3 className="text-lg font-semibold text-slate-100">Confirm Save</h3>
-                    <p className="mt-2 text-slate-400">Apni ki sottoy ei invoice data save korte chassen?</p>
-                    <div className="mt-6 flex justify-end gap-4">
-                        <button onClick={() => setIsConfirmModalOpen(false)} className="px-4 py-2 text-sm font-medium text-slate-300 bg-slate-600 rounded-md">No</button>
-                        <button onClick={() => { executeSave(); setIsConfirmModalOpen(false); }} className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md">Yes</button>
+        {confirmModal.isOpen && (
+            <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[1000] flex justify-center items-center" aria-modal="true" role="dialog">
+                <div className="bg-slate-800 border-2 border-slate-700 p-8 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-[1001] w-full max-w-md animate-zoom-in">
+                    <div className="flex flex-col items-center text-center gap-4">
+                        <div className="w-16 h-16 bg-slate-900 rounded-full flex items-center justify-center border-2 border-slate-700 shadow-inner">
+                            <DnaIcon className="w-8 h-8 text-blue-500 animate-pulse" />
+                        </div>
+                        <h3 className="text-2xl font-black text-white bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400 uppercase tracking-tighter">
+                            {confirmModal.title}
+                        </h3>
+                        <p className="text-slate-400 font-bold leading-relaxed">
+                            {confirmModal.message}
+                        </p>
+                        <div className="mt-4 flex w-full gap-3">
+                            <button 
+                                onClick={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))} 
+                                className="flex-1 px-6 py-3.5 text-sm font-black text-slate-300 bg-slate-900 rounded-2xl hover:bg-slate-700 transition-all border border-slate-700 uppercase tracking-widest active:scale-95"
+                            >
+                                No
+                            </button>
+                            <button 
+                                onClick={() => { confirmModal.onConfirm(); setConfirmModal(prev => ({ ...prev, isOpen: false })); }} 
+                                className="flex-1 px-6 py-3.5 text-sm font-black text-white bg-gradient-to-br from-blue-600 to-indigo-700 rounded-2xl hover:from-blue-500 hover:to-indigo-600 transition-all shadow-[0_10px_20px_rgba(37,99,235,0.3)] uppercase tracking-widest active:scale-95"
+                            >
+                                Yes
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>

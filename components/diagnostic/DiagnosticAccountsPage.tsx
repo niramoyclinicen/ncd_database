@@ -376,61 +376,18 @@ const DailyExpenseForm: React.FC<any> = ({
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
-    const handleDeleteSavedItem = async (savedItem: any) => {
-        if (window.confirm(`Are you sure you want to delete this expense entry (${savedItem.category}: ${savedItem.paidAmount}৳)?`)) {
-            await onDelete(savedItem.date, savedItem.id);
-        }
-    };
-
-    const handleSave = async () => {
+    const handleSave = () => {
         if (items.every(it => it.paidAmount <= 0 && !it.subCategory && !it.description)) {
             alert("দয়া করে অন্তত একটি খরচের হিসাব সঠিকভাবে লিখুন।");
             return;
         }
 
-        const updatedDailyItems = [...dailyExpenseItems];
-        
-        // Filter out empty rows if any
         const validItems = items.filter(it => it.paidAmount > 0 || it.subCategory || it.description);
+        onSave(selectedDate, validItems);
+    };
 
-        setIsSaving(true);
-
-        const currentExpenses = { ...allDetailedExpenses };
-        
-        // If we are editing and the date changed, we need to remove it from the old date
-        if (editingItem && editingItem.date !== selectedDate) {
-            const oldDateItems = (currentExpenses[editingItem.date] || []).filter((it: any) => it.id !== editingItem.id);
-            currentExpenses[editingItem.date] = oldDateItems;
-        }
-
-        const dateSpecificItems = [...(currentExpenses[selectedDate] || [])];
-        
-        validItems.forEach(formItem => {
-            const existingIdx = dateSpecificItems.findIndex(di => di.id === formItem.id);
-            if (existingIdx !== -1) {
-                dateSpecificItems[existingIdx] = { 
-                    ...formItem, 
-                    dept: 'Diagnostic'
-                };
-            } else {
-                dateSpecificItems.push({ ...formItem, dept: 'Diagnostic' });
-            }
-        });
-
-        currentExpenses[selectedDate] = dateSpecificItems;
-
-        // Perform blocking sync
-        const success = await performBlockingSync({ detailedExpenses: currentExpenses });
-        
-        setIsSaving(false);
-
-        if (success) {
-            onSave(selectedDate, dateSpecificItems);
-            setItems([{
-                id: Date.now(), category: expenseCategories[0], subCategory: '', description: '', billAmount: 0, paidAmount: 0, dept: 'Diagnostic'
-            }]);
-            setSuccessMessage("ডাটা সেভ হয়েছে");
-        }
+    const handleDeleteSavedItem = (savedItem: any) => {
+        onDelete(savedItem.date, savedItem.id);
     };
 
     const totalPaid = items.reduce((acc, item) => acc + (Number(item.paidAmount) || 0), 0);
@@ -878,6 +835,17 @@ const DiagnosticAccountsPage: React.FC<any> = ({
     const [dueSearch, setDueSearch] = useState('');
     const [dueViewMode, setDueViewMode] = useState<'all' | 'date' | 'month' | 'year'>('all');
     const [successMessage, setSuccessMessage] = useState('');
+    const [confirmModal, setConfirmModal] = useState<{
+        isOpen: boolean;
+        title: string;
+        message: string;
+        onConfirm: () => void;
+    }>({
+        isOpen: false,
+        title: '',
+        message: '',
+        onConfirm: () => {},
+    });
 
     const [editingItem, setEditingItem] = useState<any>(null);
     const [trackedTests, setTrackedTests] = useState<string[]>(() => {
@@ -895,28 +863,52 @@ const DiagnosticAccountsPage: React.FC<any> = ({
     }, [successMessage]);
 
     const handleSaveExpense = (date: string, items: ExpenseItem[]) => {
-        setDetailedExpenses((prev: any) => {
-            const safePrev = prev || {};
-            const existingItems = safePrev[date] || [];
-            // Keep Clinic items, replace Diagnostic items with updated ones
-            const otherDeptItems = existingItems.filter((it: any) => it.dept !== 'Diagnostic');
-            
-            // Ensure all items have the correct department and date
-            const diagnosticItems = (items || []).map(it => ({ 
-                ...it, 
-                dept: 'Diagnostic' as const,
-                date: date // Ensure date consistency
-            }));
-            
-            const newState = { ...safePrev, [date]: [...otherDeptItems, ...diagnosticItems] };
-            
-            return newState;
+        setConfirmModal({
+            isOpen: true,
+            title: 'Confirm Save',
+            message: 'আপনি কি এই খরচের ডাটাগুলো সেভ করতে চান?',
+            onConfirm: () => executeSaveExpense(date, items)
         });
-        setEditingItem(null);
-        setSuccessMessage("Expense data saved successfully! Syncing to cloud...");
     };
 
-    const handleDeleteExpense = async (date: string, id: number) => {
+    const executeSaveExpense = async (date: string, items: ExpenseItem[]) => {
+        setConfirmModal(prev => ({ ...prev, isOpen: false }));
+        const safePrev = detailedExpenses || {};
+        const existingItems = safePrev[date] || [];
+        
+        // Keep Clinic items, replace Diagnostic items with updated ones
+        const otherDeptItems = existingItems.filter((it: any) => it.dept !== 'Diagnostic');
+        
+        const diagnosticItems = (items || []).map(it => ({ 
+            ...it, 
+            dept: 'Diagnostic' as const,
+            date: date
+        }));
+        
+        const newState = { ...safePrev, [date]: [...otherDeptItems, ...diagnosticItems] };
+        
+        const success = await performBlockingSync({ detailedExpenses: newState });
+        
+        if (success) {
+            setDetailedExpenses(newState);
+            setEditingItem(null);
+            setSuccessMessage("Expense data saved successfully!");
+        } else {
+            alert("ডাটাসিঙ্ক করতে সমস্যা হয়েছে। দয়া করে আবার চেষ্টা করুন।");
+        }
+    };
+
+    const handleDeleteExpense = (date: string, id: number) => {
+        setConfirmModal({
+            isOpen: true,
+            title: 'Confirm Delete',
+            message: 'আপনি কি এই খরচটি ডিলিট করতে চান?',
+            onConfirm: () => executeDeleteExpense(date, id)
+        });
+    };
+
+    const executeDeleteExpense = async (date: string, id: number) => {
+        setConfirmModal(prev => ({ ...prev, isOpen: false }));
         const safeDetailedExpenses = detailedExpenses || {};
         const existingItems = safeDetailedExpenses[date] || [];
         const updatedItems = existingItems.map((it: any) => {
@@ -1864,6 +1856,38 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                     doctors={doctors}
                     onClose={() => { setShowInvoiceModal(false); setViewingInvoice(null); }} 
                 />
+            )}
+
+            {confirmModal.isOpen && (
+                <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[1000] flex justify-center items-center" aria-modal="true" role="dialog">
+                    <div className="bg-slate-900 border-2 border-slate-700 p-8 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-[1001] w-full max-w-md animate-zoom-in">
+                        <div className="flex flex-col items-center text-center gap-4">
+                            <div className="w-16 h-16 bg-slate-800 rounded-full flex items-center justify-center border-2 border-slate-700 shadow-inner">
+                                <Activity className="w-8 h-8 text-blue-500 animate-pulse" />
+                            </div>
+                            <h3 className="text-2xl font-black text-white bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400 uppercase tracking-tighter">
+                                {confirmModal.title}
+                            </h3>
+                            <p className="text-slate-400 font-bold leading-relaxed">
+                                {confirmModal.message}
+                            </p>
+                            <div className="mt-4 flex w-full gap-3">
+                                <button 
+                                    onClick={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))} 
+                                    className="flex-1 px-6 py-3.5 text-sm font-black text-slate-300 bg-slate-800 rounded-2xl hover:bg-slate-700 transition-all border border-slate-700 uppercase tracking-widest active:scale-95"
+                                >
+                                    No
+                                </button>
+                                <button 
+                                    onClick={() => { confirmModal.onConfirm(); }} 
+                                    className="flex-1 px-6 py-3.5 text-sm font-black text-white bg-gradient-to-br from-emerald-600 to-teal-700 rounded-2xl hover:from-emerald-500 hover:to-teal-600 transition-all shadow-[0_10px_20px_rgba(16,185,129,0.3)] uppercase tracking-widest active:scale-95"
+                                >
+                                    Yes
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );

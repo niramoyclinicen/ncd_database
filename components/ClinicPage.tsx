@@ -2022,12 +2022,12 @@ const IndoorInvoicePage: React.FC<{
 
     const tableTotals = useMemo(() => {
         return filteredInvoices.reduce((acc, inv) => {
-            acc.total += (inv.total_bill || 0);
-            acc.paid += (inv.paid_amount || 0);
-            acc.due += (inv.due_bill || 0);
-            
-            // Calculate Clinic Net for this invoice
-            if (inv.status !== 'Cancelled') {
+            if (inv.status !== 'Cancelled' && inv.status !== 'Deleted') {
+                acc.total += (inv.total_bill || 0);
+                acc.paid += (inv.paid_amount || 0);
+                acc.due += (inv.due_bill || 0);
+                
+                // Calculate Clinic Net for this invoice
                 const items = Array.isArray(inv.items) ? inv.items : [];
                 const nonFundedCost = items
                     .filter(it => it && !it.isClinicFund)
@@ -2076,7 +2076,7 @@ const IndoorInvoicePage: React.FC<{
                               : type === 'month' ? dateToUse.startsWith(period)
                               : dateToUse.startsWith(period);
 
-                if (isMatch && inv.status !== 'Cancelled') {
+                if (isMatch && inv.status !== 'Cancelled' && inv.status !== 'Deleted') {
                     const items = Array.isArray(inv.items) ? inv.items : [];
                     const nonFundedCost = items
                         .filter(it => it && !it.isClinicFund)
