@@ -98,7 +98,7 @@ const DoctorInfoPage: React.FC<DoctorInfoPageProps> = ({
     }
 
     setDoctors(newDoctors);
-    setSuccessMessage('Doctor info saved!');
+    setSuccessMessage('ডাটা সেভ হয়েছে');
     if (isEmbedded && onSaveAndSelect) onSaveAndSelect(formData.doctor_id, formData.doctor_name);
     setFormData(emptyDoctor);
     setSelectedDoctorId(null);

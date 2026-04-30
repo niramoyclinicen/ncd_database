@@ -181,7 +181,7 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
           const success = await performBlockingSync({ purchaseInvoices: newInvoicesArr });
           if (success) {
               setInvoices(newInvoicesArr);
-              setSuccessMessage("ডাটা সঠিকভাবে সেভ হয়েছে!");
+              setSuccessMessage("ডাটা সেভ হয়েছে");
               setShowPaymentModal(false);
           }
       } else {
@@ -330,7 +330,7 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
           if (success) {
               setMedicines(newMedsArr);
               setInvoices(newInvoicesArr);
-              setSuccessMessage("ডাটা সঠিকভাবে সেভ হয়েছে!");
+              setSuccessMessage("ডাটা সেভ হয়েছে");
               setBuyViewMode('list');
               setEditingPurchaseId(null);
               setIsOpeningStock(false);
@@ -363,7 +363,7 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
         if (success) {
             setMedicines(newMedsArr);
             setInvoices(newInvoicesArr);
-            setSuccessMessage("ডাটা সঠিকভাবে সেভ হয়েছে!");
+            setSuccessMessage("ডাটা সেভ হয়েছে");
         }
     } else {
         setMedicines(newMedsArr);
@@ -412,18 +412,16 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
               if (success) {
                   setMedicines(newMedsArr);
                   setSalesInvoices(newSalesArr);
-                  setSuccessMessage("ডাটা সঠিকভাবে সেভ হয়েছে!");
+                  setSuccessMessage("ডাটা সেভ হয়েছে");
                   setSellViewMode('list');
                   setEditingInvoiceId(null);
-                  alert("Sale Completed Successfully!");
               }
           } else {
               setMedicines(newMedsArr);
               setSalesInvoices(newSalesArr);
-              setSuccessMessage(sellViewMode === 'edit' ? "Invoice Correction Saved!" : "Sale Completed Successfully!");
+              setSuccessMessage(sellViewMode === 'edit' ? "Invoice Correction Saved!" : "ডাটা সেভ হয়েছে");
               setSellViewMode('list');
               setEditingInvoiceId(null);
-              alert("Sale Completed Successfully!");
           }
       } catch (error) {
           console.error("Error saving sales:", error);

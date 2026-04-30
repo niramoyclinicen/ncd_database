@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { Activity } from 'lucide-react';
 import { ViewState, UserRole, DepartmentPasswords } from './types';
 import Dashboard from './components/Dashboard';
 import DiagnosticPage from './components/DiagnosticPage';
@@ -501,10 +502,10 @@ const App: React.FC = () => {
                <Activity className="w-10 h-10 text-blue-500 animate-pulse" />
              </div>
            </div>
-           <h2 className="text-3xl font-black uppercase tracking-[0.2em] mb-2 font-['Hind_Siliguri']">অনলাইনে সেভ হচ্ছে...</h2>
+           <h2 className="text-3xl font-black uppercase tracking-[0.2em] mb-2 font-['Hind_Siliguri']">ডাটা সেভ হচ্ছে...</h2>
            <p className="text-blue-400 font-bold uppercase tracking-widest text-xs animate-pulse">Saving to Online Cloud Portal</p>
            <div className="mt-8 px-6 py-2 bg-blue-500/10 border border-blue-500/20 rounded-full">
-             <span className="text-[10px] text-blue-300 font-medium italic whitespace-nowrap">অপেক্ষ করুন, ডাটা ক্লাউড সার্ভারে নিরাপদে সংরক্ষিত হচ্ছে।</span>
+             <span className="text-[10px] text-blue-300 font-medium italic whitespace-nowrap">অপেক্ষা করুন, ডাটা ক্লাউড সার্ভারে সংরক্ষিত হচ্ছে।</span>
            </div>
         </div>
       )}
@@ -530,12 +531,12 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {/* Cloud Sync Indicator (Background) - Suppressed if manual sync was recent */}
-      {showSyncNotification && (
-        <div className={`fixed bottom-4 right-4 z-[9999] flex items-center gap-2 bg-slate-800/95 backdrop-blur-md border ${syncError ? 'border-red-500/50' : 'border-cyan-500/50'} px-5 py-2.5 rounded-full shadow-2xl transition-all duration-500 ${!syncError ? 'animate-pulse' : ''}`}>
-          <div className={`w-2 h-2 ${syncError ? 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,1)]' : 'bg-cyan-500 shadow-[0_0_10px_rgba(6,182,212,1)]'} rounded-full ${!syncError ? 'animate-ping' : ''}`}></div>
-          <span className={`text-[10px] font-black ${syncError ? 'text-red-400' : 'text-cyan-400'} uppercase tracking-[0.2em]`}>
-            {syncError ? 'Sync Failed (Offline)' : 'Update Synced'}
+      {/* Cloud Sync Indicator (Background) - Removed as per user request */}
+      {syncError && (
+        <div className={`fixed bottom-4 right-4 z-[9999] flex items-center gap-2 bg-slate-800/95 backdrop-blur-md border border-red-500/50 px-5 py-2.5 rounded-full shadow-2xl transition-all duration-500`}>
+          <div className={`w-2 h-2 bg-red-500 shadow-[0_0_10px_rgba(239,68,68,1)] rounded-full`}></div>
+          <span className={`text-[10px] font-black text-red-400 uppercase tracking-[0.2em]`}>
+            Sync Failed (Offline)
           </span>
         </div>
       )}

@@ -488,7 +488,8 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
     setIsConfirmModalOpen(true);
   };
   
-  const executeSave = async () => {
+  /*
+  const executeSave_CORRUPTED = async () => {
     const currentDateTime = formatDateTime(new Date());
     const invoiceToSave = { 
       ...formData, 
@@ -502,18 +503,7 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
     // Duplicate check in local buffer first
     const safeInvoices = Array.isArray(invoices) ? invoices : [];
     if (!isEditing && safeInvoices.some(inv => inv && inv.invoice_id === invoiceToSave.invoice_id)) {
-      alert('সতর্কতা: এই ইনভয়েস আইডিটি ইতিমধ্যে ব্যবহৃত হয়েছে। দয়া করে নতুন আইডি নিন।');
-      return;
-    }
-
-    const newInvoices = isEditing 
-      ? safeInvoices.map(inv => inv && inv.invoice_id === invoiceToSave.invoice_id ? invoiceToSave : inv)
-      : [invoiceToSave, ...safeInvoices];
-
-    // CRITICAL: We DO NOT setInvoices(newInvoices) yet. 
-    // We wait for cloud success to tell the user it's REALLY saved.
-    
-    // If performBlockingSync is available, use it to ensure cloud save
+      alert('সতর্কতা: এই ইনভয়েস আ�    // If performBlockingSync is available, use it to ensure cloud save
     if (performBlockingSync) {
       try {
         console.log("Initiating Cloud Save for Invoice:", invoiceToSave.invoice_id);
@@ -521,6 +511,18 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
         
         if (success) {
           // Sync successful - only now update the local state and reset form
+          setInvoices(newInvoices);
+          setSuccessMessage('ডাটা সেভ হয়েছে');
+          resetForm();
+        } else {
+          // Error modal is handled by App.tsx, we keep form data intact for retry
+          console.error("Cloud save returned unsuccessful status.");
+        }
+      } catch (err) {
+        alert("ইন্টারনেট সংযোগ বিচ্ছিন্ন হয়েছে। ডাটা সেভ করা যায়নি। সংযোগ ফিরে আসলে আবার চেষ্টা করুন।");
+      }
+    } else {
+pdate the local state and reset form
           setInvoices(newInvoices);
           setSuccessMessage('ডাটা সঠিকভাবে সেভ হয়েছে!');
           resetForm();
@@ -535,6 +537,50 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
       // Offline mode fallback (Development only)
       setInvoices(newInvoices);
       setSuccessMessage('সতর্কতা: অফলাইন মোডে সেভ করা হয়েছে (Not Synced to Cloud)');
+      resetForm();
+    }
+  };
+  */
+
+  const executeSave = async () => {
+    const currentDateTime = formatDateTime(new Date());
+    const invoiceToSave = { 
+      ...formData, 
+      last_modified: currentDateTime,
+      total_amount: totals.totalAmount,
+      net_payable: totals.netPayable,
+      due_amount: totals.dueAmount,
+      status: totals.status
+    };
+
+    const safeInvoices = Array.isArray(invoices) ? invoices : [];
+
+    // Duplicate check in local buffer first
+    if (!isEditing && safeInvoices.some(inv => inv && inv.invoice_id === invoiceToSave.invoice_id)) {
+      alert('সতর্কতা: এই ইনভয়েস আইডিটি ইতিমধ্যে ব্যবহৃত হয়েছে। দয়া করে নতুন আইডি নিন।');
+      return;
+    }
+
+    const newInvoices = isEditing 
+      ? safeInvoices.map(inv => (inv && inv.invoice_id === invoiceToSave.invoice_id) ? invoiceToSave : inv)
+      : [invoiceToSave, ...safeInvoices];
+
+    // If performBlockingSync is available, use it to ensure cloud save
+    if (performBlockingSync) {
+      try {
+        const success = await performBlockingSync({ labInvoices: newInvoices });
+        
+        if (success) {
+          setInvoices(newInvoices);
+          setSuccessMessage('ডাটা সেভ হয়েছে');
+          resetForm();
+        }
+      } catch (err) {
+        alert("ইন্টারনেট সংযোগ বিচ্ছিন্ন হয়েছে। ডাটা সেভ করা যায়নি।");
+      }
+    } else {
+      setInvoices(newInvoices);
+      setSuccessMessage('ডাটা সেভ হয়েছে (অফলাইন মোড)');
       resetForm();
     }
   };

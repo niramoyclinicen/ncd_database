@@ -119,7 +119,7 @@ const ReferrarInfoPage: React.FC<ReferrarInfoPageProps> = ({
         if (onSaveAndSelect) {
             onSaveAndSelect(formData.ref_id, formData.ref_name);
         }
-        setSuccessMessage('Referrar Data Saved!');
+        setSuccessMessage('ডাটা সেভ হয়েছে');
         if (onClose) onClose();
     };
 

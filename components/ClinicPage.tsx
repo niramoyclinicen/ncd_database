@@ -848,7 +848,7 @@ const AdmissionAndTreatmentPage: React.FC<{
             const success = await performBlockingSync({ admissions: newAdmissions });
             if (success) {
                 setAdmissions(newAdmissions);
-                setSuccessMessage("ডাটা সঠিকভাবে সেভ হয়েছে!");
+                setSuccessMessage("ডাটা সেভ হয়েছে");
                 setSelectedAdmissionId(admissionData.admission_id);
             }
         } else {
@@ -2298,7 +2298,7 @@ const IndoorInvoicePage: React.FC<{
                 if (success) {
                     setIndoorInvoices(newInvoicesArr);
                     setAdmissions(newAdmissions);
-                    setSuccessMessage("ডাটা সঠিকভাবে সেভ হয়েছে!");
+                    setSuccessMessage("ডাটা সেভ হয়েছে");
                     setFormData(emptyIndoorInvoice);
                     setSelectedAdmission(null);
                     setSelectedInvoiceId(null);

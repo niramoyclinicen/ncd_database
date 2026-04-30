@@ -309,7 +309,8 @@ const HistoryModal: React.FC<{ item: ExpenseItem, onClose: () => void }> = ({ it
 
 const DailyExpenseForm: React.FC<any> = ({ 
     selectedDate, onDateChange, allDetailedExpenses, onSave, onDelete, onEdit, 
-    employees, monthlyRoster, editingItem, diagnosticSettings, setDiagnosticSettings, performBlockingSync 
+    employees, monthlyRoster, editingItem, diagnosticSettings, setDiagnosticSettings, performBlockingSync,
+    setSuccessMessage
 }) => {
     const dailyExpenseItems = (allDetailedExpenses && allDetailedExpenses[selectedDate]) || [];
     const [isSaving, setIsSaving] = useState(false);
@@ -428,7 +429,7 @@ const DailyExpenseForm: React.FC<any> = ({
             setItems([{
                 id: Date.now(), category: expenseCategories[0], subCategory: '', description: '', billAmount: 0, paidAmount: 0, dept: 'Diagnostic'
             }]);
-            alert("ডাটা সঠিকভাবে সেভ হয়েছে!");
+            setSuccessMessage("ডাটা সেভ হয়েছে");
         }
     };
 
@@ -1475,6 +1476,7 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                             diagnosticSettings={diagnosticSettings}
                             setDiagnosticSettings={setDiagnosticSettings}
                             performBlockingSync={performBlockingSync}
+                            setSuccessMessage={setSuccessMessage}
                         />
                     </div>
                 )}
