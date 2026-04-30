@@ -1117,18 +1117,18 @@ const AdmissionAndTreatmentPage: React.FC<{
                             </div>
                         </div>
                         <div className="space-y-6">
-                            {/* Top Section - Source Info */}
-                            <div className="bg-blue-900/10 p-6 rounded-3xl border border-blue-500/20 shadow-inner">
+                            {/* Top Section - Source Info: Using a soft blue-slate background */}
+                            <div className="bg-blue-900/20 p-6 rounded-3xl border border-blue-500/30 shadow-[inner_0_2px_10px_rgba(0,0,0,0.3)]">
                                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                                    <div><label className="text-[10px] font-black text-blue-300/70 uppercase ml-2 mb-1.5 block tracking-widest">Adm ID</label><input value={admissionData.admission_id} disabled className="w-full p-3.5 bg-slate-900/80 border border-blue-500/20 rounded-xl text-blue-400 font-mono font-black shadow-inner outline-none"/></div>
+                                    <div><label className="text-[10px] font-black text-blue-300 uppercase ml-2 mb-1.5 block tracking-widest">Adm ID</label><input value={admissionData.admission_id} disabled className="w-full p-3.5 bg-slate-900 border border-blue-500/20 rounded-xl text-blue-400 font-mono font-black shadow-inner outline-none"/></div>
                                     <div><SearchableSelect label="Select Patient" theme="dark" options={(Array.isArray(patients) ? patients : []).filter(p => p).map(p=>({id: p.pt_id, name: p.pt_name, details: `${p.gender}, ${p.ageY}Y | Addr: ${p.address || 'N/A'}`}))} value={admissionData.patient_id} onChange={(id, name)=>setAdmissionData({...admissionData, patient_id: id, patient_name: name})} onAddNew={()=>setShowNewPatientForm(true)} /></div>
                                     <div><SearchableSelect label="Consultant / MO" theme="dark" options={(Array.isArray(doctors) ? doctors : []).filter(d => d).map(d=>({id: d.doctor_id, name: d.doctor_name, details: d.degree}))} value={admissionData.doctor_id} onChange={(id, name)=>setAdmissionData({...admissionData, doctor_id: id, doctor_name: name})} onAddNew={()=>setShowNewDoctorForm(true)} /></div>
                                     <div><SearchableSelect label="Referrer / Agent" theme="dark" options={(Array.isArray(referrars) ? referrars : []).filter(r => r).map(r=>({id: r.ref_id, name: r.ref_name, details: r.ref_degrees}))} value={admissionData.referrer_id} onChange={(id, name)=>setAdmissionData({...admissionData, referrer_id: id, referrer_name: name})} onAddNew={()=>setShowNewReferrarForm(true)} /></div>
                                 </div>
                             </div>
 
-                            {/* Bottom Section - Admission Details */}
-                            <div className="bg-indigo-900/5 p-6 rounded-3xl border border-indigo-500/10 shadow-inner">
+                            {/* Bottom Section - Admission Details: Using a soft indigo-slate background */}
+                            <div className="bg-indigo-900/20 p-6 rounded-3xl border border-indigo-500/30 shadow-[inner_0_2px_10px_rgba(0,0,0,0.3)]">
                                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                                     <div><SearchableSelect label="Disease / Indication" theme="dark" options={(Array.isArray(indications) ? indications : []).filter(i => i).map(i=>({id: i.id, name: i.name}))} value={(Array.isArray(indications) ? indications : []).find(i => i && i.name === admissionData.indication)?.id || ''} onChange={(_id, name)=>setAdmissionData({...admissionData, indication: name})} onAddNew={()=>setShowIndicationManager(true)} /></div>
                                     <div>
@@ -1136,17 +1136,11 @@ const AdmissionAndTreatmentPage: React.FC<{
                                         <select 
                                             value={admissionData.bed_no || ''} 
                                             onChange={e=>setAdmissionData({...admissionData, bed_no: e.target.value})} 
-                                            className="w-full p-3.5 bg-slate-800/80 border border-slate-600/50 rounded-xl text-slate-100 font-black outline-none focus:ring-2 focus:ring-blue-500 transition-all cursor-pointer"
+                                            className="w-full p-3.5 bg-slate-900 border border-slate-700 rounded-xl text-slate-100 font-black outline-none focus:ring-2 focus:ring-blue-500 transition-all cursor-pointer"
                                         >
                                             <option value="" className="bg-slate-900">Select Bed...</option>
-                                            <optgroup label="Male Ward" className="bg-slate-900 text-slate-400 font-bold">
-                                                {Array.from({length: 2}, (_, i) => `M-${String(i+1).padStart(2, '0')}`).map(b => {
-                                                    const isOccupied = (Array.isArray(admissions) ? admissions : []).some(a => a && a.bed_no === b && !a.discharge_date);
-                                                    return <option key={b} value={b} disabled={isOccupied} className={`bg-slate-900 ${isOccupied ? 'text-rose-500' : 'text-slate-200'}`}>{b} {isOccupied ? '(OCCUPIED)' : ''}</option>;
-                                                })}
-                                            </optgroup>
-                                            <optgroup label="Female Ward" className="bg-slate-900 text-slate-400 font-bold">
-                                                {Array.from({length: 5}, (_, i) => `F-${String(i+1).padStart(2, '0')}`).map(b => {
+                                            <optgroup label="General Ward" className="bg-slate-900 text-slate-400 font-bold">
+                                                {Array.from({length: 7}, (_, i) => `W-${String(i+1).padStart(2, '0')}`).map(b => {
                                                     const isOccupied = (Array.isArray(admissions) ? admissions : []).some(a => a && a.bed_no === b && !a.discharge_date);
                                                     return <option key={b} value={b} disabled={isOccupied} className={`bg-slate-900 ${isOccupied ? 'text-rose-500' : 'text-slate-200'}`}>{b} {isOccupied ? '(OCCUPIED)' : ''}</option>;
                                                 })}
@@ -1159,8 +1153,8 @@ const AdmissionAndTreatmentPage: React.FC<{
                                             </optgroup>
                                         </select>
                                     </div>
-                                    <div><label className="text-[10px] font-black text-emerald-300 uppercase ml-2 mb-1 block tracking-widest">Contract Bill (৳)</label><input type="number" value={admissionData.contract_amount} onChange={e=>setAdmissionData({...admissionData, contract_amount: parseFloat(e.target.value)||0})} className="w-full p-3.5 bg-slate-800/80 border border-slate-600/50 rounded-xl text-emerald-400 font-black text-lg shadow-inner outline-none focus:ring-2 focus:ring-emerald-500 transition-all" onFocus={e=>e.target.select()}/></div>
-                                    <div><label className="text-[10px] font-black text-slate-300 uppercase ml-2 mb-1 block tracking-widest">Adm. Date</label><input type="date" value={admissionData.admission_date} onChange={e=>setAdmissionData({...admissionData, admission_date: e.target.value})} className="w-full p-3.5 bg-slate-800/80 border border-slate-600/50 rounded-xl text-slate-100 font-black outline-none focus:ring-2 focus:ring-blue-500 transition-all"/></div>
+                                    <div><label className="text-[10px] font-black text-emerald-300 uppercase ml-2 mb-1 block tracking-widest">Contract Bill (৳)</label><input type="number" value={admissionData.contract_amount} onChange={e=>setAdmissionData({...admissionData, contract_amount: parseFloat(e.target.value)||0})} className="w-full p-3.5 bg-slate-900 border border-emerald-500/30 rounded-xl text-emerald-400 font-black text-lg shadow-inner outline-none focus:ring-2 focus:ring-emerald-500 transition-all" onFocus={e=>e.target.select()}/></div>
+                                    <div><label className="text-[10px] font-black text-slate-300 uppercase ml-2 mb-1 block tracking-widest">Adm. Date</label><input type="date" value={admissionData.admission_date} onChange={e=>setAdmissionData({...admissionData, admission_date: e.target.value})} className="w-full p-3.5 bg-slate-900 border border-slate-700 rounded-xl text-slate-100 font-black outline-none focus:ring-2 focus:ring-blue-500 transition-all"/></div>
                                 </div>
                             </div>
                         </div>
@@ -2644,36 +2638,28 @@ const IndoorInvoicePage: React.FC<{
                 </div>
                 {formData.daily_id && (
                     <form onSubmit={handleSaveInvoice} className="space-y-8">
+                        {/* Section 1: Details - Blue theme */}
                         <div className="flex justify-between items-center mb-2">
-                            <h4 className="text-[10px] font-black text-slate-300 uppercase tracking-[0.3em] bg-slate-800/50 px-3 py-1 rounded-t-lg border-x border-t border-slate-700">Invoice Details & Timeline</h4>
-                            {Array.isArray(formData.edit_history) && formData.edit_history.length > 0 && (
-                                <button 
-                                    type="button"
-                                    onClick={() => { setHistoryInvoice(formData); setShowHistoryModal(true); }}
-                                    className="text-[10px] bg-blue-900/30 text-blue-400 px-3 py-1.5 rounded-lg border border-blue-800 hover:bg-blue-800 hover:text-white transition-all font-black uppercase tracking-widest"
-                                >
-                                    View Edit Logs ({formData.edit_history.length})
-                                </button>
-                            )}
+                            <h4 className="text-[10px] font-black text-blue-300 uppercase tracking-[0.3em] bg-blue-900/40 px-3 py-1 rounded-t-lg border-x border-t border-blue-700/50">Invoice Details & Timeline</h4>
                         </div>
-                        <div className="grid grid-cols-1 md:grid-cols-6 gap-6 bg-slate-800/40 p-6 rounded-2xl rounded-tl-none border border-slate-700 shadow-inner">
-                            <div><label className="block text-[10px] text-slate-500 font-black uppercase tracking-widest mb-1.5">Invoice ID</label><input type="text" value={formData.daily_id} disabled className="w-full p-3 bg-slate-900/50 border border-slate-800 rounded-xl text-slate-400 font-bold"/></div>
-                            <div><label className="block text-[10px] text-slate-500 font-black uppercase tracking-widest mb-1.5">Invoice Date</label><input type="date" name="invoice_date" value={formData.invoice_date} onChange={handleInputChange} className="w-full p-3 bg-slate-900 border border-slate-800 rounded-xl text-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium"/></div>
-                            <div><label className="block text-[10px] text-slate-500 font-black uppercase tracking-widest mb-1.5">Entry Date (System)</label><input type="text" value={formData.created_at ? new Date(formData.created_at).toLocaleString() : 'Not Saved Yet'} disabled className="w-full p-3 bg-slate-900/50 border border-slate-800 rounded-xl text-slate-500 text-[10px] font-bold"/></div>
-                            <div><label className="block text-[10px] text-slate-500 font-black uppercase tracking-widest mb-1.5">Admission Date</label><input type="date" name="admission_date" value={formData.admission_date} onChange={handleInputChange} className="w-full p-3 bg-slate-900 border border-slate-800 rounded-xl text-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium"/></div>
-                            <div><label className="block text-[10px] text-slate-500 font-black uppercase tracking-widest mb-1.5">Discharge Date</label><input type="date" name="discharge_date" value={formData.discharge_date} onChange={handleInputChange} className="w-full p-3 bg-slate-900 border border-slate-800 rounded-xl text-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium"/></div>
-                            <div><label className="block text-[10px] text-slate-500 font-black uppercase tracking-widest mb-1.5">Patient Mobile</label><input type="text" name="patient_mobile" value={formData.patient_mobile || ''} onChange={handleInputChange} className="w-full p-3 bg-slate-900 border border-slate-800 rounded-xl text-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium"/></div>
-                            <div><label className="block text-[10px] text-slate-500 font-black uppercase tracking-widest mb-1.5">Patient Address</label><input type="text" name="patient_address" value={formData.patient_address || ''} onChange={handleInputChange} className="w-full p-3 bg-slate-900 border border-slate-800 rounded-xl text-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium"/></div>
-                            <div><label className="block text-[10px] text-slate-500 font-black uppercase tracking-widest mb-1.5">Patient DOB</label><input type="text" name="patient_dob" value={formData.patient_dob || ''} onChange={handleInputChange} className="w-full p-3 bg-slate-900 border border-slate-800 rounded-xl text-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium" placeholder="YYYY-MM-DD"/></div>
+                        <div className="grid grid-cols-1 md:grid-cols-6 gap-6 bg-blue-950/40 p-6 rounded-2xl rounded-tl-none border border-blue-700/30 shadow-[inner_0_2px_10px_rgba(0,0,0,0.4)]">
+                            <div><label className="block text-[10px] text-blue-400/70 font-black uppercase tracking-widest mb-1.5">Invoice ID</label><input type="text" value={formData.daily_id} disabled className="w-full p-3 bg-slate-900 border border-blue-900/30 rounded-xl text-blue-400 font-bold"/></div>
+                            <div><label className="block text-[10px] text-blue-400/70 font-black uppercase tracking-widest mb-1.5">Invoice Date</label><input type="date" name="invoice_date" value={formData.invoice_date} onChange={handleInputChange} className="w-full p-3 bg-slate-900 border border-slate-800 rounded-xl text-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium"/></div>
+                            <div><label className="block text-[10px] text-blue-400/70 font-black uppercase tracking-widest mb-1.5">Entry Date (System)</label><input type="text" value={formData.created_at ? new Date(formData.created_at).toLocaleString() : 'Not Saved Yet'} disabled className="w-full p-3 bg-slate-900/50 border border-slate-800 rounded-xl text-slate-500 text-[10px] font-bold"/></div>
+                            <div><label className="block text-[10px] text-blue-400/70 font-black uppercase tracking-widest mb-1.5">Admission Date</label><input type="date" name="admission_date" value={formData.admission_date} onChange={handleInputChange} className="w-full p-3 bg-slate-900 border border-slate-800 rounded-xl text-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium"/></div>
+                            <div><label className="block text-[10px] text-blue-400/70 font-black uppercase tracking-widest mb-1.5">Discharge Date</label><input type="date" name="discharge_date" value={formData.discharge_date} onChange={handleInputChange} className="w-full p-3 bg-slate-900 border border-slate-800 rounded-xl text-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium"/></div>
+                            <div><label className="block text-[10px] text-blue-400/70 font-black uppercase tracking-widest mb-1.5">Patient Mobile</label><input type="text" name="patient_mobile" value={formData.patient_mobile || ''} onChange={handleInputChange} className="w-full p-3 bg-slate-900 border border-slate-800 rounded-xl text-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium"/></div>
+                            <div><label className="block text-[10px] text-blue-400/70 font-black uppercase tracking-widest mb-1.5">Patient Address</label><input type="text" name="patient_address" value={formData.patient_address || ''} onChange={handleInputChange} className="w-full p-3 bg-slate-900 border border-slate-800 rounded-xl text-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium"/></div>
+                            <div><label className="block text-[10px] text-blue-400/70 font-black uppercase tracking-widest mb-1.5">Patient DOB</label><input type="text" name="patient_dob" value={formData.patient_dob || ''} onChange={handleInputChange} className="w-full p-3 bg-slate-900 border border-slate-800 rounded-xl text-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium" placeholder="YYYY-MM-DD"/></div>
                             <div className="flex flex-col justify-center items-center bg-slate-900 rounded-xl border border-slate-800 p-3">
-                                <label className="block text-[10px] text-slate-500 font-black uppercase tracking-widest mb-2">PC (Apply?)</label>
+                                <label className="block text-[10px] text-blue-400/70 font-black uppercase tracking-widest mb-2">PC (Apply?)</label>
                                 <div className="flex gap-2 items-center">
                                     <button type="button" onClick={() => setApplyPC(true)} className={`px-4 py-1.5 rounded-lg text-[10px] font-black transition-all ${applyPC ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/40' : 'bg-slate-800 text-slate-500'}`}>YES</button>
                                     <button type="button" onClick={() => { setApplyPC(false); setFormData(prev => ({ ...prev, special_commission: 0 })); }} className={`px-4 py-1.5 rounded-lg text-[10px] font-black transition-all ${!applyPC ? 'bg-rose-600 text-white shadow-lg shadow-rose-900/40' : 'bg-slate-800 text-slate-500'}`}>NO</button>
                                     {applyPC && <input type="number" value={formData.special_commission} onChange={e => setFormData(prev => ({...prev, special_commission: parseFloat(e.target.value) || 0}))} className="w-24 p-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-200 text-xs focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Amount"/>}
                                 </div>
                             </div>
-                            <div><label className="block text-[10px] text-slate-500 font-black uppercase tracking-widest mb-1.5">Category</label><select name="serviceCategory" value={formData.serviceCategory || ''} onChange={handleInputChange} className="w-full p-3 bg-slate-900 border border-slate-800 rounded-xl text-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium">{(Array.isArray(serviceCategoriesList) ? serviceCategoriesList : []).map(c => <option key={c} value={c} className="bg-slate-900">{c}</option>)}</select></div>
+                            <div><label className="block text-[10px] text-blue-400/70 font-black uppercase tracking-widest mb-1.5">Category</label><select name="serviceCategory" value={formData.serviceCategory || ''} onChange={handleInputChange} className="w-full p-3 bg-slate-900 border border-slate-800 rounded-xl text-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium">{(Array.isArray(serviceCategoriesList) ? serviceCategoriesList : []).map(c => <option key={c} value={c} className="bg-slate-900">{c}</option>)}</select></div>
                             <div>
                                 <SearchableSelect 
                                     theme="dark" 
@@ -2687,44 +2673,24 @@ const IndoorInvoicePage: React.FC<{
                                     allowCustom={true}
                                 />
                             </div>
-                            <div className="col-span-2"><label className="block text-[10px] text-slate-500 font-black uppercase tracking-widest mb-1.5">Referrer</label><select name="referrar_id" value={formData.referrar_id || ''} onChange={(e) => { const ref = (Array.isArray(referrars) ? referrars : []).find(r => r && r.ref_id === e.target.value); setFormData({...formData, referrar_id: ref?.ref_id || '', referrar_name: ref?.ref_name || ''}); }} className="w-full p-3 bg-slate-900 border border-slate-800 rounded-xl text-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium"><option value="" className="bg-slate-900">Select...</option>{(Array.isArray(referrars) ? referrars : []).map(r => r && <option key={r.ref_id} value={r.ref_id} className="bg-slate-900">{r.ref_name}</option>)}</select></div>
+                            <div className="col-span-2"><label className="block text-[10px] text-blue-400/70 font-black uppercase tracking-widest mb-1.5">Referrer</label><select name="referrar_id" value={formData.referrar_id || ''} onChange={(e) => { const ref = (Array.isArray(referrars) ? referrars : []).find(r => r && r.ref_id === e.target.value); setFormData({...formData, referrar_id: ref?.ref_id || '', referrar_name: ref?.ref_name || ''}); }} className="w-full p-3 bg-slate-900 border border-slate-800 rounded-xl text-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium"><option value="" className="bg-slate-900">Select...</option>{(Array.isArray(referrars) ? referrars : []).map(r => r && <option key={r.ref_id} value={r.ref_id} className="bg-slate-900">{r.ref_name}</option>)}</select></div>
                             
-                            <div className="col-span-4 bg-slate-900/30 p-4 rounded-2xl border border-slate-700/50 shadow-inner">
-                                <div className="flex justify-between items-center mb-2">
-                                    <label className="text-[9px] font-black text-blue-400 uppercase tracking-[0.2em] flex items-center gap-2">
-                                        <FileTextIcon size={12} /> OT Details & Clinical Notes
-                                    </label>
-                                    <div className="flex gap-2">
-                                        {formData.subCategory && otDetailsLibrary[formData.subCategory] && (
-                                            <button 
-                                                type="button" 
-                                                onClick={handleLoadTemplate}
-                                                className="bg-amber-900/20 text-amber-500 px-3 py-1 rounded-lg text-[9px] font-black uppercase border border-amber-800/50 hover:bg-amber-800 hover:text-white transition-all tracking-widest"
-                                            >
-                                                Load Template
-                                            </button>
-                                        )}
-                                        <button 
-                                            type="button" 
-                                            onClick={handleSaveAsTemplate}
-                                            className="bg-blue-900/20 text-blue-400 px-3 py-1 rounded-lg text-[9px] font-black uppercase border border-blue-800/50 hover:bg-blue-800 hover:text-white transition-all tracking-widest flex items-center gap-1.5"
-                                            title="Save current details as default for this category"
-                                        >
-                                            <SaveIcon size={10}/> Save as Default
-                                        </button>
-                                    </div>
-                                </div>
+                            <div className="col-span-full bg-blue-900/10 p-4 rounded-2xl border border-blue-500/20 shadow-inner">
+                                <label className="text-[9px] font-black text-blue-300 uppercase tracking-[0.2em] flex items-center gap-2 mb-2">
+                                    <FileTextIcon size={12} /> OT Details & Clinical Notes
+                                </label>
                                 <textarea 
                                     name="ot_details"
                                     value={formData.ot_details || ''}
                                     onChange={handleInputChange}
-                                    className="w-full h-12 bg-slate-950/50 border border-slate-700 rounded-xl p-3 text-slate-200 text-xs focus:ring-2 focus:ring-blue-500 outline-none resize-none shadow-inner placeholder:text-slate-800"
+                                    className="w-full h-16 bg-slate-950/50 border border-slate-700 rounded-xl p-3 text-slate-200 text-xs focus:ring-2 focus:ring-blue-500 outline-none resize-none shadow-inner"
                                     placeholder="Enter OT report details, operation notes..."
                                 />
                             </div>
                         </div>
 
-                        <div className="bg-indigo-900/10 p-6 rounded-2xl border border-indigo-500/20 shadow-xl">
+                        {/* Section 2: Services & Charges - Indigo Theme */}
+                        <div className="bg-indigo-950/40 p-6 rounded-2xl border border-indigo-500/20 shadow-[0_10px_30px_-10px_rgba(49,46,129,0.3)]">
                             <div className="flex justify-between items-center mb-6">
                                 <h4 className="text-lg font-black text-indigo-300 uppercase tracking-tighter flex items-center gap-3">
                                     <span className="p-2 bg-indigo-500/20 rounded-lg text-indigo-400"><Activity size={20} /></span>
@@ -2834,57 +2800,78 @@ const IndoorInvoicePage: React.FC<{
                                 </table>
                             </div>
                         </div>
-                        <div className="grid grid-cols-2 gap-8 bg-emerald-900/5 p-8 rounded-2xl border border-emerald-500/10 shadow-inner">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 bg-emerald-950/20 p-8 rounded-2xl border border-emerald-500/20 shadow-[-10px_10px_30px_-5px_rgba(16,185,129,0.1)]">
                             <div className="space-y-6">
-                                <div className="bg-slate-900/40 p-4 rounded-xl border border-slate-800">
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Bill Created By</label>
-                                    <select name="bill_created_by" value={formData.bill_created_by} onChange={handleInputChange} className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-slate-100 font-bold focus:ring-2 focus:ring-emerald-500 outline-none shadow-lg">
-                                        <option value="" className="bg-slate-900">Select Employee</option>
-                                        {(Array.isArray(activeEmployees) ? activeEmployees : []).map(e => e && <option key={e.emp_id} value={e.emp_name} className="bg-slate-900">{e.emp_name}</option>)}
+                                <div className="bg-slate-900/60 p-5 rounded-2xl border border-slate-700/50 shadow-inner">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2.5 block">Bill Prepared By</label>
+                                    <select name="bill_created_by" value={formData.bill_created_by} onChange={handleInputChange} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3.5 text-slate-100 font-bold focus:ring-2 focus:ring-emerald-500 outline-none shadow-lg appearance-none">
+                                        <option value="" className="bg-slate-950">Select Staff / Employee</option>
+                                        {(Array.isArray(activeEmployees) ? activeEmployees : []).map(e => e && <option key={e.emp_id} value={e.emp_name} className="bg-slate-950">{e.emp_name}</option>)}
                                     </select>
                                 </div>
-                                <div className="bg-slate-900/40 p-4 rounded-xl border border-slate-800">
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Payment Method</label>
-                                    <select name="payment_method" value={formData.payment_method} onChange={handleInputChange} className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-slate-100 font-bold focus:ring-2 focus:ring-emerald-500 outline-none shadow-lg mb-4">
-                                        <option className="bg-slate-900">Cash</option>
-                                        <option className="bg-slate-900">Card</option>
-                                        <option className="bg-slate-900">Bkash</option>
-                                        <option className="bg-slate-900">Nagad</option>
-                                    </select>
+                                <div className="bg-slate-900/60 p-5 rounded-2xl border border-slate-700/50 shadow-inner">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2.5 block">Payment Method</label>
+                                    <div className="grid grid-cols-4 gap-2 mb-6">
+                                        {['Cash', 'Card', 'Bkash', 'Nagad'].map(method => (
+                                            <button 
+                                                key={method}
+                                                type="button"
+                                                onClick={() => setFormData(prev => ({...prev, payment_method: method}))}
+                                                className={`py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border ${formData.payment_method === method ? 'bg-emerald-600 text-white border-emerald-400 shadow-lg shadow-emerald-900/40' : 'bg-slate-950 text-slate-500 border-slate-800'}`}
+                                            >
+                                                {method}
+                                            </button>
+                                        ))}
+                                    </div>
                                     <button 
                                         type="submit" 
                                         disabled={loading}
-                                        className="w-full bg-gradient-to-br from-emerald-600 to-teal-800 text-white py-3.5 rounded-2xl font-black uppercase text-[11px] tracking-[0.2em] shadow-xl shadow-emerald-900/40 border border-emerald-400/30 hover:from-emerald-500 hover:to-teal-700 transition-all flex items-center justify-center gap-4"
+                                        className="w-full bg-gradient-to-br from-emerald-600 to-teal-800 text-white py-4 rounded-2xl font-black uppercase text-[12px] tracking-[0.3em] shadow-2xl shadow-emerald-900/60 border border-emerald-400/30 hover:from-emerald-500 hover:to-teal-700 transition-all flex items-center justify-center gap-4 group"
                                     >
-                                        {loading ? <Loader2 className="animate-spin" size={24}/> : <Save size={24}/>}
-                                        Save Final Invoice
+                                        {loading ? <Loader2 className="animate-spin" size={24}/> : <Save className="group-hover:scale-110 transition-transform" size={24}/>}
+                                        Confirm & Save Invoice
                                     </button>
                                 </div>
                             </div>
-                            <div className="bg-slate-900/80 p-6 rounded-2xl border border-slate-700 shadow-2xl space-y-3">
-                                <div className="flex justify-between items-center text-slate-400 border-b border-slate-800 pb-3">
-                                    <span className="text-[11px] font-black uppercase tracking-widest">Total Bill:</span> 
-                                    <span className="font-black text-slate-200 text-2xl">৳{Number(formData.total_bill || 0).toLocaleString()}</span>
+                            <div className="bg-slate-900/90 p-6 rounded-3xl border border-slate-700 shadow-2xl space-y-4 relative overflow-hidden">
+                                <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 blur-[50px] -mr-16 -mt-16"></div>
+                                
+                                <div className="flex justify-between items-center text-slate-400 border-b border-slate-800/50 pb-4">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Gross Amount</span> 
+                                    <span className="font-black text-slate-300 text-xl">৳{Number(formData.total_bill || 0).toLocaleString()}</span>
                                 </div>
-                                <div className="flex justify-between items-center text-slate-400 border-b border-slate-800 pb-3">
-                                    <span className="text-[11px] font-black uppercase tracking-widest">Total Discount:</span> 
-                                    <span className="font-black text-slate-200 text-2xl">৳{Number(formData.total_discount || 0).toLocaleString()}</span>
+                                
+                                <div className="flex justify-between items-center text-slate-400 border-b border-slate-800/50 pb-4">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Service Discount</span> 
+                                    <span className="font-black text-rose-400/60 text-lg">৳{Number(formData.total_discount || 0).toLocaleString()}</span>
                                 </div>
-                                <div className="flex justify-between items-center text-amber-400 border-b border-slate-800 pb-3">
-                                    <span className="text-[11px] font-black uppercase tracking-widest">Special Discount:</span> 
-                                    <input type="number" name="special_discount_amount" value={formData.special_discount_amount} onChange={handleInputChange} onFocus={e=>e.target.select()} className="bg-slate-950 text-amber-400 w-40 p-2.5 text-right font-black border border-slate-700 rounded-xl focus:ring-2 focus:ring-amber-500 outline-none text-xl shadow-inner"/>
+
+                                <div className="flex justify-between items-center text-amber-400 bg-amber-900/5 p-4 rounded-xl border border-amber-500/10 transition-all focus-within:border-amber-500/30">
+                                    <span className="text-[10px] font-black uppercase tracking-widest">Special Discount</span> 
+                                    <div className="relative">
+                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-amber-600 font-bold">৳</span>
+                                        <input type="number" name="special_discount_amount" value={formData.special_discount_amount} onChange={handleInputChange} onFocus={e=>e.target.select()} className="bg-slate-950 text-amber-400 w-36 pl-8 pr-3 py-2 text-right font-black border border-slate-800 rounded-lg focus:ring-2 focus:ring-amber-500 outline-none text-lg shadow-inner"/>
+                                    </div>
                                 </div>
-                                <div className="flex justify-between items-center text-white bg-blue-600/20 p-4 rounded-xl border border-blue-500/30 my-4">
-                                    <span className="text-sm font-black uppercase tracking-[0.2em]">Net Payable:</span> 
-                                    <span className="text-3xl font-black drop-shadow-lg text-blue-400">৳{Number(formData.net_payable || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+
+                                <div className="bg-gradient-to-r from-blue-600/10 to-indigo-600/10 p-5 rounded-2xl border border-blue-500/20 my-6 shadow-inner">
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-xs font-black uppercase tracking-[0.2em] text-blue-300">Net Payable Amount</span> 
+                                        <span className="text-4xl font-black drop-shadow-lg text-white">৳{Number(formData.net_payable || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                    </div>
                                 </div>
-                                <div className="flex justify-between items-center text-emerald-400 border-b border-slate-800 pb-3">
-                                    <span className="text-[11px] font-black uppercase tracking-widest">Paid Amount:</span> 
-                                    <input type="number" name="paid_amount" value={formData.paid_amount} onChange={handleInputChange} onFocus={e=>e.target.select()} className="bg-slate-950 text-emerald-400 w-40 p-2.5 text-right font-black border border-slate-700 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-xl shadow-inner"/>
+
+                                <div className="flex justify-between items-center text-emerald-400 bg-emerald-900/5 p-4 rounded-xl border border-emerald-500/10 transition-all focus-within:border-emerald-500/30">
+                                    <span className="text-[10px] font-black uppercase tracking-widest">Cash Received</span> 
+                                    <div className="relative">
+                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-600 font-bold">৳</span>
+                                        <input type="number" name="paid_amount" value={formData.paid_amount} onChange={handleInputChange} onFocus={e=>e.target.select()} className="bg-slate-950 text-emerald-400 w-36 pl-8 pr-3 py-2 text-right font-black border border-slate-800 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none text-lg shadow-inner"/>
+                                    </div>
                                 </div>
-                                <div className="flex justify-between items-center pt-2">
-                                    <span className="text-[11px] font-black uppercase tracking-widest text-slate-500">Due Balance:</span> 
-                                    <span className={`text-3xl font-black ${(formData.due_bill || 0) > 0 ? 'text-rose-500' : 'text-emerald-500'}`}>
+
+                                <div className="flex justify-between items-center pt-4 px-2">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Balance Due</span> 
+                                    <span className={`text-3xl font-black ${(formData.due_bill || 0) > 0 ? 'text-rose-500 animate-pulse' : 'text-emerald-500'}`}>
                                         ৳{Number(formData.due_bill || 0).toLocaleString()}
                                     </span>
                                 </div>

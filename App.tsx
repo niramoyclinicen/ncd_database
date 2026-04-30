@@ -27,6 +27,9 @@ const App: React.FC = () => {
   const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(false);
   const [isDataLoaded, setIsDataLoaded] = useState(false);
   const [connectionError, setConnectionError] = useState(false);
+  const [lastSavedAt, setLastSavedAt] = useState<string>(''); // For UI feedback
+  const lastSavedAtRef = React.useRef<string>(''); // For logic checks to avoid loops
+
   const [currentUserEmail] = useState(() => {
     const existing = localStorage.getItem('ncd_user_email');
     if (existing) return existing;
@@ -101,32 +104,39 @@ const App: React.FC = () => {
       }
     };
 
-    // Helper to batch state updates
     const updateLocalState = (data: any) => {
-      if (data.patients) setPatients(data.patients);
-      if (data.doctors) setDoctors(data.doctors);
-      if (data.referrars) setReferrars(data.referrars);
-      if (data.tests) setTests(data.tests);
-      if (data.reagents) setReagents(data.reagents);
-      if (data.labInvoices) setLabInvoices(data.labInvoices);
-      if (data.dueCollections) setDueCollections(data.dueCollections);
-      if (data.reports) setReports(data.reports);
-      if (data.employees) setEmployees(data.employees);
-      if (data.medicines) setMedicines(data.medicines);
-      if (data.clinicalDrugs) setClinicalDrugs(data.clinicalDrugs);
-      if (data.purchaseInvoices) setPurchaseInvoices(data.purchaseInvoices);
-      if (data.salesInvoices) setSalesInvoices(data.salesInvoices);
-      if (data.admissions) setAdmissions(data.admissions);
-      if (data.indoorInvoices) setIndoorInvoices(data.indoorInvoices);
-      if (data.detailedExpenses) setDetailedExpenses(data.detailedExpenses);
-      if (data.prescriptions) setPrescriptions(data.prescriptions);
-      if (data.appointments) setAppointments(data.appointments);
-      if (data.attendanceLog) setAttendanceLog(data.attendanceLog);
-      if (data.leaveLog) setLeaveLog(data.leaveLog);
-      if (data.monthlyRoster) setMonthlyRoster(data.monthlyRoster);
-      if (data.diagnosticSettings) setDiagnosticSettings(data.diagnosticSettings);
-      if (data.employeeReferrerMap) setEmployeeReferrerMap(data.employeeReferrerMap);
-      if (data.passwords) setPasswords(data.passwords);
+      if (!data) return;
+      
+      // If the data from cloud is same or older than our last local save, ignore to prevent echo loops
+      if (lastSavedAtRef.current && data.last_updated_at && data.last_updated_at <= lastSavedAtRef.current) {
+        return;
+      }
+
+      // Batching updates without expensive JSON.stringify
+      if (data.patients !== undefined) setPatients(data.patients);
+      if (data.doctors !== undefined) setDoctors(data.doctors);
+      if (data.referrars !== undefined) setReferrars(data.referrars);
+      if (data.tests !== undefined) setTests(data.tests);
+      if (data.reagents !== undefined) setReagents(data.reagents);
+      if (data.labInvoices !== undefined) setLabInvoices(data.labInvoices);
+      if (data.dueCollections !== undefined) setDueCollections(data.dueCollections);
+      if (data.reports !== undefined) setReports(data.reports);
+      if (data.employees !== undefined) setEmployees(data.employees);
+      if (data.medicines !== undefined) setMedicines(data.medicines);
+      if (data.clinicalDrugs !== undefined) setClinicalDrugs(data.clinicalDrugs);
+      if (data.purchaseInvoices !== undefined) setPurchaseInvoices(data.purchaseInvoices);
+      if (data.salesInvoices !== undefined) setSalesInvoices(data.salesInvoices);
+      if (data.admissions !== undefined) setAdmissions(data.admissions);
+      if (data.indoorInvoices !== undefined) setIndoorInvoices(data.indoorInvoices);
+      if (data.detailedExpenses !== undefined) setDetailedExpenses(data.detailedExpenses);
+      if (data.prescriptions !== undefined) setPrescriptions(data.prescriptions);
+      if (data.appointments !== undefined) setAppointments(data.appointments);
+      if (data.attendanceLog !== undefined) setAttendanceLog(data.attendanceLog);
+      if (data.leaveLog !== undefined) setLeaveLog(data.leaveLog);
+      if (data.monthlyRoster !== undefined) setMonthlyRoster(data.monthlyRoster);
+      if (data.diagnosticSettings !== undefined) setDiagnosticSettings(data.diagnosticSettings);
+      if (data.employeeReferrerMap !== undefined) setEmployeeReferrerMap(data.employeeReferrerMap);
+      if (data.passwords !== undefined) setPasswords(data.passwords);
     };
 
     loadData();
@@ -175,7 +185,10 @@ const App: React.FC = () => {
     setManualSyncError(null);
     
     // Merge overrides with current state if any, otherwise use current state
-    const stateToSync = getCurrentState(overrides);
+    const now = new Date().toISOString();
+    setLastSavedAt(now);
+    lastSavedAtRef.current = now;
+    const stateToSync = getCurrentState({ ...overrides, last_updated_at: now });
     
     try {
       const result = await dbService.saveToCloud(stateToSync);
@@ -201,13 +214,20 @@ const App: React.FC = () => {
     if (!isDataLoaded || isManualSyncing) return;
     
     const syncData = async () => {
+      // Small safety delay to ensure all states are updated
       setIsSyncing(true);
-      const result = await dbService.saveToCloud(getCurrentState());
+      const now = new Date().toISOString();
+      // Important: Update ref immediately to prevent incoming cloud updates from triggering during this process
+      setLastSavedAt(now);
+      lastSavedAtRef.current = now;
+      
+      const result = await dbService.saveToCloud(getCurrentState({ last_updated_at: now }));
+      
       setIsSyncing(false);
       setSyncError(!result.success);
     };
 
-    const syncInterval = setTimeout(syncData, 500);
+    const syncInterval = setTimeout(syncData, 5000); // Increased interval to 5s for auto-sync to reduce load
     return () => clearTimeout(syncInterval);
   }, [
     patients, doctors, referrars, tests, reagents, labInvoices, 
