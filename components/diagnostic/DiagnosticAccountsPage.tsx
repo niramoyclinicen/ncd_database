@@ -872,29 +872,35 @@ const DiagnosticAccountsPage: React.FC<any> = ({
     };
 
     const executeSaveExpense = async (date: string, items: ExpenseItem[]) => {
-        setConfirmModal(prev => ({ ...prev, isOpen: false }));
-        const safePrev = detailedExpenses || {};
-        const existingItems = safePrev[date] || [];
-        
-        // Keep Clinic items, replace Diagnostic items with updated ones
-        const otherDeptItems = existingItems.filter((it: any) => it.dept !== 'Diagnostic');
-        
-        const diagnosticItems = (items || []).map(it => ({ 
-            ...it, 
-            dept: 'Diagnostic' as const,
-            date: date
-        }));
-        
-        const newState = { ...safePrev, [date]: [...otherDeptItems, ...diagnosticItems] };
-        
-        const success = await performBlockingSync({ detailedExpenses: newState });
-        
-        if (success) {
-            setDetailedExpenses(newState);
-            setEditingItem(null);
-            setSuccessMessage("Expense data saved successfully!");
-        } else {
-            alert("ডাটাসিঙ্ক করতে সমস্যা হয়েছে। দয়া করে আবার চেষ্টা করুন।");
+        try {
+            setConfirmModal(prev => ({ ...prev, isOpen: false }));
+            
+            const safePrev = detailedExpenses || {};
+            const existingItems = safePrev[date] || [];
+            
+            const otherDeptItems = existingItems.filter((it: any) => it.dept !== 'Diagnostic');
+            const diagnosticItems = (items || []).map(it => ({ 
+                ...it, 
+                dept: 'Diagnostic' as const,
+                date: date
+            }));
+            
+            const newState = { ...safePrev, [date]: [...otherDeptItems, ...diagnosticItems] };
+            
+            console.log(`[DiagnosticAccounts] Saving ${diagnosticItems.length} items for ${date}`);
+            const success = await performBlockingSync({ detailedExpenses: newState });
+            
+            if (success) {
+                setDetailedExpenses(newState);
+                setEditingItem(null);
+                setSuccessMessage("খরচের ডাটা সফলভাবে সেভ হয়েছে।");
+            } else {
+                console.error("[DiagnosticAccounts] Sync failed during save");
+                alert("ডাটাসিঙ্ক করতে সমস্যা হয়েছে। দয়া করে আবার চেষ্টা করুন।");
+            }
+        } catch (err) {
+            console.error("[DiagnosticAccounts] Critical error saving expense:", err);
+            alert("সিস্টেম এরর হয়েছে। দয়া করে পেজটি রিফ্রেশ দিন।");
         }
     };
 
@@ -908,30 +914,39 @@ const DiagnosticAccountsPage: React.FC<any> = ({
     };
 
     const executeDeleteExpense = async (date: string, id: number) => {
-        setConfirmModal(prev => ({ ...prev, isOpen: false }));
-        const safeDetailedExpenses = detailedExpenses || {};
-        const existingItems = safeDetailedExpenses[date] || [];
-        const updatedItems = existingItems.map((it: any) => {
-            if (it.id === id) {
-                const history = it.editHistory || [];
-                const newLog = {
-                    timestamp: new Date().toISOString(),
-                    field: 'DELETED',
-                    oldValue: 'Active',
-                    newValue: 'Deleted'
-                };
-                return { ...it, isDeleted: true, editHistory: [...history, newLog] };
+        try {
+            setConfirmModal(prev => ({ ...prev, isOpen: false }));
+            const safeDetailedExpenses = detailedExpenses || {};
+            const existingItems = safeDetailedExpenses[date] || [];
+            const updatedItems = existingItems.map((it: any) => {
+                if (it.id === id) {
+                    const history = it.editHistory || [];
+                    const newLog = {
+                        timestamp: new Date().toISOString(),
+                        field: 'DELETED',
+                        oldValue: 'Active',
+                        newValue: 'Deleted'
+                    };
+                    return { ...it, isDeleted: true, editHistory: [...history, newLog] };
+                }
+                return it;
+            });
+            
+            const newDetailedExpenses = { ...safeDetailedExpenses, [date]: updatedItems };
+            
+            console.log(`[DiagnosticAccounts] Deleting item ${id} for ${date}`);
+            const success = await performBlockingSync({ detailedExpenses: newDetailedExpenses });
+            
+            if (success) {
+                setDetailedExpenses(newDetailedExpenses);
+                setSuccessMessage("খরচটি সফলভাবে ডিলিট করা হয়েছে।");
+            } else {
+                console.error("[DiagnosticAccounts] Sync failed during delete");
+                alert("ডাটাসিঙ্ক করতে সমস্যা হয়েছে। দয়া করে আবার চেষ্টা করুন।");
             }
-            return it;
-        });
-        
-        const newDetailedExpenses = { ...safeDetailedExpenses, [date]: updatedItems };
-        
-        const success = await performBlockingSync({ detailedExpenses: newDetailedExpenses });
-        
-        if (success) {
-            setDetailedExpenses(newDetailedExpenses);
-            setSuccessMessage("Expense item deleted successfully!");
+        } catch (err) {
+            console.error("[DiagnosticAccounts] Critical error deleting expense:", err);
+            alert("সিস্টেম এরর হয়েছে। দয়া করে পেজটি রিফ্রেশ দিন।");
         }
     };
 

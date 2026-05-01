@@ -198,18 +198,22 @@ const App: React.FC = () => {
     const stateToSync = getCurrentState({ ...overrides, last_updated_at: now });
     
     try {
+      console.log(`[Sync] Starting blocking sync. Overrides:`, overrides ? Object.keys(overrides) : 'None');
       const result = await dbService.saveToCloud(stateToSync);
       if (result.success) {
+        console.log(`[Sync] Success!`);
         setIsManualSyncing(false);
         setSyncError(false);
         setLastManualSyncTime(Date.now());
         return true;
       } else {
+        console.error(`[Sync] Failure:`, result.error);
         setManualSyncError("Internet Connection Failure. Please check your connection and try again.");
         setIsManualSyncing(false);
         return false;
       }
     } catch (e) {
+      console.error(`[Sync] Catch Error:`, e);
       setManualSyncError("Sync failed due to an unexpected error.");
       setIsManualSyncing(false);
       return false;
@@ -495,7 +499,7 @@ const App: React.FC = () => {
 
       {/* BLOCKING MANUAL SYNC OVERLAY */}
       {isManualSyncing && (
-        <div className="fixed inset-0 z-[10000] bg-slate-900/90 backdrop-blur-xl flex flex-col items-center justify-center text-white">
+        <div className="fixed inset-0 z-[110000] bg-slate-900/90 backdrop-blur-xl flex flex-col items-center justify-center text-white">
            <div className="relative mb-8">
              <div className="w-24 h-24 border-4 border-blue-500/20 border-t-blue-500 rounded-full animate-spin"></div>
              <div className="absolute inset-0 flex items-center justify-center">
@@ -512,7 +516,7 @@ const App: React.FC = () => {
 
       {/* MANUAL SYNC ERROR MODAL */}
       {manualSyncError && (
-        <div className="fixed inset-0 z-[10001] bg-black/90 backdrop-blur-lg flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[110001] bg-black/90 backdrop-blur-lg flex items-center justify-center p-4">
            <div className="bg-slate-800 border-2 border-red-500 p-8 rounded-[2.5rem] shadow-2xl max-w-md w-full flex flex-col items-center text-center">
              <div className="w-20 h-20 bg-red-500/20 rounded-full flex items-center justify-center text-red-500 text-4xl mb-6 shadow-[0_0_30px_rgba(239,68,68,0.3)]">⚠️</div>
              <h3 className="text-2xl font-black text-white uppercase mb-2 font-['Hind_Siliguri']">সেভ ব্যর্থ হয়েছে!</h3>

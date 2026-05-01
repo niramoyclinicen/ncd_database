@@ -1,7 +1,6 @@
 
 import React, { useMemo, useState, useEffect, useRef } from 'react';
-import { ExpenseItem, Employee, DueCollection } from '../DiagnosticData';
-import { IndoorInvoice } from '../ClinicPage';
+import { ExpenseItem, Employee, DueCollection, IndoorInvoice } from '../DiagnosticData';
 import { ClinicIcon, Activity, BackIcon, FileTextIcon, PrinterIcon, SearchIcon, AlertCircle } from '../Icons';
 
 // --- Clinic Specific Categories ---

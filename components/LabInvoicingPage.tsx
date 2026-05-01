@@ -598,12 +598,14 @@ pdate the local state and reset form
           
           if (success) {
             setInvoices(newInvoices);
-            setSuccessMessage('ডাটা সেভ হয়েছে');
+            setSuccessMessage('ডাটা সফলভাবে সেভ হয়েছে');
             resetForm();
           } else {
-            alert("সার্ভারে ডাটা সেভ করতে ব্যর্থ হয়েছে। দয়া করে আপনার ইন্টারনেট চেক করুন।");
+            // App.tsx handles the error modal when performBlockingSync fails
+            console.error("Cloud save failed reported by performBlockingSync");
           }
         } catch (err) {
+          console.error("Critical error in performBlockingSync:", err);
           alert("ইন্টারনেট সংযোগ বিচ্ছিন্ন হয়েছে। ডাটা সেভ করা যায়নি।");
         }
       } else {
@@ -1144,7 +1146,7 @@ pdate the local state and reset form
       )}
 
       {showNewPatientForm && (
-        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/90 backdrop-blur-xl p-4 animate-in fade-in slide-in-from-bottom-10 duration-500">
+        <div className="fixed inset-0 z-[90000] flex items-center justify-center bg-black/90 backdrop-blur-xl p-4 animate-in fade-in slide-in-from-bottom-10 duration-500">
           <div className="bg-slate-900 border-2 border-emerald-500/30 w-full max-w-5xl rounded-[3rem] shadow-[0_0_150px_rgba(16,185,129,0.3)] overflow-hidden flex flex-col max-h-[95vh]">
              <div className="p-8 border-b border-white/5 bg-slate-950/40 flex justify-between items-center">
                 <div className="flex items-center gap-4">

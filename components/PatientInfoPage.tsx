@@ -256,12 +256,14 @@ const PatientInfoPage: React.FC<PatientInfoPageProps> = ({
 
     if (performBlockingSync) {
       const success = await performBlockingSync({ patients: newPatients });
-      if (!success) return;
+      if (!success) return; // Note: App.tsx handles the error modal
     }
 
     setPatients(newPatients);
-    setSuccessMessage('Saved successfully!');
-    if (isEmbedded && onSaveAndSelect) onSaveAndSelect(formData.pt_id, formData.pt_name);
+    setSuccessMessage('সফলভাবে সেভ হয়েছে!');
+    if (isEmbedded && onSaveAndSelect) {
+        onSaveAndSelect(formData.pt_id, formData.pt_name);
+    }
     setFormData(emptyPatient);
     setSelectedPatientId(null);
     setIsEditing(false);

@@ -9,7 +9,7 @@ import {
   MapPinIcon,
   PhoneIcon
 } from './Icons';
-import { LabInvoice, DueCollection, ExpenseItem, Employee, PurchaseInvoice, SalesInvoice, Medicine, Reagent, IndoorInvoice, Patient, Doctor } from './DiagnosticData';
+import { LabInvoice, DueCollection, ExpenseItem, Employee, PurchaseInvoice, SalesInvoice, Medicine, Reagent, IndoorInvoice, Patient, Doctor, Test } from './DiagnosticData';
 import DiagnosticAccountsPage from './diagnostic/DiagnosticAccountsPage';
 import EmployeeInfoPage from './EmployeeInfoPage';
 import MedicineAccountsPage from './medicine/MedicineAccountsPage';
