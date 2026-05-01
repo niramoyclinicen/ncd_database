@@ -7,7 +7,7 @@ import PatientInfoPage from './PatientInfoPage';
 import DoctorInfoPage from './DoctorInfoPage';
 import ReferrerInfoPage from './ReferrerInfoPage';
 import TestInfoPage from './TestInfoPage';
-import { TrashIcon, DnaIcon } from './Icons';
+import { TrashIcon, DnaIcon, Activity } from './Icons';
 
 interface LabInvoicingPageProps {
   patients: Patient[];
@@ -1168,7 +1168,10 @@ pdate the local state and reset form
                     setPatients={setPatients} 
                     isEmbedded={true} 
                     onClose={() => setShowNewPatientForm(false)} 
-                    onSaveAndSelect={handlePatientSelect}
+                    onSaveAndSelect={(id, name) => {
+                        handlePatientSelect(id, name);
+                        setShowNewPatientForm(false);
+                    }}
                     performBlockingSync={performBlockingSync}
                 />
              </div>
