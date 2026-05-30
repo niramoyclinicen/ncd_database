@@ -312,17 +312,25 @@ const DailyExpenseForm: React.FC<any> = ({
     employees, monthlyRoster, editingItem, diagnosticSettings, setDiagnosticSettings, performBlockingSync,
     setSuccessMessage
 }) => {
-    const dailyExpenseItems = (allDetailedExpenses && allDetailedExpenses[selectedDate]) || [];
+    const [items, setItems] = useState<ExpenseItem[]>([]);
     const [isSaving, setIsSaving] = useState(false);
-    const [items, setItems] = useState<ExpenseItem[]>(() => {
+    const [localDate, setLocalDate] = useState(selectedDate);
+
+    // Sync local date with prop if prop changes from outside
+    useEffect(() => {
+        setLocalDate(selectedDate);
+    }, [selectedDate]);
+
+    // Initialize items: Empty row or the specific item being edited
+    useEffect(() => {
         if (editingItem && editingItem.date === selectedDate) {
-            return [{ ...editingItem }];
+            setItems([{ ...editingItem }]);
+        } else {
+            setItems([{
+                id: Date.now(), category: expenseCategories[0], subCategory: '', description: '', billAmount: 0, paidAmount: 0, dept: 'Diagnostic'
+            }]);
         }
-        
-        return [{
-            id: Date.now(), category: expenseCategories[0], subCategory: '', description: '', billAmount: 0, paidAmount: 0, dept: 'Diagnostic'
-        }];
-    });
+    }, [selectedDate, editingItem]);
 
     const [savedSearchTerm, setSavedSearchTerm] = useState('');
     const [savedCategoryFilter, setSavedCategoryFilter] = useState('All');
@@ -393,6 +401,20 @@ const DailyExpenseForm: React.FC<any> = ({
     const totalPaid = items.reduce((acc, item) => acc + (Number(item.paidAmount) || 0), 0);
     
     const filteredSavedItems = useMemo(() => {
+        const normalizeBangla = (str: string): string => {
+            if (!str) return '';
+            return str
+                .toLowerCase()
+                .replace(/[\s\u200B-\u200D\uFEFF]/g, '') // remove spaces and zero-width characters
+                .replace(/ড়/g, 'র')
+                .replace(/ঢ়/g, 'র')
+                .replace(/ী/g, 'ি')
+                .replace(/ূ/g, 'ু')
+                .replace(/্য/g, '')
+                .replace(/ঃ/g, '')
+                .replace(/য়/g, 'য');
+        };
+
         const allItems: any[] = [];
         Object.entries(allDetailedExpenses || {}).forEach(([date, items]: [string, any]) => {
             const [y, m] = date.split('-').map(Number);
@@ -415,14 +437,38 @@ const DailyExpenseForm: React.FC<any> = ({
             const subCat = it.subCategory || '';
             const desc = it.description || '';
             
-            const matchesSearch = cat.toLowerCase().includes(savedSearchTerm.toLowerCase()) ||
-                (expenseCategoryBanglaMap[cat] || '').includes(savedSearchTerm) ||
-                subCat.toLowerCase().includes(savedSearchTerm.toLowerCase()) ||
-                desc.toLowerCase().includes(savedSearchTerm.toLowerCase());
-            
+            // 1. Check if category matches dropdown page filter (Strict Category filtering first)
             const matchesCategory = savedCategoryFilter === 'All' || cat === savedCategoryFilter;
+            if (!matchesCategory) return false;
+
+            // 2. Check if search term matches
+            if (savedSearchTerm) {
+                const normSearch = normalizeBangla(savedSearchTerm);
+                const normCatEng = normalizeBangla(cat);
+                const normCatBng = normalizeBangla(expenseCategoryBanglaMap[cat] || '');
+                const normSubCat = normalizeBangla(subCat);
+                const normDesc = normalizeBangla(desc);
+                
+                // Check if search matches any category name in English or Bangla
+                const isCatFilterActive = expenseCategories.some(c => {
+                    const cEng = normalizeBangla(c);
+                    const cBng = normalizeBangla(expenseCategoryBanglaMap[c] || '');
+                    return normSearch && (cEng.includes(normSearch) || cBng.includes(normSearch));
+                });
+                
+                if (isCatFilterActive) {
+                    // Strictly match category name only
+                    return normCatEng.includes(normSearch) || normCatBng.includes(normSearch);
+                } else {
+                    // Fallback to normal search over all fields
+                    return normCatEng.includes(normSearch) ||
+                        normCatBng.includes(normSearch) ||
+                        normSubCat.includes(normSearch) ||
+                        normDesc.includes(normSearch);
+                }
+            }
             
-            return matchesSearch && matchesCategory;
+            return true;
         }).sort((a, b) => {
             const timeA = a.date ? new Date(a.date).getTime() : 0;
             const timeB = b.date ? new Date(b.date).getTime() : 0;
@@ -586,14 +632,21 @@ const DailyExpenseForm: React.FC<any> = ({
                     <h3 className="text-xl font-black text-sky-100 flex items-center gap-3"><Activity className="w-6 h-6 text-sky-400" /> Daily Expense Entry</h3>
                     <input 
                         type="date" 
-                        defaultValue={selectedDate} 
-                        onChange={(e) => {
-                            // Only trigger parent update if it's a full 10-char date (YYYY-MM-DD)
+                        value={localDate} 
+                        onChange={(e) => setLocalDate(e.target.value)}
+                        onBlur={(e) => {
                             if (e.target.value.length === 10) {
                                 onDateChange(e.target.value);
                             }
                         }}
-                        onBlur={(e) => onDateChange(e.target.value)}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                                const target = e.target as HTMLInputElement;
+                                if (target.value.length === 10) {
+                                    onDateChange(target.value);
+                                }
+                            }
+                        }}
                         className="bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white text-sm font-black focus:ring-2 focus:ring-sky-500 focus:outline-none" 
                     />
                 </div>
@@ -713,22 +766,33 @@ const DailyExpenseForm: React.FC<any> = ({
 
                         <select 
                             value={savedCategoryFilter} 
-                            onChange={e => setSavedCategoryFilter(e.target.value)} 
+                            onChange={e => {
+                                setSavedCategoryFilter(e.target.value);
+                                setSavedSearchTerm(''); // Clear search term when category filter changes to prevent conflicts
+                            }} 
                             className="bg-slate-800 border border-slate-700 rounded-xl p-2 text-white text-xs font-bold outline-none focus:border-blue-500"
                         >
-                            <option value="All">All Categories</option>
-                            {expenseCategories.map(cat => <option key={cat} value={cat}>{expenseCategoryBanglaMap[cat] || cat}</option>)}
+                            <option value="All">সব ক্যাটাগরি (All Categories)</option>
+                            {expenseCategories.map(cat => <option key={cat} value={cat}>{expenseCategoryBanglaMap[cat] || cat} ({cat})</option>)}
                         </select>
 
                         <div className="relative w-64">
                             <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
                             <input 
+                                list="saved-categories-search"
                                 type="text" 
                                 placeholder="Search by item/desc..." 
                                 value={savedSearchTerm} 
                                 onChange={e => setSavedSearchTerm(e.target.value)} 
                                 className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-10 pr-4 py-2 text-xs text-white outline-none focus:border-blue-500" 
                             />
+                            <datalist id="saved-categories-search">
+                                {expenseCategories.map(cat => (
+                                    <option key={cat} value={cat}>
+                                        {cat}
+                                    </option>
+                                ))}
+                            </datalist>
                         </div>
                     </div>
                 </div>
@@ -751,7 +815,14 @@ const DailyExpenseForm: React.FC<any> = ({
                                 <tr key={it.id} className="hover:bg-slate-800/30 transition-colors">
                                     <td className="py-4 pl-2 text-slate-500 font-mono">{idx + 1}</td>
                                     <td className="py-4 text-slate-400 font-bold">{it.date}</td>
-                                    <td className="py-4 font-bold text-slate-300">{it.category}</td>
+                                    <td className="py-4">
+                                        <div className="font-extrabold text-white text-[11px] mb-0.5">
+                                            {expenseCategoryBanglaMap[it.category] || it.category}
+                                        </div>
+                                        <div className="text-[9px] text-slate-500 font-medium">
+                                            {it.category}
+                                        </div>
+                                    </td>
                                     <td className="py-4 text-slate-400">{it.subCategory}</td>
                                     <td className="py-4 text-slate-500 italic">{it.description}</td>
                                     <td className="py-4 text-right font-black text-white">৳{it.paidAmount.toLocaleString()}</td>
@@ -853,6 +924,8 @@ const DiagnosticAccountsPage: React.FC<any> = ({
         return saved ? JSON.parse(saved) : ['CBC', 'Lipid Profile', 'Blood Sugar', 'HBsAg', 'Urine R/E', 'S. Creatinine', 'Widal Test', 'TSH', 'S. Bilirubin', 'VDRL'];
     });
     const [isEditingTracked, setIsEditingTracked] = useState(false);
+    const [openDropdownIndex, setOpenDropdownIndex] = useState<number | null>(null);
+    const [dropdownSearch, setDropdownSearch] = useState<string>('');
 
     useEffect(() => {
         localStorage.setItem('diagnostic_tracked_tests', JSON.stringify(trackedTests));
@@ -878,16 +951,32 @@ const DiagnosticAccountsPage: React.FC<any> = ({
             const safePrev = detailedExpenses || {};
             const existingItems = safePrev[date] || [];
             
+            // Separate items into those that stay (other depts AND existing diagnostic that aren't being overwritten)
             const otherDeptItems = existingItems.filter((it: any) => it.dept !== 'Diagnostic');
-            const diagnosticItems = (items || []).map(it => ({ 
+            const prevDiagItems = existingItems.filter((it: any) => it.dept === 'Diagnostic');
+
+            const incomingItems = (items || []).map(it => ({ 
                 ...it, 
                 dept: 'Diagnostic' as const,
                 date: date
             }));
+
+            // Logic: 
+            // If editingItem exists, find and replace IT specifically in the list.
+            // If not editingItem, APPEND new items to existing diagnostic items.
+            let finalDiagItems = [];
+            if (editingItem) {
+                finalDiagItems = prevDiagItems.map(prev => {
+                    const match = incomingItems.find(curr => curr.id === prev.id);
+                    return match || prev;
+                });
+            } else {
+                finalDiagItems = [...prevDiagItems, ...incomingItems];
+            }
             
-            const newState = { ...safePrev, [date]: [...otherDeptItems, ...diagnosticItems] };
+            const newState = { ...safePrev, [date]: [...otherDeptItems, ...finalDiagItems] };
             
-            console.log(`[DiagnosticAccounts] Saving ${diagnosticItems.length} items for ${date}`);
+            console.log(`[DiagnosticAccounts] Saving/Appending ${incomingItems.length} items for ${date}`);
             const success = await performBlockingSync({ detailedExpenses: newState });
             
             if (success) {
@@ -1258,12 +1347,12 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                         }
                         th, td { 
                             border: 1px solid black; 
-                            padding: 2px; 
+                            padding: 1px 2px; 
                             text-align: center; 
                             font-size: 7.5pt; 
                             word-wrap: break-word; 
                             line-height: 1.0; 
-                            height: 18pt;
+                            height: 13.5pt;
                         }
                         th { 
                             background: #f3f4f6; 
@@ -1470,7 +1559,7 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                 {activeTab === 'entry' && (
                     <div className="animate-fade-in space-y-10">
                         <DailyExpenseForm 
-                            key={`${selectedDate}-${editingItem?.id || 'new'}`} 
+                            key="diagnostic-daily-expense-entry-form" 
                             selectedDate={selectedDate} 
                             onDateChange={handleDateChange} 
                             allDetailedExpenses={detailedExpenses} 
@@ -1526,7 +1615,7 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                                                 </td>
                                             ))}
                                             <td className="p-1 border border-slate-300 text-right font-black bg-slate-50 text-slate-900">
-                                                ৳{row.total > 0 ? row.total.toLocaleString() : '-'}
+                                                {row.total > 0 ? row.total.toLocaleString() : '-'}
                                             </td>
                                         </tr>
                                     ))}
@@ -1540,7 +1629,7 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                                             </td>
                                         ))}
                                         <td className="p-3 border border-slate-300 text-right text-lg text-emerald-700 bg-emerald-50">
-                                            ৳{diagnosticExpenseSheetData.grandTotal.toLocaleString()}
+                                            {diagnosticExpenseSheetData.grandTotal.toLocaleString()}
                                         </td>
                                     </tr>
                                 </tfoot>
@@ -1662,38 +1751,103 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                                             {isEditingTracked ? '✓ Save Changes' : '⚙ Custom Set'}
                                         </button>
                                     </div>
-                                    <div className="flex flex-row gap-2 overflow-x-auto pb-1 no-scrollbar items-center">
+                                    <div className="flex flex-row gap-2 overflow-x-auto pb-1 no-scrollbar items-center relative">
+                                        {openDropdownIndex !== null && (
+                                            <div 
+                                                className="fixed inset-0 z-40 bg-transparent cursor-default no-print" 
+                                                onClick={() => setOpenDropdownIndex(null)} 
+                                            />
+                                        )}
                                         {trackedTests.map((test, i) => (
                                             <div 
                                                 key={i} 
-                                                className={`bg-slate-950 px-3 py-1.5 rounded-lg border flex-shrink-0 relative group min-w-[100px] transition-all ${isEditingTracked ? 'border-sky-500 ring-1 ring-sky-500/30 cursor-pointer' : 'border-slate-800'}`}
-                                                onClick={() => {
+                                                className={`bg-slate-950 px-3 py-1.5 rounded-lg border flex-shrink-0 relative min-w-[140px] transition-all ${isEditingTracked ? 'border-sky-500 ring-1 ring-sky-500/30 cursor-pointer' : 'border-slate-800'} ${openDropdownIndex === i ? 'z-50' : 'z-10'}`}
+                                                onClick={(e) => {
                                                     if (isEditingTracked) {
-                                                        // In a real select we'd handle click, but here we use input + datalist
+                                                        e.stopPropagation();
+                                                        setOpenDropdownIndex(i);
+                                                        setDropdownSearch(test);
                                                     }
                                                 }}
                                             >
                                                 {isEditingTracked ? (
-                                                    <div className="flex items-center">
+                                                    <div className="flex items-center justify-between w-full relative">
                                                         <input 
-                                                            list="available-tests-list"
                                                             type="text" 
                                                             value={test} 
-                                                            autoFocus={i === 0}
-                                                            onChange={(e) => {
-                                                                const n = [...trackedTests];
-                                                                n[i] = e.target.value;
-                                                                setTrackedTests(n);
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setOpenDropdownIndex(i);
+                                                                setDropdownSearch(test);
                                                             }}
-                                                            className="w-full bg-slate-900 border-none text-[9px] text-white p-0 outline-none font-bold placeholder:text-slate-700" 
+                                                            onChange={(e) => {
+                                                                const val = e.target.value;
+                                                                const n = [...trackedTests];
+                                                                n[i] = val;
+                                                                setTrackedTests(n);
+                                                                setDropdownSearch(val);
+                                                                setOpenDropdownIndex(i);
+                                                            }}
+                                                            className="w-full bg-transparent border-none text-[10px] text-white p-0 outline-none font-bold placeholder:text-slate-700 pr-4" 
                                                             placeholder="Click to pick..."
                                                         />
-                                                        <span className="text-sky-500 ml-1">▼</span>
-                                                        <datalist id="available-tests-list">
-                                                            {availableTests.map((t: any) => (
-                                                                <option key={t.test_id} value={t.test_name} />
-                                                            ))}
-                                                        </datalist>
+                                                        <span 
+                                                            className="text-sky-500 hover:text-sky-400 absolute right-0 top-1/2 -translate-y-1/2 text-[9px] p-0.5 cursor-pointer"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                if (openDropdownIndex === i) {
+                                                                    setOpenDropdownIndex(null);
+                                                                } else {
+                                                                    setOpenDropdownIndex(i);
+                                                                    setDropdownSearch(test);
+                                                                }
+                                                            }}
+                                                        >
+                                                            ▼
+                                                        </span>
+                                                        {openDropdownIndex === i && (() => {
+                                                            const otherSelected = trackedTests.filter((_, idx) => idx !== i && _ !== '');
+                                                            const filteredSuggestions = availableTests.filter((t: any) => {
+                                                                const isDuplicate = otherSelected.some(
+                                                                    (sel) => sel && sel.toLowerCase().trim() === t.test_name.toLowerCase().trim()
+                                                                );
+                                                                if (isDuplicate) return false;
+                                                                if (dropdownSearch) {
+                                                                    return t.test_name.toLowerCase().includes(dropdownSearch.toLowerCase());
+                                                                }
+                                                                return true;
+                                                            });
+
+                                                            return (
+                                                                <div 
+                                                                    className="absolute left-0 right-0 top-full mt-2 bg-slate-900 border border-slate-700 rounded-xl max-h-48 overflow-y-auto z-50 shadow-2xl py-1 divide-y divide-slate-800 no-scrollbar"
+                                                                    onClick={(e) => e.stopPropagation()}
+                                                                >
+                                                                    {filteredSuggestions.length > 0 ? (
+                                                                        filteredSuggestions.map((t: any) => (
+                                                                            <div
+                                                                                key={t.test_id}
+                                                                                className="px-3 py-2 hover:bg-sky-600/20 text-white text-[10px] font-bold cursor-pointer transition-all flex justify-between items-center"
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    const n = [...trackedTests];
+                                                                                    n[i] = t.test_name;
+                                                                                    setTrackedTests(n);
+                                                                                    setOpenDropdownIndex(null);
+                                                                                }}
+                                                                            >
+                                                                                <span className="truncate max-w-[130px]">{t.test_name}</span>
+                                                                                <span className="text-[8px] text-slate-500 font-normal ml-1">৳{t.price}</span>
+                                                                            </div>
+                                                                        ))
+                                                                    ) : (
+                                                                        <div className="px-3 py-2 text-slate-500 text-[10px] font-bold italic">
+                                                                            No matching tests
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            );
+                                                        })()}
                                                     </div>
                                                 ) : (
                                                     <div className="flex items-center gap-2">

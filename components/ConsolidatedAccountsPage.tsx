@@ -2,7 +2,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { LabInvoice, DueCollection, ExpenseItem, Employee, PurchaseInvoice, SalesInvoice, Medicine } from './DiagnosticData';
 import { IndoorInvoice } from './ClinicPage';
-import { BackIcon, FileTextIcon, UsersIcon, WalletIcon, MoneyIcon, TrendingDownIcon, ChartIcon, PlusIcon, Activity, TrashIcon, SaveIcon, PrinterIcon, ClinicIcon } from './Icons';
+import { BackIcon, FileTextIcon, UsersIcon, WalletIcon, MoneyIcon, TrendingDownIcon, ChartIcon, PlusIcon, Activity, TrashIcon, SaveIcon, PrinterIcon, ClinicIcon, EditIcon, XIcon, Plus } from './Icons';
 
 interface ConsolidatedAccountsPageProps {
   onBack: () => void;
@@ -28,6 +28,20 @@ interface Shareholder {
     name: string;
     shares: number;
     description: string;
+    address?: string;
+    phone?: string;
+    joinDate?: string;
+    isDeleted?: boolean;
+    deletedAt?: string;
+    updatedAt?: string;
+}
+
+interface ShareholderLog {
+    id: string;
+    shareholderId: number;
+    action: 'ADD' | 'UPDATE' | 'DELETE';
+    details: string;
+    timestamp: string;
 }
 
 interface LoanRecord {
@@ -130,7 +144,21 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
     const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
     const [deptFilter, setDeptFilter] = useState<'All' | 'Diagnostic' | 'Clinic'>('All');
     
-    const [dynamicShareholders, setDynamicShareholders] = useState<Shareholder[]>(() => JSON.parse(localStorage.getItem('ncd_shareholders') || JSON.stringify(initialShareholders)));
+    const [dynamicShareholders, setDynamicShareholders] = useState<Shareholder[]>(() => {
+        const saved = localStorage.getItem('ncd_shareholders');
+        if (saved) return JSON.parse(saved);
+        // Add default values for original data if field is missing
+        return initialShareholders.map(s => ({ 
+            ...s, 
+            address: 'Enayetpur, Sirajganj', 
+            phone: 'N/A', 
+            joinDate: '2024-01-01' 
+        }));
+    });
+    const [shareholderLogs, setShareholderLogs] = useState<ShareholderLog[]>(() => JSON.parse(localStorage.getItem('ncd_shareholder_logs') || '[]'));
+    const [editingShareholder, setEditingShareholder] = useState<Shareholder | null>(null);
+    const [isAddPartnerModalOpen, setIsAddPartnerModalOpen] = useState(false);
+
     const [loans, setLoans] = useState<LoanRecord[]>(() => JSON.parse(localStorage.getItem('ncd_loans') || '[]'));
     const [repayments, setRepayments] = useState<RepaymentRecord[]>(() => JSON.parse(localStorage.getItem('ncd_loan_repayments') || '[]'));
     const [futurePlans, setFuturePlans] = useState<FuturePlan[]>(() => JSON.parse(localStorage.getItem('ncd_future_plans') || '[]'));
@@ -166,7 +194,55 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
         localStorage.setItem('ncd_future_plans', JSON.stringify(futurePlans));
         localStorage.setItem('ncd_company_collections', JSON.stringify(companyCollections));
         localStorage.setItem('ncd_monthly_adjustments', JSON.stringify(monthlyAdjustments));
-    }, [dynamicShareholders, loans, repayments, futurePlans, companyCollections, monthlyAdjustments]);
+        localStorage.setItem('ncd_shareholder_logs', JSON.stringify(shareholderLogs));
+    }, [dynamicShareholders, loans, repayments, futurePlans, companyCollections, monthlyAdjustments, shareholderLogs]);
+
+    const addLog = (shareholderId: number, action: 'ADD' | 'UPDATE' | 'DELETE', details: string) => {
+        const newLog: ShareholderLog = {
+            // eslint-disable-next-line react-hooks/purity
+            id: `LOG-${Date.now()}`,
+            shareholderId,
+            action,
+            details,
+            timestamp: new Date().toISOString()
+        };
+        setShareholderLogs(prev => [newLog, ...prev]);
+    };
+
+    const handleAddOrUpdatePartner = (partner: Partial<Shareholder>) => {
+        if (!partner.name || !partner.shares) return alert("নাম এবং শেয়ার সংখ্যা দিন।");
+        
+        if (editingShareholder) {
+            if (!confirm("আপনি কি এই তথ্যগুলো পরিবর্তন করতে চান?")) return;
+            const updated = dynamicShareholders.map(s => s.id === editingShareholder.id ? { ...s, ...partner, updatedAt: new Date().toISOString() } as Shareholder : s);
+            setDynamicShareholders(updated);
+            addLog(editingShareholder.id, 'UPDATE', `Updated partner: ${partner.name}`);
+            setEditingShareholder(null);
+        } else {
+            const newId = dynamicShareholders.length > 0 ? Math.max(...dynamicShareholders.map(s => s.id)) + 1 : 1;
+            const newPartner: Shareholder = {
+                id: newId,
+                name: partner.name!,
+                shares: partner.shares!,
+                description: partner.description || `${partner.shares}টি`,
+                address: partner.address || '',
+                phone: partner.phone || '',
+                joinDate: partner.joinDate || new Date().toISOString().split('T')[0],
+            };
+            setDynamicShareholders([...dynamicShareholders, newPartner]);
+            addLog(newId, 'ADD', `Added new partner: ${partner.name}`);
+        }
+        setIsAddPartnerModalOpen(false);
+    };
+
+    const handleDeletePartner = (id: number) => {
+        const partner = dynamicShareholders.find(s => s.id === id);
+        if (!partner) return;
+        if (confirm(`আপনি কি নিশ্চিত যে আপনি "${partner.name}"-কে তালিকা থেকে মুছে ফেলতে চান?`)) {
+            setDynamicShareholders(dynamicShareholders.filter(s => s.id !== id));
+            addLog(id, 'DELETE', `Deleted partner: ${partner.name}`);
+        }
+    };
 
     const addFuturePlan = () => {
         if (!newPlan.title) return alert("শিরোনাম দিন।");
@@ -599,19 +675,22 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
         const win = window.open('', '', `width=${screen.availWidth},height=${screen.availHeight}`);
         if(!win) return;
         const isLandscape = elementId === 'section-monthly-expense';
+        const isPartnerList = elementId === 'print-shareholder-list';
+        const isProfitShare = elementId === 'section-profit-share';
         const html = `<html><head><title>Print Report</title><script src="https://cdn.tailwindcss.com"></script><style>
             @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700;800&family=Hind+Siliguri:wght@400;500;600;700&display=swap');
-            @page { size: A4 ${isLandscape ? 'landscape' : 'portrait'}; margin: ${isLandscape ? '5mm' : '15mm'} 10mm 5mm 10mm; } 
+            @page { size: A4 ${isLandscape ? 'landscape' : 'portrait'}; margin: ${isPartnerList ? '8mm' : (isProfitShare ? '4mm' : (isLandscape ? '5mm' : '15mm'))} 10mm ${isPartnerList || isProfitShare ? '5mm' : '5mm'} 10mm; } 
             html, body { background: white; font-family: 'Inter', 'Hind Siliguri', sans-serif; padding: 0; margin: 0; color: black; box-sizing: border-box; -webkit-print-color-adjust: exact; width: 100%; height: auto !important; min-height: 0 !important; } 
-            main { width: 100% !important; max-width: none !important; margin: 0 !important; padding: ${isLandscape ? '0.5mm' : '5mm'} 0 !important; border: none !important; box-shadow: none !important; height: auto !important; min-height: 0 !important; display: flex; flex-direction: column; }
+            main { width: 100% !important; max-width: none !important; margin: 0 !important; padding: ${isLandscape ? '0.5mm' : (elementId === 'section-accounts' ? '2mm' : (isProfitShare ? '1mm' : '5mm'))} 0 !important; border: none !important; box-shadow: none !important; height: auto !important; min-height: 0 !important; display: flex; flex-direction: column; }
             .print-table { width: 100% !important; border-collapse: collapse !important; border: 2px solid #000 !important; table-layout: fixed; margin-bottom: 0 !important; } 
-            th, td { border: 1px solid #000 !important; padding: 2px 1.5px; text-align: center; overflow: hidden; font-size: ${isLandscape ? '8.75pt' : '10.5pt'}; line-height: 1.05; word-break: break-all; } 
+            th, td { border: 1.5px solid #000 !important; padding: ${isPartnerList ? '2px 4px' : '2px 1.5px'}; text-align: center; overflow: hidden; font-size: ${isPartnerList ? '10.5pt' : (isLandscape ? '8.75pt' : '10.5pt')}; line-height: 1.2; word-break: break-all; } 
             .no-print { display: none !important; } 
             .font-bengali { font-family: 'Hind Siliguri', sans-serif !important; } 
             .font-mono { font-family: 'JetBrains Mono', monospace !important; }
-            h1 { font-size: ${isLandscape ? '14pt' : '22pt'} !important; margin: 0 !important; font-weight: 900 !important; line-height: 1.1; } 
-            p { font-size: ${isLandscape ? '9.5pt' : '11pt'} !important; margin: 0 !important; line-height: 1.2; }
+            h1 { font-size: ${isLandscape ? '14pt' : '18pt'} !important; margin: 0 !important; font-weight: 900 !important; line-height: 1.1; } 
+            p { font-size: ${isLandscape ? '9.5pt' : '10pt'} !important; margin: 0 !important; line-height: 1.2; }
             .print-border-b { border-bottom: 2px solid black !important; }
+            ${isPartnerList ? 'table tbody tr { height: 54px !important; page-break-inside: avoid; }' : ''}
         </style></head><body>${content.innerHTML}<script>setTimeout(() => { window.print(); window.close(); }, 850);</script></body></html>`;
         win.document.write(html); win.document.close();
     };
@@ -675,7 +754,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                             </div>
                             <table className="print-table w-full text-[8.75pt] border-collapse border-2 border-black table-fixed leading-none">
                                 <thead className="shrink-0 bg-gray-100">
-                                    <tr className="bg-gray-100 h-[36px] print:h-[8mm]">
+                                    <tr className="bg-gray-100 h-[36px] print:h-[6mm]">
                                         <th className="border-2 border-black p-0 w-[45px] text-[8.5pt]">Date</th>
                                         {expenseMapSequence.map(e => <th key={e.key} className="border-2 border-black p-0 font-black text-[8pt] uppercase leading-tight break-all font-['Hind_Siliguri']">{e.label}</th>)}
                                         <th className="border-2 border-black p-0 bg-gray-200 font-black w-[70px] text-[8.5pt]">Total</th>
@@ -683,7 +762,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                 </thead>
                                 <tbody>
                                     {expenseSheetData.rows.map(row => (
-                                        <tr key={row.date} className="hover:bg-blue-50 transition-colors h-[32px] print:h-[6.5mm]">
+                                        <tr key={row.date} className="hover:bg-blue-50 transition-colors h-[32px] print:h-[5.3mm]">
                                             <td className="border border-black p-0 text-center font-['JetBrains_Mono'] font-bold text-[8.5pt] whitespace-nowrap bg-gray-50">{row.date.split('-')[2]} {monthOptions[parseInt(row.date.split('-')[1])-1].name.substring(0,3)}</td>
                                             {expenseMapSequence.map(e => <td key={e.key} className="border border-black p-0.5 text-center font-medium text-[9pt]">{row.categories[e.key] > 0 ? row.categories[e.key].toLocaleString() : '-'}</td>)}
                                             <td className="border border-black p-0.5 px-1 text-left font-black bg-gray-50 text-[9.5pt]">{row.total > 0 ? row.total.toLocaleString() : '-'}</td>
@@ -691,14 +770,14 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                     ))}
                                     {/* Padding Empty Rows if needed to fill the month */}
                                     {expenseSheetData.rows.length < 31 && Array.from({length: 31 - expenseSheetData.rows.length}).map((_, i) => (
-                                        <tr key={`empty-${i}`} className="h-[32px] print:h-[6.5mm]">
+                                        <tr key={`empty-${i}`} className="h-[32px] print:h-[5.3mm]">
                                             <td className="border border-black bg-gray-50"></td>
                                             {expenseMapSequence.map(e => <td key={e.key} className="border border-black"></td>)}
                                             <td className="border border-black bg-gray-50"></td>
                                         </tr>
                                     ))}
                                 </tbody>
-                                <tfoot className="bg-gray-100 font-black h-[36px] print:h-[8mm]">
+                                <tfoot className="bg-gray-100 font-black h-[36px] print:h-[6mm]">
                                     <tr>
                                         <td className="border-2 border-black p-0 text-center text-[7.5pt] uppercase">TOTAL:</td>
                                         {expenseMapSequence.map(e => <td key={e.key} className="border-2 border-black p-0 text-center text-blue-900 text-[8pt]">{expenseSheetData.columnTotals[e.key] > 0 ? expenseSheetData.columnTotals[e.key].toLocaleString() : '-'}</td>)}
@@ -731,7 +810,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                 </thead>
                                 <tbody>
                                     {dailyCollectionData.map((row, idx) => (
-                                        <tr key={idx} className="h-7 hover:bg-slate-50 transition-colors">
+                                        <tr key={idx} className="h-7 hover:bg-slate-50 transition-colors print:h-[6mm]">
                                             <td className="border border-black p-1 font-['JetBrains_Mono'] font-bold">{row.date}</td>
                                             <td className="border border-black p-1 text-right">{row.diag.today > 0 ? row.diag.today.toLocaleString() : ''}</td>
                                             <td className="border border-black p-1 text-right">{row.diag.due > 0 ? row.diag.due.toLocaleString() : ''}</td>
@@ -771,7 +850,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                 </thead>
                                 <tbody>
                                     {dailyExpenseReportData.map((row, idx) => (
-                                        <tr key={idx} className="h-7 hover:bg-slate-50 transition-colors">
+                                        <tr key={idx} className="h-7 hover:bg-slate-50 transition-colors print:h-[6mm]">
                                             <td className="border border-black p-1 font-['JetBrains_Mono'] font-bold">{row.date}</td>
                                             <td className="border border-black p-1 text-right">{row.diag.today > 0 ? row.diag.today.toLocaleString() : ''}</td>
                                             <td className="border border-black p-1 text-right font-black bg-blue-50/50">{row.diag.upto !== null ? row.diag.upto.toLocaleString() : ''}</td>
@@ -791,7 +870,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                     <div id="section-accounts" className="relative animate-fade-in h-full">
                         <button onClick={() => handlePrintSpecific('section-accounts')} className="no-print absolute top-2 right-2 p-2 bg-blue-600 text-white rounded-full shadow-lg"><FileTextIcon className="w-5 h-5" /></button>
                         <main className="p-4 sm:p-6 max-w-[210mm] mx-auto w-full bg-white text-black shadow-2xl flex flex-col border border-gray-300 font-['Inter'] min-h-0 print:border-2 print:border-black print:shadow-none print:m-0">
-                            <div className="flex justify-between items-end mb-10 border-b-2 border-black pb-1 shrink-0">
+                            <div className="flex justify-between items-end mb-12 border-b-2 border-black pb-3 shrink-0">
                                 <div>
                                     <h1 className="text-xl font-black uppercase text-blue-900 leading-none">Niramoy Clinic & Diagnostic</h1>
                                     <p className="text-[10px] font-bold mt-0.5">Enayetpur, Sirajgonj | Mobile: 01730 923007</p>
@@ -931,13 +1010,13 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                             {/* MAIN TABLE (TIGHTENED FOR SINGLE PAGE) */}
                             <table className="w-full border-collapse border-2 border-black text-[8.2pt] font-['Inter']">
                                 <thead>
-                                    <tr className="h-6.5">
+                                    <tr className="h-6.5 print:h-[7mm]">
                                         <th className="border-2 border-black w-[75px]"></th> 
                                         <th className="border-2 border-black text-purple-700 font-black uppercase text-xs py-0.5 font-['Inter']" colSpan={3}>Collection</th>
                                         <th className="border-2 border-black text-fuchsia-700 font-black uppercase text-xs py-0.5 font-['Inter']" colSpan={3}>Expense</th>
                                         <th className="border-2 border-black text-fuchsia-600 font-black uppercase text-xs py-0.5 font-['Inter']">Balance</th>
                                     </tr>
-                                    <tr className="bg-gray-100 uppercase text-[7.8pt] font-black h-6.5">
+                                    <tr className="bg-gray-100 uppercase text-[7.8pt] font-black h-6.5 print:h-[7mm]">
                                         <th className="border-2 border-black text-blue-700">Date</th>
                                         <th className="border-2 border-black text-blue-700">Diagnostic</th>
                                         <th className="border-2 border-black text-blue-700">Clinic</th>
@@ -950,7 +1029,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                 </thead>
                                 <tbody>
                                     {statusReportData.map((row, idx) => (
-                                        <tr key={idx} className="h-[25.5px] hover:bg-slate-50 transition-colors leading-tight">
+                                        <tr key={idx} className="h-[25.5px] hover:bg-slate-50 transition-colors leading-tight print:h-[6mm]">
                                             <td className="border-2 border-black text-center font-['JetBrains_Mono'] font-bold text-[7.5pt]">{row.date}</td>
                                             <td className="border-2 border-black text-center">{row.diagColl > 0 ? row.diagColl.toLocaleString() : ''}</td>
                                             <td className="border-2 border-black text-center">{row.clinicColl > 0 ? row.clinicColl.toLocaleString() : ''}</td>
@@ -963,7 +1042,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                     ))}
                                     {/* Calculated padding empty rows */}
                                     {statusReportData.length < 31 && Array.from({length: 31 - statusReportData.length}).map((_, i) => (
-                                        <tr key={`empty-${i}`} className="h-[25.5px]">
+                                        <tr key={`empty-${i}`} className="h-[25.5px] print:h-[6mm]">
                                             <td className="border-2 border-black"></td><td className="border-2 border-black"></td><td className="border-2 border-black"></td><td className="border-2 border-black"></td><td className="border-2 border-black"></td><td className="border-2 border-black"></td><td className="border-2 border-black"></td><td className="border-2 border-black"></td>
                                         </tr>
                                     ))}
@@ -1057,24 +1136,270 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                     </div>
                 )}
 
-                {/* RESTORED & PERSISTED: Partner Management */}
+                {/* 10. Partner Management */}
                 {activeTab === 'shareholder_mgmt' && (
-                    <div className="max-w-4xl mx-auto space-y-8 animate-fade-in no-print">
-                        <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-2xl flex items-center justify-between"><h3 className="text-2xl font-black text-slate-800 uppercase tracking-tighter">অংশীদার ব্যবস্থাপনা (Partner List)</h3><button onClick={() => {
-                            const n = prompt("নাম লিখুন:"); const s = parseFloat(prompt("শেয়ার সংখ্যা:") || '0');
-                            if(n && s) setDynamicShareholders([...dynamicShareholders, {id:Date.now(), name:n, shares:s, description: `${s}টি`}]);
-                        }} className="bg-blue-600 text-white px-8 py-3 rounded-2xl font-black uppercase text-xs shadow-lg">+ নতুন অংশীদার</button></div>
-                        <div className="overflow-x-auto rounded-[2rem] border border-slate-200 shadow-xl bg-white"><table className="w-full text-left border-collapse"><thead className="bg-slate-50 text-slate-500 font-black uppercase text-[10px] tracking-widest border-b border-slate-200"><tr><th className="p-5">SL</th><th className="p-5">নাম</th><th className="p-5 text-center">শেয়ার</th><th className="p-5">বিবরণ</th><th className="p-5 text-center">X</th></tr></thead><tbody className="divide-y divide-slate-100">
-                            {dynamicShareholders.map((s, i) => (
-                                <tr key={s.id} className="hover:bg-blue-50 transition-colors">
-                                    <td className="p-5 font-bold text-slate-400">{i+1}</td>
-                                    <td className="p-5 font-black text-slate-800 uppercase font-['Hind_Siliguri']">{s.name}</td>
-                                    <td className="p-5 text-center font-black text-blue-600">{s.shares}</td>
-                                    <td className="p-5 text-slate-500 text-sm">{s.description}</td>
-                                    <td className="p-5 text-center"><button onClick={() => setDynamicShareholders(dynamicShareholders.filter(x=>x.id!==s.id))} className="text-rose-400 hover:text-rose-600 p-2"><TrashIcon size={18}/></button></td>
-                                </tr>
-                            ))}
-                        </tbody></table></div>
+                    <div id="section-shareholder-mgmt" className="max-w-6xl mx-auto space-y-4 animate-fade-in no-print">
+                        <div className="bg-white px-6 py-4 rounded-2xl border border-slate-200 shadow-lg flex items-center justify-between">
+                            <h3 className="text-xl font-black text-slate-800 uppercase tracking-tighter font-['Hind_Siliguri']">অংশীদার ব্যবস্থাপনা (Partner List)</h3>
+                            <div className="flex gap-3">
+                                <button onClick={() => {
+                                    setEditingShareholder(null);
+                                    setIsAddPartnerModalOpen(true);
+                                }} className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-xl font-black uppercase text-[11px] shadow-lg transition-all active:scale-95 flex items-center gap-2 font-['Inter']">
+                                    <PlusIcon size={14} /> নতুন অংশীদার
+                                </button>
+                                <button 
+                                    onClick={() => handlePrintSpecific('print-shareholder-list')} 
+                                    className="px-5 py-2 bg-indigo-600 text-white rounded-xl shadow-lg hover:bg-indigo-500 transition-all flex items-center gap-2 active:scale-95 font-['Inter']"
+                                >
+                                    <PrinterIcon size={14} />
+                                    <span className="text-[11px] font-black uppercase">Print List</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Search & Stats - Compact one line */}
+                        <div className="flex flex-wrap items-center gap-2 bg-white border border-slate-200 p-2 rounded-2xl shadow-sm">
+                            <div className="flex-1 flex items-center justify-center gap-2 bg-blue-50 py-2 px-3 rounded-xl border border-blue-100">
+                                <p className="text-base font-bold text-blue-600 uppercase tracking-tight">মোট অংশীদার:</p>
+                                <p className="text-base font-black text-blue-700">{dynamicShareholders.filter(s => !s.isDeleted).length} জন</p>
+                            </div>
+                            <div className="flex-1 flex items-center justify-center gap-2 bg-emerald-50 py-2 px-3 rounded-xl border border-emerald-100">
+                                <p className="text-base font-bold text-emerald-600 uppercase tracking-tight">মোট শেয়ার:</p>
+                                <p className="text-base font-black text-emerald-700">{dynamicShareholders.filter(s => !s.isDeleted).reduce((sum, s) => sum + s.shares, 0).toLocaleString()} টি</p>
+                            </div>
+                            <div className="flex-1 flex items-center justify-center gap-2 bg-slate-50 py-2 px-3 rounded-xl border border-slate-200">
+                                <p className="text-base font-bold text-slate-600 uppercase tracking-tight">সক্রিয় পিরিয়ড:</p>
+                                <p className="text-base font-black text-slate-800">{monthOptions[selectedMonth].name} {selectedYear}</p>
+                            </div>
+                        </div>
+
+                        {/* Partner Table */}
+                        <div className="overflow-x-auto rounded-2xl border border-slate-200 shadow-xl bg-white">
+                            <div id="print-shareholder-list" className="bg-white">
+                                <div className="hidden print:block mb-9 border-b-2 border-black pb-5 text-center">
+                                    <h1 className="text-2xl font-black uppercase text-blue-900 mb-2">Niramoy Clinic & Diagnostic</h1>
+                                    <p className="text-xs font-bold uppercase text-slate-600 mb-3">Partner List Summary - {monthOptions[selectedMonth].name} {selectedYear}</p>
+                                    <div className="flex justify-center gap-10 text-[10px] font-black">
+                                        <span>Total Partners: {dynamicShareholders.filter(s => !s.isDeleted).length}</span>
+                                        <span>Total Shares: {dynamicShareholders.filter(s => !s.isDeleted).reduce((sum, s) => sum + s.shares, 0)}</span>
+                                    </div>
+                                </div>
+                                
+                                <table className="print-table w-full text-left border-collapse border-slate-200 table-fixed border">
+                                    <thead className="bg-slate-800 text-white font-black uppercase text-[10px] tracking-widest print:bg-gray-100 print:text-black">
+                                        <tr>
+                                            <th className="p-3 border border-slate-700 text-center w-24 text-base">SL</th>
+                                            <th className="p-3 border border-slate-700 text-base w-[400px]">নাম (Name)</th>
+                                            <th className="p-3 border border-slate-700 text-base text-center w-40">শেয়ার ({dynamicShareholders.filter(s => !s.isDeleted).reduce((sum, s) => sum + s.shares, 0)})</th>
+                                            <th className="p-3 border border-slate-700 text-base w-[230px]">বিবরণ (কথায়)</th>
+                                            <th className="p-3 border border-slate-700 text-base w-40 hidden print:table-cell">স্বাক্ষর (Signature)</th>
+                                            <th className="p-3 border border-slate-700 print:hidden text-center w-72 text-base">অ্যাকশন</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-200 font-['Hind_Siliguri']">
+                                        {dynamicShareholders
+                                            .filter(s => !s.isDeleted)
+                                            .filter(s => {
+                                                // Simplified month filtering: if joinDate is present, only show if joinDate <= current month
+                                                if (!s.joinDate) return true;
+                                                const join = new Date(s.joinDate);
+                                                const current = new Date(selectedYear, selectedMonth + 1, 0);
+                                                return join <= current;
+                                            })
+                                            .map((s, i) => (
+                                            <tr key={s.id} className="hover:bg-blue-50/50 transition-colors h-14 group">
+                                                <td className="p-1 px-3 border border-slate-300 text-center font-bold text-slate-700 text-lg">{i+1}</td>
+                                                <td className="p-1 px-3 border border-slate-300 group-hover:pl-4 transition-all pr-2">
+                                                    <div className="flex flex-col">
+                                                        <span className="font-black text-slate-800 uppercase text-lg leading-tight">{s.name}</span>
+                                                        <div className="flex gap-2 text-[10px] text-slate-400 font-bold uppercase tracking-tighter mt-0">
+                                                            <span>Phone: {s.phone || 'N/A'}</span>
+                                                            <span className="h-2 w-px bg-slate-200"></span>
+                                                            <span>Joined: {s.joinDate || 'N/A'}</span>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td className="p-1 border border-slate-300 text-center">
+                                                    <span className="inline-flex px-3 py-1 bg-blue-50 text-blue-700 rounded-md font-black text-lg shadow-sm">{s.shares}</span>
+                                                </td>
+                                                <td className="p-1 px-3 border border-slate-300 text-slate-700 font-bold text-lg">{s.description}</td>
+                                                <td className="p-1 border border-slate-300 hidden print:table-cell"></td>
+                                                <td className="p-1 border border-slate-300 text-center print:hidden">
+                                                    <div className="flex items-center justify-center gap-2">
+                                                        <button 
+                                                            onClick={() => {
+                                                                setEditingShareholder(s);
+                                                                setIsAddPartnerModalOpen(true);
+                                                            }} 
+                                                            className="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-600 hover:text-white transition-all"
+                                                            title="Edit"
+                                                        >
+                                                            <EditIcon className="w-3.5 h-3.5" />
+                                                        </button>
+                                                        <div className="w-px h-4 bg-slate-300"></div>
+                                                        <button 
+                                                            onClick={() => handleDeletePartner(s.id)} 
+                                                            className="p-1.5 bg-rose-50 text-rose-600 rounded-lg hover:bg-rose-600 hover:text-white transition-all"
+                                                            title="Delete"
+                                                        >
+                                                            <TrashIcon className="w-3.5 h-3.5" />
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                    <tfoot className="bg-slate-50 font-black border-t-2 border-slate-200">
+                                        <tr className="h-10">
+                                            <td className="p-2 border border-slate-200 text-center text-sm">{dynamicShareholders.filter(s => !s.isDeleted).length}</td>
+                                            <td className="p-2 border border-slate-200 text-right text-xs uppercase text-slate-500">Total Shares Summary:</td>
+                                            <td className="p-2 border border-slate-200 text-center text-blue-700 text-lg bg-blue-50/50">
+                                                {dynamicShareholders.filter(s => !s.isDeleted).reduce((sum, s) => sum + s.shares, 0)}
+                                            </td>
+                                            <td className="p-2 border border-slate-200" colSpan={3}></td>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+
+                                {/* Print version footer */}
+                                <div className="hidden print:flex justify-between mt-20 px-10 text-[10px] uppercase font-black">
+                                    <div className="text-center w-40 border-t border-black pt-2">Authorized Signature</div>
+                                    <div className="text-center w-40 border-t border-black pt-2">Date: {new Date().toLocaleDateString()}</div>
+                                    <div className="text-center w-40 border-t border-black pt-2">Managing Director</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Recent Logs Section */}
+                        <div className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-xl no-print">
+                            <h4 className="text-sm font-black text-slate-800 uppercase mb-4 flex items-center gap-2 border-b pb-2">
+                                <Activity className="w-4 h-4 text-blue-500" /> সাম্প্রতিক পরিবর্তন লগ (Recent Activity)
+                            </h4>
+                            <div className="space-y-2 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
+                                {shareholderLogs.length === 0 ? (
+                                    <p className="text-center text-xs text-slate-400 py-10 font-bold uppercase italic">No recent activity recorded.</p>
+                                ) : (
+                                    shareholderLogs.map(log => (
+                                        <div key={log.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100 hover:border-blue-200 transition-all">
+                                            <div className="flex items-center gap-3">
+                                                <div className={`p-2 rounded-lg ${log.action === 'ADD' ? 'bg-emerald-50 text-emerald-600' : log.action === 'UPDATE' ? 'bg-indigo-50 text-indigo-600' : 'bg-rose-50 text-rose-600'}`}>
+                                                    {log.action === 'ADD' ? <PlusIcon size={14}/> : log.action === 'UPDATE' ? <EditIcon size={14}/> : <TrashIcon size={14}/>}
+                                                </div>
+                                                <div>
+                                                    <p className="text-xs font-black text-slate-700">{log.details}</p>
+                                                    <p className="text-[10px] text-slate-400 font-bold font-mono">{new Date(log.timestamp).toLocaleString()}</p>
+                                                </div>
+                                            </div>
+                                            <div className="text-[10px] font-black px-2 py-0.5 rounded bg-slate-200 text-slate-500 uppercase tracking-tighter">ID: {log.shareholderId}</div>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Add/Edit Partner Modal */}
+                {isAddPartnerModalOpen && (
+                    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[1100] flex items-center justify-center p-4">
+                        <div className="bg-white rounded-[2.5rem] shadow-2xl max-w-lg w-full border border-slate-200 overflow-hidden animate-fade-in-up">
+                            <div className="p-8 bg-slate-800 text-white relative">
+                                <h3 className="text-2xl font-black uppercase tracking-tighter font-['Hind_Siliguri'] flex items-center gap-3">
+                                    {editingShareholder ? <EditIcon className="w-7 h-7 text-indigo-400"/> : <PlusIcon className="w-7 h-7 text-emerald-400"/>}
+                                    {editingShareholder ? 'অংশীদার তথ্য পরিবর্তন' : 'নতুন অংশীদার যুক্ত করুন'}
+                                </h3>
+                                <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-1">Please fill out all required information</p>
+                                <button type="button" onClick={() => setIsAddPartnerModalOpen(false)} className="absolute top-8 right-8 text-white/50 hover:text-white transition-all"><XIcon size={24}/></button>
+                            </div>
+                            
+                            <form onSubmit={(e) => {
+                                e.preventDefault();
+                                const formData = new FormData(e.currentTarget);
+                                handleAddOrUpdatePartner({
+                                    name: formData.get('name') as string,
+                                    shares: parseFloat(formData.get('shares') as string),
+                                    description: formData.get('description') as string,
+                                    address: formData.get('address') as string,
+                                    phone: formData.get('phone') as string,
+                                    joinDate: formData.get('joinDate') as string,
+                                });
+                            }} className="p-8 space-y-5">
+                                <div className="grid grid-cols-2 gap-5">
+                                    <div className="col-span-2">
+                                        <label className="text-[11px] font-black text-slate-500 uppercase ml-2 mb-1 block">পূর্ণ নাম (Full Name)*</label>
+                                        <input 
+                                            name="name" 
+                                            required 
+                                            defaultValue={editingShareholder?.name || ''} 
+                                            placeholder="অংশীদারের পুরো নাম লিখুন..." 
+                                            className="w-full p-4 bg-slate-50 border border-slate-300 rounded-2xl font-black text-slate-800 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all" 
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-[11px] font-black text-slate-500 uppercase ml-2 mb-1 block">শেয়ার সংখ্যা (Shares Ratio)*</label>
+                                        <input 
+                                            name="shares" 
+                                            type="number" 
+                                            step="0.01" 
+                                            required 
+                                            defaultValue={editingShareholder?.shares || ''} 
+                                            className="w-full p-4 bg-slate-50 border border-slate-300 rounded-2xl font-black text-slate-800 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all" 
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-[11px] font-black text-slate-500 uppercase ml-2 mb-1 block">মোবাইল নাম্বার (Phone)</label>
+                                        <input 
+                                            name="phone" 
+                                            type="tel" 
+                                            defaultValue={editingShareholder?.phone || ''} 
+                                            className="w-full p-4 bg-slate-50 border border-slate-300 rounded-2xl font-black text-slate-800 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all" 
+                                        />
+                                    </div>
+                                    <div className="col-span-2">
+                                        <label className="text-[11px] font-black text-slate-500 uppercase ml-2 mb-1 block">ঠিকানা (Address)</label>
+                                        <input 
+                                            name="address" 
+                                            defaultValue={editingShareholder?.address || ''} 
+                                            className="w-full p-4 bg-slate-50 border border-slate-300 rounded-2xl font-black text-slate-800 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all" 
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-[11px] font-black text-slate-500 uppercase ml-2 mb-1 block">যোগদানের তারিখ (Join Date)</label>
+                                        <input 
+                                            name="joinDate" 
+                                            type="date" 
+                                            defaultValue={editingShareholder?.joinDate || new Date().toISOString().split('T')[0]} 
+                                            className="w-full p-4 bg-slate-50 border border-slate-300 rounded-2xl font-black font-mono text-slate-800 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all" 
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-[11px] font-black text-slate-500 uppercase ml-2 mb-1 block">বিবরণ (Description)</label>
+                                        <input 
+                                            name="description" 
+                                            defaultValue={editingShareholder?.description || ''} 
+                                            className="w-full p-4 bg-slate-50 border border-slate-300 rounded-2xl font-black text-slate-800 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all" 
+                                        />
+                                    </div>
+                                </div>
+                                
+                                <div className="flex gap-4 mt-8">
+                                    <button 
+                                        type="button" 
+                                        onClick={() => setIsAddPartnerModalOpen(false)} 
+                                        className="flex-1 py-4 text-slate-500 font-black uppercase text-sm hover:bg-slate-100 rounded-2xl transition-all"
+                                    >
+                                        বাতিল (Cancel)
+                                    </button>
+                                    <button 
+                                        type="submit" 
+                                        className={`flex-1 py-4 ${editingShareholder ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-emerald-600 hover:bg-emerald-700'} text-white font-black uppercase text-sm rounded-2xl shadow-xl transition-all active:scale-95`}
+                                    >
+                                        {editingShareholder ? 'পরিবর্তন সেভ করুন' : 'অংশীদার সেভ করুন'}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
                     </div>
                 )}
 
@@ -1098,21 +1423,21 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                     <div id="section-profit-share" className="max-w-5xl mx-auto space-y-8 animate-fade-in">
                         <div className="bg-white p-8 rounded-[2.5rem] shadow-2xl border border-slate-200 relative">
                             <button onClick={() => handlePrintSpecific('section-profit-share')} className="no-print absolute top-8 right-8 p-3 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-500 transition-all"><PrinterIcon size={20}/></button>
-                            <div className="text-center mb-8 border-b pb-6">
-                                <h1 className="text-3xl font-black text-blue-900 uppercase tracking-tighter leading-none mb-2">Niramoy Clinic & Diagnostic</h1>
-                                <h2 className="text-xl font-black text-slate-700 font-['Hind_Siliguri']">অংশীদারদের লভ্যাংশ বন্টন রিপোর্ট</h2>
-                                <p className="text-sm font-bold text-slate-500 uppercase tracking-widest mt-2">{monthOptions[selectedMonth].name} {selectedYear}</p>
+                            <div className="text-center mb-8 border-b pb-6 print:mb-8 print:pb-2">
+                                <h1 className="text-3xl font-black text-blue-900 uppercase tracking-tighter leading-none mb-2 print:text-2xl">Niramoy Clinic & Diagnostic</h1>
+                                <h2 className="text-xl font-black text-slate-700 font-['Hind_Siliguri'] print:text-base">অংশীদারদের লভ্যাংশ বন্টন রিপোর্ট</h2>
+                                <p className="text-sm font-bold text-slate-500 uppercase tracking-widest mt-2 print:text-xs print:mt-1">{monthOptions[selectedMonth].name} {selectedYear}</p>
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
-                                <div className="bg-slate-50 p-6 rounded-3xl border border-slate-200 text-center">
-                                    <p className="text-[10px] font-black text-slate-500 uppercase mb-1">মোট নিট মুনাফা</p>
-                                    <p className="text-2xl font-black text-slate-800">৳{adj.profitDist.toLocaleString()}</p>
+                            <div className="grid grid-cols-4 gap-4 mb-8 print:gap-1 print:mb-8 print:mt-0">
+                                <div className="bg-slate-50 p-4 rounded-3xl border border-slate-200 text-center print:bg-white print:rounded-none print:border-black print:p-1 print:flex print:items-center print:justify-between print:px-3">
+                                    <p className="text-[13px] font-black text-slate-500 uppercase mb-1 font-['Hind_Siliguri'] print:text-[8pt] print:mb-0 print:text-black">মোট নিট মুনাফা</p>
+                                    <p className="text-2xl font-black text-slate-800 print:text-[10pt]">{adj.profitDist.toLocaleString()}</p>
                                 </div>
-                                <div className="bg-blue-50 p-6 rounded-3xl border border-blue-100 text-center">
-                                    <p className="text-[10px] font-black text-blue-500 uppercase mb-1">বন্টনযোগ্য লভ্যাংশ</p>
+                                <div className="bg-blue-50 p-4 rounded-3xl border border-blue-100 text-center print:bg-white print:rounded-none print:border-black print:p-1 print:flex print:items-center print:justify-between print:px-3">
+                                    <p className="text-[13px] font-black text-blue-500 uppercase mb-1 font-['Hind_Siliguri'] print:text-[8pt] print:mb-0 print:text-black">বন্টনযোগ্য লভ্যাংশ</p>
                                     <div className="flex items-center justify-center gap-2">
-                                        <span className="text-lg font-black text-blue-900">৳</span>
+                                        <span className="text-lg font-black text-blue-900 no-print invisible">৳</span>
                                         <input type="number" value={adj.profitDist || ''} onChange={e=>updateAdjustment('profitDist', parseFloat(e.target.value)||0)} className="w-24 bg-transparent border-b-2 border-blue-300 text-center text-2xl font-black text-blue-900 outline-none no-print" />
                                         <button 
                                             onClick={() => setShowSaveConfirm(true)}
@@ -1121,50 +1446,53 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                         >
                                             <SaveIcon className="w-4 h-4" />
                                         </button>
-                                        <span className="text-2xl font-black text-blue-900 print-only">{adj.profitDist.toLocaleString()}</span>
+                                        <span className="text-2xl font-black text-blue-900 print:inline-block hidden print:text-[10pt]">{adj.profitDist.toLocaleString()}</span>
                                     </div>
                                 </div>
-                                <div className="bg-indigo-50 p-6 rounded-3xl border border-indigo-100 text-center">
-                                    <p className="text-[10px] font-black text-indigo-500 uppercase mb-1">মোট শেয়ার সংখ্যা</p>
-                                    <p className="text-2xl font-black text-indigo-900">{summary.totalShares}</p>
+                                <div className="bg-indigo-50 p-4 rounded-3xl border border-indigo-100 text-center print:bg-white print:rounded-none print:border-black print:p-1 print:flex print:items-center print:justify-between print:px-3">
+                                    <p className="text-[13px] font-black text-indigo-500 uppercase mb-1 font-['Hind_Siliguri'] print:text-[8pt] print:mb-0 print:text-black">মোট শেয়ার সংখ্যা</p>
+                                    <p className="text-2xl font-black text-indigo-900 print:text-[10pt]">{summary.totalShares}</p>
                                 </div>
-                                <div className="bg-emerald-50 p-6 rounded-3xl border border-emerald-100 text-center">
-                                    <p className="text-[10px] font-black text-emerald-500 uppercase mb-1">প্রতি শেয়ারে লভ্যাংশ</p>
-                                    <p className="text-2xl font-black text-emerald-900">৳{summary.profitPerShare.toFixed(2)}</p>
+                                <div className="bg-emerald-50 p-4 rounded-3xl border border-emerald-100 text-center print:bg-white print:rounded-none print:border-black print:p-1 print:flex print:items-center print:justify-between print:px-3">
+                                    <p className="text-[13px] font-black text-emerald-500 uppercase mb-1 font-['Hind_Siliguri'] print:text-[8pt] print:mb-0 print:text-black">প্রতি শেয়ারে লভ্যাংশ</p>
+                                    <p className="text-2xl font-black text-emerald-900 print:text-[10pt]">{summary.profitPerShare.toFixed(2)}</p>
                                 </div>
                             </div>
 
-                            <div className="overflow-hidden rounded-[2rem] border border-slate-200 shadow-xl bg-white">
-                                <table className="w-full text-left border-collapse">
-                                    <thead className="bg-slate-800 text-white font-black uppercase text-[11px] tracking-widest">
+                            <div className="overflow-hidden rounded-[2rem] border border-slate-200 shadow-xl bg-white print:border-black print:rounded-none">
+                                <table className="w-full text-left border-collapse print:border-black border-x border-slate-200">
+                                    <thead className="bg-slate-800 text-white font-black uppercase text-[11px] tracking-widest print:bg-gray-100 print:text-black">
                                         <tr>
-                                            <th className="p-5 w-16 text-center">SL</th>
-                                            <th className="p-5">অংশীদারের নাম</th>
-                                            <th className="p-5 text-center">শেয়ার</th>
-                                            <th className="p-5 text-right">লভ্যাংশ (৳)</th>
+                                            <th className="p-4 w-12 text-center border-b border-r border-slate-700/30 print:border-black print:w-16 print:p-1.5">SL</th>
+                                            <th className="p-4 border-b border-r border-slate-700/30 print:border-black print:p-1.5 print:px-3">অংশীদারের নাম</th>
+                                            <th className="p-4 text-center border-b border-r border-slate-700/30 print:border-black print:p-1.5">শেয়ার</th>
+                                            <th className="p-4 text-right border-b border-r border-slate-700/30 print:border-black print:p-1.5 print:px-3">লভ্যাংশ (৳)</th>
+                                            <th className="p-4 text-center border-b print:border-black w-32 print:p-1.5">সিগনেচার</th>
                                         </tr>
                                     </thead>
-                                    <tbody className="divide-y divide-slate-100">
-                                        {dynamicShareholders.map((s, i) => (
-                                            <tr key={s.id} className="hover:bg-blue-50 transition-colors">
-                                                <td className="p-5 text-center font-bold text-slate-400">{i+1}</td>
-                                                <td className="p-5 font-black text-slate-800 uppercase font-['Hind_Siliguri']">{s.name}</td>
-                                                <td className="p-5 text-center font-black text-blue-600">{s.shares}</td>
-                                                <td className="p-5 text-right font-black text-emerald-600">৳{(s.shares * summary.profitPerShare).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                                    <tbody className="divide-y divide-slate-100 print:divide-black">
+                                        {dynamicShareholders.filter(s => !s.isDeleted).map((s, i) => (
+                                            <tr key={s.id} className="hover:bg-blue-50 transition-colors h-12 print:h-9">
+                                                <td className="p-4 text-center font-bold text-slate-400 border-b border-r border-slate-100 print:border-black print:text-black print:p-1 text-xs">{i+1}</td>
+                                                <td className="p-4 font-black text-slate-800 uppercase font-['Hind_Siliguri'] border-b border-r border-slate-100 print:border-black print:p-1 print:px-3 text-sm">{s.name}</td>
+                                                <td className="p-4 text-center font-black text-blue-600 border-b border-r border-slate-100 print:border-black print:p-1 text-sm">{s.shares}</td>
+                                                <td className="p-4 text-right font-black text-emerald-600 border-b border-r border-slate-100 print:border-black print:p-1 print:px-3 text-sm">{(s.shares * summary.profitPerShare).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                                                <td className="p-4 border-b print:border-black print:p-1"></td>
                                             </tr>
                                         ))}
                                     </tbody>
-                                    <tfoot className="bg-slate-50 font-black border-t-2 border-slate-200">
-                                        <tr>
-                                            <td colSpan={2} className="p-5 text-right uppercase text-slate-500">Total Distribution:</td>
-                                            <td className="p-5 text-center text-blue-900">{summary.totalShares}</td>
-                                            <td className="p-5 text-right text-emerald-700 text-lg">৳{adj.profitDist.toLocaleString()}</td>
+                                    <tfoot className="bg-slate-50 font-black border-t-2 border-slate-200 print:border-black">
+                                        <tr className="h-12 print:h-9">
+                                            <td colSpan={2} className="p-4 text-right uppercase text-slate-500 border-r border-slate-200 print:border-black print:text-black font-['Hind_Siliguri'] print:p-1 print:px-3 text-sm">সর্বমোট বন্টন:</td>
+                                            <td className="p-4 text-center text-blue-900 border-r border-slate-200 print:border-black print:text-black print:p-1 text-sm">{summary.totalShares}</td>
+                                            <td className="p-4 text-right text-emerald-700 text-lg border-r border-slate-200 print:border-black print:text-black print:p-1 print:px-3 text-sm">{adj.profitDist.toLocaleString()}</td>
+                                            <td className="p-4 print:p-1"></td>
                                         </tr>
                                     </tfoot>
                                 </table>
                             </div>
                             
-                            <div className="mt-12 pt-8 flex justify-between px-10 text-slate-400 font-black uppercase text-[10px] tracking-widest">
+                            <div className="mt-12 pt-8 flex justify-between px-10 text-slate-400 font-black uppercase text-[10px] tracking-widest print:mt-12 print:pt-4 print:text-black">
                                 <div className="text-center w-48 border-t border-slate-200 pt-2">Accountant Signature</div>
                                 <div className="text-center w-48 border-t border-slate-200 pt-2">Managing Director</div>
                             </div>

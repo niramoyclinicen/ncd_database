@@ -82,7 +82,15 @@ const HistoryModal: React.FC<{ item: ExpenseItem, onClose: () => void }> = ({ it
     </div>
 );
 
-const DailyExpenseForm: React.FC<any> = ({ selectedDate, onDateChange, items: initialItems, onSave, onPrint, employees }) => {
+const DailyExpenseForm: React.FC<any> = ({ 
+    selectedDate, 
+    onDateChange, 
+    onSave, 
+    onPrint, 
+    employees, 
+    editingItem, 
+    setEditingItem 
+}) => {
     const [items, setItems] = useState<ExpenseItem[]>([]);
     const [historyItem, setHistoryItem] = useState<ExpenseItem | null>(null);
     const [customSubCategories, setCustomSubCategories] = useState<Record<string, string[]>>(() => {
@@ -94,12 +102,22 @@ const DailyExpenseForm: React.FC<any> = ({ selectedDate, onDateChange, items: in
         localStorage.setItem('clinic_custom_subcategories', JSON.stringify(customSubCategories));
     }, [customSubCategories]);
 
-    const [prevInitialItems, setPrevInitialItems] = useState(initialItems);
-
-    if (initialItems !== prevInitialItems) {
-        setPrevInitialItems(initialItems);
-        setItems(initialItems.length > 0 ? initialItems : [{ id: 1, category: clinicExpenseCategories[0], subCategory: '', description: '', billAmount: 0, paidAmount: 0, dept: 'Clinic' }]);
-    }
+    useEffect(() => {
+        if (editingItem && editingItem.date === selectedDate) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
+            setItems([{ ...editingItem }]);
+        } else {
+            setItems([{ 
+                id: Date.now(), 
+                category: clinicExpenseCategories[0], 
+                subCategory: '', 
+                description: '', 
+                billAmount: 0, 
+                paidAmount: 0, 
+                dept: 'Clinic' 
+            }]);
+        }
+    }, [selectedDate, editingItem]);
     
     const handleItemChange = (id: number, field: keyof ExpenseItem, value: any) => {
         setItems(prev => prev.map(item => {
@@ -126,23 +144,31 @@ const DailyExpenseForm: React.FC<any> = ({ selectedDate, onDateChange, items: in
             return item;
         }));
     };
-    const handleDeleteItem = (id: number) => {
-        setItems(prev => prev.map(item => {
-            if (item.id === id) {
-                const history = item.editHistory || [];
-                const newLog = {
-                    timestamp: new Date().toISOString(),
-                    field: 'DELETED',
-                    oldValue: 'Active',
-                    newValue: 'Deleted'
-                };
-                return { ...item, isDeleted: true, editHistory: [...history, newLog] };
+
+    const removeItem = (id: number) => {
+        setItems(prev => {
+            const updated = prev.filter(i => i.id !== id);
+            if (updated.length === 0) {
+                return [{ 
+                    id: Date.now(), 
+                    category: clinicExpenseCategories[0], 
+                    subCategory: '', 
+                    description: '', 
+                    billAmount: 0, 
+                    paidAmount: 0, 
+                    dept: 'Clinic' 
+                }];
             }
-            return item;
-        }));
+            return updated;
+        });
     };
 
-    const totals = items.filter(i => !i.isDeleted).reduce((acc, item) => { acc.cost += Number(item.billAmount) || 0; acc.paid += Number(item.paidAmount) || 0; return acc; }, { cost: 0, paid: 0 });
+    const totals = items.reduce((acc, item) => { 
+        acc.cost += Number(item.billAmount) || 0; 
+        acc.paid += Number(item.paidAmount) || 0; 
+        return acc; 
+    }, { cost: 0, paid: 0 });
+
     const inputClass = "w-full bg-slate-700 border border-slate-600 rounded p-1.5 text-white text-sm outline-none";
 
     const subCategories = useMemo(() => {
@@ -179,58 +205,183 @@ const DailyExpenseForm: React.FC<any> = ({ selectedDate, onDateChange, items: in
         });
     };
 
+    const handleSave = () => {
+        if (items.every(it => !it.subCategory && !it.description && it.paidAmount <= 0)) {
+            alert("দয়া করে অন্তত একটি খরচের হিসাব সঠিকভাবে লিখুন।");
+            return;
+        }
+        const validItems = items.filter(it => it.subCategory || it.description || it.paidAmount > 0);
+        onSave(selectedDate, validItems);
+    };
+
     return (
         <div className="bg-emerald-950/40 rounded-xl p-6 border border-emerald-800/50 shadow-xl no-print">
             {historyItem && <HistoryModal item={historyItem} onClose={() => setHistoryItem(null)} />}
             <div className="flex justify-between items-center mb-6 border-b border-emerald-800/50 pb-4">
                 <div className="flex items-center gap-4">
-                    <h3 className="text-xl font-bold text-emerald-100 flex items-center gap-2"><Activity className="w-5 h-5" /> Clinic Daily Expense</h3>
-                    <button onClick={onPrint} className="bg-slate-700 hover:bg-slate-600 text-white px-4 py-1 rounded-lg text-xs font-bold flex items-center gap-2 transition-all"><PrinterIcon size={14}/> Print Daily Ledger</button>
+                    <h3 className="text-xl font-bold text-emerald-100 flex items-center gap-2">
+                        <Activity className="w-5 h-5" /> 
+                        {editingItem ? 'ক্লিনিক খরচ এডিট করুন (Edit Clinic Expense)' : 'Clinic Daily Expense'}
+                    </h3>
+                    <button onClick={onPrint} className="bg-slate-700 hover:bg-slate-600 text-white px-4 py-1 rounded-lg text-xs font-bold flex items-center gap-2 transition-all">
+                        <PrinterIcon size={14}/> Print Daily Ledger
+                    </button>
                 </div>
-                <input type="date" value={selectedDate} onChange={e => onDateChange(e.target.value)} className="bg-slate-800 border border-slate-700 rounded p-2 text-white" />
+                <input type="date" value={selectedDate} onChange={e => { onDateChange(e.target.value); if(editingItem) setEditingItem(null); }} className="bg-slate-800 border border-slate-700 rounded p-2 text-white" />
             </div>
-            <div className="overflow-x-auto"><table className="w-full text-left"><thead><tr className="text-xs text-emerald-400 uppercase tracking-widest"><th className="pb-3">Category</th><th className="pb-3">Sub-Category</th><th className="pb-3">Details</th><th className="pb-3 text-right">Bill</th><th className="pb-3 text-right">Paid</th><th className="pb-3 text-center">History</th><th className="pb-3 text-center">X</th></tr></thead><tbody>{items.filter(i => !i.isDeleted).map(item => (<tr key={item.id} className="border-t border-emerald-900/30"><td className="py-2 pr-2"><select value={item.category} onChange={e => { handleItemChange(item.id, 'category', e.target.value); handleItemChange(item.id, 'subCategory', ''); }} className={inputClass}>{clinicExpenseCategories.map(c => <option key={c} value={c}>{c}</option>)}</select></td><td className="py-2 pr-2">
-    <div className="flex items-center gap-1 group">
-        {(subCategories[item.category] && subCategories[item.category].length > 0) ? (
-            <div className="relative flex-1">
-                <select 
-                    value={item.subCategory} 
-                    onChange={e => handleItemChange(item.id, 'subCategory', e.target.value)} 
-                    className={inputClass}
-                >
-                    <option value="">Select...</option>
-                    {subCategories[item.category].map(sc => (
-                        <option key={sc} value={sc}>{sc}</option>
-                    ))}
-                </select>
-                {item.subCategory && customSubCategories[item.category]?.includes(item.subCategory) && (
+            <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                    <thead>
+                        <tr className="text-xs text-emerald-400 uppercase tracking-widest">
+                            <th className="pb-3">Category</th>
+                            <th className="pb-3">Sub-Category</th>
+                            <th className="pb-3">Details</th>
+                            <th className="pb-3 text-right">Bill</th>
+                            <th className="pb-3 text-right">Paid</th>
+                            <th className="pb-3 text-center">History</th>
+                            <th className="pb-3 text-center">X</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {items.map(item => (
+                            <tr key={item.id} className="border-t border-emerald-900/30">
+                                <td className="py-2 pr-2">
+                                    <select 
+                                        value={item.category} 
+                                        onChange={e => { 
+                                            handleItemChange(item.id, 'category', e.target.value); 
+                                            handleItemChange(item.id, 'subCategory', ''); 
+                                        }} 
+                                        className={inputClass}
+                                    >
+                                        {clinicExpenseCategories.map(c => (
+                                            <option key={c} value={c}>{expenseCategoryBanglaMap[c] || c}</option>
+                                        ))}
+                                    </select>
+                                </td>
+                                <td className="py-2 pr-2">
+                                    <div className="relative w-full flex items-center">
+                                        {(subCategories[item.category] && subCategories[item.category].length > 0) ? (
+                                            <div className="relative flex-1 w-full">
+                                                <select 
+                                                    value={item.subCategory} 
+                                                    onChange={e => handleItemChange(item.id, 'subCategory', e.target.value)} 
+                                                    className={`${inputClass} pr-12`}
+                                                >
+                                                    <option value="">Select...</option>
+                                                    {subCategories[item.category].map(sc => (
+                                                        <option key={sc} value={sc}>{sc}</option>
+                                                    ))}
+                                                </select>
+                                                {item.subCategory && customSubCategories[item.category]?.includes(item.subCategory) && (
+                                                    <button 
+                                                        type="button"
+                                                        onClick={() => deleteSubCategory(item.category, item.subCategory)}
+                                                        className="absolute right-8 top-1/2 -translate-y-1/2 bg-red-600 hover:bg-red-500 text-white rounded-full w-4 h-4 text-[10px] flex items-center justify-center transition-opacity z-10 shadow-lg"
+                                                        title="Delete this sub-category"
+                                                    >
+                                                        ×
+                                                    </button>
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <div className="relative flex-1 w-full">
+                                                <input 
+                                                    value={item.subCategory} 
+                                                    onChange={e => handleItemChange(item.id, 'subCategory', e.target.value)} 
+                                                    className={`${inputClass} pr-10`} 
+                                                    placeholder="Sub-category..."
+                                                />
+                                            </div>
+                                        )}
+                                        <button 
+                                            type="button"
+                                            onClick={() => addSubCategory(item.category)} 
+                                            className="absolute right-1 text-emerald-400 hover:text-white bg-slate-800 hover:bg-slate-700 w-6 h-6 rounded flex items-center justify-center font-bold text-sm transition-all border border-slate-600 focus:outline-none"
+                                            title="Add New Sub-category"
+                                        >
+                                            +
+                                        </button>
+                                    </div>
+                                </td>
+                                <td className="py-2 pr-2">
+                                    <input 
+                                        value={item.description} 
+                                        onChange={e => handleItemChange(item.id, 'description', e.target.value)} 
+                                        className={inputClass} 
+                                        placeholder="Details..."
+                                    />
+                                </td>
+                                <td className="py-2 pr-2">
+                                    <input 
+                                        type="number" 
+                                        value={item.billAmount || ''} 
+                                        onChange={e => handleItemChange(item.id, 'billAmount', parseFloat(e.target.value) || 0)} 
+                                        className={`${inputClass} text-right`} 
+                                    />
+                                </td>
+                                <td className="py-2 pr-2">
+                                    <input 
+                                        type="number" 
+                                        value={item.paidAmount || ''} 
+                                        onChange={e => handleItemChange(item.id, 'paidAmount', parseFloat(e.target.value) || 0)} 
+                                        className={`${inputClass} text-right`} 
+                                    />
+                                </td>
+                                <td className="py-2 text-center">
+                                    <button 
+                                        type="button"
+                                        onClick={() => setHistoryItem(item)} 
+                                        className={`text-[10px] font-black uppercase px-2 py-1 rounded ${item.isEdited ? 'bg-amber-600 text-white' : 'bg-slate-700 text-slate-400'}`}
+                                    >
+                                        History
+                                    </button>
+                                </td>
+                                <td className="py-2 text-center">
+                                    <button 
+                                        type="button"
+                                        onClick={() => removeItem(item.id)} 
+                                        className="text-red-400 font-bold text-lg hover:text-red-300 transition-colors"
+                                    >
+                                        ×
+                                    </button>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+            <div className="flex justify-between items-center mt-6">
+                <div className="flex gap-2">
+                    {!editingItem && (
+                        <button 
+                            type="button"
+                            onClick={() => setItems([...items, { id: Date.now(), category: clinicExpenseCategories[0], subCategory: '', description: '', billAmount: 0, paidAmount: 0, dept: 'Clinic' }])} 
+                            className="bg-blue-600 text-white px-4 py-2 rounded font-bold hover:bg-blue-500 transition-colors shadow"
+                        >
+                            + Add Row
+                        </button>
+                    )}
+                    {editingItem && (
+                        <button 
+                            type="button"
+                            onClick={() => setEditingItem(null)} 
+                            className="bg-slate-700 text-slate-300 px-4 py-2 rounded font-bold hover:bg-slate-600 transition-colors border border-slate-600"
+                        >
+                            Cancel Edit (বাতিল করুন)
+                        </button>
+                    )}
+                </div>
+                <div className="flex gap-6 items-center">
+                    <div className="text-slate-400">Total Paid: <span className="text-emerald-400 font-bold text-lg">৳{totals.paid.toLocaleString()}</span></div>
                     <button 
                         type="button"
-                        onClick={() => deleteSubCategory(item.category, item.subCategory)}
-                        className="absolute -right-1 -top-1 bg-red-600 border border-white text-white rounded-full w-4 h-4 text-[10px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10 shadow-lg"
-                        title="Delete this sub-category"
+                        onClick={handleSave} 
+                        className="bg-green-600 hover:bg-green-500 text-white px-8 py-2 rounded font-black shadow-lg transition-colors"
                     >
-                        ×
+                        {editingItem ? 'UPDATE DATA' : 'SAVE DATA'}
                     </button>
-                )}
-            </div>
-        ) : (
-            <input value={item.subCategory} onChange={e => handleItemChange(item.id, 'subCategory', e.target.value)} className={inputClass} placeholder="Sub-category..."/>
-        )}
-        <button 
-            type="button"
-            onClick={() => addSubCategory(item.category)} 
-            className="p-1 px-2.5 bg-emerald-700/50 hover:bg-emerald-600 rounded text-emerald-100 text-sm font-bold transition-colors shadow-lg border border-emerald-600/50"
-            title="Add New Sub-category"
-        >
-            +
-        </button>
-    </div>
-</td>
-<td className="py-2 pr-2"><input value={item.description} onChange={e => handleItemChange(item.id, 'description', e.target.value)} className={inputClass} placeholder="Details..."/></td><td className="py-2 pr-2"><input type="number" value={item.billAmount} onChange={e => handleItemChange(item.id, 'billAmount', parseFloat(e.target.value) || 0)} className={`${inputClass} text-right`} /></td><td className="py-2 pr-2"><input type="number" value={item.paidAmount} onChange={e => handleItemChange(item.id, 'paidAmount', parseFloat(e.target.value) || 0)} className={`${inputClass} text-right`} /></td><td className="py-2 text-center"><button onClick={() => setHistoryItem(item)} className={`text-[10px] font-black uppercase px-2 py-1 rounded ${item.isEdited ? 'bg-amber-600 text-white' : 'bg-slate-700 text-slate-400'}`}>History</button></td><td className="py-2 text-center"><button onClick={() => handleDeleteItem(item.id)} className="text-red-400 font-bold">×</button></td></tr>))}</tbody></table></div>
-            <div className="flex justify-between items-center mt-6">
-                <button onClick={() => setItems([...items, { id: Date.now(), category: clinicExpenseCategories[0], subCategory: '', description: '', billAmount: 0, paidAmount: 0, dept: 'Clinic' }])} className="bg-blue-600 text-white px-4 py-2 rounded font-bold hover:bg-blue-500">+ Add</button>
-                <div className="flex gap-6 items-center"><div className="text-slate-400">Total Paid: <span className="text-emerald-400 font-bold text-lg">{totals.paid.toLocaleString()}</span></div><button onClick={() => onSave(selectedDate, items)} className="bg-green-600 text-white px-8 py-2 rounded font-black shadow-lg hover:bg-green-500">SAVE DATA</button></div>
+                </div>
             </div>
         </div>
     );
@@ -267,7 +418,9 @@ const ClinicAccountsPage: React.FC<any> = ({
     const [expMonthSearch, setExpMonthSearch] = useState<number | ''>('');
     const [expYearSearch, setExpYearSearch] = useState<number | ''>('');
     const [expCategorySearch, setExpCategorySearch] = useState('');
+    
     const [ledgerHistoryItem, setLedgerHistoryItem] = useState<ExpenseItem | null>(null);
+    const [editingItem, setEditingItem] = useState<ExpenseItem | null>(null);
 
     const [successMsg, setSuccessMsg] = useState('');
     const [confirmModal, setConfirmModal] = useState<{
@@ -297,15 +450,37 @@ const ClinicAccountsPage: React.FC<any> = ({
         setConfirmModal(prev => ({ ...prev, isOpen: false }));
         const safePrev = detailedExpenses || {};
         const existingItems = safePrev[date] || [];
-        // Keep Diagnostic items, replace Clinic items
+        
+        // Keep Diagnostic items, and other existing clinic items we aren't overwriting
         const otherDeptItems = existingItems.filter((it: any) => it.dept !== 'Clinic');
-        const clinicItems = (items || []).map(it => ({ ...it, dept: 'Clinic' as const, date: date }));
-        const newState = { ...safePrev, [date]: [...otherDeptItems, ...clinicItems] };
+        const prevClinicItems = existingItems.filter((it: any) => it.dept === 'Clinic');
+
+        const incomingItems = (items || []).map(it => ({ 
+            ...it, 
+            dept: 'Clinic' as const,
+            date: date
+        }));
+
+        let finalClinicItems = [];
+        if (editingItem) {
+            finalClinicItems = prevClinicItems.map(prev => {
+                if (prev.id === editingItem.id) {
+                    const match = incomingItems.find(curr => curr.id === prev.id) || incomingItems[0];
+                    return { ...prev, ...match, dept: 'Clinic' as const, date };
+                }
+                return prev;
+            });
+        } else {
+            finalClinicItems = [...prevClinicItems, ...incomingItems];
+        }
+
+        const newState = { ...safePrev, [date]: [...otherDeptItems, ...finalClinicItems] };
         
         const success = await performBlockingSync({ detailedExpenses: newState });
 
         if (success) {
             setDetailedExpenses(newState);
+            setEditingItem(null);
             setSuccessMsg("Clinic Expense Saved! Syncing to cloud...");
         }
     };
@@ -959,7 +1134,7 @@ const ClinicAccountsPage: React.FC<any> = ({
                     <style>
                         @page { 
                             size: A4 landscape; 
-                            margin: 3mm; 
+                            margin: 2mm; 
                         }
                         body { 
                             font-family: 'Arial Narrow', sans-serif; 
@@ -979,13 +1154,13 @@ const ClinicAccountsPage: React.FC<any> = ({
                         }
                         .header h1 {
                             margin: 0;
-                            font-size: 12pt;
+                            font-size: 11pt;
                             color: #1e3a8a;
                             text-transform: uppercase;
                         }
                         .header p {
                             margin: 0;
-                            font-size: 7.5pt;
+                            font-size: 7pt;
                             font-weight: bold;
                             text-transform: uppercase;
                         }
@@ -996,12 +1171,12 @@ const ClinicAccountsPage: React.FC<any> = ({
                         }
                         th, td { 
                             border: 1px solid black; 
-                            padding: 2px; 
+                            padding: 1px; 
                             text-align: center; 
-                            font-size: 7.5pt; 
+                            font-size: 7.2pt; 
                             word-wrap: break-word; 
                             line-height: 1;
-                            height: 18pt;
+                            height: 11.5pt;
                         }
                         th { 
                             background: #f3f4f6; 
@@ -1045,8 +1220,13 @@ const ClinicAccountsPage: React.FC<any> = ({
                         <thead>
                             <tr>
                                 <th style="width: 35px">Date</th>
-                                ${clinicExpenseCategories.map(cat => `<th title="${cat}">${expenseCategoryBanglaMap[cat] || cat}</th>`).join('')}
-                                <th style="width: 55px" style="background: #e5e7eb">Total</th>
+                                ${clinicExpenseCategories.map(cat => {
+                                    if (cat === 'Old Loan Repay') {
+                                        return `<th title="${cat}" style="width: 40px">${expenseCategoryBanglaMap[cat] || cat}</th>`;
+                                    }
+                                    return `<th title="${cat}">${expenseCategoryBanglaMap[cat] || cat}</th>`;
+                                }).join('')}
+                                <th style="width: 75px; background: #e5e7eb">Total</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -1054,7 +1234,7 @@ const ClinicAccountsPage: React.FC<any> = ({
                                 <tr>
                                     <td style="font-weight: bold">${row.date.split('-')[2]} ${monthName.substring(0,3)}</td>
                                     ${clinicExpenseCategories.map(cat => `<td>${row.categories[cat] > 0 ? row.categories[cat].toLocaleString() : '-'}</td>`).join('')}
-                                    <td style="font-weight: 900; background: #f9fafb">৳${row.total > 0 ? row.total.toLocaleString() : '-'}</td>
+                                    <td style="font-weight: 900; background: #f9fafb">${row.total > 0 ? row.total.toLocaleString() : '-'}</td>
                                 </tr>
                             `).join('')}
                         </tbody>
@@ -1062,7 +1242,7 @@ const ClinicAccountsPage: React.FC<any> = ({
                             <tr>
                                 <td style="text-transform: uppercase">TOTAL:</td>
                                 ${clinicExpenseCategories.map(cat => `<td>${columnTotals[cat] > 0 ? columnTotals[cat].toLocaleString() : '-'}</td>`).join('')}
-                                <td class="grand-total">৳${grandTotal.toLocaleString()}</td>
+                                <td class="grand-total">${grandTotal.toLocaleString()}</td>
                             </tr>
                         </tfoot>
                     </table>
@@ -1183,13 +1363,14 @@ const ClinicAccountsPage: React.FC<any> = ({
                     <div className="max-w-7xl mx-auto space-y-8 animate-fade-in">
                         {ledgerHistoryItem && <HistoryModal item={ledgerHistoryItem} onClose={() => setLedgerHistoryItem(null)} />}
                         <DailyExpenseForm 
-                            key={selectedDate}
+                            key={`clinic-daily-expense-${selectedDate}-${editingItem?.id || 'new'}`}
                             selectedDate={selectedDate} 
                             onDateChange={handleDateChange} 
-                            items={detailedExpenses[selectedDate] || []} 
                             onSave={handleSave} 
                             onPrint={handlePrintDailyJournal}
                             employees={employees} 
+                            editingItem={editingItem}
+                            setEditingItem={setEditingItem}
                         />
                         <div className="bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-2xl">
                             <h3 className="text-lg font-black text-sky-400 uppercase mb-6 flex flex-wrap justify-between items-center gap-4">
@@ -1248,6 +1429,7 @@ const ClinicAccountsPage: React.FC<any> = ({
                                                         <button 
                                                             onClick={() => {
                                                                 setSelectedDate(ex.date);
+                                                                setEditingItem(ex);
                                                                 window.scrollTo({ top: 0, behavior: 'smooth' });
                                                             }}
                                                             className="p-1.5 bg-sky-600/20 text-sky-400 rounded hover:bg-sky-600 hover:text-white transition-all"
@@ -1462,9 +1644,9 @@ const ClinicAccountsPage: React.FC<any> = ({
                                     <tr>
                                         <th className="p-2 border border-slate-200 w-20">Date</th>
                                         {clinicExpenseCategories.map(cat => (
-                                            <th key={cat} className="p-2 border border-slate-200 text-center">{expenseCategoryBanglaMap[cat] || cat}</th>
+                                            <th key={cat} className={`p-2 border border-slate-200 text-center ${cat === 'Old Loan Repay' ? 'w-16 break-normal' : ''}`}>{expenseCategoryBanglaMap[cat] || cat}</th>
                                         ))}
-                                        <th className="p-2 border border-slate-200 text-right bg-slate-100">Total</th>
+                                        <th className="p-2 border border-slate-200 text-right bg-slate-100 min-w-[120px]">Total</th>
                                     </tr>
                                 </thead>
                                 <tbody className="text-[11px]">
@@ -1477,7 +1659,7 @@ const ClinicAccountsPage: React.FC<any> = ({
                                                 </td>
                                             ))}
                                             <td className="p-1 border border-slate-200 text-right font-black text-rose-600 bg-rose-50/30">
-                                                ৳{row.total > 0 ? row.total.toLocaleString() : '-'}
+                                                {row.total > 0 ? row.total.toLocaleString() : '-'}
                                             </td>
                                         </tr>
                                     ))}
@@ -1487,11 +1669,11 @@ const ClinicAccountsPage: React.FC<any> = ({
                                         <td className="p-4 border border-slate-700 uppercase text-[10px]">Total:</td>
                                         {clinicExpenseCategories.map(cat => (
                                             <td key={cat} className="p-4 border border-slate-700 text-center">
-                                                ৳{clinicMonthlyExpenseSheetData.columnTotals[cat].toLocaleString()}
+                                                {clinicMonthlyExpenseSheetData.columnTotals[cat].toLocaleString()}
                                             </td>
                                         ))}
                                         <td className="p-4 border border-slate-700 text-right text-xl text-emerald-400">
-                                            ৳{clinicMonthlyExpenseSheetData.grandTotal.toLocaleString()}
+                                            {clinicMonthlyExpenseSheetData.grandTotal.toLocaleString()}
                                         </td>
                                     </tr>
                                 </tfoot>

@@ -39,7 +39,8 @@ import {
   RefreshCw,
   Loader2,
   AlertCircle,
-  X
+  X,
+  Pencil
 } from 'lucide-react';
 
 export const DiagnosticIcon = (props: any) => <Activity {...props} />;
@@ -76,6 +77,7 @@ export const EyeIcon = (props: any) => <Eye {...props} />;
 export const SearchIcon = (props: any) => <Search {...props} />;
 export const ShareIcon = (props: any) => <Share2 {...props} />;
 export const SaveIcon = (props: any) => <Save {...props} />;
+export const EditIcon = (props: any) => <Pencil {...props} />;
 export const PrinterIcon = (props: any) => <Printer {...props} />;
 export const DownloadIcon = (props: any) => <Download {...props} />;
 export const TrashIcon = (props: any) => <Trash2 {...props} />;

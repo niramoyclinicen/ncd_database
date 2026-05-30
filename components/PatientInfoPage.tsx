@@ -203,9 +203,9 @@ const PatientInfoPage: React.FC<PatientInfoPageProps> = ({
     
     let updatedData = { ...formData, [name]: value };
 
-    if (name === 'address' && value.length > 0) {
-      const capitalized = value.charAt(0).toUpperCase() + value.slice(1);
-      updatedData = { ...updatedData, address: capitalized };
+    if (['pt_name', 'address', 'thana', 'district', 'co_name'].includes(name) && value.length > 0) {
+      const titleCased = value.replace(/(?:^|\s)\S/g, match => match.toUpperCase());
+      updatedData = { ...updatedData, [name]: titleCased };
     }
 
     if (['dobY', 'dobM', 'dobD'].includes(name)) {
