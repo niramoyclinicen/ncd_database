@@ -225,7 +225,16 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
     setMonthlyRoster(newMonthlyRoster);
   };
 
+  const handleSaveRosterData = async () => {
+    if (performBlockingSync) {
+      const success = await performBlockingSync({ leaveLog });
+      if (!success) return;
+    }
+    setSuccessMessage('Roster & Salary Updates Saved Successfully!');
+  };
+
   const resetFormForNew = () => {
+
       setFormData({ ...emptyEmployee, emp_id: String(Date.now()).slice(-5), joining_date: new Date().toISOString().split('T')[0] });
       setSelectedEmployeeId(null);
       if (nameInputRef.current) nameInputRef.current.focus();
@@ -248,16 +257,17 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
         }
         const leaveKey = `${selectedMonth}_${selectedYear}_${emp.emp_id}`;
         const leaveRecord = leaveLog[leaveKey] || { leaveDays: 0, deductionAmount: 0, bonus: 0, overtime: 0 };
+        const currentSalary = leaveRecord.agreedSalary !== undefined ? leaveRecord.agreedSalary : emp.salary;
         let absentCount = 0;
         for(let d=1; d<=daysInMonth; d++) {
             const dateStr = `${selectedYear}-${String(selectedMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
             if(attendanceLog[`${dateStr}_${emp.emp_id}`]?.status === 'Absent') absentCount++;
         }
-        const perDaySal = emp.salary / 30;
+        const perDaySal = currentSalary / 30;
         const leaveDeduction = (absentCount + (leaveRecord.leaveDays || 0)) * perDaySal;
-        const totalEarnings = emp.salary + (leaveRecord.bonus || 0) + (leaveRecord.overtime || 0);
+        const totalEarnings = currentSalary + (leaveRecord.bonus || 0) + (leaveRecord.overtime || 0);
         const netPayable = totalEarnings - leaveDeduction - (leaveRecord.deductionAmount || 0);
-        return { ...emp, netPayable, dailyAdvancePayments, advanceTakenTotal, dueAmount: netPayable - advanceTakenTotal, bonus: leaveRecord.bonus || 0, overtime: leaveRecord.overtime || 0 };
+        return { ...emp, currentSalary, netPayable, dailyAdvancePayments, advanceTakenTotal, dueAmount: netPayable - advanceTakenTotal, bonus: leaveRecord.bonus || 0, overtime: leaveRecord.overtime || 0 };
     });
 
     const win = window.open('', '_blank');
@@ -308,7 +318,7 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
                 <tr>
                   <td>${idx + 1}</td>
                   <td class="name-cell">${emp.emp_name}</td>
-                  <td>${emp.salary.toLocaleString()}</td>
+                  <td>${emp.currentSalary.toLocaleString()}</td>
                   <td class="font-bold">${emp.bonus > 0 ? emp.bonus.toLocaleString() : ''}</td>
                   <td class="font-bold">${emp.overtime > 0 ? emp.overtime.toLocaleString() : ''}</td>
                   ${daysArray.map(d => `<td>${emp.dailyAdvancePayments[d] || ''}</td>`).join('')}
@@ -321,7 +331,7 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
             <tfoot class="totals-row">
               <tr>
                 <td colspan="2">TOTAL SETTLEMENT:</td>
-                <td>৳${finalData.reduce((s,e)=>s+e.salary, 0).toLocaleString()}</td>
+                <td>৳${finalData.reduce((s,e)=>s+e.currentSalary, 0).toLocaleString()}</td>
                 <td>৳${finalData.reduce((s,e)=>s+e.bonus, 0).toLocaleString()}</td>
                 <td>৳${finalData.reduce((s,e)=>s+e.overtime, 0).toLocaleString()}</td>
                 ${daysArray.map(() => `<td></td>`).join('')}
@@ -453,11 +463,12 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
                     <h2 className="text-xl font-black text-slate-800 dark:text-sky-100 uppercase tracking-tight flex items-center gap-3">
                         <UsersIcon size={24} className="text-blue-500" /> মাসিক তালিকা ব্যবস্থাপনা (Monthly Roster)
                     </h2>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Select employees active for the chosen period</p>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Select employees active for the chosen period & adjust monthly salary</p>
                 </div>
                 <div className="flex gap-4">
                     <select value={selectedMonth} onChange={(e) => setSelectedMonth(parseInt(e.target.value))} className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2 text-slate-700 dark:text-white font-bold">{monthOptions.map(m => <option key={m.value} value={m.value}>{m.name}</option>)}</select>
                     <select value={selectedYear} onChange={(e) => setSelectedYear(parseInt(e.target.value))} className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2 text-slate-700 dark:text-white font-bold">{[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}</select>
+                    <button onClick={handleSaveRosterData} className="px-6 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold text-xs uppercase shadow-lg transition-all active:scale-95">Save Changes</button>
                 </div>
             </div>
             <div className="relative w-full mb-6">
@@ -467,18 +478,33 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
             <div className="overflow-x-auto rounded-2xl border border-slate-100 dark:border-slate-800 shadow-inner">
                 <table className="w-full text-left text-sm border-collapse">
                     <thead className="bg-slate-50 dark:bg-slate-950 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                        <tr><th className="p-5 text-center w-20">Active</th><th className="p-5">ID</th><th className="p-5">Staff Member</th><th className="p-5">Job Position</th><th className="p-5 text-right">Basic Salary</th></tr>
+                        <tr><th className="p-5 text-center w-20">Active</th><th className="p-5">ID</th><th className="p-5">Staff Member</th><th className="p-5">Job Position</th><th className="p-5 text-right">Selected Month Salary</th></tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                         {Array.isArray(employees) && employees.filter(e => e && e.status === 'Active' && (e.emp_name || '').toLowerCase().includes(searchTerm.toLowerCase())).map((emp) => {
                             const isSelected = (monthlyRoster[currentPeriodKey] || []).includes(emp.emp_id);
+                            const key = `${selectedMonth}_${selectedYear}_${emp.emp_id}`;
+                            const record = leaveLog[key] || { leaveDays: 0, deductionAmount: 0, bonus: 0, overtime: 0 };
+                            const currentSalary = record.agreedSalary !== undefined ? record.agreedSalary : emp.salary;
                             return (
                                 <tr key={emp.emp_id} className={`hover:bg-slate-50 dark:hover:bg-blue-900/10 transition-all ${isSelected ? 'bg-blue-50/50 dark:bg-blue-900/5' : ''}`}>
                                     <td className="p-5 text-center"><input type="checkbox" checked={isSelected} onChange={() => toggleRosterStatus(emp.emp_id)} className="w-6 h-6 rounded-lg accent-blue-600 cursor-pointer" /></td>
                                     <td className="p-5 font-mono text-xs text-slate-400">#{emp.emp_id}</td>
                                     <td className="p-5 font-bold text-slate-700 dark:text-slate-200 uppercase">{emp.emp_name}</td>
                                     <td className="p-5 font-bold text-slate-500 uppercase text-xs">{emp.job_position}</td>
-                                    <td className="p-5 text-right font-black text-slate-400 text-base">৳{emp.salary.toLocaleString()}</td>
+                                    <td className="p-5 text-right font-black text-slate-400 text-base">
+                                        {isSelected ? (
+                                            <div className="flex items-center justify-end gap-2">
+                                                <span className="text-slate-400 text-sm">৳</span>
+                                                <input type="number" 
+                                                    value={currentSalary} 
+                                                    onChange={(e) => setLeaveLog({...leaveLog, [key]: {...record, agreedSalary: parseInt(e.target.value) || 0}})} 
+                                                    className="w-28 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg p-2 text-right text-slate-700 dark:text-slate-300 font-black shadow-inner focus:border-blue-500 focus:outline-none" />
+                                            </div>
+                                        ) : (
+                                            <span>৳{emp.salary.toLocaleString()}</span>
+                                        )}
+                                    </td>
                                 </tr>
                             );
                         })}
@@ -572,15 +598,21 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
                           const autoAbsent = getAutoAbsentCount(emp.emp_id);
                           const key = `${selectedMonth}_${selectedYear}_${emp.emp_id}`;
                           const record = leaveLog[key] || { leaveDays: 0, deductionAmount: 0, bonus: 0, overtime: 0 };
-                          const perDaySal = emp.salary / 30;
+                          const currentSalary = record.agreedSalary !== undefined ? record.agreedSalary : emp.salary;
+                          const perDaySal = currentSalary / 30;
                           const leaveDeduction = (autoAbsent + record.leaveDays) * perDaySal;
                           const totalDeduction = leaveDeduction + record.deductionAmount;
-                          const netEarnings = emp.salary + (record.bonus || 0) + (record.overtime || 0);
+                          const netEarnings = currentSalary + (record.bonus || 0) + (record.overtime || 0);
                           const finalNet = netEarnings - totalDeduction;
                           return (
                               <tr key={emp.emp_id} className="hover:bg-slate-50 dark:hover:bg-blue-900/10 transition-all">
                                   <td className="p-5 font-bold text-slate-700 dark:text-slate-200 uppercase">{emp.emp_name}<div className="text-[10px] text-slate-400 font-medium">{emp.job_position}</div></td>
-                                  <td className="p-5 text-right font-bold text-slate-500">৳{emp.salary.toLocaleString()}</td>
+                                  <td className="p-5 text-right font-bold text-slate-500">
+                                      <input type="number" 
+                                             value={record.agreedSalary !== undefined ? record.agreedSalary : emp.salary} 
+                                             onChange={(e) => setLeaveLog({...leaveLog, [key]: {...record, agreedSalary: parseInt(e.target.value) || 0}})} 
+                                             className="w-24 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg p-2 text-right text-slate-700 dark:text-slate-300 font-bold" />
+                                  </td>
                                   <td className="p-5 text-center font-bold text-rose-500 text-lg">{autoAbsent}</td>
                                   <td className="p-5 text-center"><input type="number" value={record.leaveDays} onChange={(e) => setLeaveLog({...leaveLog, [key]: {...record, leaveDays: parseInt(e.target.value) || 0}})} className="w-16 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg p-2 text-center text-slate-800 dark:text-white font-bold" /></td>
                                   <td className="p-5 text-center"><input type="number" value={record.bonus} onChange={(e) => setLeaveLog({...leaveLog, [key]: {...record, bonus: parseInt(e.target.value) || 0}})} className="w-20 bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800 rounded-lg p-2 text-center text-blue-600 font-bold" placeholder="Bonus" /></td>

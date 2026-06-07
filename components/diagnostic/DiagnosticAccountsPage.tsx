@@ -1091,6 +1091,27 @@ const DiagnosticAccountsPage: React.FC<any> = ({
         return { expensesByCategory, totalExpense };
     }, [selectedMonth, selectedYear, detailedExpenses]);
 
+    const getTestCategoryGroup = (testName: string) => {
+        const test = availableTests.find((t: any) => t.test_name === testName);
+        if (test && test.category) {
+            const cat = test.category;
+            if (cat === 'Hormone') return 'Hormone';
+            if (cat === 'Ultrasonography (USG)' || cat === 'USG') return 'USG';
+            if (cat === 'X-Ray') return 'X-Ray';
+            if (cat === 'ECG') return 'ECG';
+            if (['Hematology', 'Biochemistry', 'Clinical Pathology', 'Microbiology', 'Immunology', 'Serology', 'Pathology'].includes(cat)) return 'Pathology';
+            return 'Others';
+        }
+        
+        const name = (testName || '').toLowerCase();
+        if (name.includes('usg') || name.includes('ultra')) return 'USG';
+        if (name.includes('x-ray') || name.includes('xray')) return 'X-Ray';
+        if (name.includes('ecg')) return 'ECG';
+        if (name.includes('hormone')) return 'Hormone';
+        if (name.includes('blood') || name.includes('urine') || name.includes('stool') || name.includes('cbc') || name.includes('test')) return 'Pathology';
+        return 'Others';
+    };
+
     const detailTableData = useMemo(() => {
         const filtered = (invoices || []).filter((inv: any) => {
             if (detailViewMode === 'today') return inv.invoice_date === todayStr;
@@ -1111,13 +1132,8 @@ const DiagnosticAccountsPage: React.FC<any> = ({
             if (detailFilterCategory === 'Due Recovery') return matchesSearch && inv.due_amount > 0;
 
             const matchesCat = (inv.items || []).some((it: any) => {
-                const name = (it.test_name || '').toLowerCase();
-                if (detailFilterCategory === 'USG') return name.includes('usg') || name.includes('ultra');
-                if (detailFilterCategory === 'X-Ray') return name.includes('x-ray') || name.includes('xray');
-                if (detailFilterCategory === 'ECG') return name.includes('ecg');
-                if (detailFilterCategory === 'Hormone') return name.includes('hormone');
-                if (detailFilterCategory === 'Pathology') return !name.includes('usg') && !name.includes('ultra') && !name.includes('x-ray') && !name.includes('xray') && !name.includes('ecg') && !name.includes('hormone');
-                return true;
+                const catGroup = getTestCategoryGroup(it.test_name);
+                return catGroup === detailFilterCategory;
             });
             return matchesSearch && matchesCat;
         });
@@ -1184,16 +1200,11 @@ const DiagnosticAccountsPage: React.FC<any> = ({
         const customTestCounts: Record<string, number> = {};
         trackedTests.forEach(t => customTestCounts[t] = 0);
 
-        ['Pathology', 'USG', 'X-Ray', 'ECG', 'Hormone'].forEach(cat => {
+        ['Pathology', 'USG', 'X-Ray', 'ECG', 'Hormone', 'Others'].forEach(cat => {
             categoryCounts[cat] = baseFiltered.filter(inv => {
                 let match = false;
                 (inv.items || []).forEach((it: any) => {
-                    const name = (it.test_name || '').toLowerCase();
-                    if (cat === 'USG' && (name.includes('usg') || name.includes('ultra'))) match = true;
-                    if (cat === 'X-Ray' && (name.includes('x-ray') || name.includes('xray'))) match = true;
-                    if (cat === 'ECG' && name.includes('ecg')) match = true;
-                    if (cat === 'Hormone' && name.includes('hormone')) match = true;
-                    if (cat === 'Pathology' && !name.includes('usg') && !name.includes('ultra') && !name.includes('x-ray') && !name.includes('xray') && !name.includes('ecg') && !name.includes('hormone')) match = true;
+                    if (getTestCategoryGroup(it.test_name) === cat) match = true;
                 });
                 return match;
             }).length;
@@ -1732,13 +1743,13 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                             
                             <div className="flex flex-col lg:flex-row gap-4 no-print border-b border-slate-700 pb-3">
                                 <div className="flex flex-wrap gap-2 flex-grow items-center">
-                                    {['All', 'Pathology', 'USG', 'X-Ray', 'ECG', 'Hormone'].map(cat => (
+                                    {['All', 'Pathology', 'USG', 'X-Ray', 'ECG', 'Hormone', 'Others'].map(cat => (
                                         <button key={cat} onClick={()=>setDetailFilterCategory(cat)} className={`px-4 py-1.5 rounded-lg text-[9px] font-black uppercase border transition-all ${detailFilterCategory === cat ? 'bg-indigo-600 text-white border-indigo-400 shadow-lg' : 'bg-slate-900 text-slate-500 border-slate-700 hover:text-slate-300'}`}>
-                                            {cat} <span className={`ml-1 px-1.5 py-0.5 rounded-full text-[8px] ${detailFilterCategory === cat ? 'bg-white/20' : 'bg-slate-800'}`}>{categoryCounts[cat] || 0}</span>
+                                            {cat === 'Others' ? 'Others' : cat} <span className={`ml-1 px-1.5 py-0.5 rounded-full text-[8px] ${detailFilterCategory === cat ? 'bg-white/20' : 'bg-slate-800'}`}>{categoryCounts[cat] || 0}</span>
                                         </button>
                                     ))}
                                 </div>
-                                <div className="bg-slate-900/60 p-2.5 rounded-xl border border-slate-700/50 flex-grow">
+                                <div className="bg-slate-900/60 p-2.5 rounded-xl border border-slate-700/50 flex-grow min-w-0 lg:max-w-xl">
                                     <div className="flex justify-between items-center mb-1.5 px-1">
                                         <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest flex items-center gap-2">
                                             <div className="w-1.5 h-1.5 bg-blue-500 rounded-full shadow-[0_0_8px_rgba(59,130,246,0.6)]"></div>
@@ -1746,12 +1757,12 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                                         </p>
                                         <button 
                                             onClick={() => setIsEditingTracked(!isEditingTracked)} 
-                                            className={`text-[9px] font-black px-2 py-1 rounded-md uppercase transition-all flex items-center gap-1 ${isEditingTracked ? 'bg-emerald-600 text-white animate-pulse' : 'bg-slate-700 text-sky-400 hover:bg-slate-600'}`}
+                                            className={`flex-shrink-0 text-[10px] font-black px-2.5 py-1 rounded-md uppercase transition-all flex items-center gap-1 ${isEditingTracked ? 'bg-emerald-600 text-white animate-pulse' : 'bg-slate-700 text-sky-400 hover:bg-slate-600'}`}
                                         >
                                             {isEditingTracked ? '✓ Save Changes' : '⚙ Custom Set'}
                                         </button>
                                     </div>
-                                    <div className="flex flex-row gap-2 overflow-x-auto pb-1 no-scrollbar items-center relative">
+                                    <div className="flex flex-wrap gap-2 pb-1 items-center relative">
                                         {openDropdownIndex !== null && (
                                             <div 
                                                 className="fixed inset-0 z-40 bg-transparent cursor-default no-print" 
