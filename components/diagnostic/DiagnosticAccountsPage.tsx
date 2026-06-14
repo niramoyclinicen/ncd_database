@@ -194,13 +194,34 @@ const InvoiceViewModal: React.FC<{ inv: any, patients: any[], doctors: any[], on
                         </div>
 
                         {/* Info Header Table */}
-                        <div className="grid grid-cols-2 gap-px bg-slate-900 border border-slate-900 mb-6 rounded overflow-hidden shadow-sm">
-                            <div className="bg-white p-2.5"><span className="text-[9px] font-black uppercase text-gray-400 block mb-0.5">Invoice ID</span><span className="font-mono font-black text-blue-600 text-sm">{inv.invoice_id}</span></div>
-                            <div className="bg-white p-2.5"><span className="text-[9px] font-black uppercase text-gray-400 block mb-0.5">Date</span><span className="font-bold text-gray-800 text-sm">{inv.invoice_date}</span></div>
-                            <div className="bg-white p-2.5 col-span-2"><span className="text-[9px] font-black uppercase text-gray-400 block mb-0.5">Patient Name</span><span className="font-black text-gray-900 text-base uppercase">{patient?.pt_name || 'N/A'}</span></div>
-                            <div className="bg-white p-2.5"><span className="text-[9px] font-black uppercase text-gray-400 block mb-0.5">Age / Gender</span><span className="font-bold text-gray-800 text-sm">{patient?.ageY || 'N/A'}Y / {patient?.gender || 'N/A'}</span></div>
-                            <div className="bg-white p-2.5"><span className="text-[9px] font-black uppercase text-gray-400 block mb-0.5">Mobile</span><span className="font-mono font-bold text-gray-800 text-sm">{patient?.mobile || 'N/A'}</span></div>
-                            <div className="bg-white p-2.5 col-span-2"><span className="text-[9px] font-black uppercase text-gray-400 block mb-0.5">Ref. Doctor</span><span className="font-bold text-blue-800 text-sm truncate">{doctor?.doctor_name || 'Self/Walk-in'} {doctor?.degree ? `(${doctor.degree})` : ''}</span></div>
+                        <div className="border border-slate-300 rounded shadow-sm mb-6 bg-slate-300 gap-px grid grid-cols-4 overflow-hidden">
+                            {/* Row 1 */}
+                            <div className="col-span-2 bg-white flex items-center">
+                                <div className="bg-slate-50 px-2 py-1.5 text-[9px] font-bold text-slate-500 uppercase w-24 border-r border-slate-200 h-full flex items-center">Patient Name</div>
+                                <div className="px-2 font-black text-xs uppercase text-slate-800 truncate">{patient?.pt_name || 'N/A'}</div>
+                            </div>
+                            <div className="bg-white flex items-center">
+                                <div className="bg-slate-50 px-2 py-1.5 text-[9px] font-bold text-slate-500 uppercase w-16 border-r border-slate-200 h-full flex items-center">Age/Sex</div>
+                                <div className="px-2 font-bold text-[11px] text-slate-700">{patient?.ageY || 'N/A'}Y / {patient?.gender || 'N/A'}</div>
+                            </div>
+                            <div className="bg-white flex items-center">
+                                <div className="bg-slate-50 px-2 py-1.5 text-[9px] font-bold text-slate-500 uppercase w-16 border-r border-slate-200 h-full flex items-center">Mobile</div>
+                                <div className="px-2 font-mono font-bold text-[11px] text-slate-700">{patient?.mobile || 'N/A'}</div>
+                            </div>
+
+                            {/* Row 2 */}
+                            <div className="col-span-2 bg-white flex items-center">
+                                <div className="bg-slate-50 px-2 py-1.5 text-[9px] font-bold text-slate-500 uppercase w-24 border-r border-slate-200 h-full flex items-center">Ref. Doctor</div>
+                                <div className="px-2 font-bold text-[11px] text-blue-800 truncate">{doctor?.doctor_name || 'Self/Walk-in'} {doctor?.degree ? `(${doctor.degree})` : ''}</div>
+                            </div>
+                            <div className="bg-white flex items-center">
+                                <div className="bg-slate-50 px-2 py-1.5 text-[9px] font-bold text-slate-500 uppercase w-16 border-r border-slate-200 h-full flex items-center">Inv ID</div>
+                                <div className="px-2 font-mono font-black text-[11px] text-blue-600 truncate">{inv.invoice_id}</div>
+                            </div>
+                            <div className="bg-white flex items-center">
+                                <div className="bg-slate-50 px-2 py-1.5 text-[9px] font-bold text-slate-500 uppercase w-16 border-r border-slate-200 h-full flex items-center">Date</div>
+                                <div className="px-2 font-bold text-[11px] text-slate-700 truncate">{inv.invoice_date}</div>
+                            </div>
                         </div>
 
                         {/* Test Items Table */}
@@ -920,8 +941,21 @@ const DiagnosticAccountsPage: React.FC<any> = ({
 
     const [editingItem, setEditingItem] = useState<any>(null);
     const [trackedTests, setTrackedTests] = useState<string[]>(() => {
+        const defaultTests = [
+            'CBC', 'Lipid Profile', 'Blood Sugar', 'HBsAg', 'Urine R/E', 
+            'S. Creatinine', 'Widal Test', 'TSH', 'S. Bilirubin', 'VDRL', 
+            'HbA1c', 'SGPT', 'CRP', 'Dengue NS1', 'Blood Grouping', 'Serum Uric Acid',
+            'X-Ray Chest PA', 'ECG'
+        ];
         const saved = localStorage.getItem('diagnostic_tracked_tests');
-        return saved ? JSON.parse(saved) : ['CBC', 'Lipid Profile', 'Blood Sugar', 'HBsAg', 'Urine R/E', 'S. Creatinine', 'Widal Test', 'TSH', 'S. Bilirubin', 'VDRL'];
+        if (saved) {
+            const parsed = JSON.parse(saved);
+            if (Array.isArray(parsed) && parsed.length < 18) {
+                return [...parsed, ...defaultTests.slice(parsed.length, 18)];
+            }
+            return parsed;
+        }
+        return defaultTests;
     });
     const [isEditingTracked, setIsEditingTracked] = useState(false);
     const [openDropdownIndex, setOpenDropdownIndex] = useState<number | null>(null);
@@ -1145,6 +1179,7 @@ const DiagnosticAccountsPage: React.FC<any> = ({
             const totalPC = isReturned ? 0 : (inv.commission_paid || 0);
             
             const usgFee = isReturned ? 0 : inv.items.reduce((s: number, i: any) => s + ((i.usg_exam_charge || 0) * (i.quantity || 1)), 0);
+            const labFee = isReturned ? 0 : inv.items.reduce((s: number, i: any) => s + ((i.extra_lab_fee || 0) * (i.quantity || 1)), 0);
             const paid = isReturned ? 0 : inv.paid_amount;
             const bill = isReturned ? 0 : inv.total_amount;
             const disc = isReturned ? 0 : inv.discount_amount;
@@ -1155,10 +1190,11 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                 specialPC: totalPC, 
                 totalPC, 
                 usgFee, 
+                labFee,
                 paidVal: paid, 
                 billVal: bill,
                 discVal: disc,
-                netProfit: paid - (totalPC + usgFee) 
+                netProfit: paid - (totalPC + usgFee + labFee) 
             };
         });
     }, [invoices, detailSearch, selectedMonth, selectedYear, detailViewMode, selectedDate, detailFilterCategory, todayStr]);
@@ -1173,11 +1209,12 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                 acc.specialPC += curr.specialPC;
                 acc.totalPC += curr.totalPC;
                 acc.usgFee += curr.usgFee;
+                acc.labFee += curr.labFee;
                 acc.netInstProfit += curr.netProfit;
                 acc.count++;
             }
             return acc;
-        }, { totalBill: 0, totalDiscount: 0, paidAmount: 0, fixedPC: 0, specialPC: 0, totalPC: 0, usgFee: 0, netInstProfit: 0, count: 0 });
+        }, { totalBill: 0, totalDiscount: 0, paidAmount: 0, fixedPC: 0, specialPC: 0, totalPC: 0, usgFee: 0, labFee: 0, netInstProfit: 0, count: 0 });
     }, [detailTableData]);
 
     const diagStats = useMemo(() => {
@@ -1261,9 +1298,10 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                     const testName = (item.test_name || '').toLowerCase();
                     const itemGross = (item.price * item.quantity);
                     
-                    // Subtract USG Fee and the actual commission paid (distributed proportionally)
+                    // Subtract USG Fee, Lab Fee, and the actual commission paid (distributed proportionally)
                     const itemNetPaid = (itemGross * ratio) * (1 - commFactor)
-                                      - (item.usg_exam_charge * item.quantity);
+                                      - (item.usg_exam_charge * item.quantity)
+                                      - ((item.extra_lab_fee || 0) * item.quantity);
 
                     if (testName.includes('usg') || testName.includes('ultra')) coll.usg += itemNetPaid;
                     else if (testName.includes('x-ray') || testName.includes('xray')) coll.xray += itemNetPaid;
@@ -1741,26 +1779,20 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                                 </div>
                             </div>
                             
-                            <div className="flex flex-col lg:flex-row gap-4 no-print border-b border-slate-700 pb-3">
-                                <div className="flex flex-wrap gap-2 flex-grow items-center">
+                            <div className="flex flex-col gap-4 no-print border-b border-slate-700 pb-3">
+                                <div className="flex flex-wrap gap-2 items-center">
                                     {['All', 'Pathology', 'USG', 'X-Ray', 'ECG', 'Hormone', 'Others'].map(cat => (
                                         <button key={cat} onClick={()=>setDetailFilterCategory(cat)} className={`px-4 py-1.5 rounded-lg text-[9px] font-black uppercase border transition-all ${detailFilterCategory === cat ? 'bg-indigo-600 text-white border-indigo-400 shadow-lg' : 'bg-slate-900 text-slate-500 border-slate-700 hover:text-slate-300'}`}>
                                             {cat === 'Others' ? 'Others' : cat} <span className={`ml-1 px-1.5 py-0.5 rounded-full text-[8px] ${detailFilterCategory === cat ? 'bg-white/20' : 'bg-slate-800'}`}>{categoryCounts[cat] || 0}</span>
                                         </button>
                                     ))}
                                 </div>
-                                <div className="bg-slate-900/60 p-2.5 rounded-xl border border-slate-700/50 flex-grow min-w-0 lg:max-w-xl">
-                                    <div className="flex justify-between items-center mb-1.5 px-1">
-                                        <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest flex items-center gap-2">
+                                <div className="bg-slate-900/60 p-2.5 rounded-xl border border-slate-700/50 w-full">
+                                    <div className="flex justify-between items-center mb-2 px-1">
+                                        <div className="text-[10px] font-black text-slate-300 uppercase tracking-widest flex items-center gap-2">
                                             <div className="w-1.5 h-1.5 bg-blue-500 rounded-full shadow-[0_0_8px_rgba(59,130,246,0.6)]"></div>
                                             Tracked Tests Overview
-                                        </p>
-                                        <button 
-                                            onClick={() => setIsEditingTracked(!isEditingTracked)} 
-                                            className={`flex-shrink-0 text-[10px] font-black px-2.5 py-1 rounded-md uppercase transition-all flex items-center gap-1 ${isEditingTracked ? 'bg-emerald-600 text-white animate-pulse' : 'bg-slate-700 text-sky-400 hover:bg-slate-600'}`}
-                                        >
-                                            {isEditingTracked ? '✓ Save Changes' : '⚙ Custom Set'}
-                                        </button>
+                                        </div>
                                     </div>
                                     <div className="flex flex-wrap gap-2 pb-1 items-center relative">
                                         {openDropdownIndex !== null && (
@@ -1772,51 +1804,29 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                                         {trackedTests.map((test, i) => (
                                             <div 
                                                 key={i} 
-                                                className={`bg-slate-950 px-3 py-1.5 rounded-lg border flex-shrink-0 relative min-w-[140px] transition-all ${isEditingTracked ? 'border-sky-500 ring-1 ring-sky-500/30 cursor-pointer' : 'border-slate-800'} ${openDropdownIndex === i ? 'z-50' : 'z-10'}`}
+                                                className={`bg-slate-950 px-3 py-1.5 rounded-lg border flex-shrink-0 relative min-w-[140px] transition-all cursor-pointer hover:border-sky-500/50 hover:bg-slate-900 ${openDropdownIndex === i ? 'border-sky-500 ring-1 ring-sky-500/30 z-50' : 'border-slate-800 z-10'}`}
                                                 onClick={(e) => {
-                                                    if (isEditingTracked) {
-                                                        e.stopPropagation();
+                                                    e.stopPropagation();
+                                                    if (openDropdownIndex === i) {
+                                                        setOpenDropdownIndex(null);
+                                                    } else {
                                                         setOpenDropdownIndex(i);
-                                                        setDropdownSearch(test);
+                                                        setDropdownSearch(''); // Reset search on open
                                                     }
                                                 }}
                                             >
-                                                {isEditingTracked ? (
-                                                    <div className="flex items-center justify-between w-full relative">
+                                                {openDropdownIndex === i ? (
+                                                    <div className="flex flex-col w-full relative">
                                                         <input 
                                                             type="text" 
-                                                            value={test} 
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                setOpenDropdownIndex(i);
-                                                                setDropdownSearch(test);
-                                                            }}
-                                                            onChange={(e) => {
-                                                                const val = e.target.value;
-                                                                const n = [...trackedTests];
-                                                                n[i] = val;
-                                                                setTrackedTests(n);
-                                                                setDropdownSearch(val);
-                                                                setOpenDropdownIndex(i);
-                                                            }}
-                                                            className="w-full bg-transparent border-none text-[10px] text-white p-0 outline-none font-bold placeholder:text-slate-700 pr-4" 
-                                                            placeholder="Click to pick..."
+                                                            value={dropdownSearch} 
+                                                            autoFocus
+                                                            onClick={(e) => e.stopPropagation()}
+                                                            onChange={(e) => setDropdownSearch(e.target.value)}
+                                                            className="w-full bg-transparent border-none text-[10px] text-white p-0 outline-none font-bold placeholder:text-slate-600 mb-1" 
+                                                            placeholder="Search to switch..."
                                                         />
-                                                        <span 
-                                                            className="text-sky-500 hover:text-sky-400 absolute right-0 top-1/2 -translate-y-1/2 text-[9px] p-0.5 cursor-pointer"
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                if (openDropdownIndex === i) {
-                                                                    setOpenDropdownIndex(null);
-                                                                } else {
-                                                                    setOpenDropdownIndex(i);
-                                                                    setDropdownSearch(test);
-                                                                }
-                                                            }}
-                                                        >
-                                                            ▼
-                                                        </span>
-                                                        {openDropdownIndex === i && (() => {
+                                                        {(() => {
                                                             const otherSelected = trackedTests.filter((_, idx) => idx !== i && _ !== '');
                                                             const filteredSuggestions = availableTests.filter((t: any) => {
                                                                 const isDuplicate = otherSelected.some(
@@ -1831,7 +1841,7 @@ const DiagnosticAccountsPage: React.FC<any> = ({
 
                                                             return (
                                                                 <div 
-                                                                    className="absolute left-0 right-0 top-full mt-2 bg-slate-900 border border-slate-700 rounded-xl max-h-48 overflow-y-auto z-50 shadow-2xl py-1 divide-y divide-slate-800 no-scrollbar"
+                                                                    className="absolute left-0 right-0 top-full mt-2 bg-slate-900 border border-slate-700 rounded-xl max-h-48 overflow-y-auto z-50 shadow-2xl py-1 divide-y divide-slate-800 no-scrollbar min-w-[200px]"
                                                                     onClick={(e) => e.stopPropagation()}
                                                                 >
                                                                     {filteredSuggestions.length > 0 ? (
@@ -1861,9 +1871,14 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                                                         })()}
                                                     </div>
                                                 ) : (
-                                                    <div className="flex items-center gap-2">
-                                                        <p className="text-[10px] font-bold text-slate-500 uppercase truncate max-w-[120px]" title={test}>{test || '---'}</p>
-                                                        <p className="text-sm font-black text-indigo-400 leading-none">{customTestCounts[test] || 0}</p>
+                                                    <div className="flex items-center justify-between gap-3 min-w-[120px]">
+                                                        <div className="flex items-center gap-2 max-w-[100px] overflow-hidden">
+                                                            <p className="text-[10px] font-bold text-slate-400 uppercase truncate" title={test}>{test || 'Select Test'}</p>
+                                                        </div>
+                                                        <div className="flex items-center gap-2 flex-shrink-0">
+                                                            <p className="text-sm font-black text-indigo-400 leading-none">{test ? (customTestCounts[test] || 0) : 0}</p>
+                                                            <span className="text-slate-600 text-[8px]">▼</span>
+                                                        </div>
                                                     </div>
                                                 )}
                                             </div>
@@ -1882,6 +1897,7 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                                             <td className="px-4 py-1.5 text-right text-lg text-emerald-400 font-black bg-slate-900 border-x border-slate-800">৳{reportSummary.paidAmount.toLocaleString()}</td>
                                             <td className="px-4 py-1.5 text-right text-base text-amber-500 bg-slate-950 font-bold">৳{reportSummary.totalPC.toLocaleString()}</td>
                                             <td className="px-4 py-1.5 text-right text-base text-sky-400 bg-slate-900 font-bold">৳{reportSummary.usgFee.toLocaleString()}</td>
+                                            <td className="px-4 py-1.5 text-right text-base text-emerald-300 bg-slate-950 font-bold">৳{reportSummary.labFee.toLocaleString()}</td>
                                             <td className="px-4 py-1.5 text-right bg-blue-600 text-white text-xl shadow-inner font-black">৳{reportSummary.netInstProfit.toLocaleString()}</td>
                                         </tr>
                                         <tr>
@@ -1895,6 +1911,7 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                                             <th className="px-4 py-2 text-right text-emerald-400">Paid</th>
                                             <th className="px-4 py-2 text-right text-amber-500">Paid PC</th>
                                             <th className="px-4 py-2 text-right text-sky-400">USG Fee</th>
+                                            <th className="px-4 py-2 text-right text-emerald-300">Lab Fee</th>
                                             <th className="px-4 py-2 text-right bg-blue-900/20 text-white">Net Profit</th>
                                         </tr>
                                     </thead>
@@ -1927,6 +1944,7 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                                                 <td className="p-4 text-right font-black text-emerald-400">{inv.paidVal.toLocaleString()}</td>
                                                 <td className="p-4 text-right text-amber-500 font-bold">৳ {inv.totalPC.toLocaleString()}</td>
                                                 <td className="p-4 text-right text-sky-400 font-bold">{inv.usgFee.toLocaleString()}</td>
+                                                <td className="p-4 text-right text-emerald-300 font-bold">{inv.labFee?.toLocaleString() || 0}</td>
                                                 <td className="p-4 text-right font-black text-white bg-blue-900/10 text-base">৳{inv.netProfit.toLocaleString()}</td>
                                             </tr>
                                         ))}
@@ -1939,6 +1957,7 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                                             <td className="p-4 text-right text-emerald-400">৳{reportSummary.paidAmount.toLocaleString()}</td>
                                             <td className="p-4 text-right text-amber-500">৳{reportSummary.totalPC.toLocaleString()}</td>
                                             <td className="p-3 text-right text-sky-400">৳{reportSummary.usgFee.toLocaleString()}</td>
+                                            <td className="p-3 text-right text-emerald-300">৳{reportSummary.labFee.toLocaleString()}</td>
                                             <td className="p-4 text-right text-white bg-blue-600 rounded-br-2xl text-lg">৳{reportSummary.netInstProfit.toLocaleString()}</td>
                                         </tr>
                                     </tfoot>

@@ -351,8 +351,9 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
         const getNetDiagCash = (inv: LabInvoice) => {
             const items = Array.isArray(inv.items) ? inv.items : [];
             const usgFee = items.reduce((s, it) => s + ((it.usg_exam_charge || 0) * (it.quantity || 0)), 0);
+            const labFee = items.reduce((s, it) => s + ((it.extra_lab_fee || 0) * (it.quantity || 0)), 0);
             const commPaid = inv.commission_paid || 0;
-            return inv.paid_amount - usgFee - commPaid;
+            return inv.paid_amount - usgFee - labFee - commPaid;
         };
 
         for (let d = 1; d <= daysInMonth; d++) {
@@ -452,8 +453,9 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
         const getNetDiagCash = (inv: LabInvoice) => {
             const items = Array.isArray(inv.items) ? inv.items : [];
             const usgFee = items.reduce((s, it) => s + ((it.usg_exam_charge || 0) * (it.quantity || 0)), 0);
+            const labFee = items.reduce((s, it) => s + ((it.extra_lab_fee || 0) * (it.quantity || 0)), 0);
             const commPaid = inv.commission_paid || 0;
-            return inv.paid_amount - usgFee - commPaid;
+            return inv.paid_amount - usgFee - labFee - commPaid;
         };
 
         for (let d = 1; d <= daysInMonth; d++) {
@@ -521,8 +523,9 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
         const getNetDiagCash = (inv: LabInvoice) => {
             const items = Array.isArray(inv.items) ? inv.items : [];
             const usgFee = items.reduce((s, it) => s + ((it.usg_exam_charge || 0) * (it.quantity || 0)), 0);
+            const labFee = items.reduce((s, it) => s + ((it.extra_lab_fee || 0) * (it.quantity || 0)), 0);
             const commPaid = inv.commission_paid || 0;
-            return inv.paid_amount - usgFee - commPaid;
+            return inv.paid_amount - usgFee - labFee - commPaid;
         };
 
         const calcNetPrev = () => {

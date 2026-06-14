@@ -470,6 +470,7 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
         quantity: 1,
         test_commission: selectedTest.test_commission,
         usg_exam_charge: selectedTest.usg_exam_charge,
+        extra_lab_fee: selectedTest.extra_lab_fee || 0,
         subtotal: selectedTest.price * 1,
       };
       setFormData(prev => ({ ...prev, items: [...prev.items, newItem] }));

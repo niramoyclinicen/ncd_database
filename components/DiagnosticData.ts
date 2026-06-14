@@ -43,6 +43,7 @@ export interface Test {
   unit?: string;         
   sub_tests: SubTest[];  
   usg_exam_charge: number;
+  extra_lab_fee: number;
   reagents_required: { reagent_id: string; quantity_per_test: number }[];
   availability: boolean;
   preparation_instructions?: string;
@@ -59,6 +60,7 @@ export const emptyTest: Test = {
   unit: '',
   sub_tests: [],
   usg_exam_charge: 0,
+  extra_lab_fee: 0,
   reagents_required: [],
   availability: true,
   preparation_instructions: ''
@@ -151,7 +153,7 @@ export const emptyReagent: Reagent = {
 };
 
 export interface LabInvoiceItem {
-  test_id: string; test_name: string; price: number; quantity: number; test_commission: number; usg_exam_charge: number; subtotal: number;
+  test_id: string; test_name: string; price: number; quantity: number; test_commission: number; usg_exam_charge: number; extra_lab_fee: number; subtotal: number;
 }
 
 export interface LabInvoice {

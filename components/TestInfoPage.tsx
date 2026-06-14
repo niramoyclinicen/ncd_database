@@ -204,6 +204,10 @@ const TestInfoPage: React.FC<Props> = ({ reagents, tests, setTests, isEmbedded =
                         <label className={labelBaseClasses}>USG Exam Charge (সোনোগ্রাফার ফি)</label>
                         <input type="number" name="usg_exam_charge" value={formData.usg_exam_charge} onChange={handleInputChange} min="0" className={inputBaseClasses} placeholder="ফি পরিমাণ লিখুন"/>
                     </div>
+                    <div>
+                        <label className={labelBaseClasses}>Extra Lab Fee (প্যাথলজি এক্সট্রা ফি)</label>
+                        <input type="number" name="extra_lab_fee" value={formData.extra_lab_fee || 0} onChange={handleInputChange} min="0" className={inputBaseClasses} placeholder="ফি পরিমাণ লিখুন"/>
+                    </div>
                     {!formData.is_group_test && (
                         <>
                             <div>
@@ -263,7 +267,7 @@ const TestInfoPage: React.FC<Props> = ({ reagents, tests, setTests, isEmbedded =
             <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-slate-700">
                     <thead className="bg-slate-700/50 text-[10px] uppercase font-black text-slate-400 tracking-[0.2em]">
-                        <tr><th className="px-8 py-5 text-left">Master ID</th><th className="px-8 py-5 text-left">Investigation</th><th className="px-8 py-5 text-left">Dept</th><th className="px-8 py-5 text-center">Protocol</th><th className="px-8 py-5 text-right">Price</th><th className="px-8 py-5 text-right">PC</th><th className="px-8 py-5 text-right">USG Fee</th></tr>
+                        <tr><th className="px-8 py-5 text-left">Master ID</th><th className="px-8 py-5 text-left">Investigation</th><th className="px-8 py-5 text-left">Dept</th><th className="px-8 py-5 text-center">Protocol</th><th className="px-8 py-5 text-right">Price</th><th className="px-8 py-5 text-right">PC</th><th className="px-8 py-5 text-right">USG Fee</th><th className="px-8 py-5 text-right">Lab Fee</th></tr>
                     </thead>
                     <tbody className="bg-slate-800 divide-y divide-slate-700/50">
                         {filteredTests.map((test) => (
@@ -275,6 +279,7 @@ const TestInfoPage: React.FC<Props> = ({ reagents, tests, setTests, isEmbedded =
                             <td className="px-8 py-5 text-lg text-white font-black text-right">৳{test.price.toFixed(2)}</td>
                             <td className="px-8 py-5 text-sm text-slate-400 text-right font-bold">৳{test.test_commission.toFixed(2)}</td>
                             <td className="px-8 py-5 text-sm text-amber-400 text-right font-bold">৳{test.usg_exam_charge.toFixed(2)}</td>
+                            <td className="px-8 py-5 text-sm text-emerald-400 text-right font-bold">৳{(test.extra_lab_fee || 0).toFixed(2)}</td>
                         </tr>
                         ))}
                     </tbody>

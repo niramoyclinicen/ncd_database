@@ -212,22 +212,16 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
     if (!selectedEmployeeId) { setFormData(emptyEmployee); setSelectedEmployeeId(null); }
   };
 
-  const toggleRosterStatus = async (empId: string) => {
+  const toggleRosterStatus = (empId: string) => {
     const currentList = monthlyRoster[currentPeriodKey] || [];
     const newList = currentList.includes(empId) ? currentList.filter(id => id !== empId) : [...currentList, empId];
     const newMonthlyRoster = { ...monthlyRoster, [currentPeriodKey]: newList };
-
-    if (performBlockingSync) {
-      const success = await performBlockingSync({ monthlyRoster: newMonthlyRoster });
-      if (!success) return;
-    }
-
     setMonthlyRoster(newMonthlyRoster);
   };
 
   const handleSaveRosterData = async () => {
     if (performBlockingSync) {
-      const success = await performBlockingSync({ leaveLog });
+      const success = await performBlockingSync({ leaveLog, monthlyRoster });
       if (!success) return;
     }
     setSuccessMessage('Roster & Salary Updates Saved Successfully!');
@@ -455,7 +449,21 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
     </div>
   );
 
-  const renderMonthlyRosterTab = () => (
+  const renderMonthlyRosterTab = () => {
+    const selectedEmpIds = monthlyRoster[currentPeriodKey] || [];
+    const totalRosterSalary = employees.reduce((total, emp) => {
+        if (emp.status === 'Active' && selectedEmpIds.includes(emp.emp_id)) {
+            const key = `${selectedMonth}_${selectedYear}_${emp.emp_id}`;
+            const record = leaveLog[key] || {};
+            const basic = record.basicSalary !== undefined ? record.basicSalary : (record.agreedSalary !== undefined ? record.agreedSalary : emp.salary);
+            const house = record.houseRent || 0;
+            const medical = record.medicalAllowance || 0;
+            return total + (basic + house + medical);
+        }
+        return total;
+    }, 0);
+
+    return (
     <div className="space-y-6 animate-fade-in">
         <div className="bg-white dark:bg-slate-900 p-8 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xl">
             <div className="flex flex-col md:flex-row justify-between items-center gap-6 border-b border-slate-100 dark:border-slate-800 pb-6 mb-8">
@@ -465,45 +473,93 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
                     </h2>
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Select employees active for the chosen period & adjust monthly salary</p>
                 </div>
-                <div className="flex gap-4">
+                <div className="flex gap-4 items-center">
                     <select value={selectedMonth} onChange={(e) => setSelectedMonth(parseInt(e.target.value))} className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2 text-slate-700 dark:text-white font-bold">{monthOptions.map(m => <option key={m.value} value={m.value}>{m.name}</option>)}</select>
                     <select value={selectedYear} onChange={(e) => setSelectedYear(parseInt(e.target.value))} className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2 text-slate-700 dark:text-white font-bold">{[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}</select>
                     <button onClick={handleSaveRosterData} className="px-6 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold text-xs uppercase shadow-lg transition-all active:scale-95">Save Changes</button>
                 </div>
             </div>
-            <div className="relative w-full mb-6">
-                <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                <input type="text" placeholder="Search staff to add to roster..." value={searchTerm} onChange={e=>setSearchTerm(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl pl-12 pr-6 py-3 text-sm text-slate-800 dark:text-white outline-none focus:border-blue-500 shadow-inner"/>
+            <div className="flex flex-col md:flex-row gap-4 mb-6">
+                <div className="relative flex-1">
+                    <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                    <input type="text" placeholder="Search staff to add to roster..." value={searchTerm} onChange={e=>setSearchTerm(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl pl-12 pr-6 py-3 text-sm text-slate-800 dark:text-white outline-none focus:border-blue-500 shadow-inner"/>
+                </div>
+                <div className="bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800 rounded-2xl px-6 py-3 flex items-center justify-between min-w-[250px]">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Total Active Payroll</span>
+                    <span className="text-xl font-black text-blue-600 dark:text-blue-400">৳{totalRosterSalary.toLocaleString()}</span>
+                </div>
             </div>
             <div className="overflow-x-auto rounded-2xl border border-slate-100 dark:border-slate-800 shadow-inner">
                 <table className="w-full text-left text-sm border-collapse">
                     <thead className="bg-slate-50 dark:bg-slate-950 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                        <tr><th className="p-5 text-center w-20">Active</th><th className="p-5">ID</th><th className="p-5">Staff Member</th><th className="p-5">Job Position</th><th className="p-5 text-right">Selected Month Salary</th></tr>
+                        <tr>
+                            <th className="p-3 text-center w-16">Active</th>
+                            <th className="p-3">Staff Member</th>
+                            <th className="p-3 text-right">Basic Salary</th>
+                            <th className="p-3 text-right">House Rent</th>
+                            <th className="p-3 text-right">Medical Allw.</th>
+                            <th className="p-3 text-right text-blue-500">Total Salary</th>
+                        </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                         {Array.isArray(employees) && employees.filter(e => e && e.status === 'Active' && (e.emp_name || '').toLowerCase().includes(searchTerm.toLowerCase())).map((emp) => {
                             const isSelected = (monthlyRoster[currentPeriodKey] || []).includes(emp.emp_id);
                             const key = `${selectedMonth}_${selectedYear}_${emp.emp_id}`;
                             const record = leaveLog[key] || { leaveDays: 0, deductionAmount: 0, bonus: 0, overtime: 0 };
-                            const currentSalary = record.agreedSalary !== undefined ? record.agreedSalary : emp.salary;
+                            
+                            const basic = record.basicSalary !== undefined ? record.basicSalary : (record.agreedSalary !== undefined ? record.agreedSalary : emp.salary);
+                            const house = record.houseRent || 0;
+                            const medical = record.medicalAllowance || 0;
+                            const currentSalary = basic + house + medical;
+
+                            const handleSalChange = (field: string, val: number) => {
+                                const newRec = { ...record, [field]: val };
+                                const nb = newRec.basicSalary !== undefined ? newRec.basicSalary : (newRec.agreedSalary !== undefined ? newRec.agreedSalary : emp.salary);
+                                const nh = newRec.houseRent || 0;
+                                const nm = newRec.medicalAllowance || 0;
+                                newRec.agreedSalary = nb + nh + nm;
+                                setLeaveLog({...leaveLog, [key]: newRec});
+                            };
+
                             return (
                                 <tr key={emp.emp_id} className={`hover:bg-slate-50 dark:hover:bg-blue-900/10 transition-all ${isSelected ? 'bg-blue-50/50 dark:bg-blue-900/5' : ''}`}>
-                                    <td className="p-5 text-center"><input type="checkbox" checked={isSelected} onChange={() => toggleRosterStatus(emp.emp_id)} className="w-6 h-6 rounded-lg accent-blue-600 cursor-pointer" /></td>
-                                    <td className="p-5 font-mono text-xs text-slate-400">#{emp.emp_id}</td>
-                                    <td className="p-5 font-bold text-slate-700 dark:text-slate-200 uppercase">{emp.emp_name}</td>
-                                    <td className="p-5 font-bold text-slate-500 uppercase text-xs">{emp.job_position}</td>
-                                    <td className="p-5 text-right font-black text-slate-400 text-base">
+                                    <td className="p-3 text-center"><input type="checkbox" checked={isSelected} onChange={() => toggleRosterStatus(emp.emp_id)} className="w-5 h-5 rounded-lg accent-blue-600 cursor-pointer" /></td>
+                                    <td className="p-3 font-bold text-slate-700 dark:text-slate-200 uppercase">
+                                        {emp.emp_name}
+                                        <div className="font-mono text-[9px] text-slate-400 mt-0.5">#{emp.emp_id} • {emp.job_position}</div>
+                                    </td>
+                                    <td className="p-3 text-right">
                                         {isSelected ? (
-                                            <div className="flex items-center justify-end gap-2">
-                                                <span className="text-slate-400 text-sm">৳</span>
-                                                <input type="number" 
-                                                    value={currentSalary} 
-                                                    onChange={(e) => setLeaveLog({...leaveLog, [key]: {...record, agreedSalary: parseInt(e.target.value) || 0}})} 
-                                                    className="w-28 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg p-2 text-right text-slate-700 dark:text-slate-300 font-black shadow-inner focus:border-blue-500 focus:outline-none" />
-                                            </div>
+                                            <input type="number" 
+                                                value={basic} 
+                                                onChange={(e) => handleSalChange('basicSalary', parseInt(e.target.value) || 0)} 
+                                                className="w-24 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg p-2 text-right text-slate-700 dark:text-slate-300 font-bold shadow-inner focus:border-blue-500 focus:outline-none text-xs" />
                                         ) : (
-                                            <span>৳{emp.salary.toLocaleString()}</span>
+                                            <span className="text-slate-500 text-xs font-bold">৳{basic.toLocaleString()}</span>
                                         )}
+                                    </td>
+                                    <td className="p-3 text-right">
+                                        {isSelected ? (
+                                            <input type="number" 
+                                                value={house} 
+                                                onChange={(e) => handleSalChange('houseRent', parseInt(e.target.value) || 0)} 
+                                                className="w-20 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg p-2 text-right text-slate-700 dark:text-slate-300 font-bold shadow-inner focus:border-blue-500 focus:outline-none text-xs" />
+                                        ) : (
+                                            <span className="text-slate-500 text-xs font-bold">৳{house.toLocaleString()}</span>
+                                        )}
+                                    </td>
+                                    <td className="p-3 text-right">
+                                        {isSelected ? (
+                                            <input type="number" 
+                                                value={medical} 
+                                                onChange={(e) => handleSalChange('medicalAllowance', parseInt(e.target.value) || 0)} 
+                                                className="w-20 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg p-2 text-right text-slate-700 dark:text-slate-300 font-bold shadow-inner focus:border-blue-500 focus:outline-none text-xs" />
+                                        ) : (
+                                            <span className="text-slate-500 text-xs font-bold">৳{medical.toLocaleString()}</span>
+                                        )}
+                                    </td>
+                                    <td className="p-3 text-right font-black text-blue-600 dark:text-blue-400 text-base">
+                                        ৳{currentSalary.toLocaleString()}
                                     </td>
                                 </tr>
                             );
@@ -514,6 +570,7 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
         </div>
     </div>
   );
+  };
 
   const renderAttendanceTab = () => (
       <div className="bg-white dark:bg-slate-900 rounded-3xl p-8 border border-slate-200 dark:border-slate-800 shadow-xl animate-fade-in relative overflow-hidden">
