@@ -342,6 +342,13 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
     }, [detailedExpenses, selectedMonth, selectedYear, deptFilter]);
 
     const dailyCollectionData = useMemo(() => {
+    const isSameDay = (d1: string, d2: string) => {
+        if (!d1 || !d2) return false;
+        const [y1, m1, day1] = d1.split('T')[0].split('-').map(Number);
+        const [y2, m2, day2] = d2.split('T')[0].split('-').map(Number);
+        return y1 === y2 && m1 === m2 && day1 === day2;
+    };
+
         const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
         const rawRows = [];
         let diagUpto = 0;
@@ -353,7 +360,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
             const usgFee = items.reduce((s, it) => s + ((it.usg_exam_charge || 0) * (it.quantity || 0)), 0);
             const labFee = items.reduce((s, it) => s + ((it.extra_lab_fee || 0) * (it.quantity || 0)), 0);
             const commPaid = inv.commission_paid || 0;
-            const subsequentDues = dueCollections.filter(dc => dc.invoice_id === inv.invoice_id && dc.collection_date !== inv.invoice_date).reduce((s, dc) => s + dc.amount_collected, 0);
+            const subsequentDues = dueCollections.filter(dc => dc.invoice_id === inv.invoice_id && !isSameDay(dc.collection_date, inv.invoice_date)).reduce((s, dc) => s + dc.amount_collected, 0);
             const initialPaid = inv.paid_amount - subsequentDues;
             return initialPaid - usgFee - labFee - commPaid;
         };
@@ -364,9 +371,9 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
             
             const diagToday = labInvoices.filter(inv => inv && inv.invoice_date === dateStr && inv.status !== 'Cancelled' && inv.status !== 'Returned' && inv.status !== 'Deleted').reduce((s, inv) => s + getNetDiagCash(inv), 0);
             const diagDue = dueCollections.filter(dc => {
-                if (!dc || dc.collection_date !== dateStr || !dc.invoice_id.startsWith('INV')) return false;
+                if (!dc || !isSameDay(dc.collection_date, dateStr) || !dc.invoice_id.startsWith('INV')) return false;
                 const inv = labInvoices.find(i => i.invoice_id === dc.invoice_id);
-                return !inv || inv.invoice_date !== dc.collection_date;
+                return !inv || !isSameDay(inv.invoice_date, dc.collection_date);
             }).reduce((s, dc) => s + dc.amount_collected, 0);
             const diagTotal = diagToday + diagDue;
             diagUpto += diagTotal;
@@ -383,9 +390,9 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                 return s + (fundedRevenue - pcAmount - specialDiscount);
             }, 0);
             const clinicDue = dueCollections.filter(dc => {
-                if (!dc || dc.collection_date !== dateStr || dc.invoice_id.startsWith('INV')) return false;
+                if (!dc || !isSameDay(dc.collection_date, dateStr) || dc.invoice_id.startsWith('INV')) return false;
                 const inv = indoorInvoices.find(i => i.invoice_id === dc.invoice_id);
-                return !inv || (inv.invoice_date || inv.admission_date) !== dc.collection_date;
+                return !inv || !isSameDay(inv.invoice_date || inv.admission_date || '', dc.collection_date);
             }).reduce((s, dc) => s + dc.amount_collected, 0);
             const clinicTotal = clinicToday + clinicDue;
             clinicUpto += clinicTotal;
@@ -465,7 +472,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
             const usgFee = items.reduce((s, it) => s + ((it.usg_exam_charge || 0) * (it.quantity || 0)), 0);
             const labFee = items.reduce((s, it) => s + ((it.extra_lab_fee || 0) * (it.quantity || 0)), 0);
             const commPaid = inv.commission_paid || 0;
-            const subsequentDues = dueCollections.filter(dc => dc.invoice_id === inv.invoice_id && dc.collection_date !== inv.invoice_date).reduce((s, dc) => s + dc.amount_collected, 0);
+            const subsequentDues = dueCollections.filter(dc => dc.invoice_id === inv.invoice_id && !isSameDay(dc.collection_date, inv.invoice_date)).reduce((s, dc) => s + dc.amount_collected, 0);
             const initialPaid = inv.paid_amount - subsequentDues;
             return initialPaid - usgFee - labFee - commPaid;
         };
@@ -521,6 +528,13 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
     }, [labInvoices, indoorInvoices, dueCollections, detailedExpenses, selectedMonth, selectedYear]);
 
     const summary = useMemo(() => {
+    const isSameDay = (d1: string, d2: string) => {
+        if (!d1 || !d2) return false;
+        const [y1, m1, day1] = d1.split('T')[0].split('-').map(Number);
+        const [y2, m2, day2] = d2.split('T')[0].split('-').map(Number);
+        return y1 === y2 && m1 === m2 && day1 === day2;
+    };
+
         const isSelectedMonth = (dateStr: string) => {
             if (!dateStr) return false;
             const [y, m] = dateStr.split('-').map(Number);
@@ -537,7 +551,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
             const usgFee = items.reduce((s, it) => s + ((it.usg_exam_charge || 0) * (it.quantity || 0)), 0);
             const labFee = items.reduce((s, it) => s + ((it.extra_lab_fee || 0) * (it.quantity || 0)), 0);
             const commPaid = inv.commission_paid || 0;
-            const subsequentDues = dueCollections.filter(dc => dc.invoice_id === inv.invoice_id && dc.collection_date !== inv.invoice_date).reduce((s, dc) => s + dc.amount_collected, 0);
+            const subsequentDues = dueCollections.filter(dc => dc.invoice_id === inv.invoice_id && !isSameDay(dc.collection_date, inv.invoice_date)).reduce((s, dc) => s + dc.amount_collected, 0);
             const initialPaid = inv.paid_amount - subsequentDues;
             return initialPaid - usgFee - labFee - commPaid;
         };
@@ -847,8 +861,8 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                         <th className="border-2 border-black p-2 bg-slate-50 w-[100px]" rowSpan={2}>Total Collection</th>
                                     </tr>
                                     <tr className="bg-gray-50 uppercase text-[8px] font-black">
-                                        <th className="border-2 border-black p-1">Today</th><th className="border-2 border-black p-1">Due</th><th className="border-2 border-black p-1">Total</th><th className="border-2 border-black p-1 bg-blue-50">Upto</th>
-                                        <th className="border-2 border-black p-1">Today</th><th className="border-2 border-black p-1">Due</th><th className="border-2 border-black p-1">Total</th><th className="border-2 border-black p-1 bg-emerald-50">Upto</th>
+                                        <th className="border-2 border-black p-1">Today</th><th className="border-2 border-black p-1">Due Coll.</th><th className="border-2 border-black p-1">Total</th><th className="border-2 border-black p-1 bg-blue-50">Upto</th>
+                                        <th className="border-2 border-black p-1">Today</th><th className="border-2 border-black p-1">Due Coll.</th><th className="border-2 border-black p-1">Total</th><th className="border-2 border-black p-1 bg-emerald-50">Upto</th>
                                     </tr>
                                 </thead>
                                 <tbody>
