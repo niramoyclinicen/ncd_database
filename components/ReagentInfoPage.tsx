@@ -6,10 +6,101 @@ import { Activity, PrinterIcon, SearchIcon, BeakerIcon, DatabaseIcon, PlusIcon, 
 interface ReagentInfoPageProps {
     reagents: Reagent[];
     setReagents: React.Dispatch<React.SetStateAction<Reagent[]>>;
+    detailedExpenses?: any;
+    labInvoices?: any;
+    tests?: any[];
 }
 
-const ReagentInfoPage: React.FC<ReagentInfoPageProps> = ({ reagents, setReagents }) => {
-    const [viewMode, setViewMode] = useState<'inventory' | 'requisition'>('inventory');
+const ReagentInfoPage: React.FC<ReagentInfoPageProps> = ({ reagents, setReagents, detailedExpenses, labInvoices, tests = [] }) => {
+    const [viewMode, setViewMode] = useState<'inventory' | 'requisition' | 'ledger'>('inventory');
+    const [ledgerReagentId, setLedgerReagentId] = useState<string | null>(null);
+    const [ledgerStartDate, setLedgerStartDate] = useState<string>('');
+    const [ledgerEndDate, setLedgerEndDate] = useState<string>('');
+    
+    // Ledger Calculation
+    const getReagentLedger = (reagentId: string) => {
+        const reagent = reagents.find(r => r.reagent_id === reagentId);
+        if (!reagent) return { items: [], currentStock: 0 };
+        
+        let stock = 0;
+        const ledgerItems: any[] = [];
+        
+        // 1. Manual updates (Initial / Resets)
+        if (reagent.manualStockUpdates) {
+            reagent.manualStockUpdates.forEach(update => {
+                ledgerItems.push({
+                    date: update.date,
+                    type: 'MANUAL_SET',
+                    description: update.note || 'Manual Stock Update',
+                    qtyChange: update.quantity - stock,
+                    resultingStock: update.quantity
+                });
+                stock = update.quantity;
+            });
+        } else {
+             // Fallback to initial quantity if no manual records but it has a stock
+             ledgerItems.push({
+                date: 'Initial',
+                type: 'INITIAL',
+                description: 'Initial System Stock',
+                qtyChange: reagent.quantity,
+                resultingStock: reagent.quantity
+             });
+             stock = reagent.quantity;
+        }
+
+        // 2. Purchases (from detailedExpenses)
+        if (detailedExpenses) {
+            Object.entries(detailedExpenses).forEach(([date, expenses]: [string, any]) => {
+                expenses.forEach((exp: any) => {
+                    if ((exp.category === 'Reagent buy' || exp.category === 'X-ray Film buy') && exp.subCategory === reagent.reagent_name) {
+                        const qtyAdded = (exp.metadata?.numberOfBoxes || 0) * (exp.metadata?.quantityPerBox || 0);
+                        if (qtyAdded > 0) {
+                            stock += qtyAdded;
+                            ledgerItems.push({
+                                date,
+                                type: 'PURCHASE',
+                                description: 'Purchase (' + (exp.description || '') + ')',
+                                qtyChange: qtyAdded,
+                                resultingStock: stock
+                            });
+                        }
+                    }
+                });
+            });
+        }
+        
+        // 3. Usage (from labInvoices)
+        if (labInvoices) {
+            labInvoices.forEach((inv: any) => {
+                inv.items.forEach((item: any) => {
+                    const test = tests.find(t => t.test_id === item.test_id);
+                    if (test && test.reagents_required) {
+                        const usage = test.reagents_required.find((req: any) => req.reagent_id === reagent.reagent_name);
+                        if (usage) {
+                            const qtyUsed = (usage.quantity_per_test || 0) * (item.quantity || 1);
+                            if (qtyUsed > 0) {
+                                stock -= qtyUsed;
+                                ledgerItems.push({
+                                    date: inv.invoice_date,
+                                    type: 'USAGE',
+                                    description: 'Used in Invoice: ' + inv.invoice_id + ' (Test: ' + test.test_name + ')',
+                                    qtyChange: -qtyUsed,
+                                    resultingStock: stock
+                                });
+                            }
+                        }
+                    }
+                });
+            });
+        }
+        
+        return { items: ledgerItems.sort((a,b) => {
+            if(a.date === 'Initial') return -1;
+            if(b.date === 'Initial') return 1;
+            return a.date.localeCompare(b.date);
+        }), currentStock: stock };
+    };
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedReagentId, setSelectedReagentId] = useState<string | null>(null);
     const [formData, setFormData] = useState<Reagent>(emptyReagent);
@@ -124,8 +215,9 @@ const ReagentInfoPage: React.FC<ReagentInfoPageProps> = ({ reagents, setReagents
                     </div>
                 </div>
                 <div className="flex bg-slate-800 p-1 rounded-2xl border border-slate-700">
-                    <button onClick={() => setViewMode('inventory')} className={`px-8 py-2.5 rounded-xl font-black text-xs uppercase transition-all ${viewMode === 'inventory' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500'}`}>Inventory View</button>
-                    <button onClick={() => setViewMode('requisition')} className={`px-8 py-2.5 rounded-xl font-black text-xs uppercase transition-all ${viewMode === 'requisition' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-500'}`}>Requisition Mode</button>
+                    <button onClick={() => setViewMode('inventory')} className={`px-8 py-2.5 rounded-xl font-black text-xs uppercase transition-all ${viewMode === 'inventory' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-800'}`}>Inventory View</button>
+                    <button onClick={() => setViewMode('requisition')} className={`px-8 py-2.5 rounded-xl font-black text-xs uppercase transition-all ${viewMode === 'requisition' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-800'}`}>Requisition Mode</button>
+                    <button onClick={() => setViewMode('ledger')} className={`px-8 py-2.5 rounded-xl font-black text-xs uppercase transition-all ${viewMode === 'ledger' ? 'bg-amber-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-800'}`}>Stock Ledger</button>
                 </div>
             </header>
 
@@ -154,6 +246,7 @@ const ReagentInfoPage: React.FC<ReagentInfoPageProps> = ({ reagents, setReagents
                     </div>
                 </div>
 
+                {viewMode !== 'ledger' && (
                 <div className="bg-slate-900 rounded-[2.5rem] border border-slate-800 shadow-2xl overflow-hidden flex flex-col">
                     <div className="p-6 border-b border-slate-800 bg-slate-900/50 flex flex-wrap justify-between items-center gap-4 no-print">
                         <div className="relative w-full md:w-96">
@@ -211,6 +304,116 @@ const ReagentInfoPage: React.FC<ReagentInfoPageProps> = ({ reagents, setReagents
                         </table>
                     </div>
                 </div>
+                )}
+                
+                {viewMode === 'ledger' && (
+                    <div className="bg-slate-900 rounded-[2.5rem] border border-slate-800 shadow-2xl overflow-hidden flex flex-col p-8">
+                        <div className="flex flex-wrap gap-4 items-end mb-8 border-b border-slate-800 pb-8">
+                            <div className="flex-1">
+                                <label className="text-[10px] font-black uppercase text-slate-500 mb-2 block">Select Reagent / Item</label>
+                                <select 
+                                    value={ledgerReagentId || ''} 
+                                    onChange={(e) => setLedgerReagentId(e.target.value)}
+                                    className="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white text-sm font-bold outline-none focus:border-amber-500"
+                                >
+                                    <option value="">-- Choose Item to view Stock Ledger --</option>
+                                    {reagents.map(r => <option key={r.reagent_id} value={r.reagent_id}>{r.reagent_name} (ID: {r.reagent_id})</option>)}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-black uppercase text-slate-500 mb-2 block">From Date</label>
+                                <input type="date" value={ledgerStartDate} onChange={e => setLedgerStartDate(e.target.value)} className="bg-slate-950 border border-slate-700 rounded-xl p-3 text-white text-sm outline-none focus:border-amber-500" />
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-black uppercase text-slate-500 mb-2 block">To Date</label>
+                                <input type="date" value={ledgerEndDate} onChange={e => setLedgerEndDate(e.target.value)} className="bg-slate-950 border border-slate-700 rounded-xl p-3 text-white text-sm outline-none focus:border-amber-500" />
+                            </div>
+                        </div>
+                        
+                        {ledgerReagentId ? (() => {
+                            const ledger = getReagentLedger(ledgerReagentId);
+                            let filteredItems = ledger.items;
+                            if (ledgerStartDate) filteredItems = filteredItems.filter(i => i.date === 'Initial' || i.date >= ledgerStartDate);
+                            if (ledgerEndDate) filteredItems = filteredItems.filter(i => i.date === 'Initial' || i.date <= ledgerEndDate);
+                            
+                            return (
+                                <div>
+                                    <div className="flex justify-between items-center mb-6">
+                                        <h3 className="text-xl font-black text-white">Stock Ledger: <span className="text-amber-400">{reagents.find(r => r.reagent_id === ledgerReagentId)?.reagent_name}</span></h3>
+                                        <div className="text-right">
+                                            <div className="text-[10px] font-black uppercase text-slate-500">Current Calculated Stock</div>
+                                            <div className="text-3xl font-black text-amber-500">{ledger.currentStock}</div>
+                                        </div>
+                                    </div>
+                                    <div className="overflow-x-auto min-h-[300px]">
+                                        <table className="w-full text-left border-collapse text-xs">
+                                            <thead className="bg-slate-950 text-[10px] uppercase font-black text-slate-500 tracking-widest border-b border-slate-800">
+                                                <tr>
+                                                    <th className="p-4 w-32">Date</th>
+                                                    <th className="p-4 w-40">Transaction Type</th>
+                                                    <th className="p-4">Description</th>
+                                                    <th className="p-4 text-right w-32">Qty Change</th>
+                                                    <th className="p-4 text-right w-32">Resulting Stock</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-800">
+                                                {filteredItems.map((item, idx) => (
+                                                    <tr key={idx} className="hover:bg-slate-800/40 transition-colors">
+                                                        <td className="p-4 font-mono text-slate-300">{item.date}</td>
+                                                        <td className="p-4">
+                                                            <span className={`px-3 py-1 rounded text-[9px] font-black uppercase ${
+                                                                item.type === 'MANUAL_SET' || item.type === 'INITIAL' ? 'bg-blue-900/30 text-blue-400' :
+                                                                item.type === 'PURCHASE' ? 'bg-emerald-900/30 text-emerald-400' :
+                                                                'bg-rose-900/30 text-rose-400'
+                                                            }`}>
+                                                                {item.type}
+                                                            </span>
+                                                        </td>
+                                                        <td className="p-4 text-slate-400">{item.description}</td>
+                                                        <td className={`p-4 text-right font-black text-sm ${item.qtyChange > 0 ? 'text-emerald-400' : item.qtyChange < 0 ? 'text-rose-400' : 'text-slate-500'}`}>
+                                                            {item.qtyChange > 0 ? '+' : ''}{item.qtyChange}
+                                                        </td>
+                                                        <td className="p-4 text-right font-black text-white text-sm">{item.resultingStock}</td>
+                                                    </tr>
+                                                ))}
+                                                {filteredItems.length === 0 && (
+                                                    <tr><td colSpan={5} className="p-20 text-center text-slate-700 italic font-black uppercase">No transactions found</td></tr>
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    <div className="mt-8 border-t border-slate-800 pt-6 flex justify-between items-center bg-slate-900/50 p-6 rounded-2xl">
+                                        <div>
+                                            <h4 className="text-sm font-black text-white mb-1">Manual Stock Reset</h4>
+                                            <p className="text-[10px] text-slate-500 font-bold uppercase">If physical stock differs, set the exact count here.</p>
+                                        </div>
+                                        <div className="flex gap-3">
+                                            <input type="date" id="reset-date" defaultValue={new Date().toISOString().split('T')[0]} className="bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white text-sm font-bold outline-none focus:border-amber-500" />
+                                            <input type="number" id="reset-qty" placeholder="Actual Qty" className="w-32 bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white text-sm font-bold outline-none focus:border-amber-500" />
+                                            <button onClick={() => {
+                                                const d = (document.getElementById('reset-date') as HTMLInputElement).value;
+                                                const q = parseFloat((document.getElementById('reset-qty') as HTMLInputElement).value);
+                                                if (!d || isNaN(q)) return alert('Enter valid date and quantity');
+                                                
+                                                const rIdx = reagents.findIndex(r => r.reagent_id === ledgerReagentId);
+                                                if(rIdx === -1) return;
+                                                const newReagents = [...reagents];
+                                                if(!newReagents[rIdx].manualStockUpdates) newReagents[rIdx].manualStockUpdates = [];
+                                                newReagents[rIdx].manualStockUpdates.push({ date: d, quantity: q, note: 'Manual Stock Calibration' });
+                                                // Also update raw quantity as base
+                                                newReagents[rIdx].quantity = q;
+                                                setReagents(newReagents);
+                                                (document.getElementById('reset-qty') as HTMLInputElement).value = '';
+                                            }} className="bg-amber-600 hover:bg-amber-500 text-white px-6 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest shadow-xl active:scale-95 transition-all">Set Stock</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })() : (
+                            <div className="p-40 flex items-center justify-center text-slate-700 text-xl font-black uppercase tracking-[0.2em] opacity-20">Select an item above</div>
+                        )}
+                    </div>
+                )}
             </main>
 
             <footer className="p-12 text-center text-slate-700 border-t border-slate-900">

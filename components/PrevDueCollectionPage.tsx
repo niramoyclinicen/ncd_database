@@ -29,11 +29,96 @@ const PrevDueCollectionPage: React.FC<Props> = ({ invoices, setInvoices, dueColl
 
     const [selectedInvoice, setSelectedInvoice] = useState<LabInvoice | null>(null);
     const [collectionAmount, setCollectionAmount] = useState<number>(0);
+    const [discountAmount, setDiscountAmount] = useState<number>(0);
     const [collectedBy, setCollectedBy] = useState<string>('');
     const [showModal, setShowModal] = useState(false);
     const [successMessage, setSuccessMessage] = useState('');
 
+    const [activeTab, setActiveTab] = useState<'pending' | 'history'>('pending');
+    const [collectionDateInput, setCollectionDateInput] = useState(() => {
+        const d = new Date();
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    });
+
+    
+    const handlePrintList = () => {
+        const win = window.open('', '_blank');
+        if (!win) return;
+        
+        let contentHtml = '';
+        let totalDue = 0;
+        
+        if (activeTab === 'pending') {
+            contentHtml = filteredInvoices.map((inv, index) => {
+                totalDue += (inv.due_amount || 0);
+                return `
+                    <tr>
+                        <td style="text-align:center">${index + 1}</td>
+                        <td>${inv.invoice_date}</td>
+                        <td>${inv.invoice_id}</td>
+                        <td>${inv.patient_name}</td>
+                        <td style="text-align:right">৳${(inv.total_amount || 0).toFixed(2)}</td>
+                        <td style="text-align:right">৳${(inv.paid_amount || 0).toFixed(2)}</td>
+                        <td style="text-align:right; font-weight:bold; color:red;">৳${(inv.due_amount || 0).toFixed(2)}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+        
+        const html = `<html><head>
+            <style>
+                @page{size:A4 portrait; margin:15mm} 
+                body{font-family:sans-serif;} 
+                .box{padding:15px;} 
+                .h1{font-size:24px; font-weight:bold; margin:0; text-align:center;} 
+                .text-center{text-align:center;}
+                table{width:100%; border-collapse:collapse; margin-top: 20px;} 
+                td, th{padding:8px; text-align:left; border: 1px solid #000;}
+                th { background-color: #eee; }
+            </style>
+        </head><body><div class="box">
+            <div class="h1">Niramoy Clinic & Diagnostic</div>
+            <p class="text-center">Enayetpur, Sirajgonj | Mobile: 01730 923007</p>
+            <hr>
+            <h3 class="text-center">DUE LIST (PENDING)</h3>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th style="text-align:center; width: 40px;">SL</th>
+                        <th>Date</th>
+                        <th>Invoice ID</th>
+                        <th>Patient Name</th>
+                        <th style="text-align:right">Total</th>
+                        <th style="text-align:right">Paid</th>
+                        <th style="text-align:right">Due</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${contentHtml}
+                    <tr>
+                        <td colspan="6" style="text-align:right; font-weight:bold;">Total Due Amount:</td>
+                        <td style="text-align:right; font-weight:bold; font-size:16px;">৳${totalDue.toFixed(2)}</td>
+                    </tr>
+                </tbody>
+            </table>
+            
+            <div style="margin-top:40px; text-align:right">
+                <b>Printed By:</b> ${collectedBy || ''} <br><br>
+                ..........................
+            </div>
+        </div></body></html>`;
+        
+        win.document.write(html); 
+        win.document.close(); 
+        win.setTimeout(() => { win.print(); }, 300);
+    };
+
     const filteredInvoices = useMemo(() => {
+
         if (!Array.isArray(invoices)) return [];
         return invoices.filter(inv => {
             if (!inv || inv.due_amount <= 0.5) return false;
@@ -55,36 +140,102 @@ const PrevDueCollectionPage: React.FC<Props> = ({ invoices, setInvoices, dueColl
         });
     }, [searchTerm, invoices, filterDay, filterMonth, filterYear, filterPatientName]);
 
-    const handlePrintReceipt = (invoice: LabInvoice, collectedAmt: number) => {
+    const handlePrintReceipt = (invoice: LabInvoice, collectedAmt: number, colDate: string) => {
         const win = window.open('', '_blank');
         if (!win) return;
-        const styles = `<style>@page{size:A5 landscape; margin:10mm} body{font-family:sans-serif; text-align:center} .box{border:2px solid #000; padding:15px; border-radius:10px} .h1{font-size:20px; font-weight:bold; margin:0} table{width:100%; margin-top:10px; border-collapse:collapse} td{padding:5px; text-align:left}</style>`;
+        const styles = `<style>
+            @page{size:A5 landscape; margin:10mm} 
+            body{font-family:sans-serif;} 
+            .box{border:2px solid #000; padding:15px; border-radius:10px} 
+            .h1{font-size:20px; font-weight:bold; margin:0; text-align:center;} 
+            .text-center{text-align:center;}
+            table{width:100%; border-collapse:collapse} 
+            td, th{padding:5px; text-align:left}
+            .test-table{margin-top: 15px;}
+            .test-table th, .test-table td{border: 1px solid #000;}
+            .summary-table td{padding: 2px 5px;}
+        </style>`;
+        
+        const itemsHtml = (invoice.items || []).map((it: any) => 
+            `<tr>
+                <td>${it.test_name}</td>
+                <td style="text-align:center">${it.quantity}</td>
+                <td style="text-align:right">৳${(it.price * it.quantity).toFixed(2)}</td>
+            </tr>`
+        ).join('');
+
         const html = `<html><head>${styles}</head><body><div class="box">
             <div class="h1">Niramoy Clinic & Diagnostic</div>
-            <p>Enayetpur, Sirajgonj | Mobile: 01730 923007</p>
+            <p class="text-center">Enayetpur, Sirajgonj | Mobile: 01730 923007</p>
             <hr>
-            <h3>PAYMENT RECEIPT (DUE RECOVERY)</h3>
+            <h3 class="text-center">DUE PAYMENT RECEIPT & INVOICE DETAILS</h3>
             <table>
-                <tr><td><b>Patient Name:</b> ${invoice.patient_name}</td><td><b>Date:</b> ${new Date().toLocaleDateString()}</td></tr>
+                <tr><td><b>Patient Name:</b> ${invoice.patient_name}</td><td><b>Date:</b> ${new Date(colDate).toLocaleDateString()}</td></tr>
                 <tr><td><b>Invoice ID:</b> ${invoice.invoice_id}</td><td><b>Receipt No:</b> DC-${Date.now().toString().slice(-5)}</td></tr>
-                <tr><td><b>Amount Paid:</b></td><td style="font-size:18px; font-weight:bold">৳${collectedAmt.toFixed(2)}</td></tr>
-                <tr><td><b>Remaining Due:</b></td><td style="color:red">৳${(invoice.due_amount - collectedAmt).toFixed(2)}</td></tr>
+                <tr><td><b>Ref by:</b> ${invoice.doctor_name || ''}</td><td></td></tr>
             </table>
-            <div style="margin-top:30px; text-align:right"><b>Authorized Sign</b><br>..........................</div>
+            
+            <table class="test-table">
+                <thead>
+                    <tr style="background:#eee;">
+                        <th>Test Name</th>
+                        <th style="text-align:center">Qty</th>
+                        <th style="text-align:right">Price</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${itemsHtml}
+                </tbody>
+            </table>
+            
+            <table class="summary-table" style="width: 280px; float: right; margin-top: 15px;">
+                <tr><td><b>Total Amount:</b></td><td style="text-align:right">৳${(invoice.total_amount || 0).toFixed(2)}</td></tr>
+                <tr><td><b>Discount:</b></td><td style="text-align:right">৳${(invoice.discount_amount || 0).toFixed(2)}</td></tr>
+                <tr><td><b>Net Payable:</b></td><td style="text-align:right">৳${((invoice.total_amount || 0) - (invoice.discount_amount || 0)).toFixed(2)}</td></tr>
+                <tr><td><b>Previously Paid:</b></td><td style="text-align:right">৳${(invoice.paid_amount || 0).toFixed(2)}</td></tr>
+                <tr><td><b>Current Payment:</b></td><td style="text-align:right; font-size:16px; font-weight:bold">৳${collectedAmt.toFixed(2)}</td></tr>
+                <tr><td><b>Remaining Due:</b></td><td style="text-align:right; color:red; font-weight:bold;">৳${(invoice.due_amount - collectedAmt).toFixed(2)}</td></tr>
+            </table>
+            <div style="clear: both;"></div>
+            <div style="margin-top:40px; display: flex; justify-content: space-between;">
+                <div><b>Prepared By:</b> ${collectedBy || ''}</div>
+                <div style="text-align:right"><b>Authorized Sign</b><br>..........................</div>
+            </div>
         </div></body></html>`;
-        win.document.write(html); win.document.close(); win.print();
+        win.document.write(html); 
+        win.document.close(); 
+        
+        // Timeout to let resources load before printing
+        win.setTimeout(() => {
+            win.print();
+        }, 300);
     };
 
     const handleConfirmCollection = async () => {
-        if (!selectedInvoice || collectionAmount <= 0 || collectionAmount > selectedInvoice.due_amount + 0.1) {
+        if (!selectedInvoice || collectionAmount < 0 || discountAmount < 0 || (collectionAmount === 0 && discountAmount === 0) || (collectionAmount + discountAmount) > selectedInvoice.due_amount + 0.1) {
             alert("ভুল অ্যামাউন্ট!"); return;
         }
-        const collectionDate = formatDateTime(new Date());
-        const newCol: DueCollection = { collection_id: `DC-${Date.now()}`, invoice_id: selectedInvoice.invoice_id, collection_date: collectionDate, amount_collected: collectionAmount, collected_by: collectedBy, payment_method: 'Cash' };
         
-        const updatedInvoice: LabInvoice = { ...selectedInvoice, paid_amount: selectedInvoice.paid_amount + collectionAmount, due_amount: selectedInvoice.due_amount - collectionAmount, status: (selectedInvoice.due_amount - collectionAmount) <= 0.5 ? 'Paid' : 'Due', last_modified: collectionDate };
+        // Append current time to the selected date string
+        const d = new Date();
+        const hours = String(d.getHours()).padStart(2, '0');
+        const minutes = String(d.getMinutes()).padStart(2, '0');
+        const seconds = String(d.getSeconds()).padStart(2, '0');
+        const collectionDate = `${collectionDateInput} ${hours}:${minutes}:${seconds}`;
 
-        const newCols = [...dueCollections, newCol];
+        const newCols = [...dueCollections];
+        if (collectionAmount > 0) {
+            newCols.push({ collection_id: `DC-${Date.now()}`, invoice_id: selectedInvoice.invoice_id, collection_date: collectionDate, amount_collected: collectionAmount, collected_by: collectedBy, payment_method: 'Cash' });
+        }
+        
+        const updatedInvoice: LabInvoice = { 
+            ...selectedInvoice, 
+            paid_amount: selectedInvoice.paid_amount + collectionAmount, 
+            discount_amount: (selectedInvoice.discount_amount || 0) + discountAmount,
+            due_amount: selectedInvoice.due_amount - (collectionAmount + discountAmount), 
+            status: (selectedInvoice.due_amount - (collectionAmount + discountAmount)) <= 0.5 ? 'Paid' : 'Due', 
+            last_modified: collectionDate 
+        };
         const newInvs = invoices.map(inv => inv.invoice_id === updatedInvoice.invoice_id ? updatedInvoice : inv);
 
         if (performBlockingSync) {
@@ -92,24 +243,45 @@ const PrevDueCollectionPage: React.FC<Props> = ({ invoices, setInvoices, dueColl
             if (success) {
                 setDueCollections(newCols);
                 setInvoices(newInvs);
-                handlePrintReceipt(selectedInvoice, collectionAmount);
+                handlePrintReceipt(selectedInvoice, collectionAmount, collectionDate);
                 setSuccessMessage('ডাটা সঠিকভাবে সেভ হয়েছে!');
                 setShowModal(false); setSelectedInvoice(null);
             }
         } else {
             setDueCollections(newCols);
             setInvoices(newInvs);
-            handlePrintReceipt(selectedInvoice, collectionAmount);
+            handlePrintReceipt(selectedInvoice, collectionAmount, collectionDate);
             setSuccessMessage(`সফলভাবে ${collectionAmount} টাকা আদায় হয়েছে।`);
             setShowModal(false); setSelectedInvoice(null);
         }
     };
 
+    const totalDueAmount = filteredInvoices.reduce((sum, inv) => sum + (inv.due_amount || 0), 0);
+
     return (
         <div className="bg-slate-900 text-slate-200 rounded-xl p-6 space-y-6">
             {successMessage && <div className="fixed top-20 right-5 bg-green-900 border border-green-700 text-green-300 px-4 py-3 rounded-lg z-50 animate-bounce">{successMessage}</div>}
             <div className="flex flex-col md:flex-row justify-between items-center border-b border-slate-700 pb-4 gap-4">
-                <h2 className="text-2xl font-bold text-sky-100">Diagnostic Due Recovery</h2>
+                <div className="flex gap-4 items-center">
+                    <h2 
+                        className={`text-2xl font-bold cursor-pointer transition-colors ${activeTab === 'pending' ? 'text-sky-400' : 'text-slate-500 hover:text-slate-300'}`}
+                        onClick={() => setActiveTab('pending')}
+                    >
+                        Due Recovery
+                    </h2>
+                    <h2 
+                        className={`text-2xl font-bold cursor-pointer transition-colors ${activeTab === 'history' ? 'text-sky-400' : 'text-slate-500 hover:text-slate-300'}`}
+                        onClick={() => setActiveTab('history')}
+                    >
+                        Collection History
+                    </h2>
+                    {activeTab === 'pending' && (
+                        <div className="ml-4 bg-red-900/30 border border-red-800 text-red-400 px-4 py-1.5 rounded-lg">
+                            <span className="text-sm font-bold uppercase mr-2">Total Due:</span>
+                            <span className="text-xl font-black">৳{totalDueAmount.toFixed(2)}</span>
+                        </div>
+                    )}
+                </div>
                 
                 <div className="flex flex-wrap items-center gap-3 bg-slate-800/50 p-3 rounded-xl border border-slate-700">
                     <div className="w-32">
@@ -151,7 +323,7 @@ const PrevDueCollectionPage: React.FC<Props> = ({ invoices, setInvoices, dueColl
                             {[2023, 2024, 2025, 2026, 2027].map(y => <option key={y} value={y.toString()}>{y}</option>)}
                         </select>
                     </div>
-                    <div className="w-48">
+                    <div className="flex gap-2">
                         <input 
                             type="text" 
                             placeholder="Search ID..." 
@@ -159,20 +331,25 @@ const PrevDueCollectionPage: React.FC<Props> = ({ invoices, setInvoices, dueColl
                             onChange={(e) => setSearchTerm(e.target.value)} 
                             className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-1.5 text-xs text-white outline-none focus:border-blue-500" 
                         />
+                        <button onClick={handlePrintList} className="bg-sky-600 hover:bg-sky-500 text-white px-4 py-2 rounded-md text-xs font-black uppercase tracking-widest transition-colors shadow-lg whitespace-nowrap">
+                            Print List
+                        </button>
                     </div>
                 </div>
             </div>
+            {activeTab === 'pending' && (
             <div className="overflow-x-auto rounded-lg border border-slate-700">
                 <table className="w-full text-left">
-                    <thead className="bg-slate-800 text-slate-400 text-xs uppercase font-black"><tr><th className="p-4">Date</th><th className="p-4">Invoice ID</th><th className="p-4">Patient</th><th className="p-4 text-right">Total</th><th className="p-4 text-right">Paid</th><th className="p-4 text-right text-red-400">Due</th><th className="p-4 text-center">Action</th></tr></thead>
+                    <thead className="bg-slate-800 text-slate-400 text-xs uppercase font-black"><tr><th className="p-4 w-12 text-center">SL</th><th className="p-4">Date</th><th className="p-4">Invoice ID</th><th className="p-4">Patient</th><th className="p-4 text-right">Total</th><th className="p-4 text-right">Paid</th><th className="p-4 text-right text-red-400">Due</th><th className="p-4 text-center">Action</th></tr></thead>
                     <tbody className="divide-y divide-slate-800">
-                        {filteredInvoices.map((inv) => (
+                        {filteredInvoices.map((inv, index) => (
                             <tr 
-                                key={inv.invoice_id} 
+                                 key={inv.invoice_id} 
                                 onDoubleClick={() => onViewInvoice && onViewInvoice(inv.invoice_id)}
                                 className="hover:bg-slate-800/50 transition-colors cursor-pointer group"
                                 title="Double click to view invoice details"
                             >
+                                <td className="p-4 text-center font-bold text-slate-500">{index + 1}</td>
                                 <td className="p-4 text-sm">{inv.invoice_date}</td>
                                 <td className="p-4 font-mono text-sky-400">{inv.invoice_id}</td>
                                 <td className="p-4 font-bold">{inv.patient_name}</td>
@@ -180,20 +357,90 @@ const PrevDueCollectionPage: React.FC<Props> = ({ invoices, setInvoices, dueColl
                                 <td className="p-4 text-right text-green-400">{(inv.paid_amount || 0).toFixed(2)}</td>
                                 <td className="p-4 text-right text-red-500 font-black">৳{(inv.due_amount || 0).toFixed(2)}</td>
                                 <td className="p-4 text-center">
-                                    <button onClick={(e) => { e.stopPropagation(); setSelectedInvoice(inv); setShowModal(true); setCollectionAmount(0); }} className="bg-green-600 px-4 py-1.5 rounded-md text-xs font-bold text-white hover:bg-green-500 transition-colors">Collect</button>
+                                    <button onClick={(e) => { e.stopPropagation(); setSelectedInvoice(inv); setShowModal(true); setCollectionAmount(0); setDiscountAmount(0); }} className="bg-green-600 px-4 py-1.5 rounded-md text-xs font-bold text-white hover:bg-green-500 transition-colors">Collect</button>
                                 </td>
                             </tr>
                         ))}
                     </tbody>
                 </table>
             </div>
+            )}
+            
+            {activeTab === 'history' && (
+            <div className="overflow-x-auto rounded-lg border border-slate-700">
+                <table className="w-full text-left">
+                    <thead className="bg-slate-800 text-slate-400 text-xs uppercase font-black">
+                        <tr>
+                            <th className="p-4 w-12 text-center">SL</th>
+                            <th className="p-4">Collection Date</th>
+                            <th className="p-4">Invoice ID</th>
+                            <th className="p-4">Patient Name</th>
+                            <th className="p-4">Collected By</th>
+                            <th className="p-4 text-right text-green-400">Amount Collected</th>
+                            <th className="p-4 text-center">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800">
+                        {dueCollections
+                            .filter(dc => dc.invoice_id.startsWith('INV'))
+                            .sort((a, b) => new Date(b.collection_date).getTime() - new Date(a.collection_date).getTime())
+                            .filter(dc => {
+                                const inv = invoices.find(i => i.invoice_id === dc.invoice_id);
+                                const matchName = filterPatientName ? (inv?.patient_name || '').toLowerCase().includes(filterPatientName.toLowerCase()) : true;
+                                const matchId = searchTerm ? dc.invoice_id.toLowerCase().includes(searchTerm.toLowerCase()) : true;
+                                const [y, m, d] = (dc.collection_date || '').split(' ')[0].split('-');
+                                const matchY = filterYear ? y === filterYear : true;
+                                const matchM = filterMonth ? parseInt(m) === parseInt(filterMonth) : true;
+                                const matchD = filterDay ? parseInt(d) === parseInt(filterDay) : true;
+                                return matchName && matchId && matchY && matchM && matchD;
+                            })
+                            .slice(0, 100) // limit to 100 recent for performance
+                            .map((dc, index) => {
+                                const inv = invoices.find(i => i.invoice_id === dc.invoice_id);
+                                return (
+                                <tr 
+                                    key={dc.collection_id}
+                                    className="hover:bg-slate-800/50 transition-colors"
+                                >
+                                    <td className="p-4 text-center font-bold text-slate-500">{index + 1}</td>
+                                    <td className="p-4 text-sm">{dc.collection_date}</td>
+                                    <td className="p-4 font-mono text-sky-400">{dc.invoice_id}</td>
+                                    <td className="p-4 font-bold">{inv ? inv.patient_name : 'Unknown'}</td>
+                                    <td className="p-4 text-sm">{dc.collected_by}</td>
+                                    <td className="p-4 text-right text-green-400 font-black">৳{(dc.amount_collected || 0).toFixed(2)}</td>
+                                    <td className="p-4 text-center">
+                                        <button 
+                                            onClick={() => inv && handlePrintReceipt(inv, dc.amount_collected, dc.collection_date)} 
+                                            className="bg-indigo-600 px-4 py-1.5 rounded-md text-xs font-bold text-white hover:bg-indigo-500 transition-colors"
+                                            disabled={!inv}
+                                        >
+                                            Print Receipt
+                                        </button>
+                                    </td>
+                                </tr>
+                            )})}
+                    </tbody>
+                </table>
+            </div>
+            )}
+
             {showModal && selectedInvoice && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
                     <div className="bg-slate-800 border border-slate-700 rounded-xl w-full max-w-md p-6">
                         <h3 className="text-xl font-bold mb-4">বকেয়া টাকা আদায়</h3>
                         <div className="bg-slate-900 p-4 rounded mb-6 flex justify-between items-center"><span className="text-slate-400">Current Due:</span><span className="text-red-400 text-2xl font-black">৳{(selectedInvoice.due_amount || 0).toFixed(2)}</span></div>
                         <div className="space-y-4">
-                            <div><label className="text-xs text-slate-500 uppercase font-black">Amount to Pay</label><input type="number" value={collectionAmount || ''} onChange={e => setCollectionAmount(parseFloat(e.target.value))} className="w-full bg-slate-900 border border-slate-700 p-3 rounded text-white text-xl font-bold" autoFocus /></div>
+                            <div>
+                                <label className="text-xs text-slate-500 uppercase font-black">Date</label>
+                                <input 
+                                    type="date" 
+                                    value={collectionDateInput} 
+                                    onChange={e => setCollectionDateInput(e.target.value)} 
+                                    className="w-full bg-slate-900 border border-slate-700 p-3 rounded text-white font-bold" 
+                                />
+                            </div>
+                            <div><label className="text-xs text-slate-500 uppercase font-black">Amount to Pay (৳)</label><input type="number" value={collectionAmount === 0 ? '' : collectionAmount} onChange={e => setCollectionAmount(e.target.value ? parseFloat(e.target.value) : 0)} className="w-full bg-slate-900 border border-slate-700 p-3 rounded text-white text-xl font-bold" autoFocus /></div>
+                            <div><label className="text-xs text-slate-500 uppercase font-black">Waive/Discount (মওকুফ) (৳)</label><input type="number" value={discountAmount === 0 ? '' : discountAmount} onChange={e => setDiscountAmount(e.target.value ? parseFloat(e.target.value) : 0)} className="w-full bg-slate-900 border border-slate-700 p-3 rounded text-white text-xl font-bold" /></div>
                             <SearchableSelect label="Collected By" theme="dark" options={employees.filter(e=>e.is_current_month).map(e=>({id: e.emp_name, name: e.emp_name}))} value={collectedBy} onChange={(id, name)=>setCollectedBy(name)} />
                         </div>
                         <div className="mt-8 flex gap-3"><button onClick={() => setShowModal(false)} className="flex-1 py-2 bg-slate-700 rounded">বাতিল</button><button onClick={handleConfirmCollection} className="flex-1 py-2 bg-green-600 font-bold rounded">Confirm & Print</button></div>

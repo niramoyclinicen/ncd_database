@@ -74,7 +74,7 @@ const CBCInputPage: React.FC<any> = ({ results: initialResults, onSaveOverride, 
     };
 
     return (
-        <div className={`flex flex-col h-full ${isEmbedded ? 'bg-transparent' : 'bg-slate-100 overflow-hidden'} font-sans text-black`}>
+        <div className={`flex flex-col ${isEmbedded ? 'flex-1 min-h-0 bg-transparent' : 'h-full bg-slate-100 overflow-hidden'} font-sans text-black`}>
             <div className={`flex-1 ${isEmbedded ? '' : 'overflow-y-auto p-4 flex justify-center custom-scrollbar bg-slate-200/50'}`}>
                 <div className={`${isEmbedded ? 'w-full' : 'bg-white w-full max-w-[820px] shadow-2xl p-12'} flex flex-col font-serif relative`}>
                     <h1 className="text-xl text-center font-black underline uppercase tracking-[0.2em] mb-8 text-black">Complete Blood Count (CBC)</h1>

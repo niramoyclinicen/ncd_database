@@ -140,7 +140,7 @@ const UltrasonographyReportEditor: React.FC<Props> = ({ template, patient, invoi
     };
 
     return (
-        <div className={`flex flex-col h-full ${isEmbedded ? 'bg-transparent' : 'bg-slate-100 overflow-hidden'} font-sans text-black`}>
+        <div className={`flex flex-col ${isEmbedded ? 'flex-1 min-h-0 bg-transparent' : 'h-full bg-slate-100 overflow-hidden'} font-sans text-black`}>
             {!isEmbedded && (
                 <div className="p-3 bg-white border-b flex justify-between items-center shrink-0 no-print shadow-sm z-10">
                     <div className="flex items-center gap-3">

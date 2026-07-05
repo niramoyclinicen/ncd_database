@@ -1,0 +1,15 @@
+                                    <td className="py-3 pr-2">
+                                        <input 
+                                            list={`desc-list-${item.id}`}
+                                            value={item.description} 
+                                            onChange={e => handleItemChange(item.id, 'description', e.target.value)} 
+                                            className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white text-sm font-bold" 
+                                            placeholder="Additional details..." 
+                                        />
+                                        <datalist id={`desc-list-${item.id}`}>
+                                            {Array.from(descriptionSuggestions[`${item.category}|${item.subCategory}`] || []).map((desc, i) => (
+                                                <option key={i} value={desc} />
+                                            ))}
+                                        </datalist>
+                                    </td>
+                                    <td className="py-3 pr-2"><input type="number" value={item.paidAmount} onChange={e => handleItemChange(item.id, 'paidAmount', parseFloat(e.target.value) || 0)} className="w-28 bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white text-base font-black text-right outline-none focus:border-emerald-500" onFocus={e => e.target.select()} /></td>

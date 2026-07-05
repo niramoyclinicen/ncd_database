@@ -29,7 +29,7 @@ const SemenAnalysisInputPage: React.FC<any> = ({ results: initialResults, onSave
     const labelClass = "text-slate-700 font-black w-1/2 text-xs uppercase tracking-tight";
 
     return (
-        <div className={`flex flex-col h-full ${isEmbedded ? 'bg-transparent' : 'bg-slate-100 overflow-hidden'} font-sans text-black`}>
+        <div className={`flex flex-col ${isEmbedded ? 'flex-1 min-h-0 bg-transparent' : 'h-full bg-slate-100 overflow-hidden'} font-sans text-black`}>
             <div className={`flex-1 ${isEmbedded ? '' : 'overflow-y-auto p-4 flex justify-center custom-scrollbar bg-slate-200/50'}`}>
                 <div className={`${isEmbedded ? 'w-full' : 'bg-white w-full max-w-[820px] shadow-2xl p-12'} flex flex-col font-serif relative`}>
                     <h1 className="text-2xl text-center font-black underline uppercase tracking-[0.3em] mb-12 text-black">Semen Analysis Report</h1>

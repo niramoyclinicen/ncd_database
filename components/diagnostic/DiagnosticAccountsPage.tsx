@@ -65,11 +65,10 @@ const InvoiceViewModal: React.FC<{ inv: any, patients: any[], doctors: any[], on
 
         const getSlipHtml = (copyType: string, isLast: boolean) => `
             <div class="slip-column" style="width: 148.5mm; height: 210mm; padding: 12mm 15mm; box-sizing: border-box; display: flex; flex-direction: column; ${!isLast ? 'border-right: 1.5px dashed #666;' : ''} overflow: hidden; position: relative;">
-                <div class="header" style="text-align: center; margin-bottom: 8px;">
-                    <h1 style="margin:0; font-size: 22px; font-weight: 900; color: #000; text-transform: uppercase; line-height: 1.1;">Niramoy Clinic & Diagnostic</h1>
-                    <p style="margin:2px 0; font-size: 11px; font-weight: bold;">Enayetpur, Sirajgonj | Mobile: 01730 923007</p>
-                    <p style="margin:0; font-size: 9px; font-weight: bold; color: #555;">Govt. License: HSM41671</p>
-                    <div class="copy-label" style="display: inline-block; border: 1.5px solid #000; padding: 2px 10px; margin-top: 5px; font-size: 10px; font-weight: 900; text-transform: uppercase;">${copyType}</div>
+                <div class="header" style="text-align: center; margin-bottom: 5px;">
+                    <h1 style="margin:0; font-size: 16px; font-weight: 900; color: #000; text-transform: uppercase;">Niramoy Clinic & Diagnostic</h1>
+                    <p style="margin:2px 0; font-size: 10px; font-weight: bold;">Enayetpur, Sirajgonj | Mobile: 01730 923007 | License: HSM41671</p>
+                    <div class="copy-label" style="display: inline-block; border: 1.5px solid #000; padding: 2px 10px; margin-top: 3px; font-size: 9px; font-weight: 900; text-transform: uppercase;">${copyType}</div>
                 </div>
 
                 <table style="width:100%; border-collapse: collapse; margin-bottom: 5px; margin-top: 8px; font-size: 11px; border: 1px solid #000;">
@@ -101,7 +100,7 @@ const InvoiceViewModal: React.FC<{ inv: any, patients: any[], doctors: any[], on
 
                 <div style="height: 15px;"></div>
                 
-                <div style="text-align: center; font-weight: 900; font-size: 14px; text-decoration: underline; margin-bottom: 5px; font-family: 'Arial', sans-serif;">Test Invoice</div>
+                <div style="text-align: center; font-weight: 900; font-size: 11px; text-decoration: underline; margin-bottom: 3px; font-family: 'Arial', sans-serif; text-transform: uppercase;">Test Invoice</div>
 
                 <div class="table-container" style="display: block; overflow: hidden;">
                     <table style="width:100%; border-collapse: collapse; font-size: 11px;">
@@ -187,10 +186,13 @@ const InvoiceViewModal: React.FC<{ inv: any, patients: any[], doctors: any[], on
                 <div className="flex-1 overflow-y-auto p-12 bg-gray-100 flex justify-center">
                     <div className="bg-white shadow-2xl p-12 w-[148.5mm] border border-gray-300 transform scale-110 origin-top mb-12">
                          {/* Header */}
-                         <div className="text-center mb-10 pb-6 border-b-2 border-slate-900 border-double">
-                            <h1 className="text-3xl font-black text-blue-900 uppercase">Niramoy Clinic & Diagnostic</h1>
-                            <p className="text-sm font-bold text-gray-700 italic">Enayetpur, Sirajgonj | Mobile: 01730 923007</p>
-                            <p className="text-xs font-black text-gray-500 mt-1 uppercase tracking-widest">Govt. License: HSM41671</p>
+                         <div className="text-center mb-6 pb-4 border-b-2 border-slate-900 border-double flex flex-col items-center justify-center">
+                            <h1 className="text-xl font-black text-blue-900 uppercase whitespace-nowrap">Niramoy Clinic & Diagnostic</h1>
+                            <div className="flex items-center justify-center gap-2 text-xs font-bold text-gray-700 italic">
+                                <span>Enayetpur, Sirajgonj | Mobile: 01730 923007</span>
+                                <span className="hidden sm:inline">|</span>
+                                <span className="text-[10px] font-black text-gray-500 not-italic uppercase tracking-widest">License: HSM41671</span>
+                            </div>
                         </div>
 
                         {/* Info Header Table */}
@@ -226,7 +228,7 @@ const InvoiceViewModal: React.FC<{ inv: any, patients: any[], doctors: any[], on
 
                         {/* Test Items Table */}
                         <div className="mb-6 min-h-[200px]">
-                            <h3 className="text-center font-black text-xl mb-3 underline decoration-double underline-offset-8">TEST INVOICE</h3>
+                            <h3 className="text-center font-black text-sm text-slate-800 mb-2 uppercase tracking-wide">Test Invoice</h3>
                             <table className="w-full border-collapse">
                                 <thead className="bg-slate-100 border-y-2 border-slate-900">
                                     <tr>
@@ -736,6 +738,33 @@ const DailyExpenseForm: React.FC<any> = ({
                                                 <option key={i} value={desc} />
                                             ))}
                                         </datalist>
+                                        {(item.category === 'Reagent buy' || item.category === 'X-ray Film buy') && (
+                                            <div className="flex items-center gap-2 mt-2 bg-slate-900 p-2 rounded-lg border border-slate-800">
+                                                <input
+                                                    type="number"
+                                                    placeholder="Box/Pcs"
+                                                    value={item.metadata?.numberOfBoxes || ''}
+                                                    onChange={e => handleItemChange(item.id, 'metadata', { ...item.metadata, numberOfBoxes: parseFloat(e.target.value) || 0 })}
+                                                    className="w-16 bg-slate-950 border border-slate-700 rounded p-1.5 text-xs font-black text-white text-center focus:border-blue-500 outline-none"
+                                                    title="Number of Boxes/Pieces"
+                                                />
+                                                <span className="text-slate-500 font-bold text-xs">×</span>
+                                                <input
+                                                    type="number"
+                                                    placeholder="Qty/Box"
+                                                    value={item.metadata?.quantityPerBox || ''}
+                                                    onChange={e => handleItemChange(item.id, 'metadata', { ...item.metadata, quantityPerBox: parseFloat(e.target.value) || 0 })}
+                                                    className="w-16 bg-slate-950 border border-slate-700 rounded p-1.5 text-xs font-black text-white text-center focus:border-blue-500 outline-none"
+                                                    title="Quantity per Box"
+                                                />
+                                                <div className="ml-auto text-right">
+                                                    <div className="text-[9px] text-slate-500 font-black uppercase">Total Add</div>
+                                                    <div className="text-emerald-400 font-black text-sm">
+                                                        +{(item.metadata?.numberOfBoxes || 0) * (item.metadata?.quantityPerBox || 0)}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
                                     </td>
                                     <td className="py-3 pr-2"><input type="number" value={item.paidAmount} onChange={e => handleItemChange(item.id, 'paidAmount', parseFloat(e.target.value) || 0)} className="w-28 bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white text-base font-black text-right outline-none focus:border-emerald-500" onFocus={e => e.target.select()} /></td>
                                     <td className="py-3 text-center"><button onClick={() => removeItem(item.id)} className="text-red-500 font-bold text-2xl hover:text-red-400">×</button></td>
@@ -1157,10 +1186,14 @@ const DiagnosticAccountsPage: React.FC<any> = ({
             
             return true;
         }).filter((inv: any) => {
-            const matchesSearch = (inv.patient_name || '').toLowerCase().includes(detailSearch.toLowerCase()) || 
-                                 (inv.invoice_id || '').toLowerCase().includes(detailSearch.toLowerCase()) ||
-                                 (inv.referrar_name || '').toLowerCase().includes(detailSearch.toLowerCase()) ||
-                                 (inv.items || []).some((it: any) => (it.test_name || '').toLowerCase().includes(detailSearch.toLowerCase()));
+            const doc = (doctors || []).find((d: any) => d.doctor_id === inv.doctor_id);
+            const docName = doc ? (doc.doctor_name || '') : '';
+            const query = detailSearch.toLowerCase();
+            const matchesSearch = (inv.patient_name || '').toLowerCase().includes(query) || 
+                                 (inv.invoice_id || '').toLowerCase().includes(query) ||
+                                 (inv.referrar_name || '').toLowerCase().includes(query) ||
+                                 docName.toLowerCase().includes(query) ||
+                                 (inv.items || []).some((it: any) => (it.test_name || '').toLowerCase().includes(query));
             
             if (detailFilterCategory === 'All') return matchesSearch;
             if (detailFilterCategory === 'Due Recovery') return matchesSearch && inv.due_amount > 0;
@@ -1217,6 +1250,19 @@ const DiagnosticAccountsPage: React.FC<any> = ({
         }, { totalBill: 0, totalDiscount: 0, paidAmount: 0, fixedPC: 0, specialPC: 0, totalPC: 0, usgFee: 0, labFee: 0, netInstProfit: 0, count: 0 });
     }, [detailTableData]);
 
+    const searchSuggestions = useMemo(() => {
+        const set = new Set<string>();
+        (doctors || []).forEach((d: any) => { if (d.doctor_name) set.add(d.doctor_name); });
+        (invoices || []).forEach((inv: any) => {
+            if (inv.patient_name) set.add(inv.patient_name);
+            if (inv.referrar_name) set.add(inv.referrar_name);
+            (inv.items || []).forEach((it: any) => {
+                if (it.test_name) set.add(it.test_name);
+            });
+        });
+        return Array.from(set);
+    }, [invoices, doctors]);
+
     const diagStats = useMemo(() => {
         const baseFiltered = (invoices || []).filter((inv: any) => {
             if (detailViewMode === 'today') return inv.invoice_date === todayStr;
@@ -1227,10 +1273,14 @@ const DiagnosticAccountsPage: React.FC<any> = ({
             if (detailViewMode === 'year') return y === selectedYear;
             return true;
         }).filter((inv: any) => {
-            return (inv.patient_name || '').toLowerCase().includes(detailSearch.toLowerCase()) || 
-                   (inv.invoice_id || '').toLowerCase().includes(detailSearch.toLowerCase()) ||
-                   (inv.referrar_name || '').toLowerCase().includes(detailSearch.toLowerCase()) ||
-                   (inv.items || []).some((it: any) => (it.test_name || '').toLowerCase().includes(detailSearch.toLowerCase()));
+            const doc = (doctors || []).find((d: any) => d.doctor_id === inv.doctor_id);
+            const docName = doc ? (doc.doctor_name || '') : '';
+            const query = detailSearch.toLowerCase();
+            return (inv.patient_name || '').toLowerCase().includes(query) || 
+                   (inv.invoice_id || '').toLowerCase().includes(query) ||
+                   (inv.referrar_name || '').toLowerCase().includes(query) ||
+                   docName.toLowerCase().includes(query) ||
+                   (inv.items || []).some((it: any) => (it.test_name || '').toLowerCase().includes(query));
         });
 
         const categoryCounts: Record<string, number> = { All: baseFiltered.length };
@@ -1573,6 +1623,139 @@ const DiagnosticAccountsPage: React.FC<any> = ({
         return timeB - timeA;
     });
 
+    const handlePrintTestSummary = () => {
+        const testCounts: Record<string, { count: number, price: number }> = {};
+        let totalCount = 0;
+        let totalRevenue = 0;
+
+        detailTableData.forEach((inv: any) => {
+            if (inv.status === 'Cancelled' || inv.status === 'Returned') return;
+            (inv.items || []).forEach((it: any) => {
+                const name = it.test_name;
+                if (!testCounts[name]) {
+                    testCounts[name] = { count: 0, price: it.price };
+                }
+                testCounts[name].count += it.quantity;
+                totalCount += it.quantity;
+                totalRevenue += (it.price * it.quantity);
+            });
+        });
+
+        const categorized: Record<string, { name: string, count: number, total: number }[]> = {};
+        Object.keys(testCounts).forEach(name => {
+            const cat = getTestCategoryGroup(name);
+            if (!categorized[cat]) categorized[cat] = [];
+            categorized[cat].push({
+                name,
+                count: testCounts[name].count,
+                total: testCounts[name].count * testCounts[name].price
+            });
+        });
+
+        Object.keys(categorized).forEach(cat => {
+            categorized[cat].sort((a, b) => b.count - a.count);
+        });
+
+        const periodLabel = detailViewMode === 'today' ? 'Today (' + todayStr + ')' : 
+                            detailViewMode === 'date' ? selectedDate : 
+                            detailViewMode === 'month' ? monthOptions[selectedMonth].name + ' ' + selectedYear : 
+                            'Year ' + selectedYear;
+
+        let html = `
+            <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto;">
+                <h2 style="text-align: center; text-transform: uppercase; margin-bottom: 5px;">Niramoy Clinic & Diagnostic</h2>
+                <h3 style="text-align: center; margin-top: 0; color: #444;">Diagnostic Test Summary Report</h3>
+                <p style="text-align: center; font-size: 14px; margin-bottom: 20px;">
+                    <b>Period:</b> ${periodLabel}
+                </p>
+                
+                <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+                    <thead>
+                        <tr style="background-color: #f2f2f2;">
+                            <th style="border: 1px solid #000; padding: 8px; text-align: left;">Test Name</th>
+                            <th style="border: 1px solid #000; padding: 8px; text-align: center; width: 100px;">Quantity</th>
+                            <th style="border: 1px solid #000; padding: 8px; text-align: right; width: 150px;">Total Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+        `;
+
+        const categoryOrder = ['Pathology', 'USG', 'X-Ray', 'ECG', 'Hormone', 'Others'];
+        categoryOrder.forEach(cat => {
+            if (categorized[cat] && categorized[cat].length > 0) {
+                const catTotalCount = categorized[cat].reduce((sum, item) => sum + item.count, 0);
+                const catTotalAmt = categorized[cat].reduce((sum, item) => sum + item.total, 0);
+                
+                html += `
+                    <tr>
+                        <td colspan="3" style="border: 1px solid #000; padding: 8px; background-color: #e9ecef; font-weight: bold; font-size: 15px;">
+                            ${cat} (${catTotalCount} Tests)
+                        </td>
+                    </tr>
+                `;
+                
+                categorized[cat].forEach(item => {
+                    html += `
+                        <tr>
+                            <td style="border: 1px solid #000; padding: 6px 8px; padding-left: 20px;">${item.name}</td>
+                            <td style="border: 1px solid #000; padding: 6px 8px; text-align: center;">${item.count}</td>
+                            <td style="border: 1px solid #000; padding: 6px 8px; text-align: right;">${item.total.toLocaleString()}</td>
+                        </tr>
+                    `;
+                });
+                
+                html += `
+                    <tr>
+                        <td style="border: 1px solid #000; padding: 6px 8px; text-align: right; font-weight: bold; font-size: 12px; color: #333;">Subtotal (${cat}):</td>
+                        <td style="border: 1px solid #000; padding: 6px 8px; text-align: center; font-weight: bold;">${catTotalCount}</td>
+                        <td style="border: 1px solid #000; padding: 6px 8px; text-align: right; font-weight: bold;">${catTotalAmt.toLocaleString()}</td>
+                    </tr>
+                `;
+            }
+        });
+
+        html += `
+                    </tbody>
+                    <tfoot>
+                        <tr style="background-color: #d1d5db; font-weight: bold; font-size: 16px;">
+                            <td style="border: 1px solid #000; padding: 12px; text-align: right;">GRAND TOTAL:</td>
+                            <td style="border: 1px solid #000; padding: 12px; text-align: center;">${totalCount}</td>
+                            <td style="border: 1px solid #000; padding: 12px; text-align: right;">৳${totalRevenue.toLocaleString()}</td>
+                        </tr>
+                    </tfoot>
+                </table>
+                
+                <div style="margin-top: 50px; display: flex; justify-content: space-between; align-items: flex-end;">
+                    <div style="border-top: 1px solid #000; padding-top: 5px; width: 200px; text-align: center; font-size: 14px; font-weight: bold;">Prepared By</div>
+                    <div style="text-align: right; font-size: 12px; color: #666;">
+                        Printed at ${new Date().toLocaleString()}
+                    </div>
+                </div>
+            </div>
+        `;
+
+        const printWin = window.open('', '_blank');
+        if (printWin) {
+            printWin.document.write(`
+                <html>
+                <head>
+                    <title>Test Summary Report</title>
+                    <style>
+                        @media print {
+                            @page { margin: 15mm; }
+                            body { -webkit-print-color-adjust: exact; }
+                        }
+                    </style>
+                </head>
+                <body onload="window.print(); window.close();">
+                    ${html}
+                </body>
+                </html>
+            `);
+            printWin.document.close();
+        }
+    };
+
     return (
         <div className="min-h-screen bg-slate-950 flex flex-col font-sans">
             <header className="bg-slate-900 border-b border-slate-800 p-6 flex flex-col md:flex-row justify-between items-center gap-4 shadow-xl no-print">
@@ -1773,9 +1956,29 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                                         <select value={selectedYear} onChange={e=>setSelectedYear(parseInt(e.target.value))} className="bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white text-xs font-bold">{[2024,2025,2026].map(y=><option key={y} value={y}>{y}</option>)}</select>
                                     )}
                                 </div>
-                                <div className="relative w-80">
-                                    <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
-                                    <input type="text" placeholder="Search Patient, Referrer or Test Name..." value={detailSearch} onChange={e => setDetailSearch(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-full pl-12 pr-6 py-3 text-sm text-white outline-none focus:ring-2 focus:ring-blue-500" />
+                                <div className="flex items-center gap-3">
+                                    <button onClick={handlePrintTestSummary} className="bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-3 rounded-full text-[10px] font-black uppercase tracking-widest transition-all shadow-lg flex items-center gap-2">
+                                        <PrinterIcon size={16} /> Test Summary
+                                    </button>
+                                    <button onClick={() => window.print()} className="bg-sky-600 hover:bg-sky-500 text-white px-5 py-3 rounded-full text-[10px] font-black uppercase tracking-widest transition-all shadow-lg flex items-center gap-2">
+                                        <PrinterIcon size={16} /> Print List
+                                    </button>
+                                    <div className="relative w-80">
+                                        <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+                                        <input 
+                                            type="text" 
+                                            placeholder="Search Patient, Doctor, Referrer or Test..." 
+                                            value={detailSearch} 
+                                            onChange={e => setDetailSearch(e.target.value)} 
+                                            list="detail-search-suggestions"
+                                            className="w-full bg-slate-950 border border-slate-700 rounded-full pl-12 pr-6 py-3 text-sm text-white outline-none focus:ring-2 focus:ring-blue-500" 
+                                        />
+                                        <datalist id="detail-search-suggestions">
+                                            {searchSuggestions.map((suggestion, idx) => (
+                                                <option key={idx} value={suggestion} />
+                                            ))}
+                                        </datalist>
+                                    </div>
                                 </div>
                             </div>
                             
@@ -1890,7 +2093,7 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                             <div className="overflow-x-auto rounded-2xl border border-slate-700 bg-slate-900/50">
                                 <table className="w-full text-left text-[11px] border-collapse">
                                     <thead className="bg-slate-950 text-slate-500 font-black uppercase tracking-widest border-b border-slate-800">
-                                        <tr className="bg-slate-900 text-white font-black border-b border-slate-700 shadow-lg no-print">
+                                        <tr className="bg-slate-900 text-white font-black border-b border-slate-700 shadow-lg">
                                             <td colSpan={5} className="px-4 py-1.5 text-right text-sm text-slate-400 uppercase tracking-widest bg-slate-950 font-bold">Grand Summary Totals:</td>
                                             <td className="px-4 py-1.5 text-right text-base text-blue-400 bg-slate-900 font-bold">৳{reportSummary.totalBill.toLocaleString()}</td>
                                             <td className="px-4 py-1.5 text-right text-base text-rose-400 bg-slate-950 font-bold">৳{reportSummary.totalDiscount.toLocaleString()}</td>
