@@ -344,8 +344,8 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
     const dailyCollectionData = useMemo(() => {
     const isSameDay = (d1: string, d2: string) => {
         if (!d1 || !d2) return false;
-        const [y1, m1, day1] = d1.split('T')[0].split('-').map(Number);
-        const [y2, m2, day2] = d2.split('T')[0].split('-').map(Number);
+        const [y1, m1, day1] = d1.split(/[T ]/)[0].split('-').map(Number);
+        const [y2, m2, day2] = d2.split(/[T ]/)[0].split('-').map(Number);
         return y1 === y2 && m1 === m2 && day1 === day2;
     };
 
@@ -530,8 +530,8 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
     const summary = useMemo(() => {
     const isSameDay = (d1: string, d2: string) => {
         if (!d1 || !d2) return false;
-        const [y1, m1, day1] = d1.split('T')[0].split('-').map(Number);
-        const [y2, m2, day2] = d2.split('T')[0].split('-').map(Number);
+        const [y1, m1, day1] = d1.split(/[T ]/)[0].split('-').map(Number);
+        const [y2, m2, day2] = d2.split(/[T ]/)[0].split('-').map(Number);
         return y1 === y2 && m1 === m2 && day1 === day2;
     };
 
