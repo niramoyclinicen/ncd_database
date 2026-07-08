@@ -139,6 +139,11 @@ const clinicExpenseCategories = [
 const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
   onBack, labInvoices, dueCollections, detailedExpenses, employees, purchaseInvoices, salesInvoices, indoorInvoices, medicines = []
 }) => {
+    const safeNum = (val: any) => {
+        if (typeof val === 'number' && !isNaN(val)) return val;
+        return 0;
+    };
+
     const [activeTab, setActiveTab] = useState<'monthly_expense_sheet' | 'daily_collection' | 'daily_expense' | 'accounts' | 'shareholders' | 'money_mgmt' | 'final_status' | 'future_plans' | 'shareholder_mgmt' | 'company_collection'>('accounts');
     const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth());
     const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
@@ -273,7 +278,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
     const deletePlan = (id: string) => { if(confirm("পরিকল্পনাটি মুছে ফেলতে চান?")) setFuturePlans(futurePlans.filter(p => p.id !== id)); };
     const updatePlan = (id: string, field: keyof FuturePlan, val: any) => { setFuturePlans(prev => prev.map(p => p.id === id ? { ...p, [field]: val } : p)); };
     
-    const expenseSheetData = useMemo(() => {
+    const expenseSheetData = useMemo(() => { try {
         const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
         const rows = [];
         for (let d = 1; d <= daysInMonth; d++) {
@@ -338,15 +343,16 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
         const columnTotals: Record<string, number> = {};
         expenseMapSequence.forEach(e => { columnTotals[e.key] = rows.reduce((sum, row) => sum + row.categories[e.key], 0); });
         const grandTotal = rows.reduce((sum, row) => sum + row.total, 0);
-        return { rows, columnTotals, grandTotal };
-    }, [detailedExpenses, selectedMonth, selectedYear, deptFilter]);
+        return { rows, columnTotals, grandTotal }; } catch(e) { console.error('expenseSheetData error:', e); return { rows: [], columnTotals: {}, grandTotal: 0 }; } }, [detailedExpenses, selectedMonth, selectedYear, deptFilter]);
 
-    const dailyCollectionData = useMemo(() => {
-    const isSameDay = (d1: string, d2: string) => {
+    const dailyCollectionData = useMemo(() => { try {
+    const isSameDay = (d1: any, d2: any) => {
         if (!d1 || !d2) return false;
-        const [y1, m1, day1] = d1.split(/[T ]/)[0].split('-').map(Number);
-        const [y2, m2, day2] = d2.split(/[T ]/)[0].split('-').map(Number);
-        return y1 === y2 && m1 === m2 && day1 === day2;
+        try {
+            const [y1, m1, day1] = String(d1).split(/[T ]/)[0].split('-').map(Number);
+            const [y2, m2, day2] = String(d2).split(/[T ]/)[0].split('-').map(Number);
+            return y1 === y2 && m1 === m2 && day1 === day2;
+        } catch(e) { return false; }
     };
 
         const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
@@ -369,9 +375,9 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
             const dayStr = String(d).padStart(2, '0');
             const dateStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${dayStr}`;
             
-            const diagToday = labInvoices.filter(inv => inv && inv.invoice_date === dateStr && inv.status !== 'Cancelled' && inv.status !== 'Returned' && inv.status !== 'Deleted').reduce((s, inv) => s + getNetDiagCash(inv), 0);
+            const diagToday = labInvoices.filter(inv => inv && isSameDay(inv.invoice_date, dateStr) && inv.status !== 'Cancelled' && inv.status !== 'Returned' && inv.status !== 'Deleted').reduce((s, inv) => s + getNetDiagCash(inv), 0);
             const diagDue = dueCollections.filter(dc => {
-                if (!dc || !isSameDay(dc.collection_date, dateStr) || !dc.invoice_id.startsWith('INV')) return false;
+                if (!dc || !isSameDay(dc.collection_date, dateStr) || !(dc.invoice_id || '').startsWith('INV')) return false;
                 const inv = labInvoices.find(i => i.invoice_id === dc.invoice_id);
                 return !inv || !isSameDay(inv.invoice_date, dc.collection_date);
             }).reduce((s, dc) => s + dc.amount_collected, 0);
@@ -381,7 +387,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
             const clinicToday = indoorInvoices.filter(inv => {
                 if (!inv) return false;
                 const dateToUse = inv.invoice_date || inv.admission_date;
-                return dateToUse === dateStr && inv.status !== 'Cancelled' && inv.status !== 'Returned' && inv.status !== 'Deleted';
+                return isSameDay(dateToUse, dateStr) && inv.status !== 'Cancelled' && inv.status !== 'Returned' && inv.status !== 'Deleted';
             }).reduce((s, inv) => {
                 const items = Array.isArray(inv.items) ? inv.items : [];
                 const fundedRevenue = items.filter(it => it && it.isClinicFund).reduce((ss, ii) => ss + (ii.payable_amount || 0), 0);
@@ -390,7 +396,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                 return s + (fundedRevenue - pcAmount - specialDiscount);
             }, 0);
             const clinicDue = dueCollections.filter(dc => {
-                if (!dc || !isSameDay(dc.collection_date, dateStr) || dc.invoice_id.startsWith('INV')) return false;
+                if (!dc || !isSameDay(dc.collection_date, dateStr) || (dc.invoice_id || '').startsWith('INV')) return false;
                 const inv = indoorInvoices.find(i => i.invoice_id === dc.invoice_id);
                 return !inv || !isSameDay(inv.invoice_date || inv.admission_date || '', dc.collection_date);
             }).reduce((s, dc) => s + dc.amount_collected, 0);
@@ -412,138 +418,34 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
         // Hide upto values after the last day with data
         return rawRows.map((row, idx) => {
             if (idx > lastDayWithData) {
-                return {
-                    ...row,
-                    diag: { ...row.diag, upto: null },
-                    clinic: { ...row.clinic, upto: null }
-                };
+                return { ...row, diag: { ...row.diag, upto: null }, clinic: { ...row.clinic, upto: null } };
             }
             return row;
-        });
-    }, [labInvoices, indoorInvoices, dueCollections, selectedMonth, selectedYear]);
+        }); } catch(e) { console.error('dailyCollectionData error:', e); return []; } }, [labInvoices, indoorInvoices, dueCollections, detailedExpenses, selectedMonth, selectedYear]);
 
-    const dailyExpenseReportData = useMemo(() => {
-        const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
-        const rawRows = [];
-        let diagUpto = 0;
-        let clinicUpto = 0;
-        let lastDayWithData = -1;
-
-        for (let d = 1; d <= daysInMonth; d++) {
-            const dayStr = String(d).padStart(2, '0');
-            const dateStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${dayStr}`;
-            const dailyExps = (detailedExpenses[dateStr] || []).filter(ex => !ex.isDeleted);
-
-            const diagToday = dailyExps.filter(ex => ex.dept === 'Diagnostic' || (!ex.dept && diagExpenseCategories.includes(ex.category))).reduce((s, ex) => s + ex.paidAmount, 0);
-            diagUpto += diagToday;
-
-            const clinicToday = dailyExps.filter(ex => ex.dept === 'Clinic' || (!ex.dept && clinicExpenseCategories.includes(ex.category) && !diagExpenseCategories.includes(ex.category))).reduce((s, ex) => s + ex.paidAmount, 0);
-            clinicUpto += clinicToday;
-
-            if (diagToday > 0 || clinicToday > 0) {
-                lastDayWithData = d - 1;
-            }
-
-            const displayDate = `${dayStr}-${monthOptions[selectedMonth].name.substring(0, 3)}-${String(selectedYear).substring(2)}`;
-            rawRows.push({ date: displayDate, diag: { today: diagToday, upto: diagUpto }, clinic: { today: clinicToday, upto: clinicUpto }, total: diagToday + clinicToday });
-        }
-
-        // Hide upto values after the last day with data
-        return rawRows.map((row, idx) => {
-            if (idx > lastDayWithData) {
-                return {
-                    ...row,
-                    diag: { ...row.diag, upto: null },
-                    clinic: { ...row.clinic, upto: null }
-                };
-            }
-            return row;
-        });
-    }, [detailedExpenses, selectedMonth, selectedYear]);
-
-    const statusReportData = useMemo(() => {
-        const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
-        const rawRows = [];
-        let runningBalance = 0;
-        let lastDayWithData = -1;
-
-        const getNetDiagCash = (inv: LabInvoice) => {
-            const items = Array.isArray(inv.items) ? inv.items : [];
-            const usgFee = items.reduce((s, it) => s + ((it.usg_exam_charge || 0) * (it.quantity || 0)), 0);
-            const labFee = items.reduce((s, it) => s + ((it.extra_lab_fee || 0) * (it.quantity || 0)), 0);
-            const commPaid = inv.commission_paid || 0;
-            const subsequentDues = dueCollections.filter(dc => dc.invoice_id === inv.invoice_id && !isSameDay(dc.collection_date, inv.invoice_date)).reduce((s, dc) => s + dc.amount_collected, 0);
-            const initialPaid = inv.paid_amount - subsequentDues;
-            return initialPaid - usgFee - labFee - commPaid;
-        };
-
-        for (let d = 1; d <= daysInMonth; d++) {
-            const dayStr = String(d).padStart(2, '0');
-            const dateStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${dayStr}`;
-            
-            // Collections
-            const diagColl = labInvoices.filter(inv => inv.invoice_date === dateStr && inv.status !== 'Cancelled' && inv.status !== 'Returned' && inv.status !== 'Deleted').reduce((s, inv) => s + getNetDiagCash(inv), 0)
-                           + dueCollections.filter(dc => dc.collection_date === dateStr && dc.invoice_id.startsWith('INV')).reduce((s, dc) => s + dc.amount_collected, 0);
-
-            const clinicColl = indoorInvoices.filter(inv => {
-                const dateToUse = inv.invoice_date || inv.admission_date;
-                return dateToUse === dateStr && inv.status !== 'Cancelled' && inv.status !== 'Returned' && inv.status !== 'Deleted';
-            }).reduce((s, inv) => {
-                const items = Array.isArray(inv.items) ? inv.items : [];
-                const fundedRevenue = items.filter(it => it && it.isClinicFund).reduce((ss, ii) => ss + (ii.payable_amount || 0), 0);
-                const pcAmount = (inv.commission_paid || 0) + (inv.special_commission || 0);
-                const specialDiscount = inv.special_discount_amount || 0;
-                return s + (fundedRevenue - pcAmount - specialDiscount);
-            }, 0) + dueCollections.filter(dc => dc.collection_date === dateStr && !dc.invoice_id.startsWith('INV')).reduce((s, dc) => s + dc.amount_collected, 0);
-
-            const totalColl = diagColl + clinicColl;
-
-            // Expenses
-            const dailyExps = (detailedExpenses[dateStr] || []).filter(ex => !ex.isDeleted);
-            const diagExp = dailyExps.filter(ex => ex.dept === 'Diagnostic' || (!ex.dept && diagExpenseCategories.includes(ex.category))).reduce((s, ex) => s + ex.paidAmount, 0);
-            const clinicExp = dailyExps.filter(ex => ex.dept === 'Clinic' || (!ex.dept && clinicExpenseCategories.includes(ex.category) && !diagExpenseCategories.includes(ex.category))).reduce((s, ex) => s + ex.paidAmount, 0);
-            const totalExp = diagExp + clinicExp;
-
-            if (totalColl > 0 || totalExp > 0) {
-                lastDayWithData = d - 1;
-            }
-
-            runningBalance += (totalColl - totalExp);
-
-            rawRows.push({
-                date: `${dayStr}-${monthOptions[selectedMonth].name.substring(0, 3)}-${String(selectedYear).substring(2)}`,
-                diagColl, clinicColl, totalColl,
-                diagExp, clinicExp, totalExp,
-                balance: runningBalance
-            });
-        }
-
-        // Hide balance values after the last day with data
-        return rawRows.map((row, idx) => {
-            if (idx > lastDayWithData) {
-                return { ...row, balance: null };
-            }
-            return row;
-        });
-    }, [labInvoices, indoorInvoices, dueCollections, detailedExpenses, selectedMonth, selectedYear]);
-
-    const summary = useMemo(() => {
-    const isSameDay = (d1: string, d2: string) => {
+    const summary = useMemo(() => { try {
+    const isSameDay = (d1: any, d2: any) => {
         if (!d1 || !d2) return false;
-        const [y1, m1, day1] = d1.split(/[T ]/)[0].split('-').map(Number);
-        const [y2, m2, day2] = d2.split(/[T ]/)[0].split('-').map(Number);
-        return y1 === y2 && m1 === m2 && day1 === day2;
+        try {
+            const [y1, m1, day1] = String(d1).split(/[T ]/)[0].split('-').map(Number);
+            const [y2, m2, day2] = String(d2).split(/[T ]/)[0].split('-').map(Number);
+            return y1 === y2 && m1 === m2 && day1 === day2;
+        } catch(e) { return false; }
     };
 
-        const isSelectedMonth = (dateStr: string) => {
+        const isSelectedMonth = (dateStr: any) => {
             if (!dateStr) return false;
-            const [y, m] = dateStr.split('-').map(Number);
-            return m - 1 === selectedMonth && y === selectedYear;
+            try {
+                const [y, m] = String(dateStr).split(/[T ]/)[0].split('-').map(Number);
+                return m - 1 === selectedMonth && y === selectedYear;
+            } catch(e) { return false; }
         };
-        const isBeforeSelectedMonth = (dateStr: string) => {
+        const isBeforeSelectedMonth = (dateStr: any) => {
             if (!dateStr) return false;
-            const [y, m] = dateStr.split('-').map(Number);
-            return y < selectedYear || (y === selectedYear && m - 1 < selectedMonth);
+            try {
+                const [y, m] = String(dateStr).split(/[T ]/)[0].split('-').map(Number);
+                return y < selectedYear || (y === selectedYear && m - 1 < selectedMonth);
+            } catch(e) { return false; }
         };
         
         const getNetDiagCash = (inv: LabInvoice) => {
@@ -559,9 +461,9 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
         const calcNetPrev = () => {
             const prevLab = labInvoices.filter(inv => inv && isBeforeSelectedMonth(inv.invoice_date) && inv.status !== 'Cancelled' && inv.status !== 'Returned' && inv.status !== 'Deleted').reduce((s, i) => s + getNetDiagCash(i), 0);
             const prevLabDue = dueCollections.filter(dc => {
-                if (!dc || !isBeforeSelectedMonth(dc.collection_date) || !dc.invoice_id.startsWith('INV')) return false;
+                if (!dc || !isBeforeSelectedMonth(dc.collection_date) || !(dc.invoice_id || '').startsWith('INV')) return false;
                 const inv = labInvoices.find(i => i.invoice_id === dc.invoice_id);
-                return !inv || inv.invoice_date !== dc.collection_date;
+                return !inv || !isSameDay(inv.invoice_date, dc.collection_date);
             }).reduce((s, dc) => s + dc.amount_collected, 0);
             
             const prevClinic = indoorInvoices.filter(inv => {
@@ -577,9 +479,9 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
             }, 0);
 
             const prevClinicDue = dueCollections.filter(dc => {
-                if (!dc || !isBeforeSelectedMonth(dc.collection_date) || dc.invoice_id.startsWith('INV')) return false;
+                if (!dc || !isBeforeSelectedMonth(dc.collection_date) || (dc.invoice_id || '').startsWith('INV')) return false;
                 const inv = indoorInvoices.find(i => i.invoice_id === dc.invoice_id);
-                return !inv || (inv.invoice_date || inv.admission_date) !== dc.collection_date;
+                return !inv || !isSameDay(inv.invoice_date || inv.admission_date, dc.collection_date);
             }).reduce((s, dc) => s + dc.amount_collected, 0);
             
             const prevMedSalesOutdoor = salesInvoices.filter(inv => inv && isBeforeSelectedMonth(inv.invoiceDate) && inv.status !== 'Cancelled' && inv.status !== 'Returned' && inv.status !== 'Deleted').reduce((s, i) => s + i.netPayable, 0);
@@ -618,12 +520,12 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
         const prevJer = calcNetPrev();
         const diagCurrent = labInvoices.filter(inv => inv && isSelectedMonth(inv.invoice_date) && inv.status !== 'Cancelled' && inv.status !== 'Returned' && inv.status !== 'Deleted').reduce((s, inv) => s + getNetDiagCash(inv), 0) + 
             dueCollections.filter(dc => {
-                if (!dc || !isSelectedMonth(dc.collection_date) || !dc.invoice_id.startsWith('INV')) return false;
+                if (!dc || !isSelectedMonth(dc.collection_date) || !(dc.invoice_id || '').startsWith('INV')) return false;
                 const inv = labInvoices.find(i => i.invoice_id === dc.invoice_id);
-                return inv && isSelectedMonth(inv.invoice_date) && inv.invoice_date !== dc.collection_date;
+                return inv && isSelectedMonth(inv.invoice_date) && !isSameDay(inv.invoice_date, dc.collection_date);
             }).reduce((s, dc) => s + dc.amount_collected, 0);
         const diagDue = dueCollections.filter(dc => {
-            if (!dc || !isSelectedMonth(dc.collection_date) || !dc.invoice_id.startsWith('INV')) return false;
+            if (!dc || !isSelectedMonth(dc.collection_date) || !(dc.invoice_id || '').startsWith('INV')) return false;
             const inv = labInvoices.find(i => i.invoice_id === dc.invoice_id);
             return !inv || !isSelectedMonth(inv.invoice_date);
         }).reduce((s, dc) => s + dc.amount_collected, 0);
@@ -651,12 +553,12 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
 
         const clinicCurrent = clinicRevenueCurrent + 
             dueCollections.filter(dc => {
-                if (!dc || !isSelectedMonth(dc.collection_date) || dc.invoice_id.startsWith('INV')) return false;
+                if (!dc || !isSelectedMonth(dc.collection_date) || (dc.invoice_id || '').startsWith('INV')) return false;
                 const inv = indoorInvoices.find(i => i.invoice_id === dc.invoice_id);
-                return inv && isSelectedMonth(inv.invoice_date || inv.admission_date) && (inv.invoice_date || inv.admission_date) !== dc.collection_date;
+                return inv && isSelectedMonth(inv.invoice_date || inv.admission_date) && !isSameDay(inv.invoice_date || inv.admission_date, dc.collection_date);
             }).reduce((s, dc) => s + dc.amount_collected, 0);
         const clinicDue = dueCollections.filter(dc => {
-            if (!dc || !isSelectedMonth(dc.collection_date) || dc.invoice_id.startsWith('INV')) return false;
+            if (!dc || !isSelectedMonth(dc.collection_date) || (dc.invoice_id || '').startsWith('INV')) return false;
             const inv = indoorInvoices.find(i => i.invoice_id === dc.invoice_id);
             return !inv || !isSelectedMonth(inv.invoice_date || inv.admission_date);
         }).reduce((s, dc) => s + dc.amount_collected, 0);
@@ -723,8 +625,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
         const totalShares = dynamicShareholders.reduce((s, h) => s + h.shares, 0);
         const profitPerShare = totalShares > 0 ? adj.profitDist / totalShares : 0;
         
-        return { prevJer, diagCurrent, diagDue, totalDiag, clinicCurrent, clinicDue, totalClinic, medSalesCurrent, medPurchCurrent, totalMedNet, companyCurrent, grandTotalCollection, groupedExp, totalExpense: totalExpenseTableOnly, netProfit, finalClosingJer, profitPerShare, totalShares };
-    }, [labInvoices, dueCollections, indoorInvoices, salesInvoices, purchaseInvoices, companyCollections, detailedExpenses, selectedMonth, selectedYear, monthlyAdjustments, dynamicShareholders, repayments, adj.houseRent, adj.loanInstallment, adj.profitDist]);
+        return { prevJer: safeNum(prevJer), diagCurrent: safeNum(diagCurrent), diagDue: safeNum(diagDue), totalDiag: safeNum(totalDiag), clinicCurrent: safeNum(clinicCurrent), clinicDue: safeNum(clinicDue), totalClinic: safeNum(totalClinic), medSalesCurrent: safeNum(medSalesCurrent), medPurchCurrent: safeNum(medPurchCurrent), totalMedNet: safeNum(totalMedNet), companyCurrent: safeNum(companyCurrent), grandTotalCollection: safeNum(grandTotalCollection), groupedExp, totalExpense: safeNum(totalExpenseTableOnly), netProfit: safeNum(netProfit), finalClosingJer: safeNum(finalClosingJer), profitPerShare: safeNum(profitPerShare), totalShares: safeNum(totalShares) }; } catch(e) { console.error('summary error:', e); return { prevJer: 0, diagCurrent: 0, diagDue: 0, totalDiag: 0, clinicCurrent: 0, clinicDue: 0, totalClinic: 0, medSalesCurrent: 0, medPurchCurrent: 0, totalMedNet: 0, companyCurrent: 0, grandTotalCollection: 0, groupedExp: {}, totalExpense: 0, netProfit: 0, finalClosingJer: 0, profitPerShare: 0, totalShares: 0 }; } }, [labInvoices, dueCollections, indoorInvoices, salesInvoices, purchaseInvoices, companyCollections, detailedExpenses, selectedMonth, selectedYear, monthlyAdjustments, dynamicShareholders, repayments, adj.houseRent, adj.loanInstallment, adj.profitDist]);
 
     const handlePrintSpecific = (elementId: string) => {
         const content = document.getElementById(elementId);
@@ -821,8 +722,8 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                     {expenseSheetData.rows.map(row => (
                                         <tr key={row.date} className="hover:bg-blue-50 transition-colors h-[32px] print:h-[5.3mm]">
                                             <td className="border border-black p-0 text-center font-['JetBrains_Mono'] font-bold text-[8.5pt] whitespace-nowrap bg-gray-50">{row.date.split('-')[2]} {monthOptions[parseInt(row.date.split('-')[1])-1].name.substring(0,3)}</td>
-                                            {expenseMapSequence.map(e => <td key={e.key} className="border border-black p-0.5 text-center font-medium text-[9pt]">{row.categories[e.key] > 0 ? row.categories[e.key].toLocaleString() : '-'}</td>)}
-                                            <td className="border border-black p-0.5 px-1 text-left font-black bg-gray-50 text-[9.5pt]">{row.total > 0 ? row.total.toLocaleString() : '-'}</td>
+                                            {expenseMapSequence.map(e => <td key={e.key} className="border border-black p-0.5 text-center font-medium text-[9pt]">{row.categories[e.key] > 0 ? safeNum(row.categories[e.key]).toLocaleString() : '-'}</td>)}
+                                            <td className="border border-black p-0.5 px-1 text-left font-black bg-gray-50 text-[9.5pt]">{row.total > 0 ? safeNum(row.total).toLocaleString() : '-'}</td>
                                         </tr>
                                     ))}
                                     {/* Padding Empty Rows if needed to fill the month */}
@@ -837,8 +738,8 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                 <tfoot className="bg-gray-100 font-black h-[36px] print:h-[6mm]">
                                     <tr>
                                         <td className="border-2 border-black p-0 text-center text-[7.5pt] uppercase">TOTAL:</td>
-                                        {expenseMapSequence.map(e => <td key={e.key} className="border-2 border-black p-0 text-center text-blue-900 text-[8pt]">{expenseSheetData.columnTotals[e.key] > 0 ? expenseSheetData.columnTotals[e.key].toLocaleString() : '-'}</td>)}
-                                        <td className="border-2 border-black p-0 px-1 text-left text-emerald-700 bg-emerald-50 font-black text-[9pt]">{expenseSheetData.grandTotal.toLocaleString()}</td>
+                                        {expenseMapSequence.map(e => <td key={e.key} className="border-2 border-black p-0 text-center text-blue-900 text-[8pt]">{expenseSheetData.columnTotals[e.key] > 0 ? safeNum(expenseSheetData.columnTotals[e.key]).toLocaleString() : '-'}</td>)}
+                                        <td className="border-2 border-black p-0 px-1 text-left text-emerald-700 bg-emerald-50 font-black text-[9pt]">{safeNum(expenseSheetData.grandTotal).toLocaleString()}</td>
                                     </tr>
                                 </tfoot>
                             </table>
@@ -869,14 +770,14 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                     {dailyCollectionData.map((row, idx) => (
                                         <tr key={idx} className="h-7 hover:bg-slate-50 transition-colors print:h-[6mm]">
                                             <td className="border border-black p-1 font-['JetBrains_Mono'] font-bold">{row.date}</td>
-                                            <td className="border border-black p-1 text-right">{row.diag.today > 0 ? row.diag.today.toLocaleString() : ''}</td>
-                                            <td className="border border-black p-1 text-right">{row.diag.due > 0 ? row.diag.due.toLocaleString() : ''}</td>
-                                            <td className="border border-black p-1 text-right font-black">{row.diag.total > 0 ? row.diag.total.toLocaleString() : ''}</td>
-                                            <td className="border border-black p-1 text-right font-black bg-blue-50/50">{row.diag.upto !== null ? row.diag.upto.toLocaleString() : ''}</td>
-                                            <td className="border border-black p-1 text-right">{row.clinic.today > 0 ? row.clinic.today.toLocaleString() : ''}</td>
-                                            <td className="border border-black p-1 text-right">{row.clinic.due > 0 ? row.clinic.due.toLocaleString() : ''}</td>
-                                            <td className="border border-black p-1 text-right font-black">{row.clinic.total > 0 ? row.clinic.total.toLocaleString() : ''}</td>
-                                            <td className="border border-black p-1 text-right font-black bg-emerald-50/50">{row.clinic.upto !== null ? row.clinic.upto.toLocaleString() : ''}</td>
+                                            <td className="border border-black p-1 text-right">{row.diag.today > 0 ? safeNum(row.diag.today).toLocaleString() : ''}</td>
+                                            <td className="border border-black p-1 text-right">{row.diag.due > 0 ? safeNum(row.diag.due).toLocaleString() : ''}</td>
+                                            <td className="border border-black p-1 text-right font-black">{row.diag.total > 0 ? safeNum(row.diag.total).toLocaleString() : ''}</td>
+                                            <td className="border border-black p-1 text-right font-black bg-blue-50/50">{row.diag.upto !== null ? safeNum(row.diag.upto).toLocaleString() : ''}</td>
+                                            <td className="border border-black p-1 text-right">{row.clinic.today > 0 ? safeNum(row.clinic.today).toLocaleString() : ''}</td>
+                                            <td className="border border-black p-1 text-right">{row.clinic.due > 0 ? safeNum(row.clinic.due).toLocaleString() : ''}</td>
+                                            <td className="border border-black p-1 text-right font-black">{row.clinic.total > 0 ? safeNum(row.clinic.total).toLocaleString() : ''}</td>
+                                            <td className="border border-black p-1 text-right font-black bg-emerald-50/50">{row.clinic.upto !== null ? safeNum(row.clinic.upto).toLocaleString() : ''}</td>
                                             <td className="border border-black p-1 text-right font-black bg-slate-50 italic">{(row.diag.total + row.clinic.total) > 0 ? (row.diag.total + row.clinic.total).toLocaleString() : ''}</td>
                                         </tr>
                                     ))}
@@ -909,11 +810,11 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                     {dailyExpenseReportData.map((row, idx) => (
                                         <tr key={idx} className="h-7 hover:bg-slate-50 transition-colors print:h-[6mm]">
                                             <td className="border border-black p-1 font-['JetBrains_Mono'] font-bold">{row.date}</td>
-                                            <td className="border border-black p-1 text-right">{row.diag.today > 0 ? row.diag.today.toLocaleString() : ''}</td>
-                                            <td className="border border-black p-1 text-right font-black bg-blue-50/50">{row.diag.upto !== null ? row.diag.upto.toLocaleString() : ''}</td>
-                                            <td className="border border-black p-1 text-right">{row.clinic.today > 0 ? row.clinic.today.toLocaleString() : ''}</td>
-                                            <td className="border border-black p-1 text-right font-black bg-emerald-50/50">{row.clinic.upto !== null ? row.clinic.upto.toLocaleString() : ''}</td>
-                                            <td className="border border-black p-1 text-right font-black bg-slate-100">{row.total > 0 ? row.total.toLocaleString() : ''}</td>
+                                            <td className="border border-black p-1 text-right">{row.diag.today > 0 ? safeNum(row.diag.today).toLocaleString() : ''}</td>
+                                            <td className="border border-black p-1 text-right font-black bg-blue-50/50">{row.diag.upto !== null ? safeNum(row.diag.upto).toLocaleString() : ''}</td>
+                                            <td className="border border-black p-1 text-right">{row.clinic.today > 0 ? safeNum(row.clinic.today).toLocaleString() : ''}</td>
+                                            <td className="border border-black p-1 text-right font-black bg-emerald-50/50">{row.clinic.upto !== null ? safeNum(row.clinic.upto).toLocaleString() : ''}</td>
+                                            <td className="border border-black p-1 text-right font-black bg-slate-100">{row.total > 0 ? safeNum(row.total).toLocaleString() : ''}</td>
                                         </tr>
                                     ))}
                                 </tbody>
@@ -944,9 +845,9 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                         <div className="text-[14px] font-black font-['Hind_Siliguri'] underline mb-0.5">ক) ডায়াগনস্টিক হইতে :</div>
                                         <table className="w-full border border-black">
                                             <tbody>
-                                                <tr className="h-9"><td className="p-1 border border-black text-center w-8">১</td><td className={collectionTableCellClass}>বর্তমান মাসের ক্যাশ</td><td className={collectionAmtCellClass}>{summary.diagCurrent.toLocaleString()}</td></tr>
-                                                <tr className="h-9"><td className="p-1 border border-black text-center w-8">২</td><td className={collectionTableCellClass}>বকেয়া আদায়</td><td className={collectionAmtCellClass}>{summary.diagDue.toLocaleString()}</td></tr>
-                                                <tr className="bg-gray-50 font-black h-9"><td colSpan={2} className="p-1 text-right text-[11px]">ডায়াগনস্টিক মোট :</td><td className={collectionAmtCellClass}>{summary.totalDiag.toLocaleString()}</td></tr>
+                                                <tr className="h-9"><td className="p-1 border border-black text-center w-8">১</td><td className={collectionTableCellClass}>বর্তমান মাসের ক্যাশ</td><td className={collectionAmtCellClass}>{safeNum(summary.diagCurrent).toLocaleString()}</td></tr>
+                                                <tr className="h-9"><td className="p-1 border border-black text-center w-8">২</td><td className={collectionTableCellClass}>বকেয়া আদায়</td><td className={collectionAmtCellClass}>{safeNum(summary.diagDue).toLocaleString()}</td></tr>
+                                                <tr className="bg-gray-50 font-black h-9"><td colSpan={2} className="p-1 text-right text-[11px]">ডায়াগনস্টিক মোট :</td><td className={collectionAmtCellClass}>{safeNum(summary.totalDiag).toLocaleString()}</td></tr>
                                             </tbody>
                                         </table>
                                     </div>
@@ -954,9 +855,9 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                         <div className="text-[14px] font-black font-['Hind_Siliguri'] underline mb-0.5">খ) ক্লিনিক হইতে :</div>
                                         <table className="w-full border border-black">
                                             <tbody>
-                                                <tr className="h-9"><td className="p-1 border border-black text-center w-8">১</td><td className={collectionTableCellClass}>বর্তমান মাসের ক্যাশ</td><td className={collectionAmtCellClass}>{summary.clinicCurrent.toLocaleString()}</td></tr>
-                                                <tr className="h-9"><td className="p-1 border border-black text-center w-8">২</td><td className={collectionTableCellClass}>বকেয়া আদায়</td><td className={collectionAmtCellClass}>{summary.clinicDue.toLocaleString()}</td></tr>
-                                                <tr className="bg-gray-100 font-black h-9"><td colSpan={2} className="p-1 text-right text-[11px]">ক্লিনিক মোট :</td><td className={collectionAmtCellClass}>{summary.totalClinic.toLocaleString()}</td></tr>
+                                                <tr className="h-9"><td className="p-1 border border-black text-center w-8">১</td><td className={collectionTableCellClass}>বর্তমান মাসের ক্যাশ</td><td className={collectionAmtCellClass}>{safeNum(summary.clinicCurrent).toLocaleString()}</td></tr>
+                                                <tr className="h-9"><td className="p-1 border border-black text-center w-8">২</td><td className={collectionTableCellClass}>বকেয়া আদায়</td><td className={collectionAmtCellClass}>{safeNum(summary.clinicDue).toLocaleString()}</td></tr>
+                                                <tr className="bg-gray-100 font-black h-9"><td colSpan={2} className="p-1 text-right text-[11px]">ক্লিনিক মোট :</td><td className={collectionAmtCellClass}>{safeNum(summary.totalClinic).toLocaleString()}</td></tr>
                                             </tbody>
                                         </table>
                                     </div>
@@ -964,9 +865,9 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                         <div className="text-[14px] font-black font-['Hind_Siliguri'] underline mb-0.5">গ) ঔষধ হইতে (নিট মুনাফা) :</div>
                                         <table className="w-full border border-black">
                                             <tbody>
-                                                <tr className="h-9"><td className="p-1 border border-black text-center w-8">১</td><td className={collectionTableCellClass}>মোট ঔষধ বিক্রয়</td><td className={collectionAmtCellClass}>{summary.medSalesCurrent.toLocaleString()}</td></tr>
-                                                <tr className="h-9"><td className="p-1 border border-black text-center w-8">২</td><td className={collectionTableCellClass}>মোট ঔষধ ক্রয়</td><td className={`${collectionAmtCellClass} text-rose-600`}>({summary.medPurchCurrent.toLocaleString()})</td></tr>
-                                                <tr className="bg-gray-100 font-black h-9"><td colSpan={2} className="p-1 text-right text-[11px]">নিট ঔষধ মুনাফা :</td><td className={collectionAmtCellClass}>{summary.totalMedNet.toLocaleString()}</td></tr>
+                                                <tr className="h-9"><td className="p-1 border border-black text-center w-8">১</td><td className={collectionTableCellClass}>মোট ঔষধ বিক্রয়</td><td className={collectionAmtCellClass}>{safeNum(summary.medSalesCurrent).toLocaleString()}</td></tr>
+                                                <tr className="h-9"><td className="p-1 border border-black text-center w-8">২</td><td className={collectionTableCellClass}>মোট ঔষধ ক্রয়</td><td className={`${collectionAmtCellClass} text-rose-600`}>({safeNum(summary.medPurchCurrent).toLocaleString()})</td></tr>
+                                                <tr className="bg-gray-100 font-black h-9"><td colSpan={2} className="p-1 text-right text-[11px]">নিট ঔষধ মুনাফা :</td><td className={collectionAmtCellClass}>{safeNum(summary.totalMedNet).toLocaleString()}</td></tr>
                                             </tbody>
                                         </table>
                                     </div>
@@ -974,24 +875,24 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                         <div className="text-[14px] font-black font-['Hind_Siliguri'] underline mb-0.5">ঘ) কোম্পানি হইতে প্রাপ্তি :</div>
                                         <table className="w-full border border-black">
                                             <tbody>
-                                                <tr className="bg-gray-50 font-black h-9"><td colSpan={2} className="p-1 text-right text-[11px]">কোম্পানি মোট :</td><td className={collectionAmtCellClass}>{summary.companyCurrent.toLocaleString()}</td></tr>
+                                                <tr className="bg-gray-50 font-black h-9"><td colSpan={2} className="p-1 text-right text-[11px]">কোম্পানি মোট :</td><td className={collectionAmtCellClass}>{safeNum(summary.companyCurrent).toLocaleString()}</td></tr>
                                             </tbody>
                                         </table>
                                     </div>
                                     <div className="mt-2 border-t-2 border-black pt-1">
                                         <table className="w-full border-2 border-black">
                                             <tbody>
-                                                <tr className="bg-gray-50 h-9"><td className={collectionTableCellClass}>বাড়ী ভাড়া কর্তন</td><td className="no-print"><input type="number" value={adj.houseRent || ''} onChange={e=>updateAdjustment('houseRent', parseFloat(e.target.value)||0)} className="w-16 text-right border border-gray-400 rounded" /></td><td className={collectionAmtCellClass}>({adj.houseRent.toLocaleString()})</td></tr>
-                                                <tr className="bg-blue-50/30 h-9"><td colSpan={2} className={`${collectionTableCellClass} text-blue-900 italic`}>পূর্বের জের (CF)</td><td className={`${collectionAmtCellClass} ${summary.prevJer < 0 ? 'text-rose-600' : 'text-blue-900'} underline decoration-double`}>{summary.prevJer.toLocaleString()}</td></tr>
+                                                <tr className="bg-gray-50 h-9"><td className={collectionTableCellClass}>বাড়ী ভাড়া কর্তন</td><td className="no-print"><input type="number" value={adj.houseRent || ''} onChange={e=>updateAdjustment('houseRent', parseFloat(e.target.value)||0)} className="w-16 text-right border border-gray-400 rounded" /></td><td className={collectionAmtCellClass}>({safeNum(adj.houseRent).toLocaleString()})</td></tr>
+                                                <tr className="bg-blue-50/30 h-9"><td colSpan={2} className={`${collectionTableCellClass} text-blue-900 italic`}>পূর্বের জের (CF)</td><td className={`${collectionAmtCellClass} ${summary.prevJer < 0 ? 'text-rose-600' : 'text-blue-900'} underline decoration-double`}>{safeNum(summary.prevJer).toLocaleString()}</td></tr>
                                                 <tr className="bg-gray-100 text-slate-900 font-black h-10 border-y-[3px] border-black shadow-inner relative">
                                                     <td colSpan={2} className="p-1 text-right text-[12px] uppercase tracking-tighter relative z-10">
                                                         <span className="absolute left-1 top-1 text-[8px] opacity-20">TOTAL A</span>
                                                         মোট কালেকশন (A) =
                                                     </td>
-                                                    <td className="p-1 text-right text-base font-black font-['JetBrains_Mono'] border-l-2 border-black relative z-10">{summary.grandTotalCollection.toLocaleString()}</td>
+                                                    <td className="p-1 text-right text-base font-black font-['JetBrains_Mono'] border-l-2 border-black relative z-10">{safeNum(summary.grandTotalCollection).toLocaleString()}</td>
                                                 </tr>
                                                 
-                                                <tr className="bg-rose-50/30 h-9"><td colSpan={2} className={`${collectionTableCellClass} text-rose-900`}>মোট খরচ (B)</td><td className={`${collectionAmtCellClass} text-rose-900`}>({summary.totalExpense.toLocaleString()})</td></tr>
+                                                <tr className="bg-rose-50/30 h-9"><td colSpan={2} className={`${collectionTableCellClass} text-rose-900`}>মোট খরচ (B)</td><td className={`${collectionAmtCellClass} text-rose-900`}>({safeNum(summary.totalExpense).toLocaleString()})</td></tr>
                                                 <tr className="bg-amber-50/30 h-9">
                                                     <td className={`${collectionTableCellClass} text-amber-900`}>লভ্যাংশ বন্টন</td>
                                                     <td className="no-print">
@@ -1006,14 +907,14 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                                             </button>
                                                         </div>
                                                     </td>
-                                                    <td className={`${collectionAmtCellClass} text-amber-900`}>({adj.profitDist.toLocaleString()})</td>
+                                                    <td className={`${collectionAmtCellClass} text-amber-900`}>({safeNum(adj.profitDist).toLocaleString()})</td>
                                                 </tr>
                                                 <tr className="bg-emerald-50 text-emerald-900 font-black h-10 border-y-[3px] border-emerald-900 shadow-inner relative">
                                                     <td colSpan={2} className="p-1 text-right text-[12px] uppercase tracking-tight relative z-10">
                                                         <span className="absolute left-1 top-1 text-[8px] opacity-20 uppercase">Balance</span>
                                                         অবশিষ্ট বা জের =
                                                     </td>
-                                                    <td className="p-1 text-right text-base font-black font-['JetBrains_Mono'] border-l-2 border-emerald-900 relative z-10">{summary.finalClosingJer.toLocaleString()}</td>
+                                                    <td className="p-1 text-right text-base font-black font-['JetBrains_Mono'] border-l-2 border-emerald-900 relative z-10">{safeNum(summary.finalClosingJer).toLocaleString()}</td>
                                                 </tr>
                                             </tbody>
                                         </table>
@@ -1035,7 +936,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                                     <span className="absolute left-1 top-1 text-[8px] opacity-20 uppercase">Total Exp</span>
                                                     মোট খরচ (B) =
                                                 </td>
-                                                <td className="p-1 text-right text-base font-black font-['JetBrains_Mono'] border-l-2 border-black relative z-10">{summary.totalExpense.toLocaleString()}</td>
+                                                <td className="p-1 text-right text-base font-black font-['JetBrains_Mono'] border-l-2 border-black relative z-10">{safeNum(summary.totalExpense).toLocaleString()}</td>
                                             </tr>
                                         </tbody>
                                     </table>
@@ -1058,8 +959,8 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                     <h2 className="text-xs font-black underline uppercase tracking-widest font-['Hind_Siliguri']">মাসিক চূড়ান্ত রিপোর্ট (Closing Status) : {monthOptions[selectedMonth].name}, {selectedYear}</h2>
                                 </div>
                                 <div className="w-[250px] border border-black text-[8pt] font-bold">
-                                    <div className="flex justify-between border-b border-black p-0.5"><span className="text-blue-900">সর্বমোট জমা (Total Gross Cash) :</span> <span className="border-l border-black pl-2 w-16 text-right">{summary.grandTotalCollection.toLocaleString()}</span></div>
-                                    <div className="flex justify-between border-b border-black p-0.5"><span className="text-rose-900">সর্বমোট খরচ (Total Operating Cost) :</span> <span className="border-l border-black pl-2 w-16 text-right text-rose-600">{summary.totalExpense.toLocaleString()}</span></div>
+                                    <div className="flex justify-between border-b border-black p-0.5"><span className="text-blue-900">সর্বমোট জমা (Total Gross Cash) :</span> <span className="border-l border-black pl-2 w-16 text-right">{safeNum(summary.grandTotalCollection).toLocaleString()}</span></div>
+                                    <div className="flex justify-between border-b border-black p-0.5"><span className="text-rose-900">সর্বমোট খরচ (Total Operating Cost) :</span> <span className="border-l border-black pl-2 w-16 text-right text-rose-600">{safeNum(summary.totalExpense).toLocaleString()}</span></div>
                                     <div className="flex justify-between p-0.5 bg-gray-50"><span className="text-blue-700 font-black">Nit Balance :</span> <span className="border-l border-black pl-2 w-16 text-right font-black text-blue-700">{(summary.grandTotalCollection - summary.totalExpense).toLocaleString()}</span></div>
                                 </div>
                             </div>
@@ -1088,13 +989,13 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                     {statusReportData.map((row, idx) => (
                                         <tr key={idx} className="h-[25.5px] hover:bg-slate-50 transition-colors leading-tight print:h-[6mm]">
                                             <td className="border-2 border-black text-center font-['JetBrains_Mono'] font-bold text-[7.5pt]">{row.date}</td>
-                                            <td className="border-2 border-black text-center">{row.diagColl > 0 ? row.diagColl.toLocaleString() : ''}</td>
-                                            <td className="border-2 border-black text-center">{row.clinicColl > 0 ? row.clinicColl.toLocaleString() : ''}</td>
-                                            <td className="border-2 border-black text-center font-black bg-slate-50">{row.totalColl > 0 ? row.totalColl.toLocaleString() : ''}</td>
-                                            <td className="border-2 border-black text-center">{row.diagExp > 0 ? row.diagExp.toLocaleString() : ''}</td>
-                                            <td className="border-2 border-black text-center">{row.clinicExp > 0 ? row.clinicExp.toLocaleString() : ''}</td>
-                                            <td className="border-2 border-black text-center font-black bg-slate-50">{row.totalExp > 0 ? row.totalExp.toLocaleString() : ''}</td>
-                                            <td className="border-2 border-black text-center font-black text-slate-900 bg-gray-50">{row.balance !== null ? row.balance.toLocaleString() : ''}</td>
+                                            <td className="border-2 border-black text-center">{row.diagColl > 0 ? safeNum(row.diagColl).toLocaleString() : ''}</td>
+                                            <td className="border-2 border-black text-center">{row.clinicColl > 0 ? safeNum(row.clinicColl).toLocaleString() : ''}</td>
+                                            <td className="border-2 border-black text-center font-black bg-slate-50">{row.totalColl > 0 ? safeNum(row.totalColl).toLocaleString() : ''}</td>
+                                            <td className="border-2 border-black text-center">{row.diagExp > 0 ? safeNum(row.diagExp).toLocaleString() : ''}</td>
+                                            <td className="border-2 border-black text-center">{row.clinicExp > 0 ? safeNum(row.clinicExp).toLocaleString() : ''}</td>
+                                            <td className="border-2 border-black text-center font-black bg-slate-50">{row.totalExp > 0 ? safeNum(row.totalExp).toLocaleString() : ''}</td>
+                                            <td className="border-2 border-black text-center font-black text-slate-900 bg-gray-50">{row.balance !== null ? safeNum(row.balance).toLocaleString() : ''}</td>
                                         </tr>
                                     ))}
                                     {/* Calculated padding empty rows */}
@@ -1136,7 +1037,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                     <div key={l.id} className="p-4 bg-slate-50 rounded-2xl border border-slate-200 mb-3 flex justify-between items-center group">
                                         <div><p className="font-black text-slate-800 uppercase text-sm">{l.source}</p><p className="text-[10px] text-slate-500 font-bold uppercase mt-1">Loan ID: {l.id} | Date: {l.date}</p></div>
                                         <div className="text-right">
-                                            <p className="text-lg font-black text-rose-600">৳{l.amount.toLocaleString()}</p>
+                                            <p className="text-lg font-black text-rose-600">৳{safeNum(l.amount).toLocaleString()}</p>
                                             <button onClick={() => setLoans(loans.filter(x=>x.id!==l.id))} className="opacity-0 group-hover:opacity-100 text-rose-500 p-1"><TrashIcon size={14}/></button>
                                         </div>
                                     </div>
@@ -1186,7 +1087,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                         <button onClick={() => deletePlan(p.id)} className="opacity-0 group-hover:opacity-100 text-rose-500 p-2"><TrashIcon size={18}/></button>
                                     </div>
                                     <h4 className="text-lg font-black text-slate-800 uppercase leading-tight mb-2">{p.title}</h4>
-                                    <div className="flex justify-between items-center pt-4 border-t border-slate-100"><span className="text-sm font-black text-indigo-600 uppercase">৳{p.estimatedCost.toLocaleString()}</span><select value={p.status} onChange={e=>updatePlan(p.id, 'status', e.target.value as any)} className="bg-slate-50 border-none text-[10px] font-black rounded-lg uppercase tracking-widest outline-none"><option>Pending</option><option>In Progress</option><option>Completed</option></select></div>
+                                    <div className="flex justify-between items-center pt-4 border-t border-slate-100"><span className="text-sm font-black text-indigo-600 uppercase">৳{safeNum(p.estimatedCost).toLocaleString()}</span><select value={p.status} onChange={e=>updatePlan(p.id, 'status', e.target.value as any)} className="bg-slate-50 border-none text-[10px] font-black rounded-lg uppercase tracking-widest outline-none"><option>Pending</option><option>In Progress</option><option>Completed</option></select></div>
                                 </div>
                             ))}
                         </div>
@@ -1489,7 +1390,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                             <div className="grid grid-cols-4 gap-4 mb-8 print:gap-1 print:mb-8 print:mt-0">
                                 <div className="bg-slate-50 p-4 rounded-3xl border border-slate-200 text-center print:bg-white print:rounded-none print:border-black print:p-1 print:flex print:items-center print:justify-between print:px-3">
                                     <p className="text-[13px] font-black text-slate-500 uppercase mb-1 font-['Hind_Siliguri'] print:text-[8pt] print:mb-0 print:text-black">মোট নিট মুনাফা</p>
-                                    <p className="text-2xl font-black text-slate-800 print:text-[10pt]">{adj.profitDist.toLocaleString()}</p>
+                                    <p className="text-2xl font-black text-slate-800 print:text-[10pt]">{safeNum(adj.profitDist).toLocaleString()}</p>
                                 </div>
                                 <div className="bg-blue-50 p-4 rounded-3xl border border-blue-100 text-center print:bg-white print:rounded-none print:border-black print:p-1 print:flex print:items-center print:justify-between print:px-3">
                                     <p className="text-[13px] font-black text-blue-500 uppercase mb-1 font-['Hind_Siliguri'] print:text-[8pt] print:mb-0 print:text-black">বন্টনযোগ্য লভ্যাংশ</p>
@@ -1503,7 +1404,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                         >
                                             <SaveIcon className="w-4 h-4" />
                                         </button>
-                                        <span className="text-2xl font-black text-blue-900 print:inline-block hidden print:text-[10pt]">{adj.profitDist.toLocaleString()}</span>
+                                        <span className="text-2xl font-black text-blue-900 print:inline-block hidden print:text-[10pt]">{safeNum(adj.profitDist).toLocaleString()}</span>
                                     </div>
                                 </div>
                                 <div className="bg-indigo-50 p-4 rounded-3xl border border-indigo-100 text-center print:bg-white print:rounded-none print:border-black print:p-1 print:flex print:items-center print:justify-between print:px-3">
@@ -1542,7 +1443,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                         <tr className="h-12 print:h-9">
                                             <td colSpan={2} className="p-4 text-right uppercase text-slate-500 border-r border-slate-200 print:border-black print:text-black font-['Hind_Siliguri'] print:p-1 print:px-3 text-sm">সর্বমোট বন্টন:</td>
                                             <td className="p-4 text-center text-blue-900 border-r border-slate-200 print:border-black print:text-black print:p-1 text-sm">{summary.totalShares}</td>
-                                            <td className="p-4 text-right text-emerald-700 text-lg border-r border-slate-200 print:border-black print:text-black print:p-1 print:px-3 text-sm">{adj.profitDist.toLocaleString()}</td>
+                                            <td className="p-4 text-right text-emerald-700 text-lg border-r border-slate-200 print:border-black print:text-black print:p-1 print:px-3 text-sm">{safeNum(adj.profitDist).toLocaleString()}</td>
                                             <td className="p-4 print:p-1"></td>
                                         </tr>
                                     </tfoot>
@@ -1602,4 +1503,24 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
     );
 };
 
-export default ConsolidatedAccountsPage;
+
+class AccountsErrorBoundary extends React.Component<{children: React.ReactNode}, {hasError: boolean, error: any, errorInfo: any}> {
+    constructor(props: any) { super(props); this.state = { hasError: false, error: null, errorInfo: null }; }
+    static getDerivedStateFromError(error: any) { return { hasError: true }; }
+    componentDidCatch(error: any, errorInfo: any) { this.setState({ error, errorInfo }); console.error(error, errorInfo); }
+    render() {
+        if (this.state.hasError) {
+            return <div className="p-10 text-red-600 bg-red-50 w-full h-full overflow-auto font-mono z-50 fixed inset-0"><h2>Error in Accounts Page! Please screenshot this:</h2><pre className="text-xs mt-4 whitespace-pre-wrap font-bold">{String(this.state.error)}</pre><pre className="text-xs mt-4 whitespace-pre-wrap">{this.state.errorInfo?.componentStack}</pre><button onClick={()=>window.location.reload()} className="mt-4 p-2 bg-red-600 text-white rounded">Reload</button></div>;
+        }
+        return this.props.children;
+    }
+}
+
+const WrappedConsolidatedAccountsPage = (props: any) => (
+    <AccountsErrorBoundary>
+        <ConsolidatedAccountsPage {...props} />
+    </AccountsErrorBoundary>
+);
+
+export default WrappedConsolidatedAccountsPage;
+
