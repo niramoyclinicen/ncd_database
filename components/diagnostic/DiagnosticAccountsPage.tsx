@@ -1230,7 +1230,7 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                 netProfit: paid - (totalPC + usgFee + labFee) 
             };
         });
-    }, [invoices, detailSearch, selectedMonth, selectedYear, detailViewMode, selectedDate, detailFilterCategory, todayStr]);
+    }, [invoices, detailSearch, selectedMonth, selectedYear, detailViewMode, selectedDate, detailFilterCategory, todayStr, doctors, getTestCategoryGroup]);
 
     const reportSummary = useMemo(() => {
         return detailTableData.reduce((acc, curr) => {
@@ -1310,7 +1310,7 @@ const DiagnosticAccountsPage: React.FC<any> = ({
         });
 
         return { categoryCounts, customTestCounts };
-    }, [invoices, detailSearch, selectedMonth, selectedYear, detailViewMode, selectedDate, todayStr, trackedTests]);
+    }, [invoices, detailSearch, selectedMonth, selectedYear, detailViewMode, selectedDate, todayStr, trackedTests, doctors, getTestCategoryGroup]);
 
     const categoryCounts = diagStats.categoryCounts;
     const customTestCounts = diagStats.customTestCounts;

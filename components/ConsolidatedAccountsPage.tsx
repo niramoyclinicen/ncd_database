@@ -423,6 +423,92 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
             return row;
         }); } catch(e) { console.error('dailyCollectionData error:', e); return []; } }, [labInvoices, indoorInvoices, dueCollections, detailedExpenses, selectedMonth, selectedYear]);
 
+    const dailyExpenseReportData = useMemo(() => { try {
+        const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
+        const rawRows = [];
+        let diagUpto = 0;
+        let clinicUpto = 0;
+        let lastDayWithData = -1;
+
+        for (let d = 1; d <= daysInMonth; d++) {
+            const dateStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+            const dailyExps = detailedExpenses[dateStr] || [];
+            
+            let diagToday = 0;
+            let clinicToday = 0;
+
+            dailyExps.forEach(ex => {
+                if (ex.isDeleted) return;
+                let cat = ex.category;
+                if (cat === 'House rent') cat = 'House rent';
+                
+                const isClinic = ex.dept === 'Clinic' || (!ex.dept && clinicExpenseCategories.includes(cat) && !diagExpenseCategories.includes(cat));
+                // default to diag if not clinic explicitly
+                const isDiag = !isClinic;
+
+                if (isClinic) {
+                    clinicToday += (ex.paidAmount || 0);
+                } else {
+                    diagToday += (ex.paidAmount || 0);
+                }
+            });
+
+            diagUpto += diagToday;
+            clinicUpto += clinicToday;
+
+            if (diagToday > 0 || clinicToday > 0) {
+                lastDayWithData = d - 1;
+            }
+
+            const displayDate = `${String(d).padStart(2, '0')}-${monthOptions[selectedMonth].name.substring(0, 3)}-${String(selectedYear).substring(2)}`;
+            rawRows.push({
+                date: displayDate,
+                diag: { today: diagToday, upto: diagUpto },
+                clinic: { today: clinicToday, upto: clinicUpto },
+                total: diagToday + clinicToday
+            });
+        }
+        
+        return rawRows.map((row, idx) => {
+            if (idx > lastDayWithData) {
+                return { ...row, diag: { ...row.diag, upto: null }, clinic: { ...row.clinic, upto: null } };
+            }
+            return row;
+        });
+    } catch(e) { console.error('dailyExpenseReportData error:', e); return []; } }, [detailedExpenses, selectedMonth, selectedYear]);
+
+
+
+    const statusReportData = useMemo(() => { try {
+        return dailyCollectionData.map((collRow, idx) => {
+            const expRow = dailyExpenseReportData[idx] || { diag: { today: 0 }, clinic: { today: 0 }, total: 0 };
+            
+            const diagColl = collRow.diag?.total || 0;
+            const clinicColl = collRow.clinic?.total || 0;
+            const totalColl = diagColl + clinicColl;
+            
+            const diagExp = expRow.diag?.today || 0;
+            const clinicExp = expRow.clinic?.today || 0;
+            const totalExp = expRow.total || 0;
+            
+            let balance = null;
+            if (totalColl > 0 || totalExp > 0 || diagColl > 0 || clinicColl > 0 || diagExp > 0 || clinicExp > 0) {
+                balance = totalColl - totalExp;
+            }
+            
+            return {
+                date: collRow.date,
+                diagColl,
+                clinicColl,
+                totalColl,
+                diagExp,
+                clinicExp,
+                totalExp,
+                balance
+            };
+        });
+    } catch (e) { console.error('statusReportData error:', e); return []; } }, [dailyCollectionData, dailyExpenseReportData]);
+
     const summary = useMemo(() => { try {
     const isSameDay = (d1: any, d2: any) => {
         if (!d1 || !d2) return false;
@@ -841,6 +927,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                         <div className="absolute inset-0 opacity-10 pointer-events-none bg-[radial-gradient(#000_1px,transparent_1px)] [background-size:10px_10px]"></div>
                                         কালেকশন এর হিসাব
                                     </div>
+                                    <div className="pl-6 pr-1 space-y-4">
                                     <div className="space-y-1">
                                         <div className="text-[14px] font-black font-['Hind_Siliguri'] underline mb-0.5">ক) ডায়াগনস্টিক হইতে :</div>
                                         <table className="w-full border border-black">
@@ -882,29 +969,42 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                     <div className="mt-2 border-t-2 border-black pt-1">
                                         <table className="w-full border-2 border-black">
                                             <tbody>
-                                                <tr className="bg-gray-50 h-9"><td className={collectionTableCellClass}>বাড়ী ভাড়া কর্তন</td><td className="no-print"><input type="number" value={adj.houseRent || ''} onChange={e=>updateAdjustment('houseRent', parseFloat(e.target.value)||0)} className="w-16 text-right border border-gray-400 rounded" /></td><td className={collectionAmtCellClass}>({safeNum(adj.houseRent).toLocaleString()})</td></tr>
+                                                <tr className="bg-gray-50 h-9">
+                                                    <td colSpan={2} className={`${collectionTableCellClass} !text-left`}>
+                                                        <div className="flex justify-between items-center w-full">
+                                                            <span className="whitespace-nowrap">বাড়ী ভাড়া কর্তন</span>
+                                                            <div className="no-print flex items-center gap-1 justify-end ml-1">
+                                                                <input type="number" value={adj.houseRent || ''} onChange={e=>updateAdjustment('houseRent', parseFloat(e.target.value)||0)} className="w-14 text-right border border-gray-400 rounded text-xs font-normal" />
+                                                                <button onClick={() => setShowSaveConfirm(true)} className="p-1 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors shadow-sm" title="Save"><SaveIcon className="w-3.5 h-3.5" /></button>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                    <td className={collectionAmtCellClass}>({safeNum(adj.houseRent).toLocaleString()})</td>
+                                                </tr>
+                                                <tr className="bg-slate-100 text-slate-900 font-black h-8 border-y-2 border-black">
+                                                    <td colSpan={2} className="p-1 text-right text-[11.5px] uppercase tracking-tighter">
+                                                        এই মাসের কালেকশন =
+                                                    </td>
+                                                    <td className="p-1 text-right text-sm font-black font-['JetBrains_Mono'] border-l-2 border-black">{safeNum(summary.grandTotalCollection - summary.prevJer).toLocaleString()}</td>
+                                                </tr>
                                                 <tr className="bg-blue-50/30 h-9"><td colSpan={2} className={`${collectionTableCellClass} text-blue-900 italic`}>পূর্বের জের (CF)</td><td className={`${collectionAmtCellClass} ${summary.prevJer < 0 ? 'text-rose-600' : 'text-blue-900'} underline decoration-double`}>{safeNum(summary.prevJer).toLocaleString()}</td></tr>
                                                 <tr className="bg-gray-100 text-slate-900 font-black h-10 border-y-[3px] border-black shadow-inner relative">
                                                     <td colSpan={2} className="p-1 text-right text-[12px] uppercase tracking-tighter relative z-10">
                                                         <span className="absolute left-1 top-1 text-[8px] opacity-20">TOTAL A</span>
-                                                        মোট কালেকশন (A) =
+                                                        সর্বমোট কালেকশন (A) =
                                                     </td>
                                                     <td className="p-1 text-right text-base font-black font-['JetBrains_Mono'] border-l-2 border-black relative z-10">{safeNum(summary.grandTotalCollection).toLocaleString()}</td>
                                                 </tr>
                                                 
                                                 <tr className="bg-rose-50/30 h-9"><td colSpan={2} className={`${collectionTableCellClass} text-rose-900`}>মোট খরচ (B)</td><td className={`${collectionAmtCellClass} text-rose-900`}>({safeNum(summary.totalExpense).toLocaleString()})</td></tr>
                                                 <tr className="bg-amber-50/30 h-9">
-                                                    <td className={`${collectionTableCellClass} text-amber-900`}>লভ্যাংশ বন্টন</td>
-                                                    <td className="no-print">
-                                                        <div className="flex items-center gap-2 justify-end">
-                                                            <input type="number" value={adj.profitDist || ''} onChange={e=>updateAdjustment('profitDist', parseFloat(e.target.value)||0)} className="w-24 text-right border border-amber-400 rounded font-bold" />
-                                                            <button 
-                                                                onClick={() => setShowSaveConfirm(true)}
-                                                                className="p-1 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors shadow-sm"
-                                                                title="Save"
-                                                            >
-                                                                <SaveIcon className="w-3.5 h-3.5" />
-                                                            </button>
+                                                    <td colSpan={2} className={`${collectionTableCellClass} !text-left text-amber-900`}>
+                                                        <div className="flex justify-between items-center w-full">
+                                                            <span className="whitespace-nowrap">লভ্যাংশ বন্টন</span>
+                                                            <div className="no-print flex items-center gap-1 justify-end ml-1">
+                                                                <input type="number" value={adj.profitDist || ''} onChange={e=>updateAdjustment('profitDist', parseFloat(e.target.value)||0)} className="w-14 text-right border border-amber-400 rounded font-bold text-xs" />
+                                                                <button onClick={() => setShowSaveConfirm(true)} className="p-1 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors shadow-sm" title="Save"><SaveIcon className="w-3.5 h-3.5" /></button>
+                                                            </div>
                                                         </div>
                                                     </td>
                                                     <td className={`${collectionAmtCellClass} text-amber-900`}>({safeNum(adj.profitDist).toLocaleString()})</td>
@@ -918,6 +1018,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                                 </tr>
                                             </tbody>
                                         </table>
+                                    </div>
                                     </div>
                                 </div>
                                 <div className="space-y-4 flex flex-col pr-4 overflow-hidden">
