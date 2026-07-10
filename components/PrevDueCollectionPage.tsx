@@ -49,16 +49,32 @@ const PrevDueCollectionPage: React.FC<Props> = ({ invoices, setInvoices, dueColl
         if (!win) return;
         
         let contentHtml = '';
-        let totalDue = 0;
+        let theadHtml = '';
+        let tfootHtml = '';
+        let pageStyle = '@page{size:A4 landscape; margin:10mm}';
+        let reportTitle = '';
         
         if (activeTab === 'pending') {
+            reportTitle = 'DUE LIST (PENDING)';
+            let totalDue = 0;
+            theadHtml = `
+                <tr>
+                    <th style="text-align:center; width: 40px;">SL</th>
+                    <th>Date</th>
+                    <th>Invoice ID</th>
+                    <th>Patient Name</th>
+                    <th style="text-align:right">Total</th>
+                    <th style="text-align:right">Paid</th>
+                    <th style="text-align:right">Due</th>
+                </tr>
+            `;
             contentHtml = filteredInvoices.map((inv, index) => {
                 totalDue += (inv.due_amount || 0);
                 return `
                     <tr>
                         <td style="text-align:center">${index + 1}</td>
-                        <td>${inv.invoice_date}</td>
-                        <td>${inv.invoice_id}</td>
+                        <td style="white-space:nowrap">${inv.invoice_date || ''}</td>
+                        <td style="white-space:nowrap">${inv.invoice_id}</td>
                         <td>${inv.patient_name}</td>
                         <td style="text-align:right">৳${(inv.total_amount || 0).toFixed(2)}</td>
                         <td style="text-align:right">৳${(inv.paid_amount || 0).toFixed(2)}</td>
@@ -66,43 +82,88 @@ const PrevDueCollectionPage: React.FC<Props> = ({ invoices, setInvoices, dueColl
                     </tr>
                 `;
             }).join('');
+            tfootHtml = `
+                <tr>
+                    <td colspan="6" style="text-align:right; font-weight:bold;">Total Due Amount:</td>
+                    <td style="text-align:right; font-weight:bold; font-size:16px;">৳${totalDue.toFixed(2)}</td>
+                </tr>
+            `;
+        } else if (activeTab === 'history') {
+            reportTitle = 'DUE COLLECTION HISTORY';
+            pageStyle = '@page{size:A4 landscape; margin:10mm}';
+            let sumBill = 0;
+            let sumCollected = 0;
+            let sumRemainingDue = 0;
+            theadHtml = `
+                <tr>
+                    <th style="text-align:center; width: 40px;">SL</th>
+                    <th>Invoice Date</th>
+                    <th>Invoice ID</th>
+                    <th>Patient Name</th>
+                    <th style="text-align:right">Total Bill</th>
+                    <th>Collection Date</th>
+                    <th style="text-align:right">Collected Amount</th>
+                    <th style="text-align:right">Remaining Due</th>
+                </tr>
+            `;
+            contentHtml = filteredHistory.map((dc, index) => {
+                const inv = invoices.find(i => i.invoice_id === dc.invoice_id);
+                const invDate = inv?.invoice_date || '';
+                const totalBill = inv?.total_amount || 0;
+                const remainingDue = inv?.due_amount || 0;
+                
+                sumBill += totalBill;
+                sumCollected += (dc.amount_collected || 0);
+                sumRemainingDue += remainingDue;
+                
+                return `
+                    <tr>
+                        <td style="text-align:center">${index + 1}</td>
+                        <td style="white-space:nowrap">${invDate}</td>
+                        <td style="white-space:nowrap">${dc.invoice_id}</td>
+                        <td>${inv ? inv.patient_name : 'Unknown'}</td>
+                        <td style="text-align:right">৳${totalBill.toFixed(2)}</td>
+                        <td style="white-space:nowrap">${dc.collection_date}</td>
+                        <td style="text-align:right; font-weight:bold; color:green;">৳${(dc.amount_collected || 0).toFixed(2)}</td>
+                        <td style="text-align:right; font-weight:bold; color:red;">৳${remainingDue.toFixed(2)}</td>
+                    </tr>
+                `;
+            }).join('');
+            tfootHtml = `
+                <tr>
+                    <td colspan="4" style="text-align:right; font-weight:bold;">Total:</td>
+                    <td style="text-align:right; font-weight:bold;">৳${sumBill.toFixed(2)}</td>
+                    <td></td>
+                    <td style="text-align:right; font-weight:bold; color:green; font-size:16px;">৳${sumCollected.toFixed(2)}</td>
+                    <td style="text-align:right; font-weight:bold; color:red; font-size:16px;">৳${sumRemainingDue.toFixed(2)}</td>
+                </tr>
+            `;
         }
         
         const html = `<html><head>
             <style>
-                @page{size:A4 portrait; margin:15mm} 
+                ${pageStyle}
                 body{font-family:sans-serif;} 
                 .box{padding:15px;} 
                 .h1{font-size:24px; font-weight:bold; margin:0; text-align:center;} 
                 .text-center{text-align:center;}
-                table{width:100%; border-collapse:collapse; margin-top: 20px;} 
-                td, th{padding:8px; text-align:left; border: 1px solid #000;}
+                table{width:100%; border-collapse:collapse; margin-top: 20px; font-size:14px;} 
+                td, th{padding:6px 8px; text-align:left; border: 1px solid #000;}
                 th { background-color: #eee; }
             </style>
         </head><body><div class="box">
             <div class="h1">Niramoy Clinic & Diagnostic</div>
             <p class="text-center">Enayetpur, Sirajgonj | Mobile: 01730 923007</p>
             <hr>
-            <h3 class="text-center">DUE LIST (PENDING)</h3>
+            <h3 class="text-center">${reportTitle}</h3>
             
             <table>
                 <thead>
-                    <tr>
-                        <th style="text-align:center; width: 40px;">SL</th>
-                        <th>Date</th>
-                        <th>Invoice ID</th>
-                        <th>Patient Name</th>
-                        <th style="text-align:right">Total</th>
-                        <th style="text-align:right">Paid</th>
-                        <th style="text-align:right">Due</th>
-                    </tr>
+                    ${theadHtml}
                 </thead>
                 <tbody>
                     ${contentHtml}
-                    <tr>
-                        <td colspan="6" style="text-align:right; font-weight:bold;">Total Due Amount:</td>
-                        <td style="text-align:right; font-weight:bold; font-size:16px;">৳${totalDue.toFixed(2)}</td>
-                    </tr>
+                    ${tfootHtml}
                 </tbody>
             </table>
             
@@ -110,14 +171,19 @@ const PrevDueCollectionPage: React.FC<Props> = ({ invoices, setInvoices, dueColl
                 <b>Printed By:</b> ${collectedBy || ''} <br><br>
                 ..........................
             </div>
-        </div></body></html>`;
+        </div>
+        <script>
+            window.onload = function() {
+                setTimeout(function() { window.print(); }, 300);
+            }
+        </script>
+        </body></html>`;
         
         win.document.write(html); 
         win.document.close(); 
-        win.setTimeout(() => { win.print(); }, 300);
     };
 
-    const filteredInvoices = useMemo(() => {
+    const filteredInvoices = (() => {
 
         if (!Array.isArray(invoices)) return [];
         return invoices.filter(inv => {
@@ -138,7 +204,25 @@ const PrevDueCollectionPage: React.FC<Props> = ({ invoices, setInvoices, dueColl
 
             return matchesDay && matchesMonth && matchesYear && matchesPatient && matchesSearch;
         });
-    }, [searchTerm, invoices, filterDay, filterMonth, filterYear, filterPatientName]);
+    })();
+
+    const filteredHistory = (() => {
+        if (!Array.isArray(dueCollections)) return [];
+        return dueCollections
+            .filter(dc => dc.invoice_id && dc.invoice_id.startsWith('INV'))
+            .sort((a, b) => new Date(b.collection_date).getTime() - new Date(a.collection_date).getTime())
+            .filter(dc => {
+                const inv = invoices.find(i => i.invoice_id === dc.invoice_id);
+                const matchName = filterPatientName ? (inv?.patient_name || '').toLowerCase().includes(filterPatientName.toLowerCase()) : true;
+                const matchId = searchTerm ? dc.invoice_id.toLowerCase().includes(searchTerm.toLowerCase()) : true;
+                const [y, m, d] = (dc.collection_date || '').split(' ')[0].split('-');
+                const matchY = filterYear ? y === filterYear : true;
+                const matchM = filterMonth ? parseInt(m) === parseInt(filterMonth) : true;
+                const matchD = filterDay ? parseInt(d) === parseInt(filterDay) : true;
+                return matchName && matchId && matchY && matchM && matchD;
+            });
+    })();
+
 
     const handlePrintReceipt = (invoice: LabInvoice, collectedAmt: number, colDate: string) => {
         const win = window.open('', '_blank');
@@ -171,7 +255,7 @@ const PrevDueCollectionPage: React.FC<Props> = ({ invoices, setInvoices, dueColl
             <h3 class="text-center">DUE PAYMENT RECEIPT & INVOICE DETAILS</h3>
             <table>
                 <tr><td><b>Patient Name:</b> ${invoice.patient_name}</td><td><b>Date:</b> ${new Date(colDate).toLocaleDateString()}</td></tr>
-                <tr><td><b>Invoice ID:</b> ${invoice.invoice_id}</td><td><b>Receipt No:</b> DC-${Date.now().toString().slice(-5)}</td></tr>
+                <tr><td><b>Invoice ID:</b> ${invoice.invoice_id}</td><td><b>Receipt No:</b> DC-${new Date().getTime().toString().slice(-5)}</td></tr>
                 <tr><td><b>Ref by:</b> ${invoice.doctor_name || ''}</td><td></td></tr>
             </table>
             
@@ -225,7 +309,7 @@ const PrevDueCollectionPage: React.FC<Props> = ({ invoices, setInvoices, dueColl
 
         const newCols = [...dueCollections];
         if (collectionAmount > 0) {
-            newCols.push({ collection_id: `DC-${Date.now()}`, invoice_id: selectedInvoice.invoice_id, collection_date: collectionDate, amount_collected: collectionAmount, collected_by: collectedBy, payment_method: 'Cash' });
+            newCols.push({ collection_id: `DC-${new Date().getTime()}`, invoice_id: selectedInvoice.invoice_id, collection_date: collectionDate, amount_collected: collectionAmount, collected_by: collectedBy, payment_method: 'Cash' });
         }
         
         const updatedInvoice: LabInvoice = { 
@@ -381,19 +465,7 @@ const PrevDueCollectionPage: React.FC<Props> = ({ invoices, setInvoices, dueColl
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800">
-                        {dueCollections
-                            .filter(dc => dc.invoice_id.startsWith('INV'))
-                            .sort((a, b) => new Date(b.collection_date).getTime() - new Date(a.collection_date).getTime())
-                            .filter(dc => {
-                                const inv = invoices.find(i => i.invoice_id === dc.invoice_id);
-                                const matchName = filterPatientName ? (inv?.patient_name || '').toLowerCase().includes(filterPatientName.toLowerCase()) : true;
-                                const matchId = searchTerm ? dc.invoice_id.toLowerCase().includes(searchTerm.toLowerCase()) : true;
-                                const [y, m, d] = (dc.collection_date || '').split(' ')[0].split('-');
-                                const matchY = filterYear ? y === filterYear : true;
-                                const matchM = filterMonth ? parseInt(m) === parseInt(filterMonth) : true;
-                                const matchD = filterDay ? parseInt(d) === parseInt(filterDay) : true;
-                                return matchName && matchId && matchY && matchM && matchD;
-                            })
+                        {filteredHistory
                             .slice(0, 100) // limit to 100 recent for performance
                             .map((dc, index) => {
                                 const inv = invoices.find(i => i.invoice_id === dc.invoice_id);

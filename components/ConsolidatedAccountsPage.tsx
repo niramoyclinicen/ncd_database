@@ -837,25 +837,34 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                 {activeTab === 'daily_collection' && (
                     <div id="section-daily-collection" className="relative animate-fade-in">
                         <button onClick={() => handlePrintSpecific('section-daily-collection')} className="no-print absolute top-2 right-2 p-2 bg-indigo-600 text-white rounded-full shadow-lg flex items-center gap-2"><PrinterIcon size={18} /> <span className="text-xs font-bold">Print</span></button>
-                        <main className="p-6 max-w-[1200px] mx-auto w-full bg-white text-black shadow-2xl flex flex-col border border-gray-300">
-                            <h1 className="text-[16pt] font-black uppercase text-center mb-4">Collection breakdown - {monthOptions[selectedMonth].name} {selectedYear}</h1>
-                            <table className="w-full border-collapse border-2 border-black text-[9pt]">
+                        <main className="p-4 sm:p-6 max-w-[1200px] mx-auto w-full bg-white text-black shadow-2xl flex flex-col border border-gray-300 font-['Inter'] print:m-0 print:border-none print:shadow-none min-h-0 print:min-h-0">
+                            <div className="flex flex-col items-center mb-2 border-b-2 border-black pb-1 shrink-0 print:mb-1">
+                                <h1 className="text-xl font-black uppercase text-blue-900 leading-none">Niramoy Clinic & Diagnostic</h1>
+                                <h3 className="text-[10pt] font-bold uppercase tracking-widest mt-1">Collection Breakdown - {monthOptions[selectedMonth].name} {selectedYear}</h3>
+                            </div>
+                            <table className="w-full border-collapse border-2 border-black text-[8pt] print:text-[7.5pt] table-fixed">
                                 <thead>
-                                    <tr className="bg-gray-50">
-                                        <th className="border-2 border-black p-2 w-[100px]" rowSpan={2}>Date</th>
-                                        <th className="border-2 border-black p-2" colSpan={4}>Diagnostic</th>
-                                        <th className="border-2 border-black p-2" colSpan={4}>Clinic</th>
-                                        <th className="border-2 border-black p-2 bg-slate-50 w-[100px]" rowSpan={2}>Total Collection</th>
+                                    <tr className="bg-gray-50 h-6 print:h-[5mm]">
+                                        <th className="border-2 border-black p-1 w-[90px] whitespace-nowrap" rowSpan={2}>Date</th>
+                                        <th className="border-2 border-black p-1" colSpan={4}>Diagnostic</th>
+                                        <th className="border-2 border-black p-1" colSpan={4}>Clinic</th>
+                                        <th className="border-2 border-black p-1 bg-slate-50 w-[13%]" rowSpan={2}>Total Collection</th>
                                     </tr>
-                                    <tr className="bg-gray-50 uppercase text-[8px] font-black">
-                                        <th className="border-2 border-black p-1">Today</th><th className="border-2 border-black p-1">Due Coll.</th><th className="border-2 border-black p-1">Total</th><th className="border-2 border-black p-1 bg-blue-50">Upto</th>
-                                        <th className="border-2 border-black p-1">Today</th><th className="border-2 border-black p-1">Due Coll.</th><th className="border-2 border-black p-1">Total</th><th className="border-2 border-black p-1 bg-emerald-50">Upto</th>
+                                    <tr className="bg-gray-50 uppercase text-[7px] font-black h-5 print:h-[4mm]">
+                                        <th className="border-2 border-black p-1 w-[9%]">Today</th>
+                                        <th className="border-2 border-black p-1 w-[6%]">Due</th>
+                                        <th className="border-2 border-black p-1 w-[10%]">Total</th>
+                                        <th className="border-2 border-black p-1 bg-blue-50 w-[12%]">Upto</th>
+                                        <th className="border-2 border-black p-1 w-[9%]">Today</th>
+                                        <th className="border-2 border-black p-1 w-[6%]">Due</th>
+                                        <th className="border-2 border-black p-1 w-[10%]">Total</th>
+                                        <th className="border-2 border-black p-1 bg-emerald-50 w-[12%]">Upto</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {dailyCollectionData.map((row, idx) => (
-                                        <tr key={idx} className="h-7 hover:bg-slate-50 transition-colors print:h-[6mm]">
-                                            <td className="border border-black p-1 font-['JetBrains_Mono'] font-bold">{row.date}</td>
+                                        <tr key={idx} className="h-6 hover:bg-slate-50 transition-colors print:h-[5.5mm]">
+                                            <td className="border border-black p-1 font-['JetBrains_Mono'] font-bold text-center whitespace-nowrap">{row.date}</td>
                                             <td className="border border-black p-1 text-right">{row.diag.today > 0 ? safeNum(row.diag.today).toLocaleString() : ''}</td>
                                             <td className="border border-black p-1 text-right">{row.diag.due > 0 ? safeNum(row.diag.due).toLocaleString() : ''}</td>
                                             <td className="border border-black p-1 text-right font-black">{row.diag.total > 0 ? safeNum(row.diag.total).toLocaleString() : ''}</td>
@@ -867,6 +876,18 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                             <td className="border border-black p-1 text-right font-black bg-slate-50 italic">{(row.diag.total + row.clinic.total) > 0 ? (row.diag.total + row.clinic.total).toLocaleString() : ''}</td>
                                         </tr>
                                     ))}
+                                    <tr className="h-6 print:h-[5.5mm] bg-gray-100 font-black uppercase text-[8pt] border-t-[3px] border-black">
+                                        <td className="border border-black p-1 text-center">Total</td>
+                                        <td className="border border-black p-1 text-right">{dailyCollectionData.reduce((s, r) => s + r.diag.today, 0).toLocaleString()}</td>
+                                        <td className="border border-black p-1 text-right">{dailyCollectionData.reduce((s, r) => s + r.diag.due, 0).toLocaleString()}</td>
+                                        <td className="border border-black p-1 text-right">{dailyCollectionData.reduce((s, r) => s + r.diag.total, 0).toLocaleString()}</td>
+                                        <td className="border border-black p-1 text-right bg-blue-50"></td>
+                                        <td className="border border-black p-1 text-right">{dailyCollectionData.reduce((s, r) => s + r.clinic.today, 0).toLocaleString()}</td>
+                                        <td className="border border-black p-1 text-right">{dailyCollectionData.reduce((s, r) => s + r.clinic.due, 0).toLocaleString()}</td>
+                                        <td className="border border-black p-1 text-right">{dailyCollectionData.reduce((s, r) => s + r.clinic.total, 0).toLocaleString()}</td>
+                                        <td className="border border-black p-1 text-right bg-emerald-50"></td>
+                                        <td className="border border-black p-1 text-right bg-slate-200">{dailyCollectionData.reduce((s, r) => s + r.diag.total + r.clinic.total, 0).toLocaleString()}</td>
+                                    </tr>
                                 </tbody>
                             </table>
                         </main>
@@ -1051,7 +1072,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                 {activeTab === 'final_status' && (
                     <div id="section-status" className="relative animate-fade-in h-full">
                         <button onClick={() => handlePrintSpecific('section-status')} className="no-print absolute top-2 right-2 p-2 bg-amber-600 text-white rounded-full shadow-lg flex items-center gap-2"><PrinterIcon size={18} /><span className="text-xs font-bold">Print A4 Portrait</span></button>
-                        <main className="p-4 sm:p-5 max-w-[210mm] mx-auto w-full bg-white text-black shadow-2xl flex flex-col border border-gray-300 font-['Inter'] min-h-[292mm]">
+                        <main className="p-4 sm:p-5 max-w-[210mm] mx-auto w-full bg-white text-black shadow-2xl flex flex-col border border-gray-300 font-['Inter'] min-h-0 print:min-h-0">
                             
                             {/* COMPACT HEADER */}
                             <div className="flex justify-between items-start mb-1 border-b-2 border-black pb-0.5 shrink-0">
@@ -1070,7 +1091,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                             <table className="w-full border-collapse border-2 border-black text-[8.2pt] font-['Inter']">
                                 <thead>
                                     <tr className="h-6.5 print:h-[7mm]">
-                                        <th className="border-2 border-black w-[75px]"></th> 
+                                        <th className="border-2 border-black w-[80px]"></th> 
                                         <th className="border-2 border-black text-purple-700 font-black uppercase text-xs py-0.5 font-['Inter']" colSpan={3}>Collection</th>
                                         <th className="border-2 border-black text-fuchsia-700 font-black uppercase text-xs py-0.5 font-['Inter']" colSpan={3}>Expense</th>
                                         <th className="border-2 border-black text-fuchsia-600 font-black uppercase text-xs py-0.5 font-['Inter']">Balance</th>
