@@ -368,6 +368,35 @@ const DoctorAppointmentPage: React.FC<DoctorAppointmentPageProps> = ({
     setIsEditing(false);
   };
 
+  const handlePrintList = () => {
+    let reportTitle = 'APPOINTMENT LIST';
+    
+    let filterDetails = [];
+    if (listSearchDoctor) filterDetails.push("Doctor: " + listSearchDoctor);
+    if (listSearchPatient) filterDetails.push("Patient: " + listSearchPatient);
+    if (listFilterDate) filterDetails.push("Date: " + listFilterDate);
+    if (listFilterMonth) filterDetails.push("Month: " + listFilterMonth);
+    const subtitle = filterDetails.length > 0 ? filterDetails.join(' | ') : 'All Appointments';
+
+    const theadHtml = "<tr><th style='text-align:center; width:40px;'>SL</th><th>Date & Time</th><th>Patient Name</th><th>Consultant</th><th>Status</th><th style='text-align:right;'>Fee</th></tr>";
+
+    let totalFees = 0;
+    const contentHtml = filteredAppointments.map((appt, index) => {
+        totalFees += (appt.doctor_fee || 0);
+        return "<tr><td style='text-align:center'>" + (index + 1) + "</td><td><b>" + appt.appointment_date + "</b><br/>" + appt.appointment_time + "</td><td><b>" + appt.patient_name + "</b><br/>" + (appt.reason || '') + "</td><td>" + (appt.doctor_name || '') + "</td><td>" + appt.status + "</td><td style='text-align:right'>৳" + (appt.doctor_fee || 0).toFixed(2) + "</td></tr>";
+    }).join('');
+
+    const tfootHtml = "<tr><td colspan='5' style='text-align:right; font-weight:bold;'>Total (" + filteredAppointments.length + " Patients):</td><td style='text-align:right; font-weight:bold;'>৳" + totalFees.toFixed(2) + "</td></tr>";
+
+    const printContent = "<!DOCTYPE html><html><head><meta charset='UTF-8'><title>Appointment List Print</title><style>@page { size: A4 landscape; margin: 15mm; } body { font-family: sans-serif; background: #fff; color: #000; margin: 0; padding: 0; } .header { text-align: center; margin-bottom: 20px; } .header h1 { margin: 0; font-size: 24px; font-weight: bold; } .header p { margin: 5px 0; font-size: 12px; } .header h2 { margin: 10px 0 5px 0; font-size: 18px; text-decoration: underline; } table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; } th, td { border: 1px solid #333; padding: 6px 8px; text-align: left; } th { background-color: #f0f0f0; font-weight: bold; } .footer { text-align: center; font-size: 10px; margin-top: 20px; color: #555; }</style></head><body><div class='header'><h1>Niramoy Clinic & Diagnostic</h1><p>Enayetpur, Sirajgonj | Mobile: 01730 923007</p><h2>" + reportTitle + "</h2><p style='font-weight:bold;'>" + subtitle + "</p></div><table><thead>" + theadHtml + "</thead><tbody>" + contentHtml + "</tbody><tfoot>" + tfootHtml + "</tfoot></table><div class='footer'>Printed on " + new Date().toLocaleString() + "</div><script>window.onload = function() { window.print(); window.close(); }</script></body></html>";
+
+    const win = window.open('', '_blank');
+    if (win) {
+        win.document.write(printContent);
+        win.document.close();
+    }
+  };
+
   const handlePrintAppointment = () => {
     if (!selectedAppointmentId) return;
     const apptToPrint = appointments.find(a => a.appointment_id === selectedAppointmentId);
@@ -571,6 +600,14 @@ const DoctorAppointmentPage: React.FC<DoctorAppointmentPageProps> = ({
                     <span className="text-[10px] font-black text-emerald-300 uppercase tracking-widest">Total Fee:</span>
                     <span className="text-xs font-black text-white">৳ {(totalFilteredFees || 0).toFixed(2)}</span>
                 </div>
+                <button 
+                    onClick={handlePrintList}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-sky-600 hover:bg-sky-500 text-white rounded-lg transition-colors text-xs font-bold shadow-lg shadow-sky-900/20"
+                    title="Print Appointment List"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+                    Print List
+                </button>
                 <button 
                     onClick={() => { setListSearchDoctor(''); setListSearchPatient(''); setListFilterDate(''); setListFilterMonth(''); }}
                     className="p-1.5 bg-slate-700 hover:bg-rose-600 text-white rounded-lg transition-colors"

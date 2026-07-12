@@ -366,7 +366,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
             const usgFee = items.reduce((s, it) => s + ((it.usg_exam_charge || 0) * (it.quantity || 0)), 0);
             const labFee = items.reduce((s, it) => s + ((it.extra_lab_fee || 0) * (it.quantity || 0)), 0);
             const commPaid = inv.commission_paid || 0;
-            const subsequentDues = dueCollections.filter(dc => dc.invoice_id === inv.invoice_id && !isSameDay(dc.collection_date, inv.invoice_date)).reduce((s, dc) => s + dc.amount_collected, 0);
+            const subsequentDues = dueCollections.filter(dc => dc.invoice_id === inv.invoice_id).reduce((s, dc) => s + dc.amount_collected, 0);
             const initialPaid = inv.paid_amount - subsequentDues;
             return initialPaid - usgFee - labFee - commPaid;
         };
@@ -378,8 +378,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
             const diagToday = labInvoices.filter(inv => inv && isSameDay(inv.invoice_date, dateStr) && inv.status !== 'Cancelled' && inv.status !== 'Returned' && inv.status !== 'Deleted').reduce((s, inv) => s + getNetDiagCash(inv), 0);
             const diagDue = dueCollections.filter(dc => {
                 if (!dc || !isSameDay(dc.collection_date, dateStr) || !(dc.invoice_id || '').startsWith('INV')) return false;
-                const inv = labInvoices.find(i => i.invoice_id === dc.invoice_id);
-                return !inv || !isSameDay(inv.invoice_date, dc.collection_date);
+                return true;
             }).reduce((s, dc) => s + dc.amount_collected, 0);
             const diagTotal = diagToday + diagDue;
             diagUpto += diagTotal;
@@ -539,7 +538,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
             const usgFee = items.reduce((s, it) => s + ((it.usg_exam_charge || 0) * (it.quantity || 0)), 0);
             const labFee = items.reduce((s, it) => s + ((it.extra_lab_fee || 0) * (it.quantity || 0)), 0);
             const commPaid = inv.commission_paid || 0;
-            const subsequentDues = dueCollections.filter(dc => dc.invoice_id === inv.invoice_id && !isSameDay(dc.collection_date, inv.invoice_date)).reduce((s, dc) => s + dc.amount_collected, 0);
+            const subsequentDues = dueCollections.filter(dc => dc.invoice_id === inv.invoice_id).reduce((s, dc) => s + dc.amount_collected, 0);
             const initialPaid = inv.paid_amount - subsequentDues;
             return initialPaid - usgFee - labFee - commPaid;
         };
@@ -548,8 +547,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
             const prevLab = labInvoices.filter(inv => inv && isBeforeSelectedMonth(inv.invoice_date) && inv.status !== 'Cancelled' && inv.status !== 'Returned' && inv.status !== 'Deleted').reduce((s, i) => s + getNetDiagCash(i), 0);
             const prevLabDue = dueCollections.filter(dc => {
                 if (!dc || !isBeforeSelectedMonth(dc.collection_date) || !(dc.invoice_id || '').startsWith('INV')) return false;
-                const inv = labInvoices.find(i => i.invoice_id === dc.invoice_id);
-                return !inv || !isSameDay(inv.invoice_date, dc.collection_date);
+                return true;
             }).reduce((s, dc) => s + dc.amount_collected, 0);
             
             const prevClinic = indoorInvoices.filter(inv => {
@@ -604,16 +602,10 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
         };
 
         const prevJer = calcNetPrev();
-        const diagCurrent = labInvoices.filter(inv => inv && isSelectedMonth(inv.invoice_date) && inv.status !== 'Cancelled' && inv.status !== 'Returned' && inv.status !== 'Deleted').reduce((s, inv) => s + getNetDiagCash(inv), 0) + 
-            dueCollections.filter(dc => {
-                if (!dc || !isSelectedMonth(dc.collection_date) || !(dc.invoice_id || '').startsWith('INV')) return false;
-                const inv = labInvoices.find(i => i.invoice_id === dc.invoice_id);
-                return inv && isSelectedMonth(inv.invoice_date) && !isSameDay(inv.invoice_date, dc.collection_date);
-            }).reduce((s, dc) => s + dc.amount_collected, 0);
+        const diagCurrent = labInvoices.filter(inv => inv && isSelectedMonth(inv.invoice_date) && inv.status !== 'Cancelled' && inv.status !== 'Returned' && inv.status !== 'Deleted').reduce((s, inv) => s + getNetDiagCash(inv), 0);
         const diagDue = dueCollections.filter(dc => {
             if (!dc || !isSelectedMonth(dc.collection_date) || !(dc.invoice_id || '').startsWith('INV')) return false;
-            const inv = labInvoices.find(i => i.invoice_id === dc.invoice_id);
-            return !inv || !isSelectedMonth(inv.invoice_date);
+            return true;
         }).reduce((s, dc) => s + dc.amount_collected, 0);
         
         let totalMonthlyOperatingExpenses = 0;
@@ -637,16 +629,15 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
             return acc + (netIncomeForInv - pcAmount - specialDiscount);
         }, 0);
 
-        const clinicCurrent = clinicRevenueCurrent + 
+        const clinicCurrent = clinicRevenueCurrent - 
             dueCollections.filter(dc => {
-                if (!dc || !isSelectedMonth(dc.collection_date) || (dc.invoice_id || '').startsWith('INV')) return false;
+                if (!dc || (dc.invoice_id || '').startsWith('INV')) return false;
                 const inv = indoorInvoices.find(i => i.invoice_id === dc.invoice_id);
-                return inv && isSelectedMonth(inv.invoice_date || inv.admission_date) && !isSameDay(inv.invoice_date || inv.admission_date, dc.collection_date);
+                return inv && isSelectedMonth(inv.invoice_date || inv.admission_date);
             }).reduce((s, dc) => s + dc.amount_collected, 0);
         const clinicDue = dueCollections.filter(dc => {
             if (!dc || !isSelectedMonth(dc.collection_date) || (dc.invoice_id || '').startsWith('INV')) return false;
-            const inv = indoorInvoices.find(i => i.invoice_id === dc.invoice_id);
-            return !inv || !isSelectedMonth(inv.invoice_date || inv.admission_date);
+            return true;
         }).reduce((s, dc) => s + dc.amount_collected, 0);
         
         const medSalesOutdoor = salesInvoices.filter(inv => inv && isSelectedMonth(inv.invoiceDate) && inv.status !== 'Cancelled' && inv.status !== 'Returned' && inv.status !== 'Deleted').reduce((s, i) => s + i.netPayable, 0);

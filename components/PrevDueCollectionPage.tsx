@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { LabInvoice, Employee, DueCollection } from './DiagnosticData';
+import { LabInvoice, Employee, DueCollection, Patient } from './DiagnosticData';
 import SearchableSelect from './SearchableSelect';
 import { formatDateTime } from '../utils/dateUtils';
 
 interface Props {
+    patients?: Patient[];
     invoices: LabInvoice[];
     setInvoices: React.Dispatch<React.SetStateAction<LabInvoice[]>>;
     dueCollections: DueCollection[];
@@ -20,7 +21,7 @@ const monthOptions = [
     { value: "10", name: 'October' }, { value: "11", name: 'November' }, { value: "12", name: 'December' }
 ];
 
-const PrevDueCollectionPage: React.FC<Props> = ({ invoices, setInvoices, dueCollections, setDueCollections, employees, onViewInvoice, performBlockingSync }) => {
+const PrevDueCollectionPage: React.FC<Props> = ({ patients = [], invoices, setInvoices, dueCollections, setDueCollections, employees, onViewInvoice, performBlockingSync }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [filterDay, setFilterDay] = useState('');
     const [filterMonth, setFilterMonth] = useState('');
@@ -56,36 +57,70 @@ const PrevDueCollectionPage: React.FC<Props> = ({ invoices, setInvoices, dueColl
         
         if (activeTab === 'pending') {
             reportTitle = 'DUE LIST (PENDING)';
-            let totalDue = 0;
+            pageStyle = '@page{size:A4 landscape; margin:10mm}';
+            
+            let totalBillSum = 0;
+            let totalDueSum = 0;
+            let paymentsSum = new Array(detailedPendingData.maxPayments).fill(0);
+            
+            let paymentHeaders = '';
+            for(let i=0; i<detailedPendingData.maxPayments; i++) {
+                paymentHeaders += `<th style="text-align:right">Paid_${String(i+1).padStart(2, '0')}</th>`;
+            }
+            
             theadHtml = `
                 <tr>
                     <th style="text-align:center; width: 40px;">SL</th>
-                    <th>Date</th>
                     <th>Invoice ID</th>
-                    <th>Patient Name</th>
-                    <th style="text-align:right">Total</th>
-                    <th style="text-align:right">Paid</th>
+                    <th>Patient Name & Address</th>
+                    <th style="text-align:right">Total (After Discount)</th>
+                    ${paymentHeaders}
                     <th style="text-align:right">Due</th>
                 </tr>
             `;
-            contentHtml = filteredInvoices.map((inv, index) => {
-                totalDue += (inv.due_amount || 0);
+            
+            contentHtml = detailedPendingData.items.map((inv, index) => {
+                const netPayable = (inv.total_amount || 0) - (inv.discount_amount || 0);
+                totalBillSum += netPayable;
+                totalDueSum += (inv.due_amount || 0);
+                
+                let paymentCols = '';
+                for(let i=0; i<detailedPendingData.maxPayments; i++) {
+                    const p = inv.payments[i];
+                    if (p) {
+                        paymentsSum[i] += p.amount;
+                        paymentCols += `<td style="text-align:right; white-space:nowrap;">${p.date}<br/><b>৳${p.amount.toFixed(2)}</b></td>`;
+                    } else {
+                        paymentCols += `<td></td>`;
+                    }
+                }
+                
+                const discountText = inv.discount_amount > 0 ? `<br/><span style="font-size:10px; color:#555;">(Disc: ৳${inv.discount_amount.toFixed(2)})</span>` : '';
+                const patientInfo = inv.addressStr ? `<b>${inv.patient_name}</b><br/><span style="font-size:11px; color:#444;">${inv.addressStr}</span>` : `<b>${inv.patient_name}</b>`;
+                
                 return `
                     <tr>
                         <td style="text-align:center">${index + 1}</td>
-                        <td style="white-space:nowrap">${inv.invoice_date || ''}</td>
                         <td style="white-space:nowrap">${inv.invoice_id}</td>
-                        <td>${inv.patient_name}</td>
-                        <td style="text-align:right">৳${(inv.total_amount || 0).toFixed(2)}</td>
-                        <td style="text-align:right">৳${(inv.paid_amount || 0).toFixed(2)}</td>
+                        <td>${patientInfo}</td>
+                        <td style="text-align:right; font-weight:bold;">৳${netPayable.toFixed(2)}${discountText}</td>
+                        ${paymentCols}
                         <td style="text-align:right; font-weight:bold; color:red;">৳${(inv.due_amount || 0).toFixed(2)}</td>
                     </tr>
                 `;
             }).join('');
+            
+            let paymentFooters = '';
+            for(let i=0; i<detailedPendingData.maxPayments; i++) {
+                paymentFooters += `<td style="text-align:right; font-weight:bold;">৳${paymentsSum[i].toFixed(2)}</td>`;
+            }
+            
             tfootHtml = `
                 <tr>
-                    <td colspan="6" style="text-align:right; font-weight:bold;">Total Due Amount:</td>
-                    <td style="text-align:right; font-weight:bold; font-size:16px;">৳${totalDue.toFixed(2)}</td>
+                    <td colspan="3" style="text-align:right; font-weight:bold;">Total:</td>
+                    <td style="text-align:right; font-weight:bold;">৳${totalBillSum.toFixed(2)}</td>
+                    ${paymentFooters}
+                    <td style="text-align:right; font-weight:bold; font-size:16px; color:red;">৳${totalDueSum.toFixed(2)}</td>
                 </tr>
             `;
         } else if (activeTab === 'history') {
@@ -206,7 +241,40 @@ const PrevDueCollectionPage: React.FC<Props> = ({ invoices, setInvoices, dueColl
         });
     })();
 
-    const filteredHistory = (() => {
+        const detailedPendingData = React.useMemo(() => {
+        let maxPayments = 0;
+        const items = filteredInvoices.map(inv => {
+            const dcs = dueCollections.filter(dc => dc.invoice_id === inv.invoice_id).sort((a, b) => new Date(a.collection_date).getTime() - new Date(b.collection_date).getTime());
+            const sumDcs = dcs.reduce((sum, dc) => sum + (dc.amount_collected || 0), 0);
+            
+            let payments = [];
+            const initialPaid = (inv.paid_amount || 0) - sumDcs;
+            if (initialPaid > 0) {
+                payments.push({ date: inv.invoice_date?.split(' ')[0] || '', amount: initialPaid });
+            }
+            dcs.forEach(dc => {
+                if(dc.amount_collected > 0) {
+                    payments.push({ date: dc.collection_date?.split(' ')[0] || '', amount: dc.amount_collected });
+                }
+            });
+            
+            if (payments.length > maxPayments) {
+                maxPayments = payments.length;
+            }
+
+            const patientObj = patients?.find(p => p.pt_id === inv.patient_id);
+            const addressParts = patientObj ? [patientObj.address, patientObj.thana, patientObj.district].filter(Boolean).join(', ') : '';
+
+            return {
+                ...inv,
+                payments,
+                addressStr: addressParts
+            };
+        });
+        return { items, maxPayments };
+    }, [filteredInvoices, dueCollections, patients]);
+
+const filteredHistory = (() => {
         if (!Array.isArray(dueCollections)) return [];
         return dueCollections
             .filter(dc => dc.invoice_id && dc.invoice_id.startsWith('INV'))
@@ -424,28 +492,84 @@ const PrevDueCollectionPage: React.FC<Props> = ({ invoices, setInvoices, dueColl
             {activeTab === 'pending' && (
             <div className="overflow-x-auto rounded-lg border border-slate-700">
                 <table className="w-full text-left">
-                    <thead className="bg-slate-800 text-slate-400 text-xs uppercase font-black"><tr><th className="p-4 w-12 text-center">SL</th><th className="p-4">Date</th><th className="p-4">Invoice ID</th><th className="p-4">Patient</th><th className="p-4 text-right">Total</th><th className="p-4 text-right">Paid</th><th className="p-4 text-right text-red-400">Due</th><th className="p-4 text-center">Action</th></tr></thead>
-                    <tbody className="divide-y divide-slate-800">
-                        {filteredInvoices.map((inv, index) => (
-                            <tr 
-                                 key={inv.invoice_id} 
-                                onDoubleClick={() => onViewInvoice && onViewInvoice(inv.invoice_id)}
-                                className="hover:bg-slate-800/50 transition-colors cursor-pointer group"
-                                title="Double click to view invoice details"
-                            >
-                                <td className="p-4 text-center font-bold text-slate-500">{index + 1}</td>
-                                <td className="p-4 text-sm">{inv.invoice_date}</td>
-                                <td className="p-4 font-mono text-sky-400">{inv.invoice_id}</td>
-                                <td className="p-4 font-bold">{inv.patient_name}</td>
-                                <td className="p-4 text-right">{(inv.total_amount || 0).toFixed(2)}</td>
-                                <td className="p-4 text-right text-green-400">{(inv.paid_amount || 0).toFixed(2)}</td>
-                                <td className="p-4 text-right text-red-500 font-black">৳{(inv.due_amount || 0).toFixed(2)}</td>
-                                <td className="p-4 text-center">
-                                    <button onClick={(e) => { e.stopPropagation(); setSelectedInvoice(inv); setShowModal(true); setCollectionAmount(0); setDiscountAmount(0); }} className="bg-green-600 px-4 py-1.5 rounded-md text-xs font-bold text-white hover:bg-green-500 transition-colors">Collect</button>
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
+                    {(() => {
+                        let totalBillSum = 0;
+                        let totalDueSum = 0;
+                        let paymentsSum = new Array(detailedPendingData.maxPayments).fill(0);
+                        
+                        return (
+                            <>
+                                <thead className="bg-slate-800 text-slate-400 text-xs uppercase font-black">
+                                    <tr>
+                                        <th className="p-4 w-12 text-center">SL</th>
+                                        <th className="p-4">Invoice ID</th>
+                                        <th className="p-4">Patient Name & Address</th>
+                                        <th className="p-4 text-right whitespace-nowrap">Total <br/><span className="text-[9px] font-normal opacity-70">(After Disc)</span></th>
+                                        {Array.from({length: detailedPendingData.maxPayments}).map((_, i) => (
+                                            <th key={i} className="p-4 text-right">Paid_{String(i+1).padStart(2, '0')}</th>
+                                        ))}
+                                        <th className="p-4 text-right text-red-400">Due</th>
+                                        <th className="p-4 text-center">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-800">
+                                    {detailedPendingData.items.map((inv, index) => {
+                                        const netPayable = (inv.total_amount || 0) - (inv.discount_amount || 0);
+                                        totalBillSum += netPayable;
+                                        totalDueSum += (inv.due_amount || 0);
+                                        
+                                        return (
+                                            <tr 
+                                                key={inv.invoice_id} 
+                                                onDoubleClick={() => onViewInvoice && onViewInvoice(inv.invoice_id)}
+                                                className="hover:bg-slate-800/50 transition-colors cursor-pointer group"
+                                                title="Double click to view invoice details"
+                                            >
+                                                <td className="p-4 text-center font-bold text-slate-500">{index + 1}</td>
+                                                <td className="p-4 font-mono text-sky-400 whitespace-nowrap">{inv.invoice_id}</td>
+                                                <td className="p-4">
+                                                    <div className="font-bold text-slate-200">{inv.patient_name}</div>
+                                                    {inv.addressStr && <div className="text-xs text-slate-500 mt-0.5">{inv.addressStr}</div>}
+                                                </td>
+                                                <td className="p-4 text-right">
+                                                    <div className="font-bold">৳{netPayable.toFixed(2)}</div>
+                                                    {inv.discount_amount > 0 && <div className="text-[10px] text-slate-500">(Disc: ৳{inv.discount_amount.toFixed(2)})</div>}
+                                                </td>
+                                                {Array.from({length: detailedPendingData.maxPayments}).map((_, i) => {
+                                                    const p = inv.payments[i];
+                                                    if (p) {
+                                                        paymentsSum[i] += p.amount;
+                                                        return (
+                                                            <td key={i} className="p-4 text-right">
+                                                                <div className="text-xs text-slate-400 mb-0.5 whitespace-nowrap">{p.date}</div>
+                                                                <div className="font-bold text-green-400">৳{p.amount.toFixed(2)}</div>
+                                                            </td>
+                                                        );
+                                                    }
+                                                    return <td key={i} className="p-4 text-right"></td>;
+                                                })}
+                                                <td className="p-4 text-right text-red-500 font-black">৳{(inv.due_amount || 0).toFixed(2)}</td>
+                                                <td className="p-4 text-center">
+                                                    <button onClick={(e) => { e.stopPropagation(); setSelectedInvoice(inv); setShowModal(true); setCollectionAmount(0); setDiscountAmount(0); }} className="bg-green-600 px-4 py-1.5 rounded-md text-xs font-bold text-white hover:bg-green-500 transition-colors shadow-lg shadow-green-900/20">Collect</button>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                    {detailedPendingData.items.length > 0 && (
+                                        <tr className="bg-slate-800/80 font-black uppercase text-xs">
+                                            <td colSpan={3} className="p-4 text-right text-slate-300">Total:</td>
+                                            <td className="p-4 text-right text-white">৳{totalBillSum.toFixed(2)}</td>
+                                            {Array.from({length: detailedPendingData.maxPayments}).map((_, i) => (
+                                                <td key={i} className="p-4 text-right text-green-400">৳{paymentsSum[i].toFixed(2)}</td>
+                                            ))}
+                                            <td className="p-4 text-right text-red-400 text-sm">৳{totalDueSum.toFixed(2)}</td>
+                                            <td></td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </>
+                        );
+                    })()}
                 </table>
             </div>
             )}

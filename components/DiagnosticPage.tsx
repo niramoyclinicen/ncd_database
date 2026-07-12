@@ -283,6 +283,7 @@ const DiagnosticPage: React.FC<DiagnosticPageProps> = ({
                </div>
              )}
             <PrevDueCollectionPage 
+                patients={patients}
                 invoices={labInvoices}
                 setInvoices={setLabInvoices}
                 dueCollections={dueCollections}

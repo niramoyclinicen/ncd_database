@@ -543,10 +543,13 @@ const ClinicAccountsPage: React.FC<any> = ({
         const items = Array.isArray(inv.items) ? inv.items : [];
         const incomeItems = items.filter((it: any) => it && it.isClinicFund === true);
         const totalRevenue = incomeItems.reduce((s, it) => s + it.payable_amount, 0);
+        
+        // FIX: Subtract due collections from clinicNet to prevent double-counting when Due Collection is added later
+        const allDues = (dueCollections || []).filter((dc: any) => dc.invoice_id === inv.invoice_id).reduce((s: any, dc: any) => s + (dc.amount_collected || 0), 0);
         const pcAmount = (inv.special_commission || 0) + (inv.commission_paid || 0);
-        const clinicNet = totalRevenue - (inv.special_discount_amount || 0) - pcAmount;
+        const clinicNet = totalRevenue - (inv.special_discount_amount || 0) - pcAmount - allDues;
 
-        // Ratio to distribute deductions (commission + discount) proportionally across categories
+        // Ratio to distribute deductions (commission + discount + dues) proportionally across categories
         const ratio = totalRevenue > 0 ? clinicNet / totalRevenue : 0;
 
         let admFee = 0, oxygen = 0, dressing = 0, conservative = 0, nvd = 0, dc = 0, lscs_ot = 0, gb_ot = 0, others_ot = 0, others = 0;
@@ -588,7 +591,7 @@ const ClinicAccountsPage: React.FC<any> = ({
         });
 
         return { admFee, oxygen, conservative, nvd, dc, lscs_ot, gb_ot, others_ot, dressing, others, pcAmount, clinicNet };
-    }, []);
+    }, [dueCollections]);
 
     const summaryData = useMemo(() => {
         const safeInvoices = Array.isArray(invoices) ? invoices : [];

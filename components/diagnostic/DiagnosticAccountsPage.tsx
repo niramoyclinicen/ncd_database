@@ -1338,11 +1338,14 @@ const DiagnosticAccountsPage: React.FC<any> = ({
             const coll = { pathology: 0, hormone: 0, usg: 0, xray: 0, ecg: 0, others: 0, dueRecov: 0 };
             
             relevantInvoices.forEach((inv: any) => {
-                const ratio = inv.total_amount > 0 ? (inv.paid_amount / inv.total_amount) : 0;
+                const allDuesForInv = (dueCollections || []).filter((dc: any) => dc.invoice_id === inv.invoice_id).reduce((s: any, c: any) => s + (c.amount_collected || 0), 0);
+                const initialPaid = (inv.paid_amount || 0) - allDuesForInv;
+                
+                const ratio = inv.total_amount > 0 ? (initialPaid / inv.total_amount) : 0;
                 
                 // Logic Change: Calculate actual commission factor based on "Commission Paid" box
                 const actualCommPaid = inv.commission_paid || 0;
-                const commFactor = inv.paid_amount > 0 ? (actualCommPaid / inv.paid_amount) : 0;
+                const commFactor = initialPaid > 0 ? (actualCommPaid / initialPaid) : 0;
 
                 (inv.items || []).forEach((item: any) => {
                     const testName = (item.test_name || '').toLowerCase();
@@ -1361,7 +1364,7 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                 });
             });
             
-            coll.dueRecov = relevantDueColls.reduce((s: any, c: any) => s + (c.amount_collected || 0), 0);
+                        coll.dueRecov = relevantDueColls.reduce((s: any, c: any) => s + (c.amount_collected || 0), 0);
 
             const exp = { total: 0 };
             const expenseMap: Record<string, number> = {};

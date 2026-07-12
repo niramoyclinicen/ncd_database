@@ -71,20 +71,20 @@ const ReportHeader = ({ patient, currentInvoice, doctors }: { patient: any, curr
 };
 
 const Signatures = ({ customTechName, customTechDegree, customDocName, customDocDegree }: any) => (
-    <div className="footer-sign-container">
-        <div className="signature-box flex flex-col items-center">
-            <p className="text-[9px] font-black uppercase text-black mb-1" style={{ color: '#000000 !important' }}>Lab Technologist</p>
-            <div className="h-10 w-full"></div>
+    <div className="footer-sign-container no-break-inside">
+        <div className="signature-box flex flex-col items-center justify-end">
+            <p className="text-[11px] font-black uppercase text-black mb-1" style={{ color: '#000000 !important' }}>Lab Technologist</p>
+            <div className="h-12 w-full"></div>
             <div className="w-64 border-t-2 border-black"></div>
-            <p className="text-[13px] font-black uppercase pt-0.5 leading-none" style={{ color: '#000000 !important' }}>{customTechName || '...........................................'}</p>
-            <p className="text-[8px] font-bold uppercase tracking-widest mt-1 whitespace-pre-wrap text-center" style={{ color: '#000000 !important' }}>{customTechDegree || 'Medical Technologist'}</p>
+            <p className="text-[13px] font-black uppercase pt-1 leading-none text-black" style={{ color: '#000000 !important' }}>{customTechName || ''}</p>
+            <p className="text-[10px] font-bold uppercase mt-1 whitespace-pre-wrap text-center text-black" style={{ color: '#000000 !important' }}>{customTechDegree || ''}</p>
         </div>
-        <div className="signature-box flex flex-col items-center">
-            <p className="text-[9px] font-black uppercase text-black mb-1" style={{ color: '#000000 !important' }}>Reported By</p>
-            <div className="h-10 w-full"></div>
+        <div className="signature-box flex flex-col items-center justify-end">
+            <p className="text-[11px] font-black uppercase text-black mb-1" style={{ color: '#000000 !important' }}>Pathologist / Reporter</p>
+            <div className="h-12 w-full"></div>
             <div className="w-64 border-t-2 border-black"></div>
-            <p className="text-[15px] font-black uppercase pt-0.5 leading-none" style={{ color: '#000000 !important' }}>{customDocName || '...........................................'}</p>
-            <p className="text-[9px] font-bold italic whitespace-pre-wrap leading-tight mt-1 text-center" style={{ color: '#000000 !important' }}>{customDocDegree || ''}</p>
+            <p className="text-[14px] font-black uppercase pt-1 leading-none text-black" style={{ color: '#000000 !important' }}>{customDocName || ''}</p>
+            <p className="text-[10px] font-bold uppercase mt-1 whitespace-pre-wrap text-center text-black" style={{ color: '#000000 !important' }}>{customDocDegree || ''}</p>
         </div>
     </div>
 );
@@ -150,6 +150,27 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
             }
         } else {
             setCurrentReportData(null);
+            
+            // Auto-fill from last selected in localStorage
+            const lastTechId = localStorage.getItem('last_tech_id');
+            const lastDocId = localStorage.getItem('last_doc_id');
+            
+            if (lastTechId) {
+                setSelectedTechnologistId(lastTechId);
+                const tech = employees.find((e: any) => e.emp_id === lastTechId);
+                if (tech) {
+                    setCustomTechName(tech.emp_name);
+                    setCustomTechDegree(tech.degree || 'Medical Technologist');
+                }
+            }
+            if (lastDocId) {
+                setSelectedConsultantId(lastDocId);
+                const doc = doctors.find((d: any) => d.doctor_id === lastDocId);
+                if (doc) {
+                    setCustomDocName(doc.doctor_name);
+                    setCustomDocDegree(doc.degree);
+                }
+            }
         }
     };
     const currentInvoice = useMemo(() => {
@@ -256,25 +277,34 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
                             font-family: 'Times New Roman', serif; 
                             color: black; 
                             width: 100%; 
-                            height: 100%;
-                            overflow: hidden !important; 
                             -webkit-print-color-adjust: exact;
                         }
                         .paper-page { 
                             width: 210mm; 
-                            height: 294mm; 
-                            max-height: 294mm; 
-                            margin: 0 auto; 
                             position: relative; 
                             display: flex; 
                             flex-direction: column; 
                             background: white; 
-                            overflow: hidden !important;
-                            page-break-after: avoid !important;
-                            page-break-inside: avoid !important;
+                            box-sizing: border-box;
+                            margin: 0 auto;
                         }
-                        .paper-inner { padding: 0 15mm; flex: 1; display: flex; flex-direction: column; position: relative; width: 100%; height: 100%; }
-                        .report-content-body { ${printFullPad ? 'margin-top: 0;' : 'margin-top: 2.3in;'} flex: 1; width: 100%; }
+                        .paper-inner { padding: 0 15mm; flex: 1; display: flex; flex-direction: column; width: 100%; }
+                        .report-content-body { ${printFullPad ? 'margin-top: 0;' : 'margin-top: 2.3in;'} flex: 1; width: 100%; padding-bottom: 45mm; }
+                        
+                        @media print {
+                            body { height: auto !important; overflow: visible !important; }
+                            .footer-sign-container { 
+                                position: fixed !important; 
+                                bottom: 12mm !important; 
+                                left: 15mm !important; 
+                                right: 15mm !important; 
+                                display: flex; 
+                                justify-content: space-between; 
+                                align-items: flex-end; 
+                                background: transparent; 
+                                width: calc(100% - 30mm) !important; 
+                            }
+                        }
                         .footer-sign-container { 
                             position: absolute; 
                             bottom: 12mm; 
@@ -286,6 +316,7 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
                             background: white; 
                             width: calc(100% - 30mm); 
                         }
+                        .no-break-inside { page-break-inside: avoid; }
                         .signature-box { text-align: center; width: 45%; }
                         .category-title { 
                             font-weight: 950 !important; 
@@ -315,8 +346,8 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
     return (
         <div className="bg-slate-200 flex-1 flex flex-col font-sans overflow-hidden text-black min-h-0">
             <style>{`
-                .paper-page { width: 210mm; height: 294mm; min-height: 294mm; margin: 0 auto; position: relative; background: white; display: flex; flex-direction: column; box-shadow: 0 0 50px rgba(0,0,0,0.1); box-sizing: border-box; overflow: hidden; }
-                .paper-inner { padding: 0 15mm; flex: 1; display: flex; flex-direction: column; position: relative; }
+                .paper-page { width: 210mm; min-height: 294mm; margin: 0 auto; position: relative; background: white; display: flex; flex-direction: column; box-shadow: 0 0 50px rgba(0,0,0,0.1); box-sizing: border-box; overflow: visible; }
+                .paper-inner { padding: 0 15mm 45mm 15mm; flex: 1; display: flex; flex-direction: column; height: 100%; }
                 .footer-sign-container { position: absolute; bottom: 12mm; left: 15mm; right: 15mm; display: flex; justify-content: space-between; align-items: flex-end; }
                 .signature-box { text-align: center; width: 45%; }
                 .category-title { font-weight: 950 !important; text-transform: uppercase; text-decoration: underline; font-size: 14pt; margin-bottom: 15px; text-align: center; display: block; color: #000000 !important; }
@@ -374,19 +405,27 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
                          <select value={selectedTechnologistId} onChange={e=>{
                              const id = e.target.value;
                              setSelectedTechnologistId(id);
+                             localStorage.setItem('last_tech_id', id);
                              const tech = employees.find((emp: any) => emp.emp_id === id);
                              if (tech) {
                                  setCustomTechName(tech.emp_name);
                                  setCustomTechDegree(tech.degree || 'Medical Technologist');
+                             } else {
+                                 setCustomTechName('');
+                                 setCustomTechDegree('');
                              }
                          }} className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2 text-[10px] text-white font-bold outline-none"><option value="">-- Select Tech --</option>{employees.filter((e:any)=>e.department==='Diagnostic').map((e: any) => <option key={e.emp_id} value={e.emp_id}>{e.emp_name}</option>)}</select>
                          <select value={selectedConsultantId} onChange={e=>{
                              const id = e.target.value;
                              setSelectedConsultantId(id);
+                             localStorage.setItem('last_doc_id', id);
                              const doc = doctors.find((d: any) => d.doctor_id === id);
                              if (doc) {
                                  setCustomDocName(doc.doctor_name);
                                  setCustomDocDegree(doc.degree);
+                             } else {
+                                 setCustomDocName('');
+                                 setCustomDocDegree('');
                              }
                          }} className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2 text-[10px] text-white font-bold outline-none"><option value="">-- Select Doctor --</option>{doctors.map((d: any) => <option key={d.doctor_id} value={d.doctor_id}>{d.doctor_name}</option>)}</select>
                     </div>
