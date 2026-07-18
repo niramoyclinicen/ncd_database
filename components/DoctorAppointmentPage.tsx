@@ -86,6 +86,8 @@ const DoctorAppointmentPage: React.FC<DoctorAppointmentPageProps> = ({
 
   const [barcodeInput, setBarcodeInput] = useState('');
   const [showNewPatientForm, setShowNewPatientForm] = useState(false);
+  const [showPatientSearchModal, setShowPatientSearchModal] = useState(false);
+  const [patientSearchFilters, setPatientSearchFilters] = useState({ name: "", mobile: "", address: "", thana: "", age: "" });
   const [showNewDoctorForm, setShowNewDoctorForm] = useState(false);
   const [showNewReferrarForm, setShowNewReferrarForm] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
@@ -251,8 +253,28 @@ const DoctorAppointmentPage: React.FC<DoctorAppointmentPageProps> = ({
 
   const handlePatientSelect = (id: string, name: string) => {
     setFormData(prev => ({ ...prev, patient_id: id, patient_name: name }));
-    setShowNewPatientForm(false); 
+    setShowNewPatientForm(false);
+    setShowPatientSearchModal(false);
+    setPatientSearchFilters({ name: '', mobile: '', address: '', thana: '', age: '' });
   };
+
+    const openAdvancedPatientSearch = (currentTerm: string) => {
+     setPatientSearchFilters(prev => ({ ...prev, name: currentTerm }));
+     setShowPatientSearchModal(true);
+  };
+
+  const filteredPatients = useMemo(() => {
+    const safePatients = Array.isArray(patients) ? patients : [];
+    return safePatients.filter(p => {
+      if (!p) return false;
+      const pAge = String(p.ageY || '');
+      return (p.pt_name || '').toLowerCase().includes(patientSearchFilters.name.toLowerCase()) &&
+             (p.mobile || '').toLowerCase().includes(patientSearchFilters.mobile.toLowerCase()) &&
+             (p.address || '').toLowerCase().includes(patientSearchFilters.address.toLowerCase()) &&
+             (p.thana || '').toLowerCase().includes(patientSearchFilters.thana.toLowerCase()) &&
+             (pAge.includes(patientSearchFilters.age));
+    });
+  }, [patients, patientSearchFilters]);
 
   const handleBarcodeScan = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
@@ -388,7 +410,7 @@ const DoctorAppointmentPage: React.FC<DoctorAppointmentPageProps> = ({
 
     const tfootHtml = "<tr><td colspan='5' style='text-align:right; font-weight:bold;'>Total (" + filteredAppointments.length + " Patients):</td><td style='text-align:right; font-weight:bold;'>৳" + totalFees.toFixed(2) + "</td></tr>";
 
-    const printContent = "<!DOCTYPE html><html><head><meta charset='UTF-8'><title>Appointment List Print</title><style>@page { size: A4 landscape; margin: 15mm; } body { font-family: sans-serif; background: #fff; color: #000; margin: 0; padding: 0; } .header { text-align: center; margin-bottom: 20px; } .header h1 { margin: 0; font-size: 24px; font-weight: bold; } .header p { margin: 5px 0; font-size: 12px; } .header h2 { margin: 10px 0 5px 0; font-size: 18px; text-decoration: underline; } table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; } th, td { border: 1px solid #333; padding: 6px 8px; text-align: left; } th { background-color: #f0f0f0; font-weight: bold; } .footer { text-align: center; font-size: 10px; margin-top: 20px; color: #555; }</style></head><body><div class='header'><h1>Niramoy Clinic & Diagnostic</h1><p>Enayetpur, Sirajgonj | Mobile: 01730 923007</p><h2>" + reportTitle + "</h2><p style='font-weight:bold;'>" + subtitle + "</p></div><table><thead>" + theadHtml + "</thead><tbody>" + contentHtml + "</tbody><tfoot>" + tfootHtml + "</tfoot></table><div class='footer'>Printed on " + new Date().toLocaleString() + "</div><script>window.onload = function() { window.print(); window.close(); }</script></body></html>";
+    const printContent = "<!DOCTYPE html><html><head><meta charset='UTF-8'><title>Appointment List Print</title><style>@page { size: A4 portrait; margin: 15mm; } body { font-family: sans-serif; background: #fff; color: #000; margin: 0; padding: 0; } .header { text-align: center; margin-bottom: 20px; } .header h1 { margin: 0; font-size: 24px; font-weight: bold; } .header p { margin: 5px 0; font-size: 12px; } .header h2 { margin: 10px 0 5px 0; font-size: 18px; text-decoration: underline; } table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; } th, td { border: 1px solid #333; padding: 6px 8px; text-align: left; } th { background-color: #f0f0f0; font-weight: bold; } .footer { text-align: center; font-size: 10px; margin-top: 20px; color: #555; }</style></head><body><div class='header'><h1>Niramoy Clinic & Diagnostic</h1><p>Enayetpur, Sirajgonj | Mobile: 01730 923007</p><h2>" + reportTitle + "</h2><p style='font-weight:bold;'>" + subtitle + "</p></div><table><thead>" + theadHtml + "</thead><tbody>" + contentHtml + "</tbody><tfoot>" + tfootHtml + "</tfoot></table><div class='footer'>Printed on " + new Date().toLocaleString() + "</div><script>window.onload = function() { window.print(); window.close(); }</script></body></html>";
 
     const win = window.open('', '_blank');
     if (win) {
@@ -479,7 +501,19 @@ const DoctorAppointmentPage: React.FC<DoctorAppointmentPageProps> = ({
         </div>
         <form id="appointment-form" onSubmit={handleSaveAppointment} className="mb-4">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-5">
-            <div><SearchableSelect theme="dark" label="Patient" options={patients.map(p => ({ id: p.pt_id, name: p.pt_name, details: `${p.gender}, ${p.ageY}Y, ${p.co_pref} ${p.co_name}, Add: ${p.address}, Mob: ${p.mobile}` }))} value={formData.patient_id} onChange={handlePatientSelect} onAddNew={() => setShowNewPatientForm(true)} placeholder="Search or add patient" required /></div>
+            <div>
+              <SearchableSelect 
+                theme="dark" 
+                label="Patient" 
+                options={patients.map(p => ({ id: p.pt_id, name: p.pt_name, details: `${p.gender}, ${p.ageY}Y, Add: ${p.address}, Mob: ${p.mobile}` }))} 
+                value={formData.patient_id} 
+                onChange={handlePatientSelect} 
+                onAddNew={() => openAdvancedPatientSearch('')} 
+                onEnter={(term) => openAdvancedPatientSearch(term)}
+                placeholder="Search or add patient" 
+                required 
+              />
+            </div>
             <div><SearchableSelect theme="dark" label="Select Doctor" options={doctors.map(d => ({ id: d.doctor_id, name: d.doctor_name, details: d.degree }))} value={formData.doctor_id || ''} onChange={handleDoctorSelect} onAddNew={() => setShowNewDoctorForm(true)} placeholder="Search or add doctor" required /></div>
             <div><SearchableSelect theme="dark" label="Referrar (Optional)" options={referrars.map(r => ({ id: r.ref_id, name: r.ref_name, details: r.ref_degrees }))} value={formData.referrar_id || ''} onChange={handleReferrarSelect} onAddNew={() => setShowNewReferrarForm(true)} placeholder="Search or add referrar" /></div>
             <div><label className={commonLabelClasses}>Appointment Date</label><input type="date" name="appointment_date" value={formData.appointment_date} onChange={handleInputChange} required className={commonInputClasses} /></div>
@@ -666,6 +700,178 @@ const DoctorAppointmentPage: React.FC<DoctorAppointmentPageProps> = ({
       </div>
 
       {/* EMBEDDED MODALS */}
+      {showPatientSearchModal && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/90 backdrop-blur-xl p-4 animate-in fade-in zoom-in duration-300">
+          <div className="bg-slate-900 border border-slate-700 w-full max-w-6xl max-h-[95vh] rounded-[2rem] shadow-[0_0_100px_rgba(0,0,0,0.8)] flex flex-col overflow-hidden">
+            
+            {/* Modal Header */}
+            <div className="px-8 py-6 border-b border-white/5 bg-slate-950/40 flex justify-between items-center shrink-0">
+              <div className="flex items-center gap-5">
+                <div className="w-14 h-14 bg-blue-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-blue-900/50">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><circle cx="19" cy="11" r="2"/><path d="M19 8v1"/><path d="M19 13v1"/></svg>
+                </div>
+                <div>
+                  <h2 className="text-3xl font-black text-white uppercase tracking-tighter">Advanced Patient Search</h2>
+                  <p className="text-xs text-slate-500 font-bold uppercase tracking-widest leading-none mt-1">Search by Name, mobile, address or Upazila</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-4">
+                 <button 
+                  onClick={() => setShowNewPatientForm(true)}
+                  className="flex items-center gap-3 px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-sm font-black uppercase tracking-widest transition-all active:scale-95 shadow-xl shadow-emerald-900/20"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                  New Patient
+                </button>
+                <button 
+                  onClick={() => {
+                    setShowPatientSearchModal(false);
+                    setPatientSearchFilters({ name: '', mobile: '', address: '', thana: '', age: '' });
+                  }}
+                  className="w-12 h-12 flex items-center justify-center bg-slate-800 hover:bg-red-600 text-slate-400 hover:text-white rounded-xl transition-all duration-300"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Content - SEARCH FILTERS */}
+            <div className="px-8 py-5 bg-slate-950/20 grid grid-cols-1 md:grid-cols-5 gap-6 border-b border-white/5 shrink-0">
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Search Name</label>
+                <div className="relative group">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-blue-500 transition-colors"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                  <input 
+                    type="text" 
+                    placeholder="Khushi..."
+                    value={patientSearchFilters.name}
+                    onChange={(e) => setPatientSearchFilters(prev => ({ ...prev, name: e.target.value }))}
+                    className="w-full bg-slate-950/50 border-2 border-slate-800 focus:border-blue-500 rounded-xl py-3 pl-12 pr-4 text-sm text-white placeholder:text-slate-700 outline-none transition-all shadow-inner"
+                    autoFocus
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Age</label>
+                <input 
+                  type="text" 
+                  placeholder="Age..."
+                  value={patientSearchFilters.age}
+                  onChange={(e) => setPatientSearchFilters(prev => ({ ...prev, age: e.target.value }))}
+                  className="w-full bg-slate-950/50 border-2 border-slate-800 focus:border-blue-500 rounded-xl py-3 px-4 text-sm text-white placeholder:text-slate-700 outline-none transition-all shadow-inner"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Mobile Number</label>
+                <input 
+                  type="text" 
+                  placeholder="017..."
+                  value={patientSearchFilters.mobile}
+                  onChange={(e) => setPatientSearchFilters(prev => ({ ...prev, mobile: e.target.value }))}
+                  className="w-full bg-slate-950/50 border-2 border-slate-800 focus:border-blue-500 rounded-xl py-3 px-4 text-sm text-white placeholder:text-slate-700 outline-none transition-all shadow-inner"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Address / Village</label>
+                <input 
+                  type="text" 
+                  placeholder="Address..."
+                  value={patientSearchFilters.address}
+                  onChange={(e) => setPatientSearchFilters(prev => ({ ...prev, address: e.target.value }))}
+                  className="w-full bg-slate-950/50 border-2 border-slate-800 focus:border-blue-500 rounded-xl py-3 px-4 text-sm text-white placeholder:text-slate-700 outline-none transition-all shadow-inner"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Upazila / Thana</label>
+                <input 
+                  type="text" 
+                  placeholder="Thana..."
+                  value={patientSearchFilters.thana}
+                  onChange={(e) => setPatientSearchFilters(prev => ({ ...prev, thana: e.target.value }))}
+                  className="w-full bg-slate-950/50 border-2 border-slate-800 focus:border-blue-500 rounded-xl py-3 px-4 text-sm text-white placeholder:text-slate-700 outline-none transition-all shadow-inner"
+                />
+              </div>
+            </div>
+
+            {/* List Header */}
+            <div className="bg-slate-950 px-10 py-3 border-b border-white/5 grid grid-cols-12 gap-5 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] shrink-0">
+              <div className="col-span-1">ID</div>
+              <div className="col-span-3">Patient Name</div>
+              <div className="col-span-2">Age/Sex</div>
+              <div className="col-span-2">Mobile</div>
+              <div className="col-span-2">Address / Thana</div>
+              <div className="col-span-2 text-right">Selection</div>
+            </div>
+
+            {/* Scrolling List */}
+            <div className="flex-1 overflow-y-auto p-4 no-scrollbar bg-slate-900/20">
+              {filteredPatients.length > 0 ? (
+                <div className="grid grid-cols-1 gap-2">
+                  {filteredPatients.map(p => (
+                    <div 
+                      key={p.pt_id}
+                      onClick={() => handlePatientSelect(p.pt_id, p.pt_name)}
+                      onDoubleClick={() => handlePatientSelect(p.pt_id, p.pt_name)}
+                      className="px-6 py-4 bg-slate-800/20 hover:bg-blue-600/10 border border-slate-800 hover:border-blue-500/50 rounded-2xl grid grid-cols-12 gap-5 items-center cursor-pointer transition-all group active:scale-[0.99]"
+                    >
+                      <div className="col-span-1 font-mono text-xs text-slate-600">{p.pt_id}</div>
+                      <div className="col-span-3">
+                        <p className="text-base font-black text-slate-200 group-hover:text-blue-400 transition-colors uppercase tracking-tight">{p.pt_name}</p>
+                      </div>
+                      <div className="col-span-2">
+                        <span className="px-2 py-1 bg-slate-800 rounded-md text-[10px] font-black text-slate-400 uppercase">{p.ageY}Y | {p.gender}</span>
+                      </div>
+                      <div className="col-span-2">
+                        <p className="text-sm font-mono text-white/80">{p.mobile || '---'}</p>
+                      </div>
+                      <div className="col-span-2">
+                        <p className="text-xs text-white/60 truncate leading-tight">{p.address}{p.thana ? `\n${p.thana}` : ''}</p>
+                      </div>
+                      <div className="col-span-2 text-right">
+                        <button className="px-5 py-2 bg-blue-600/20 hover:bg-blue-600 text-blue-400 hover:text-white border border-blue-500/30 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">Select</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-20 text-slate-700">
+                   <div className="w-24 h-24 bg-slate-800/50 rounded-full flex items-center justify-center mb-6 opacity-30">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="17" y1="8" x2="17" y2="14"/><line x1="14" y1="11" x2="20" y2="11"/></svg>
+                   </div>
+                  <p className="text-2xl font-black uppercase tracking-tighter opacity-50 mb-2">Patient Not Found</p>
+                  <p className="text-xs font-bold uppercase tracking-widest opacity-30 max-w-xs text-center leading-relaxed">The searched record does not exist in our database. You can add a new one.</p>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-10 py-5 bg-slate-950/60 border-t border-white/5 flex justify-between items-center shrink-0">
+              <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></div>
+                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Total Records: {patients.length}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
+                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Filter Results: {filteredPatients.length}</span>
+                  </div>
+              </div>
+              <div className="flex items-center gap-3">
+                 <button 
+                    onClick={() => {
+                      setShowPatientSearchModal(false);
+                      setPatientSearchFilters({ name: '', mobile: '', address: '', thana: '', age: '' });
+                    }}
+                    className="px-8 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-black uppercase tracking-widest transition-all"
+                >
+                    Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showNewPatientForm && <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/80 backdrop-blur-md p-4"><div className="w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-[2.5rem] border border-slate-700 bg-slate-900 relative shadow-[0_0_100px_rgba(0,0,0,0.8)]"><button onClick={() => setShowNewPatientForm(false)} className="absolute top-6 right-6 text-slate-500 hover:text-white z-10 p-2 bg-slate-800 rounded-full">&times;</button><div className="p-2"><PatientInfoPage patients={patients} setPatients={setPatients} isEmbedded onClose={() => setShowNewPatientForm(false)} onSaveAndSelect={handlePatientSelect} performBlockingSync={performBlockingSync} /></div></div></div>}
       {showNewDoctorForm && <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/80 backdrop-blur-md p-4"><div className="w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-[2.5rem] border border-slate-700 bg-slate-900 relative shadow-[0_0_100px_rgba(0,0,0,0.8)]"><button onClick={() => setShowNewDoctorForm(false)} className="absolute top-6 right-6 text-slate-500 hover:text-white z-10 p-2 bg-slate-800 rounded-full">&times;</button><div className="p-2"><DoctorInfoPage doctors={doctors} setDoctors={setDoctors} isEmbedded onClose={() => setShowNewDoctorForm(false)} onSaveAndSelect={handleDoctorSelect} performBlockingSync={performBlockingSync} /></div></div></div>}
       {showNewReferrarForm && <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/80 backdrop-blur-md p-4"><div className="w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-[2.5rem] border border-slate-700 bg-slate-900 relative shadow-[0_0_100px_rgba(0,0,0,0.8)]"><button onClick={() => setShowNewReferrarForm(false)} className="absolute top-6 right-6 text-slate-500 hover:text-white z-10 p-2 bg-slate-800 rounded-full">&times;</button><div className="p-2"><ReferrerInfoPage referrars={referrars} setReferrars={setReferrars} isEmbedded onClose={() => setShowNewReferrarForm(false)} onSaveAndSelect={handleReferrarSelect} performBlockingSync={performBlockingSync} /></div></div></div>}

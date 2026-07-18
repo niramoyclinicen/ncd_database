@@ -414,7 +414,7 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
                                  setCustomTechName('');
                                  setCustomTechDegree('');
                              }
-                         }} className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2 text-[10px] text-white font-bold outline-none"><option value="">-- Select Tech --</option>{employees.filter((e:any)=>e.department==='Diagnostic').map((e: any) => <option key={e.emp_id} value={e.emp_id}>{e.emp_name}</option>)}</select>
+                         }} className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2 text-[10px] text-white font-bold outline-none"><option value="">-- Select Tech --</option>{employees.map((e: any) => <option key={e.emp_id} value={e.emp_id}>{e.emp_name} ({e.job_position})</option>)}</select>
                          <select value={selectedConsultantId} onChange={e=>{
                              const id = e.target.value;
                              setSelectedConsultantId(id);
