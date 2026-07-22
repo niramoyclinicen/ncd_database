@@ -1,96 +1,6 @@
 const fs = require('fs');
 let code = fs.readFileSync('components/ReagentInfoPage.tsx', 'utf8');
 
-// Add XIcon to imports if missing
-if (!code.includes('XIcon')) {
-    code = code.replace("import { Activity, PrinterIcon, SearchIcon, BeakerIcon, DatabaseIcon, PlusIcon, FileTextIcon }", "import { Activity, PrinterIcon, SearchIcon, BeakerIcon, DatabaseIcon, PlusIcon, FileTextIcon, XIcon }");
-}
-
-// Check for missing XIcon in Icons.tsx just in case, though it usually exists.
-
-const modalCode = `
-    const [showForm, setShowForm] = useState(false);
-    const [manualStockQty, setManualStockQty] = useState('');
-    const [manualStockDate, setManualStockDate] = useState(new Date().toISOString().split('T')[0]);
-
-    const handleAddClick = () => {
-        setFormData({ ...emptyReagent, reagent_id: 'R-' + Date.now() });
-        setIsEditing(false);
-        setShowForm(true);
-    };
-
-    const handleEditClick = (r: Reagent) => {
-        setFormData(r);
-        setIsEditing(true);
-        setManualStockQty(r.quantity.toString());
-        setManualStockDate(new Date().toISOString().split('T')[0]);
-        setShowForm(true);
-    };
-
-    const handleSave = async () => {
-        if (!formData.reagent_name) return;
-        let newReagents = [];
-        if (isEditing) {
-            newReagents = reagents.map(r => r.reagent_id === formData.reagent_id ? formData : r);
-        } else {
-            newReagents = [...reagents, formData];
-        }
-        setReagents(newReagents);
-        if (performBlockingSync) await performBlockingSync({ reagents: newReagents });
-        setShowForm(false);
-        setSuccessMessage('Saved successfully!');
-        setTimeout(() => setSuccessMessage(''), 3000);
-    };
-
-    const handleSetStock = async () => {
-        if (!formData.reagent_id || !manualStockQty) return;
-        const qty = parseFloat(manualStockQty);
-        
-        const newUpdate = {
-            date: manualStockDate,
-            quantity: qty,
-            note: 'Manual Calibration'
-        };
-
-        const updatedFormData = {
-            ...formData,
-            quantity: qty,
-            manualStockUpdates: [...(formData.manualStockUpdates || []), newUpdate]
-        };
-
-        const newReagents = reagents.map(r => r.reagent_id === formData.reagent_id ? updatedFormData : r);
-        setReagents(newReagents);
-        setFormData(updatedFormData);
-        if (performBlockingSync) await performBlockingSync({ reagents: newReagents });
-        
-        setSuccessMessage('Stock calibrated!');
-        setTimeout(() => setSuccessMessage(''), 3000);
-    };
-`;
-
-code = code.replace(
-    'const [successMessage, setSuccessMessage] = useState(\'\');',
-    'const [successMessage, setSuccessMessage] = useState(\'\');\n' + modalCode
-);
-
-const buttonCode = `
-                        {viewMode === 'inventory' && (
-                            <button onClick={handleAddClick} className="bg-blue-600 hover:bg-blue-500 text-white px-8 py-3 rounded-2xl font-black uppercase text-xs shadow-xl active:scale-95 transition-all flex items-center gap-2"><PlusIcon size={16}/> Add Reagent</button>
-                        )}
-`;
-
-code = code.replace(
-    '{viewMode === \'requisition\' && (',
-    buttonCode + '\n                        {viewMode === \'requisition\' && ('
-);
-
-// Make row clickable
-code = code.replace(
-    '<tr key={r.reagent_id} className={`hover:bg-slate-800/40 transition-colors group ${requisitionItems.includes(r.reagent_id) ? \'bg-emerald-900/10\' : \'\'}`}>',
-    '<tr key={r.reagent_id} onClick={() => viewMode === \'inventory\' && handleEditClick(r)} className={`cursor-pointer hover:bg-slate-800/40 transition-colors group ${requisitionItems.includes(r.reagent_id) ? \'bg-emerald-900/10\' : \'\'}`}>'
-);
-
-// Modal UI
 const renderModal = `
             {showForm && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
@@ -160,10 +70,9 @@ const renderModal = `
 `;
 
 code = code.replace(
-    '</main>\n        </div>\n    );\n};',
-    '</main>\n' + renderModal + '\n        </div>\n    );\n};'
+    '</main>',
+    '</main>\n' + renderModal
 );
 
-
 fs.writeFileSync('components/ReagentInfoPage.tsx', code);
-console.log("Patched ReagentInfoPage.tsx");
+console.log("Patched modal.");

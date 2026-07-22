@@ -7,6 +7,7 @@ import CBCInputPage from './CBCInputPage';
 import SemenAnalysisInputPage from './SemenAnalysisInputPage';
 import LipidProfileInputPage from './LipidProfileInputPage';
 import TemplateManagementPage from './TemplateManagementPage';
+import { RichTextEditor } from './RichTextEditor';
 import { SettingsIcon, Activity, SaveIcon, PrinterIcon } from './Icons';
 
 // Use fixed license constant
@@ -70,17 +71,17 @@ const ReportHeader = ({ patient, currentInvoice, doctors }: { patient: any, curr
     );
 };
 
-const Signatures = ({ customTechName, customTechDegree, customDocName, customDocDegree }: any) => (
+const Signatures = ({ customTechName, customTechDegree, customDocName, customDocDegree, techLabel = "Lab Technologist", docLabel = "Pathologist / Reporter" }: any) => (
     <div className="footer-sign-container no-break-inside">
         <div className="signature-box flex flex-col items-center justify-end">
-            <p className="text-[11px] font-black uppercase text-black mb-1" style={{ color: '#000000 !important' }}>Lab Technologist</p>
+            <p className="text-[11px] font-black uppercase text-black mb-1" style={{ color: '#000000 !important' }}>{techLabel}</p>
             <div className="h-12 w-full"></div>
             <div className="w-64 border-t-2 border-black"></div>
             <p className="text-[13px] font-black uppercase pt-1 leading-none text-black" style={{ color: '#000000 !important' }}>{customTechName || ''}</p>
             <p className="text-[10px] font-bold uppercase mt-1 whitespace-pre-wrap text-center text-black" style={{ color: '#000000 !important' }}>{customTechDegree || ''}</p>
         </div>
         <div className="signature-box flex flex-col items-center justify-end">
-            <p className="text-[11px] font-black uppercase text-black mb-1" style={{ color: '#000000 !important' }}>Pathologist / Reporter</p>
+            <p className="text-[11px] font-black uppercase text-black mb-1" style={{ color: '#000000 !important' }}>{docLabel}</p>
             <div className="h-12 w-full"></div>
             <div className="w-64 border-t-2 border-black"></div>
             <p className="text-[14px] font-black uppercase pt-1 leading-none text-black" style={{ color: '#000000 !important' }}>{customDocName || ''}</p>
@@ -116,6 +117,8 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
     const [selectedTechnologistId, setSelectedTechnologistId] = useState<string>('');
     const [selectedConsultantId, setSelectedConsultantId] = useState<string>('');
     const [currentReportData, setCurrentReportData] = useState<any>(null);
+    const [rtTemplates, setRtTemplates] = useState<any[]>([]);
+    useEffect(() => { setRtTemplates(JSON.parse(localStorage.getItem('ncd_rt_templates_v1') || '[]')); }, [viewMode]);
     
     const [customTechName, setCustomTechName] = useState('');
     const [customTechDegree, setCustomTechDegree] = useState('');
@@ -132,18 +135,46 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
 
     const handleSelectTest = (tName: string) => {
         setActiveTestName(tName);
-        const saved = reports.find((r: LabReport) => r.invoice_id === selectedInvoiceId && r.test_name === tName);
-        if (saved) {
-            setCurrentReportData(saved.data);
-            setSelectedTechnologistId(saved.technologistId || '');
-            setSelectedConsultantId(saved.consultantId || '');
+        
+        const activeTestDef = tests.find((t: any) => t.test_name === tName);
+        const activeCategory = activeTestDef?.category || 'General';
+        
+        const groupTests = currentInvoice ? currentInvoice.items.map((it: any) => it.test_name).filter((groupTName: string) => {
+            const def = tests.find((t: any) => t.test_name === groupTName);
+            const cat = def?.category || 'General';
+            return cat === activeCategory;
+        }) : [tName];
+        
+        let mergedData = {};
+        let foundAny = false;
+        let lastTech = '', lastDoc = '';
+        
+        groupTests.forEach(gName => {
+            const saved = reports.find((r: LabReport) => r.invoice_id === selectedInvoiceId && r.test_name === gName);
+            if (saved) {
+                mergedData = { ...mergedData, ...saved.data };
+                foundAny = true;
+                if (saved?.technologistId) lastTech = saved?.technologistId;
+                if (saved?.consultantId) lastDoc = saved?.consultantId;
+            }
+        });
+
+        if (foundAny) {
+            setCurrentReportData(mergedData);
+            setSelectedTechnologistId(lastTech);
+            setSelectedConsultantId(lastDoc);
             
-            const tech = employees.find((e: any) => e.emp_id === saved.technologistId);
+            const saved = reports.find((r: LabReport) => r.invoice_id === selectedInvoiceId && r.test_name === tName) || reports.find((r: LabReport) => r.invoice_id === selectedInvoiceId && groupTests.includes(r.test_name));
+            
+            setSelectedTechnologistId(saved?.technologistId || '');
+            setSelectedConsultantId(saved?.consultantId || '');
+            
+            const tech = employees.find((e: any) => e.emp_id === saved?.technologistId);
             if (tech) {
                 setCustomTechName(tech.emp_name);
                 setCustomTechDegree(tech.degree || 'Medical Technologist');
             }
-            const doc = doctors.find((d: any) => d.doctor_id === saved.consultantId);
+            const doc = doctors.find((d: any) => d.doctor_id === saved?.consultantId);
             if (doc) {
                 setCustomDocName(doc.doctor_name);
                 setCustomDocDegree(doc.degree);
@@ -194,13 +225,21 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
     // FOCUS LOGIC: Only show/print the active selected test
     const activeTestGroup = useMemo(() => {
         if (!currentInvoice || !activeTestName) return [];
-        return [activeTestName];
-    }, [currentInvoice, activeTestName]);
+        const activeTestDef = tests.find((t: any) => t.test_name === activeTestName);
+        const activeCategory = activeTestDef?.category || 'General';
+        
+        // Return all tests in the current invoice that share the exact same category
+        return currentInvoice.items.map((it: any) => it.test_name).filter((tName: string) => {
+            const def = tests.find((t: any) => t.test_name === tName);
+            const cat = def?.category || 'General';
+            return cat === activeCategory;
+        });
+    }, [currentInvoice, activeTestName, tests]);
 
     const groupedPathologyTests = useMemo(() => {
         const groups: Record<string, string[]> = {};
         activeTestGroup.forEach(tName => {
-            const testDef = tests.find(t => t.test_name === tName);
+            const testDef = tests.find((t: any) => t.test_name === tName);
             const cat = testDef?.category || 'Others';
             if (!groups[cat]) groups[cat] = [];
             groups[cat].push(tName);
@@ -212,16 +251,19 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
         if (!selectedInvoiceId || !activeTestName) return;
         
         // 1. Calculate updated reports
-        const existing = reports.find((r: LabReport) => r.invoice_id === selectedInvoiceId && r.test_name === activeTestName);
-        const newReport: LabReport = {
-            report_id: existing?.report_id || `REP-${selectedInvoiceId}-${activeTestName.replace(/\s+/g, '')}`,
-            invoice_id: selectedInvoiceId, test_name: activeTestName, patient_id: patient?.pt_id || '',
-            report_date: new Date().toISOString().split('T')[0], status: 'Completed', data: reportData,
-            technologistId: selectedTechnologistId, consultantId: selectedConsultantId,
-            isDelivered: existing?.isDelivered || false
-        };
-        const updatedReports = reports.filter((r: LabReport) => !(r.invoice_id === selectedInvoiceId && r.test_name === activeTestName));
-        updatedReports.push(newReport);
+        let updatedReports = [...reports];
+        activeTestGroup.forEach((tName: string) => {
+             const existing = updatedReports.find((r: LabReport) => r.invoice_id === selectedInvoiceId && r.test_name === tName);
+             const newReport: LabReport = {
+                 report_id: existing?.report_id || `REP-${selectedInvoiceId}-${tName.replace(/\s+/g, '')}`,
+                 invoice_id: selectedInvoiceId, test_name: tName, patient_id: patient?.pt_id || '',
+                 report_date: new Date().toISOString().split('T')[0], status: 'Completed', data: reportData,
+                 technologistId: selectedTechnologistId, consultantId: selectedConsultantId,
+                 isDelivered: existing?.isDelivered || false
+             };
+             updatedReports = updatedReports.filter((r: LabReport) => !(r.invoice_id === selectedInvoiceId && r.test_name === tName));
+             updatedReports.push(newReport);
+        });
 
         // 2. Calculate updated invoices
         let finalUpdatedInvoices = invoices;
@@ -453,25 +495,53 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
                                 </div>
 
                                 <div id="printable-report-content">
-                                    {(activeTestName.toLowerCase().includes('usg') || activeTestName.toLowerCase().includes('ultra')) ? (
+                                    {(activeTestName.toLowerCase().includes('usg') || activeTestName.toLowerCase().includes('ultra') || activeTestName.toLowerCase().includes('semen')) ? (
                                         <div className="paper-page">
                                             <div className="paper-inner">
                                                 {printFullPad && <MasterPadHeader />}
-                                                <div className="report-content-body">
+                                                <div className="report-content-body flex flex-col">
                                                     <ReportHeader patient={patient} currentInvoice={currentInvoice} doctors={doctors} />
-                                                    <div className="category-title">Ultrasonography Report</div>
-                                                    <UltrasonographyReportEditor template={null} patient={patient} invoice={currentInvoice} onSave={handleSaveReport} reportData={currentReportData} setReportData={setCurrentReportData} doctors={doctors} employees={employees} technologistId={selectedTechnologistId} consultantId={selectedConsultantId} isEmbedded={true} />
+                                                    <div className="category-title">{activeTestName}</div>
+                                                    
+                                                    {/* Template Selector no-print */}
+                                                    <div className="no-print mb-4 bg-indigo-50 p-3 rounded-lg border border-indigo-100 flex items-center gap-4">
+                                                        <span className="text-[10px] font-black uppercase text-indigo-800">Load Template:</span>
+                                                        <select 
+                                                            className="flex-1 bg-white border border-indigo-200 rounded p-1.5 text-xs font-bold outline-none"
+                                                            onChange={(e) => {
+                                                                const t = rtTemplates.find(x => x.id === e.target.value);
+                                                                if(t) {
+                                                                    if(confirm('Replace current content with template?')) {
+                                                                        setCurrentReportData(t.contentHtml);
+                                                                    }
+                                                                }
+                                                            }}
+                                                        >
+                                                            <option value="">-- Choose Template --</option>
+                                                            {rtTemplates.filter((t: any) => t.testName === activeTestName).map((t: any) => (
+                                                                <option key={t.id} value={t.id}>{t.templateName}</option>
+                                                            ))}
+                                                        </select>
+                                                    </div>
+
+                                                    <div className="flex-1 min-h-[400px]">
+                                                        <RichTextEditor 
+                                                            value={typeof currentReportData === 'string' ? currentReportData : (currentReportData?.html || currentReportData?.impression || '')} 
+                                                            onChange={(val: string) => setCurrentReportData(val)} 
+                                                            readOnly={false}
+                                                        />
+                                                    </div>
                                                 </div>
-                                                <Signatures customTechName={customTechName} setCustomTechName={setCustomTechName} customTechDegree={customTechDegree} setCustomTechDegree={setCustomTechDegree} customDocName={customDocName} setCustomDocName={setCustomDocName} customDocDegree={customDocDegree} setCustomDocDegree={setCustomDocDegree} />
+                                                <Signatures techLabel={activeTestName.toLowerCase().includes('usg') ? "Sonographer" : "Lab Technologist"} docLabel={activeTestName.toLowerCase().includes('usg') ? "Sonologist" : "Pathologist / Reporter"} customTechName={customTechName} customTechDegree={customTechDegree} customDocName={customDocName} customDocDegree={customDocDegree} />
                                             </div>
                                         </div>
                                     ) : (
                                         <div className="space-y-10">
                                             {(Object.entries(groupedPathologyTests) as [string, string[]][]).map(([category, testsInCat]) => {
-                                                const cbcTest = testsInCat.find(t => t.toLowerCase().includes('cbc'));
-                                                const otherTests = testsInCat.filter(t => !t.toLowerCase().includes('cbc'));
-                                                const specialTests = otherTests.filter(t => t.toLowerCase().includes('urine') || t.toLowerCase().includes('semen'));
-                                                const regularTests = otherTests.filter(t => !specialTests.includes(t));
+                                                const cbcTest = testsInCat.find((t: any) => t.toLowerCase().includes('cbc'));
+                                                const otherTests = testsInCat.filter((t: any) => !t.toLowerCase().includes('cbc'));
+                                                const specialTests = otherTests.filter((t: any) => t.toLowerCase().includes('urine')); // Semen handled by RichText
+                                                const regularTests = otherTests.filter((t: any) => !specialTests.includes(t));
 
                                                 return (
                                                     <React.Fragment key={category}>
@@ -511,7 +581,7 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
                                                                             </tbody>
                                                                         </table>
                                                                     </div>
-                                                                    <Signatures customTechName={customTechName} setCustomTechName={setCustomTechName} customTechDegree={customTechDegree} setCustomTechDegree={setCustomTechDegree} customDocName={customDocName} setCustomDocName={setCustomDocName} customDocDegree={customDocDegree} setCustomDocDegree={setCustomDocDegree} />
+                                                                    <Signatures customTechName={customTechName} customTechDegree={customTechDegree} customDocName={customDocName} customDocDegree={customDocDegree} />
                                                                 </div>
                                                             </div>
                                                         )}
@@ -524,7 +594,7 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
                                                                         <div className="category-title">Hematology Report</div>
                                                                         <CBCInputPage results={currentReportData} onSaveOverride={handleSaveReport} patient={patient} invoice={currentInvoice} doctors={doctors} employees={employees} technologistId={selectedTechnologistId} consultantId={selectedConsultantId} isEmbedded={true} checkRange={isOutOfRange} />
                                                                     </div>
-                                                                    <Signatures customTechName={customTechName} setCustomTechName={setCustomTechName} customTechDegree={customTechDegree} setCustomTechDegree={setCustomTechDegree} customDocName={customDocName} setCustomDocName={setCustomDocName} customDocDegree={customDocDegree} setCustomDocDegree={setCustomDocDegree} />
+                                                                    <Signatures customTechName={customTechName} customTechDegree={customTechDegree} customDocName={customDocName} customDocDegree={customDocDegree} />
                                                                 </div>
                                                             </div>
                                                         )}
@@ -541,7 +611,7 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
                                                                             <SemenAnalysisInputPage results={currentReportData} onSaveOverride={handleSaveReport} patient={patient} invoice={currentInvoice} doctors={doctors} employees={employees} technologistId={selectedTechnologistId} consultantId={selectedConsultantId} isEmbedded={true} />
                                                                         )}
                                                                     </div>
-                                                                    <Signatures customTechName={customTechName} setCustomTechName={setCustomTechName} customTechDegree={customTechDegree} setCustomTechDegree={setCustomTechDegree} customDocName={customDocName} setCustomDocName={setCustomDocName} customDocDegree={customDocDegree} setCustomDocDegree={setCustomDocDegree} />
+                                                                    <Signatures customTechName={customTechName} customTechDegree={customTechDegree} customDocName={customDocName} customDocDegree={customDocDegree} />
                                                                 </div>
                                                             </div>
                                                         ))}

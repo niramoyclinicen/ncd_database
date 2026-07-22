@@ -835,6 +835,35 @@ pdate the local state and reset form
     return summary;
   }, [invoices, reportDate]); // Using invoices and reportDate as triggers
 
+    const yearlyReport = useMemo(() => {
+    const currentYear = today.getFullYear();
+
+    const collections = invoices.filter(inv => {
+      const invDate = new Date(inv.invoice_date);
+      return invDate.getFullYear() === currentYear && inv.status !== 'Cancelled';
+    });
+
+    const refunds = invoices.filter(inv => {
+        if (!inv.return_date) return false;
+        const retDate = new Date(inv.return_date);
+        return retDate.getFullYear() === currentYear && inv.status === 'Returned';
+    });
+
+    const summary = collections.reduce((acc, inv) => {
+      acc.totalBill += inv.total_amount;
+      acc.totalDiscount += inv.discount_amount;
+      acc.netPayable += inv.net_payable;
+      acc.paidAmount += inv.paid_amount;
+      acc.dueAmount += inv.due_amount;
+      return acc;
+    }, { totalBill: 0, totalDiscount: 0, netPayable: 0, paidAmount: 0, dueAmount: 0 });
+
+    const totalRefunded = refunds.reduce((sum, inv) => sum + inv.paid_amount, 0);
+    summary.paidAmount -= totalRefunded;
+
+    return summary;
+  }, [invoices, today]);
+
   const monthlyReport = useMemo(() => {
     const currentMonth = today.getMonth();
     const currentYear = today.getFullYear();
@@ -1248,8 +1277,8 @@ pdate the local state and reset form
                 <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider">Monthly Invoices:</span>
                 <span className="text-sm font-black text-white">{monthlyInvoiceCount}</span>
             </div>
-        </div>
       </div>
+    </div>
       <form id="invoice-form" onSubmit={handleSaveInvoice}>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-x-4 gap-y-5 items-start">
           <div className="lg:col-span-1">
@@ -1457,8 +1486,8 @@ pdate the local state and reset form
 
 
       <div className="mt-8 pt-6 border-t border-slate-700">
-        <h3 className="text-xl font-bold text-slate-100 mb-4 text-center">Daily & Monthly Hishab</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <h3 className="text-xl font-bold text-slate-100 mb-4 text-center">Daily, Monthly & Yearly Hishab</h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="bg-white text-gray-800 rounded-lg p-5 shadow-md border border-gray-200">
             <div className="flex justify-center items-center mb-3"><input type="date" value={reportDate} onChange={(e) => setReportDate(e.target.value)} className="py-1 px-2 border border-gray-300 rounded-md shadow-sm sm:text-sm bg-gray-50 text-gray-900" /></div>
             <div className="space-y-2">
@@ -1477,6 +1506,16 @@ pdate the local state and reset form
                 <div className="flex justify-between items-center"><span className="font-medium text-gray-600">Net Payable:</span> <span className="font-bold">{(monthlyReport.netPayable || 0).toFixed(2)}</span></div>
                 <div className="flex justify-between items-center"><span className="font-medium text-green-600">Paid Amount:</span> <span className="font-bold text-green-600">{(monthlyReport.paidAmount || 0).toFixed(2)}</span></div>
                 <div className="flex justify-between items-center"><span className="font-medium text-red-600">Due Amount:</span> <span className="font-bold text-red-600">{(monthlyReport.dueAmount || 0).toFixed(2)}</span></div>
+            </div>
+          </div>
+          <div className="bg-white text-gray-800 rounded-lg p-5 shadow-md border border-gray-200">
+            <p className="text-base font-semibold text-gray-700 mb-3 text-center">For {new Date().getFullYear()}</p>
+            <div className="space-y-2">
+                <div className="flex justify-between items-center"><span className="font-medium text-gray-600">Total Bill:</span> <span className="font-bold">{(yearlyReport.totalBill || 0).toFixed(2)}</span></div>
+                <div className="flex justify-between items-center"><span className="font-medium text-gray-600">Total Discount:</span> <span className="font-bold">{(yearlyReport.totalDiscount || 0).toFixed(2)}</span></div>
+                <div className="flex justify-between items-center"><span className="font-medium text-gray-600">Net Payable:</span> <span className="font-bold">{(yearlyReport.netPayable || 0).toFixed(2)}</span></div>
+                <div className="flex justify-between items-center"><span className="font-medium text-green-600">Paid Amount:</span> <span className="font-bold text-green-600">{(yearlyReport.paidAmount || 0).toFixed(2)}</span></div>
+                <div className="flex justify-between items-center"><span className="font-medium text-red-600">Due Amount:</span> <span className="font-bold text-red-600">{(yearlyReport.dueAmount || 0).toFixed(2)}</span></div>
             </div>
           </div>
         </div>
@@ -1572,12 +1611,12 @@ pdate the local state and reset form
               {/* COLUMN-WISE TOTALS SUMMARY ROW */}
               <tr className="bg-slate-800 border-b border-slate-700 no-print">
                 <th colSpan={6} className="px-6 py-2 text-right text-xs font-black text-slate-400 uppercase tracking-widest">Summary Totals:</th>
-                <th className="px-6 py-2 text-right text-lg font-black text-white">৳ {(tableTotals.total || 0).toFixed(2)}</th>
-                <th className="px-6 py-2 text-right text-lg font-black text-emerald-400">৳ {(tableTotals.paid || 0).toFixed(2)}</th>
-                <th className="px-6 py-2 text-right text-lg font-black text-rose-400">৳ {(tableTotals.due || 0).toFixed(2)}</th>
-                <th colSpan={2} className="px-6 py-2 text-right text-lg font-black text-blue-400 border-l border-slate-700">
-                    <span className="text-xs font-black text-slate-400 uppercase tracking-widest mr-2">Diagnostic Income:</span>
-                    ৳ {(tableTotals.income || 0).toFixed(2)}
+                <th className="px-6 py-2 text-right text-base font-black text-white">{(tableTotals.total || 0).toFixed(2)}</th>
+                <th className="px-6 py-2 text-right text-base font-black text-emerald-400">{(tableTotals.paid || 0).toFixed(2)}</th>
+                <th className="px-6 py-2 text-right text-base font-black text-rose-400">{(tableTotals.due || 0).toFixed(2)}</th>
+                <th colSpan={2} className="px-6 py-2 text-left text-base font-black text-blue-400 border-l border-slate-700">
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mr-1">Income:</span>
+                    {(tableTotals.income || 0).toFixed(2)}
                 </th>
               </tr>
               <tr>

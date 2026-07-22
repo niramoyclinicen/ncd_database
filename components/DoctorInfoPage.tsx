@@ -40,7 +40,7 @@ const DoctorInfoPage: React.FC<DoctorInfoPageProps> = ({
     );
   }, [searchTerm, doctors, isEmbedded]);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     if (name === 'mobile') {
       setMobileError('');
@@ -136,7 +136,7 @@ const DoctorInfoPage: React.FC<DoctorInfoPageProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-5">
             <div><label className={labelBaseClasses}>Doctor Name</label><input type="text" name="doctor_name" value={formData.doctor_name} onChange={handleInputChange} required className={inputBaseClasses} /></div>
             <div><label className={labelBaseClasses}>Gender</label><select name="gender" value={formData.gender} onChange={handleInputChange} className={inputBaseClasses}><option value="">Select</option><option value="Male">Male</option><option value="Female">Female</option></select></div>
-            <div><label className={labelBaseClasses}>Degree</label><input type="text" name="degree" value={formData.degree} onChange={handleInputChange} className={inputBaseClasses} placeholder="e.g. MBBS, FCPS" /></div>
+            <div><label className={labelBaseClasses}>Degree (multi-line allowed)</label><textarea name="degree" value={formData.degree} onChange={handleInputChange} className={inputBaseClasses} placeholder="e.g. MBBS, FCPS\nMD (Medicine)" rows={2} /></div>
             <div><label className={labelBaseClasses}>Mobile</label><input type="tel" name="mobile" value={formData.mobile} onChange={handleInputChange} placeholder="01XXX-XXXXXX" className={inputBaseClasses} /></div>
             <div className="md:col-span-2 flex items-center gap-4 mt-2 bg-sky-900/30 p-4 rounded-lg border border-sky-800">
                 <div className="flex-shrink-0">{formData.photo ? <img src={formData.photo} alt="Doc" className="w-24 h-24 rounded-full object-cover border-2 border-sky-500 shadow-md" /> : <div className="w-24 h-24 rounded-full bg-sky-800 flex items-center justify-center text-sky-400 border-2 border-dashed border-sky-600"><span className="text-xs">No Photo</span></div>}</div>

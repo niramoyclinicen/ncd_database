@@ -407,6 +407,7 @@ const App: React.FC = () => {
             indoorInvoices={indoorInvoices}
             medicines={medicines}
             tests={tests}
+            reagents={reagents}
             setReagents={setReagents}
             attendanceLog={attendanceLog} setAttendanceLog={setAttendanceLog}
             leaveLog={leaveLog} setLeaveLog={setLeaveLog}

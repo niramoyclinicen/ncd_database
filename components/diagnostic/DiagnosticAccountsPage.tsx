@@ -332,7 +332,7 @@ const HistoryModal: React.FC<{ item: ExpenseItem, onClose: () => void }> = ({ it
 
 const DailyExpenseForm: React.FC<any> = ({ 
     selectedDate, onDateChange, allDetailedExpenses, onSave, onDelete, onEdit, 
-    employees, monthlyRoster, editingItem, diagnosticSettings, setDiagnosticSettings, performBlockingSync,
+    employees, monthlyRoster, editingItem, diagnosticSettings, setDiagnosticSettings, performBlockingSync, reagents,
     setSuccessMessage
 }) => {
     const [items, setItems] = useState<ExpenseItem[]>([]);
@@ -535,7 +535,12 @@ const DailyExpenseForm: React.FC<any> = ({
     const customSubCategories = diagnosticSettings?.customSubCategories || {};
 
     const getSubCategories = (category: string) => {
-        const defaultSubs = subCategoryMap[category] || [];
+        let defaultSubs = subCategoryMap[category] || [];
+        if (category === 'Reagent buy' || category === 'X-ray Film buy') {
+            const reagentNames = (reagents || []).map((r: any) => r.reagent_name).filter(Boolean);
+            defaultSubs = [...defaultSubs, ...reagentNames];
+        }
+        
         const customSubs = customSubCategories[category] || [];
         return Array.from(new Set([...defaultSubs, ...customSubs]));
     };
@@ -928,7 +933,7 @@ const DailyExpenseForm: React.FC<any> = ({
 
 const DiagnosticAccountsPage: React.FC<any> = ({ 
     onBack, invoices, dueCollections, employees, detailedExpenses, setDetailedExpenses, monthlyRoster,
-    patients, doctors, diagnosticSettings, setDiagnosticSettings, performBlockingSync, availableTests = []
+    patients, doctors, diagnosticSettings, setDiagnosticSettings, performBlockingSync, availableTests = [], reagents = []
 }) => {
     const todayStr = new Date().toISOString().split('T')[0];
     const [selectedDate, setSelectedDate] = useState(todayStr);

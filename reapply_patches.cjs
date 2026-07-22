@@ -1,12 +1,60 @@
 const fs = require('fs');
+
+// 1. Patch App.tsx
+let app = fs.readFileSync('App.tsx', 'utf8');
+app = app.replace(
+    'tests={tests}\n            setReagents={setReagents}',
+    'tests={tests}\n            reagents={reagents}\n            setReagents={setReagents}'
+);
+fs.writeFileSync('App.tsx', app);
+console.log("Patched App.tsx");
+
+// 2. Patch AccountingPage.tsx
+let accCode = fs.readFileSync('components/AccountingPage.tsx', 'utf8');
+accCode = accCode.replace(
+    'tests: Test[];\n  setReagents: React.Dispatch<React.SetStateAction<Reagent[]>>;',
+    'tests: Test[];\n  reagents: Reagent[];\n  setReagents: React.Dispatch<React.SetStateAction<Reagent[]>>;'
+);
+accCode = accCode.replace(
+    'employees, setEmployees,',
+    'employees, setEmployees, reagents,'
+);
+accCode = accCode.replace(
+    'setDetailedExpenses, setReagents, attendanceLog,',
+    'setDetailedExpenses, reagents, setReagents, attendanceLog,'
+);
+accCode = accCode.replace(
+    'setReagents={setReagents} \n            availableTests={tests}',
+    'setReagents={setReagents} \n            reagents={reagents}\n            availableTests={tests}'
+);
+fs.writeFileSync('components/AccountingPage.tsx', accCode);
+console.log("Patched AccountingPage.tsx");
+
+// 3. Patch DiagnosticAccountsPage.tsx
+let diagCode = fs.readFileSync('components/diagnostic/DiagnosticAccountsPage.tsx', 'utf8');
+diagCode = diagCode.replace(
+    'patients, doctors, diagnosticSettings, setDiagnosticSettings, performBlockingSync, availableTests = []',
+    'patients, doctors, diagnosticSettings, setDiagnosticSettings, performBlockingSync, availableTests = [], reagents = []'
+);
+diagCode = diagCode.replace(
+    `const getSubCategories = (category: string) => {
+        const defaultSubs = subCategoryMap[category] || [];`,
+    `const getSubCategories = (category: string) => {
+        let defaultSubs = subCategoryMap[category] || [];
+        if (category === 'Reagent buy' || category === 'X-ray Film buy') {
+            const reagentNames = reagents.map((r: any) => r.reagent_name).filter(Boolean);
+            defaultSubs = [...defaultSubs, ...reagentNames];
+        }`
+);
+fs.writeFileSync('components/diagnostic/DiagnosticAccountsPage.tsx', diagCode);
+console.log("Patched DiagnosticAccountsPage.tsx");
+
+// 4. Patch ReagentInfoPage.tsx
 let code = fs.readFileSync('components/ReagentInfoPage.tsx', 'utf8');
 
-// Add XIcon to imports if missing
 if (!code.includes('XIcon')) {
     code = code.replace("import { Activity, PrinterIcon, SearchIcon, BeakerIcon, DatabaseIcon, PlusIcon, FileTextIcon }", "import { Activity, PrinterIcon, SearchIcon, BeakerIcon, DatabaseIcon, PlusIcon, FileTextIcon, XIcon }");
 }
-
-// Check for missing XIcon in Icons.tsx just in case, though it usually exists.
 
 const modalCode = `
     const [showForm, setShowForm] = useState(false);
@@ -19,7 +67,7 @@ const modalCode = `
         setShowForm(true);
     };
 
-    const handleEditClick = (r: Reagent) => {
+    const handleEditClick = (r) => {
         setFormData(r);
         setIsEditing(true);
         setManualStockQty(r.quantity.toString());
@@ -36,10 +84,20 @@ const modalCode = `
             newReagents = [...reagents, formData];
         }
         setReagents(newReagents);
-        if (performBlockingSync) await performBlockingSync({ reagents: newReagents });
-        setShowForm(false);
-        setSuccessMessage('Saved successfully!');
-        setTimeout(() => setSuccessMessage(''), 3000);
+        if (performBlockingSync) {
+             const success = await performBlockingSync({ reagents: newReagents });
+             if(success) {
+                 setShowForm(false);
+                 setSuccessMessage('Saved successfully!');
+                 setTimeout(() => setSuccessMessage(''), 3000);
+             } else {
+                 alert("Failed to save. Please try again.");
+             }
+        } else {
+            setShowForm(false);
+            setSuccessMessage('Saved successfully!');
+            setTimeout(() => setSuccessMessage(''), 3000);
+        }
     };
 
     const handleSetStock = async () => {
@@ -61,17 +119,27 @@ const modalCode = `
         const newReagents = reagents.map(r => r.reagent_id === formData.reagent_id ? updatedFormData : r);
         setReagents(newReagents);
         setFormData(updatedFormData);
-        if (performBlockingSync) await performBlockingSync({ reagents: newReagents });
-        
-        setSuccessMessage('Stock calibrated!');
-        setTimeout(() => setSuccessMessage(''), 3000);
+        if (performBlockingSync) {
+            const success = await performBlockingSync({ reagents: newReagents });
+            if (success) {
+                setSuccessMessage('Stock calibrated!');
+                setTimeout(() => setSuccessMessage(''), 3000);
+            } else {
+                alert("Failed to save. Please try again.");
+            }
+        } else {
+            setSuccessMessage('Stock calibrated!');
+            setTimeout(() => setSuccessMessage(''), 3000);
+        }
     };
 `;
 
-code = code.replace(
-    'const [successMessage, setSuccessMessage] = useState(\'\');',
-    'const [successMessage, setSuccessMessage] = useState(\'\');\n' + modalCode
-);
+if (!code.includes('const [showForm, setShowForm] = useState(false);')) {
+    code = code.replace(
+        'const [successMessage, setSuccessMessage] = useState(\'\');',
+        'const [successMessage, setSuccessMessage] = useState(\'\');\n' + modalCode
+    );
+}
 
 const buttonCode = `
                         {viewMode === 'inventory' && (
@@ -79,21 +147,23 @@ const buttonCode = `
                         )}
 `;
 
-code = code.replace(
-    '{viewMode === \'requisition\' && (',
-    buttonCode + '\n                        {viewMode === \'requisition\' && ('
-);
+if (!code.includes('onClick={handleAddClick}')) {
+    code = code.replace(
+        '{viewMode === \'requisition\' && (',
+        buttonCode + '\n                        {viewMode === \'requisition\' && ('
+    );
+}
 
-// Make row clickable
-code = code.replace(
-    '<tr key={r.reagent_id} className={`hover:bg-slate-800/40 transition-colors group ${requisitionItems.includes(r.reagent_id) ? \'bg-emerald-900/10\' : \'\'}`}>',
-    '<tr key={r.reagent_id} onClick={() => viewMode === \'inventory\' && handleEditClick(r)} className={`cursor-pointer hover:bg-slate-800/40 transition-colors group ${requisitionItems.includes(r.reagent_id) ? \'bg-emerald-900/10\' : \'\'}`}>'
-);
+if (!code.includes('handleEditClick(r)')) {
+    code = code.replace(
+        '<tr key={r.reagent_id} className={`hover:bg-slate-800/40 transition-colors group ${requisitionItems.includes(r.reagent_id) ? \'bg-emerald-900/10\' : \'\'}`}>',
+        '<tr key={r.reagent_id} onClick={() => viewMode === \'inventory\' && handleEditClick(r)} className={`cursor-pointer hover:bg-slate-800/40 transition-colors group ${requisitionItems.includes(r.reagent_id) ? \'bg-emerald-900/10\' : \'\'}`}>'
+    );
+}
 
-// Modal UI
 const renderModal = `
             {showForm && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+                <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
                     <div className="bg-slate-900 w-full max-w-2xl rounded-3xl border border-slate-700 shadow-2xl flex flex-col max-h-[90vh]">
                         <div className="p-6 border-b border-slate-800 flex justify-between items-center">
                             <h3 className="text-xl font-black text-white">{isEditing ? 'Edit Reagent / Stock' : 'Add New Reagent'}</h3>
@@ -159,11 +229,13 @@ const renderModal = `
             )}
 `;
 
-code = code.replace(
-    '</main>\n        </div>\n    );\n};',
-    '</main>\n' + renderModal + '\n        </div>\n    );\n};'
-);
-
+if (!code.includes('z-[9999]')) {
+    code = code.replace(
+        '</main>',
+        '</main>\n' + renderModal
+    );
+}
 
 fs.writeFileSync('components/ReagentInfoPage.tsx', code);
 console.log("Patched ReagentInfoPage.tsx");
+

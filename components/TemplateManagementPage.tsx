@@ -1,330 +1,176 @@
+import React, { useState, useEffect } from 'react';
+import { SettingsIcon, SaveIcon, PlusIcon, FileTextIcon, Activity } from './Icons';
+import { RichTextEditor } from './RichTextEditor';
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { ReportTemplate, ReportField, testCategories } from './DiagnosticData';
-import { SaveIcon, BackIcon, PlusIcon, FileTextIcon, SettingsIcon, Activity } from './Icons';
-
-interface Props {
-  onBack: () => void;
-}
-
-interface EditorField extends ReportField {
-  id: string;
-}
-
-const TemplateManagementPage: React.FC<Props> = ({ onBack }) => {
-  const [templates, setTemplates] = useState<ReportTemplate[]>(() => {
-    const saved = localStorage.getItem('ncd_report_templates_v4');
-    return saved ? JSON.parse(saved) : [];
-  });
-  const [isEditing, setIsEditing] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState('All List');
-  
-  const [currentTemplate, setCurrentTemplate] = useState<{
+interface RichTextTemplate {
     id: string;
-    name: string;
-    category: string;
-    gender: 'Male' | 'Female' | 'Common';
-    fields: EditorField[];
-    impression: string;
-    extraNote: string;
-  }>(() => ({
-    id: '', 
-    name: '', 
-    category: 'Ultrasonography (USG)', 
-    gender: 'Common', 
-    fields: [{ label: '', value: '', type: 'locked', isBold: false, fontSize: '14px', color: '#000000', id: `row-${Date.now()}` }], 
-    extraNote: '', 
-    impression: ''
-  }));
+    testName: string; // The test this template belongs to (e.g., 'USG of Whole Abdomen')
+    templateName: string; // The specific name (e.g., 'Pregnancy with Cholelithiasis')
+    contentHtml: string;
+}
 
-  useEffect(() => {
-    localStorage.setItem('ncd_report_templates_v4', JSON.stringify(templates));
-  }, [templates]);
-
-  const filteredTemplates = useMemo(() => {
-    if (selectedCategory === 'All List') return templates;
-    return templates.filter(t => t.category === selectedCategory);
-  }, [templates, selectedCategory]);
-
-  const handleAddField = () => {
-    setCurrentTemplate(prev => ({
-      ...prev,
-      fields: [...prev.fields, { 
-        label: '', 
-        value: '', 
-        type: 'locked', 
-        isBold: false, 
-        fontSize: '14px', 
-        color: '#000000', 
-        id: `row-${Date.now()}-${Math.random().toString(36).substr(2, 5)}` 
-      }]
-    }));
-  };
-
-  const handleFieldChange = (fieldId: string, property: keyof ReportField, val: any) => {
-    setCurrentTemplate(prev => ({
-      ...prev,
-      fields: prev.fields.map(f => f.id === fieldId ? { ...f, [property]: val } : f)
-    }));
-  };
-
-  const handleRemoveField = (fieldId: string) => {
-    if (currentTemplate.fields.length <= 1) return;
-    setCurrentTemplate(prev => ({
-      ...prev,
-      fields: prev.fields.filter(f => f.id !== fieldId)
-    }));
-  };
-
-  const resetForm = useCallback(() => {
-    setCurrentTemplate({ 
-      id: '', name: '', category: 'Ultrasonography (USG)', gender: 'Common', 
-      fields: [{ label: '', value: '', type: 'locked', isBold: false, fontSize: '14px', color: '#000000', id: `row-${Date.now()}` }], 
-      extraNote: '', impression: '' 
+const TemplateManagementPage: React.FC<any> = ({ onBack, tests = [] }) => {
+    const [templates, setTemplates] = useState<RichTextTemplate[]>(() => {
+        const saved = localStorage.getItem('ncd_rt_templates_v1');
+        return saved ? JSON.parse(saved) : [];
     });
-  }, []);
+    const [isEditing, setIsEditing] = useState(false);
+    const [currentTemplate, setCurrentTemplate] = useState<RichTextTemplate>({
+        id: '', testName: '', templateName: '', contentHtml: '<p><br></p>'
+    });
+    const [searchTerm, setSearchTerm] = useState('');
+    const [selectedTestFilter, setSelectedTestFilter] = useState('All');
 
-  const handleSave = useCallback(() => {
-    if (!currentTemplate.name) return alert("টেমপ্লেটের একটি নাম দিন।");
-    
-    const storageTemplate: ReportTemplate = {
-      id: isEditing && currentTemplate.id ? currentTemplate.id : `TMP-${Date.now()}`,
-      name: currentTemplate.name,
-      category: currentTemplate.category,
-      gender: currentTemplate.gender,
-      testMapping: [],
-      fields: currentTemplate.fields.map(({ id, ...rest }) => rest),
-      impression: currentTemplate.impression,
-      extraNote: currentTemplate.extraNote
+    useEffect(() => {
+        localStorage.setItem('ncd_rt_templates_v1', JSON.stringify(templates));
+    }, [templates]);
+
+    const handleSave = () => {
+        if (!currentTemplate.testName || !currentTemplate.templateName) {
+            alert('Please select a test and provide a template name.');
+            return;
+        }
+        let updated = [...templates];
+        if (currentTemplate.id) {
+            updated = updated.map(t => t.id === currentTemplate.id ? currentTemplate : t);
+        } else {
+            updated.push({ ...currentTemplate, id: 'T-' + Date.now() });
+        }
+        setTemplates(updated);
+        setIsEditing(false);
     };
 
-    setTemplates(prev => {
-      if (isEditing && currentTemplate.id) {
-        return prev.map(t => t.id === currentTemplate.id ? storageTemplate : t);
-      }
-      return [storageTemplate, ...prev];
-    });
-    
-    setIsEditing(false);
-    resetForm();
-    alert("Master Template Saved Successfully!");
-  }, [currentTemplate, isEditing, setTemplates, resetForm]);
+    const editTemplate = (t: RichTextTemplate) => {
+        setCurrentTemplate(t);
+        setIsEditing(true);
+    };
 
-  const editTemplate = (t: ReportTemplate) => {
-    setCurrentTemplate({
-      ...t,
-      fields: t.fields.map(f => ({ ...f, id: `row-${Math.random().toString(36).substr(2, 9)}` }))
-    });
-    setIsEditing(true);
-  };
+    const resetForm = () => {
+        setCurrentTemplate({ id: '', testName: '', templateName: '', contentHtml: '<p><br></p>' });
+    };
 
-  const libraryCategories = ['All List', ...testCategories];
+    const uniqueTests = Array.from(new Set(templates.map(t => t.testName))).filter(Boolean);
+    const filteredTemplates = templates.filter(t => 
+        (selectedTestFilter === 'All' || t.testName === selectedTestFilter) &&
+        (t.templateName.toLowerCase().includes(searchTerm.toLowerCase()) || t.testName.toLowerCase().includes(searchTerm.toLowerCase()))
+    );
 
-  return (
-    <div className="bg-slate-100 h-full flex flex-col overflow-hidden text-slate-800">
-      <div className="p-4 bg-slate-900 flex justify-between items-center text-white shrink-0 shadow-2xl z-20">
-        <div className="flex items-center gap-4">
-          <button onClick={onBack} className="p-2 bg-slate-800 rounded-full hover:bg-slate-700 transition-all"><BackIcon size={20}/></button>
-          <div className="flex flex-col">
-            <h2 className="text-xl font-black uppercase tracking-tighter">NCD Template Master</h2>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Medical Logic Configuration</p>
-          </div>
-        </div>
-        <div className="flex gap-3">
-          {!isEditing ? (
-            <button onClick={() => { resetForm(); setIsEditing(true); }} className="bg-blue-600 text-white px-8 py-2.5 rounded-2xl font-black text-xs uppercase shadow-xl hover:bg-blue-500 transition-all">Create New Master</button>
-          ) : (
-            <>
-              <button onClick={() => { setIsEditing(false); resetForm(); }} className="bg-slate-700 text-white px-6 py-2.5 rounded-2xl font-black text-xs uppercase">Cancel</button>
-              <button onClick={handleSave} className="bg-emerald-600 text-white px-10 py-2.5 rounded-2xl font-black text-xs uppercase shadow-xl flex items-center gap-2 border-b-4 border-emerald-900 active:scale-95 transition-all"><SaveIcon size={14}/> Save Master</button>
-            </>
-          )}
-        </div>
-      </div>
+    // Filter tests that are USG or Semen for the dropdown
+    const availableTests = tests.filter((t: any) => 
+        t.test_name.toLowerCase().includes('usg') || 
+        t.test_name.toLowerCase().includes('ultra') || 
+        t.test_name.toLowerCase().includes('semen')
+    );
 
-      <div className="flex-1 flex overflow-hidden">
-        {/* CATEGORY SIDEBAR */}
-        {!isEditing && (
-          <div className="w-64 bg-slate-800 flex flex-col shrink-0 border-r border-slate-700 no-print">
-            <div className="p-4 bg-slate-900 border-b border-slate-700">
-              <h3 className="font-black text-xs text-slate-400 uppercase tracking-widest">Template Groups</h3>
-            </div>
-            <div className="flex-1 overflow-y-auto py-4 space-y-1">
-              {libraryCategories.map(cat => (
-                <button
-                  key={cat}
-                  onClick={() => setSelectedCategory(cat)}
-                  className={`w-full text-left px-6 py-3 text-xs font-bold transition-all border-l-4 ${selectedCategory === cat ? 'bg-blue-600 text-white border-blue-400 shadow-inner' : 'text-slate-400 border-transparent hover:bg-slate-700 hover:text-slate-200'}`}
-                >
-                  {cat}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {isEditing ? (
-          <div className="flex-1 flex overflow-hidden animate-fade-in">
-            <div className="w-[600px] overflow-y-auto bg-slate-50 border-r border-slate-300 p-4 space-y-4 custom-scrollbar shadow-inner shrink-0">
-                
-                <div className="bg-indigo-900 text-indigo-100 p-3 rounded-xl shadow-lg border-l-4 border-indigo-400">
-                    <h4 className="flex items-center gap-2 font-black text-[10px] uppercase tracking-widest mb-2"><Activity size={12}/> Shortcuts Guide</h4>
-                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-[9px] font-bold opacity-90">
-                        <span className="flex items-center gap-1">🔹 Dropdown: <code className="bg-indigo-800 px-1 rounded">[A/B]</code></span>
-                        <span className="flex items-center gap-1">🔹 Tag: <code className="bg-indigo-800 px-1 rounded">[[Name]]</code></span>
-                        <span className="flex items-center gap-1">🔹 Input: <code className="bg-indigo-800 px-1 rounded">___</code></span>
-                    </div>
-                </div>
-
-                <div className="bg-white p-4 rounded-xl border border-slate-200 space-y-3 shadow-sm">
+    return (
+        <div className="flex-1 flex flex-col bg-slate-100 overflow-hidden text-black font-sans min-h-0">
+            <div className="bg-slate-900 p-4 shrink-0 flex justify-between items-center shadow-md z-10 text-white">
+                <div className="flex items-center gap-3">
+                    <button onClick={onBack} className="p-2 hover:bg-slate-800 rounded-xl transition-all">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+                    </button>
                     <div>
-                        <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Report Title</label>
-                        <input value={currentTemplate.name} onChange={e=>setCurrentTemplate(prev=>({...prev, name: e.target.value}))} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg font-black text-sm focus:border-blue-500 outline-none" placeholder="e.g. USG OF KUB" />
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                        <div>
-                            <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Category</label>
-                            <select value={currentTemplate.category} onChange={e=>setCurrentTemplate(prev=>({...prev, category: e.target.value}))} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg font-bold text-xs">
-                            {testCategories.map(c => <option key={c} value={c}>{c}</option>)}
-                            </select>
-                        </div>
-                        <div>
-                            <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Gender</label>
-                            <select value={currentTemplate.gender} onChange={e=>setCurrentTemplate(prev=>({...prev, gender: e.target.value as any}))} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg font-bold text-xs">
-                                <option value="Common">Common</option>
-                                <option value="Male">Male</option>
-                                <option value="Female">Female</option>
-                            </select>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="space-y-2">
-                    <div className="flex justify-between items-center px-1 mb-1">
-                        <h3 className="font-black text-slate-500 uppercase text-[10px] tracking-widest">Findings Sequence</h3>
-                        <button onClick={handleAddField} className="bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white px-3 py-1 rounded-lg text-[9px] font-black uppercase transition-all">+ Add Row</button>
-                    </div>
-                    
-                    <div className="space-y-1">
-                        {currentTemplate.fields.map((f) => (
-                        <div key={f.id} className="bg-white px-3 py-2 rounded-xl border border-slate-200 shadow-sm group hover:border-blue-300 transition-all">
-                            <div className="flex gap-3 items-start">
-                                <div className="w-1/3 space-y-1">
-                                    <div className="flex justify-between items-center pr-1">
-                                        <label className="text-[8px] font-black text-slate-400 uppercase">Label</label>
-                                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <button onClick={()=>handleFieldChange(f.id, 'isBold', !f.isBold)} title="Toggle Bold" className={`w-5 h-5 rounded flex items-center justify-center text-[9px] font-black transition-all ${f.isBold ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-400'}`}>B</button>
-                                            <input type="color" value={f.color} onChange={e=>handleFieldChange(f.id, 'color', e.target.value)} className="w-5 h-5 border-none p-0 cursor-pointer bg-transparent" title="Pick Color" />
-                                            <select value={f.fontSize} onChange={e=>handleFieldChange(f.id, 'fontSize', e.target.value)} className="text-[8px] border-none bg-slate-100 rounded px-1 outline-none">
-                                                {['10px','12px','14px','16px','18px','20px'].map(s => <option key={s} value={s}>{s}</option>)}
-                                            </select>
-                                            <button onClick={()=>handleRemoveField(f.id)} className="w-5 h-5 rounded bg-rose-50 text-rose-500 flex items-center justify-center text-[9px] font-black hover:bg-rose-500 hover:text-white transition-all">×</button>
-                                        </div>
-                                    </div>
-                                    <input 
-                                        value={f.label} 
-                                        onChange={e=>handleFieldChange(f.id, 'label', e.target.value)} 
-                                        className="w-full p-1.5 border border-slate-100 bg-slate-50/50 rounded-md text-[11px] font-bold text-slate-800 outline-none focus:border-blue-400 focus:bg-white capitalize" 
-                                        placeholder="e.g. Liver" 
-                                    />
-                                </div>
-                                <div className="flex-1 space-y-1">
-                                    <label className="text-[8px] font-black text-slate-400 uppercase ml-1">Findings / Result Template</label>
-                                    <textarea 
-                                        value={f.value} 
-                                        onChange={e=>handleFieldChange(f.id, 'value', e.target.value)} 
-                                        className={`w-full p-1.5 border border-slate-100 bg-slate-50/50 rounded-md text-[11px] h-9 outline-none focus:bg-white focus:border-blue-200 transition-all resize-none ${f.isBold ? 'font-black' : 'font-medium'}`} 
-                                        placeholder="[N/E], ___, [[Tag]]" 
-                                        style={{ fontSize: f.fontSize, color: f.color }}
-                                    />
-                                </div>
-                            </div>
-                        </div>
-                        ))}
-                    </div>
-                </div>
-
-                <div className="bg-slate-900 p-4 rounded-xl shadow-xl mt-4">
-                    <label className="text-[10px] font-black text-slate-400 uppercase block mb-1.5 ml-1">Final Impression / Conclusion</label>
-                    <textarea value={currentTemplate.impression} onChange={e=>setCurrentTemplate(prev=>({...prev, impression: e.target.value}))} className="w-full p-3 bg-slate-800 border-none rounded-lg font-bold text-xs h-20 text-white focus:ring-1 focus:ring-blue-500 outline-none shadow-inner" placeholder="Use [[TagName]] to link..." />
-                </div>
-            </div>
-
-            <div className="flex-1 bg-slate-200 p-10 overflow-y-auto flex justify-center custom-scrollbar">
-                <div className="bg-white w-full max-w-[820px] min-h-[1100px] shadow-2xl p-16 flex flex-col font-serif text-black origin-top scale-[0.8] -mt-20">
-                    <div className="text-center mb-10 border-b-4 border-slate-900 pb-4">
-                        <h2 className="text-3xl font-black uppercase text-blue-900 leading-none">Niramoy Clinic & Diagnostic</h2>
-                        <p className="text-[10px] font-black text-slate-500 mt-2 uppercase tracking-[0.3em]">Master Template Preview</p>
-                    </div>
-                    <h1 className="text-2xl text-center font-black underline uppercase tracking-widest mb-12">{currentTemplate.name || 'UNTITLED REPORT'}</h1>
-                    
-                    <div className="flex-1 space-y-2">
-                        {currentTemplate.fields.map((f) => (
-                            <div key={f.id} className="flex items-start">
-                                <div className="w-48 shrink-0 text-sm font-bold text-slate-800 pt-1 text-left font-sans capitalize pl-2">
-                                    {f.label || 'Label'}
-                                </div>
-                                <div className="w-6 shrink-0 text-center font-black text-sm pt-1">:</div>
-                                <div className="flex-1">
-                                    <div style={{ fontSize: f.fontSize, color: f.color }} className={`leading-relaxed whitespace-pre-wrap pl-1 ${f.isBold ? 'font-black' : 'font-normal'}`}>
-                                        {f.value || '...'}
-                                    </div>
-                                </div>
-                            </div>
-                        ))}
-                        
-                        <div className="mt-20 pt-8 border-t-4 border-slate-900">
-                            <h4 className="text-base font-black uppercase underline mb-4">Impression:</h4>
-                            <p className="text-xl font-black italic whitespace-pre-wrap">{currentTemplate.impression || '...'}</p>
-                        </div>
+                        <h2 className="text-lg font-black uppercase tracking-widest text-white">Rich Text Template Manager</h2>
+                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Manage MS Word style templates</p>
                     </div>
                 </div>
             </div>
-          </div>
-        ) : (
-          <div className="flex-1 overflow-y-auto bg-slate-50 p-10">
-            <div className="max-w-7xl mx-auto space-y-10">
-                <div className="flex justify-between items-end border-b-2 border-slate-200 pb-5">
-                    <div>
-                        <h3 className="text-3xl font-black text-slate-800 tracking-tighter uppercase">NCD Master Library</h3>
-                        <p className="text-sm font-bold text-slate-400 uppercase tracking-widest mt-1">
-                            Found {filteredTemplates.length} Saved Masters {selectedCategory !== 'All List' && `in ${selectedCategory}`}
-                        </p>
-                    </div>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                    {filteredTemplates.map(t => (
-                        <div key={t.id} className="bg-white p-8 rounded-[2.5rem] border-2 border-white shadow-xl hover:shadow-2xl hover:border-blue-400 transition-all group flex flex-col justify-between relative overflow-hidden">
-                            <div className={`absolute top-0 left-0 w-full h-2 ${t.gender === 'Male' ? 'bg-blue-500' : t.gender === 'Female' ? 'bg-pink-500' : 'bg-slate-300'}`}></div>
+
+            {isEditing ? (
+                <div className="flex-1 flex overflow-hidden min-h-0">
+                    <div className="w-[300px] shrink-0 bg-white border-r shadow-lg z-10 flex flex-col p-4">
+                        <h3 className="font-black uppercase tracking-widest text-slate-800 mb-4">Template Details</h3>
+                        <div className="space-y-4">
                             <div>
-                                <div className="flex justify-between items-start mb-6">
-                                    <span className={`text-[10px] font-black px-4 py-1 rounded-full uppercase shadow-inner ${t.gender === 'Male' ? 'bg-blue-50 text-blue-700' : t.gender === 'Female' ? 'bg-pink-50 text-pink-700' : 'bg-slate-100 text-slate-700'}`}>{t.gender}</span>
-                                    <div className="p-2 bg-slate-50 rounded-xl group-hover:bg-blue-50 transition-colors"><FileTextIcon className="text-slate-300 group-hover:text-blue-500" size={20}/></div>
-                                </div>
-                                <h4 className="font-black text-slate-800 text-2xl uppercase tracking-tighter leading-none mb-4 group-hover:text-blue-900 transition-colors">{t.name}</h4>
-                                <p className="text-[10px] font-bold text-slate-400 uppercase mb-4">{t.category}</p>
+                                <label className="text-[10px] font-black text-slate-500 uppercase block mb-1">Associated Test</label>
+                                <select 
+                                    value={currentTemplate.testName} 
+                                    onChange={e => setCurrentTemplate(prev => ({...prev, testName: e.target.value}))} 
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-sm font-bold text-slate-800 outline-none focus:border-blue-500"
+                                >
+                                    <option value="">-- Select Test --</option>
+                                    {availableTests.map((t: any) => (
+                                        <option key={t.test_id} value={t.test_name}>{t.test_name}</option>
+                                    ))}
+                                </select>
                             </div>
-                            <div className="flex gap-3 mt-8">
-                                <button onClick={() => editTemplate(t)} className="flex-1 py-4 bg-slate-900 rounded-2xl text-xs font-black uppercase tracking-widest text-white hover:bg-blue-600 transition-all shadow-lg active:scale-95">Edit Master</button>
-                                <button onClick={() => { if(confirm("Confirm Delete?")) setTemplates(templates.filter(x=>x.id!==t.id)) }} className="p-4 bg-rose-50 text-rose-500 hover:bg-rose-500 hover:text-white rounded-2xl transition-all border border-rose-100 shadow-sm active:scale-90">×</button>
+                            <div>
+                                <label className="text-[10px] font-black text-slate-500 uppercase block mb-1">Template Name</label>
+                                <input 
+                                    value={currentTemplate.templateName} 
+                                    onChange={e => setCurrentTemplate(prev => ({...prev, templateName: e.target.value}))} 
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-sm font-bold text-slate-800 outline-none focus:border-blue-500"
+                                    placeholder="e.g. Pregnancy with IUD"
+                                />
                             </div>
                         </div>
-                    ))}
-                    <div onClick={() => { resetForm(); setIsEditing(true); }} className="bg-slate-100 p-8 rounded-[2.5rem] border-4 border-dashed border-slate-200 flex flex-col items-center justify-center cursor-pointer hover:bg-white hover:border-blue-400 transition-all group min-h-[300px]">
-                        <div className="p-6 bg-white rounded-full shadow-lg group-hover:bg-blue-600 transition-all group-hover:scale-110"><PlusIcon className="text-slate-400 group-hover:text-white" size={40} /></div>
-                        <p className="mt-6 text-xl font-black text-slate-400 uppercase tracking-widest group-hover:text-blue-600">Create New Master</p>
+                        <div className="mt-auto space-y-2 pt-4">
+                            <button onClick={handleSave} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs uppercase py-3 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2"><SaveIcon size={14}/> Save Template</button>
+                            <button onClick={() => setIsEditing(false)} className="w-full bg-slate-200 hover:bg-slate-300 text-slate-700 font-black text-xs uppercase py-3 rounded-xl shadow-sm transition-all">Cancel</button>
+                        </div>
+                    </div>
+                    <div className="flex-1 flex flex-col p-4 bg-slate-200 overflow-hidden min-h-0">
+                        <div className="bg-white flex-1 shadow-xl rounded-xl overflow-hidden flex flex-col">
+                            <div className="bg-slate-800 text-white p-2 text-center text-[10px] font-black uppercase tracking-widest">Document Editor</div>
+                            <div className="flex-1 relative min-h-0">
+                                <RichTextEditor 
+                                    value={currentTemplate.contentHtml} 
+                                    onChange={(val: string) => setCurrentTemplate(prev => ({...prev, contentHtml: val}))} 
+                                    minHeight="100%"
+                                />
+                            </div>
+                        </div>
                     </div>
                 </div>
-            </div>
-          </div>
-        )}
-      </div>
-      <style>{`
-        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-      `}</style>
-    </div>
-  );
+            ) : (
+                <div className="flex-1 flex overflow-hidden min-h-0">
+                    <div className="w-[250px] shrink-0 bg-white border-r shadow-sm p-4 flex flex-col">
+                        <h3 className="text-xs font-black uppercase tracking-widest text-slate-800 mb-4">Filters</h3>
+                        <div className="space-y-4">
+                            <input 
+                                placeholder="Search..." 
+                                value={searchTerm} 
+                                onChange={e => setSearchTerm(e.target.value)} 
+                                className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs font-bold text-slate-800 outline-none focus:border-blue-500"
+                            />
+                            <div>
+                                <label className="text-[10px] font-black text-slate-500 uppercase block mb-1">Test Category</label>
+                                <select 
+                                    value={selectedTestFilter} 
+                                    onChange={e => setSelectedTestFilter(e.target.value)} 
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs font-bold text-slate-800 outline-none focus:border-blue-500"
+                                >
+                                    <option value="All">All Tests</option>
+                                    {uniqueTests.map(t => (
+                                        <option key={t} value={t}>{t}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="flex-1 overflow-y-auto bg-slate-100 p-8">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {filteredTemplates.map(t => (
+                                <div key={t.id} className="bg-white p-6 rounded-2xl shadow-md hover:shadow-xl transition-all border border-slate-200 group flex flex-col relative overflow-hidden">
+                                    <div className="mb-4">
+                                        <span className="text-[9px] font-black px-2 py-1 bg-indigo-50 text-indigo-700 rounded-full uppercase tracking-widest">{t.testName}</span>
+                                        <h4 className="font-black text-slate-800 text-lg mt-2 leading-tight group-hover:text-blue-600 transition-colors">{t.templateName}</h4>
+                                    </div>
+                                    <div className="mt-auto flex gap-2 pt-4">
+                                        <button onClick={() => editTemplate(t)} className="flex-1 py-2 bg-slate-900 rounded-xl text-[10px] font-black uppercase tracking-widest text-white hover:bg-blue-600 transition-all shadow-md">Edit</button>
+                                        <button onClick={() => { if(confirm("Delete this template?")) setTemplates(templates.filter(x=>x.id!==t.id)) }} className="px-3 py-2 bg-rose-50 text-rose-500 hover:bg-rose-500 hover:text-white rounded-xl transition-all font-black text-sm">×</button>
+                                    </div>
+                                </div>
+                            ))}
+                            <div onClick={() => { resetForm(); setIsEditing(true); }} className="bg-transparent p-6 rounded-2xl border-2 border-dashed border-slate-300 flex flex-col items-center justify-center cursor-pointer hover:bg-white hover:border-blue-400 transition-all group min-h-[160px]">
+                                <div className="p-3 bg-white rounded-full shadow-md group-hover:bg-blue-600 transition-all"><PlusIcon className="text-slate-400 group-hover:text-white" size={24} /></div>
+                                <p className="mt-3 text-xs font-black text-slate-500 uppercase tracking-widest group-hover:text-blue-600">New Template</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
 };
-
 export default TemplateManagementPage;

@@ -92,7 +92,7 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
     return employees.filter(e => e && activeIds.includes(e.emp_id) && e.status === 'Active');
   }, [employees, monthlyRoster, currentPeriodKey]);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
     if (type === 'checkbox') {
         setFormData(prev => ({ ...prev, [name]: (e.target as HTMLInputElement).checked }));
