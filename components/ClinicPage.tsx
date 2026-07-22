@@ -1850,6 +1850,7 @@ const AdmissionAndTreatmentPage: React.FC<{
                         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-500 via-teal-500 to-blue-500"></div>
                         <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
                             <PatientInfoPage 
+                                performBlockingSync={performBlockingSync}
                                 patients={patients} 
                                 setPatients={setPatients} 
                                 isEmbedded={true} 
@@ -1869,6 +1870,7 @@ const AdmissionAndTreatmentPage: React.FC<{
                         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500"></div>
                         <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
                             <DoctorInfoPage 
+                                performBlockingSync={performBlockingSync}
                                 doctors={doctors} 
                                 setDoctors={setDoctors} 
                                 isEmbedded={true} 
@@ -1888,6 +1890,7 @@ const AdmissionAndTreatmentPage: React.FC<{
                         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500"></div>
                         <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
                             <ReferrerInfoPage 
+                                performBlockingSync={performBlockingSync}
                                 referrars={referrars} 
                                 setReferrars={setReferrars} 
                                 isEmbedded 
@@ -3594,12 +3597,12 @@ const ClinicPage: React.FC<ClinicPageProps> = ({
                     {successMessage && <div className="fixed top-20 right-5 bg-green-600 text-white px-6 py-3 rounded shadow-xl z-50 animate-bounce">{successMessage}</div>}
                     
                     <div className={activeTab === 'admission' ? 'block' : 'hidden'}>
-                        <AdmissionAndTreatmentPage admissions={admissions} setAdmissions={setAdmissions} patients={patients} setPatients={setPatients} doctors={doctors} setDoctors={setDoctors} referrars={referrars} setReferrars={setReferrars} employees={employees} medicines={medicines} setMedicines={setMedicines} indications={indications} setIndications={setIndications} services={services} setServices={setServices} setSuccessMessage={setSuccessMessage} drugDemands={drugDemands} setDrugDemands={setDrugDemands} admissionData={admissionFormData} setAdmissionData={setAdmissionFormData} />
+                        <AdmissionAndTreatmentPage performBlockingSync={performBlockingSync} admissions={admissions} setAdmissions={setAdmissions} patients={patients} setPatients={setPatients} doctors={doctors} setDoctors={setDoctors} referrars={referrars} setReferrars={setReferrars} employees={employees} medicines={medicines} setMedicines={setMedicines} indications={indications} setIndications={setIndications} services={services} setServices={setServices} setSuccessMessage={setSuccessMessage} drugDemands={drugDemands} setDrugDemands={setDrugDemands} admissionData={admissionFormData} setAdmissionData={setAdmissionFormData} />
                     </div>
 
                     <div className={activeTab === 'patient_info' ? 'block' : 'hidden'}>
                         <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-2xl">
-                            <PatientInfoPage patients={patients} setPatients={setPatients} isEmbedded={false} />
+                            <PatientInfoPage patients={patients} setPatients={setPatients} isEmbedded={false} performBlockingSync={performBlockingSync} />
                         </div>
                     </div>
 

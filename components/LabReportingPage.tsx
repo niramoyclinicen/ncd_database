@@ -462,7 +462,7 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
                                                     <div className="category-title">Ultrasonography Report</div>
                                                     <UltrasonographyReportEditor template={null} patient={patient} invoice={currentInvoice} onSave={handleSaveReport} reportData={currentReportData} setReportData={setCurrentReportData} doctors={doctors} employees={employees} technologistId={selectedTechnologistId} consultantId={selectedConsultantId} isEmbedded={true} />
                                                 </div>
-                                                <Signatures customTechName={customTechName} customTechDegree={customTechDegree} customDocName={customDocName} customDocDegree={customDocDegree} />
+                                                <Signatures customTechName={customTechName} setCustomTechName={setCustomTechName} customTechDegree={customTechDegree} setCustomTechDegree={setCustomTechDegree} customDocName={customDocName} setCustomDocName={setCustomDocName} customDocDegree={customDocDegree} setCustomDocDegree={setCustomDocDegree} />
                                             </div>
                                         </div>
                                     ) : (
@@ -511,7 +511,7 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
                                                                             </tbody>
                                                                         </table>
                                                                     </div>
-                                                                    <Signatures customTechName={customTechName} customTechDegree={customTechDegree} customDocName={customDocName} customDocDegree={customDocDegree} />
+                                                                    <Signatures customTechName={customTechName} setCustomTechName={setCustomTechName} customTechDegree={customTechDegree} setCustomTechDegree={setCustomTechDegree} customDocName={customDocName} setCustomDocName={setCustomDocName} customDocDegree={customDocDegree} setCustomDocDegree={setCustomDocDegree} />
                                                                 </div>
                                                             </div>
                                                         )}
@@ -524,7 +524,7 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
                                                                         <div className="category-title">Hematology Report</div>
                                                                         <CBCInputPage results={currentReportData} onSaveOverride={handleSaveReport} patient={patient} invoice={currentInvoice} doctors={doctors} employees={employees} technologistId={selectedTechnologistId} consultantId={selectedConsultantId} isEmbedded={true} checkRange={isOutOfRange} />
                                                                     </div>
-                                                                    <Signatures customTechName={customTechName} customTechDegree={customTechDegree} customDocName={customDocName} customDocDegree={customDocDegree} />
+                                                                    <Signatures customTechName={customTechName} setCustomTechName={setCustomTechName} customTechDegree={customTechDegree} setCustomTechDegree={setCustomTechDegree} customDocName={customDocName} setCustomDocName={setCustomDocName} customDocDegree={customDocDegree} setCustomDocDegree={setCustomDocDegree} />
                                                                 </div>
                                                             </div>
                                                         )}
@@ -541,7 +541,7 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
                                                                             <SemenAnalysisInputPage results={currentReportData} onSaveOverride={handleSaveReport} patient={patient} invoice={currentInvoice} doctors={doctors} employees={employees} technologistId={selectedTechnologistId} consultantId={selectedConsultantId} isEmbedded={true} />
                                                                         )}
                                                                     </div>
-                                                                    <Signatures customTechName={customTechName} customTechDegree={customTechDegree} customDocName={customDocName} customDocDegree={customDocDegree} />
+                                                                    <Signatures customTechName={customTechName} setCustomTechName={setCustomTechName} customTechDegree={customTechDegree} setCustomTechDegree={setCustomTechDegree} customDocName={customDocName} setCustomDocName={setCustomDocName} customDocDegree={customDocDegree} setCustomDocDegree={setCustomDocDegree} />
                                                                 </div>
                                                             </div>
                                                         ))}
@@ -561,20 +561,6 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
                     )}
                 </div>
             </div>
-            {activeTestName && (
-                <div className="no-print bg-slate-900 border-t border-slate-700 p-4 shrink-0 flex justify-center gap-10">
-                    <div className="flex items-center gap-3">
-                        <span className="text-[10px] font-black text-slate-500 uppercase">Technologist:</span>
-                        <input value={customTechName} onChange={e=>setCustomTechName(e.target.value)} className="bg-slate-800 border border-slate-700 rounded p-1.5 text-xs text-white outline-none w-48" placeholder="Name"/>
-                        <textarea value={customTechDegree} onChange={e=>setCustomTechDegree(e.target.value)} className="bg-slate-800 border border-slate-700 rounded p-1 text-[10px] text-white outline-none w-48 h-8 resize-none" placeholder="Degree"/>
-                    </div>
-                    <div className="flex items-center gap-3">
-                        <span className="text-[10px] font-black text-slate-500 uppercase">Consultant:</span>
-                        <input value={customDocName} onChange={e=>setCustomDocName(e.target.value)} className="bg-slate-800 border border-slate-700 rounded p-1.5 text-xs text-white outline-none w-48" placeholder="Name"/>
-                        <textarea value={customDocDegree} onChange={e=>setCustomDocDegree(e.target.value)} className="bg-slate-800 border border-slate-700 rounded p-1 text-[10px] text-white outline-none w-64 h-8 resize-none" placeholder="Degrees"/>
-                    </div>
-                </div>
-            )}
         </div>
     );
 };

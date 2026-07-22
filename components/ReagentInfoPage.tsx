@@ -9,9 +9,10 @@ interface ReagentInfoPageProps {
     detailedExpenses?: any;
     labInvoices?: any;
     tests?: any[];
+    performBlockingSync?: (overrides?: any) => Promise<boolean>;
 }
 
-const ReagentInfoPage: React.FC<ReagentInfoPageProps> = ({ reagents, setReagents, detailedExpenses, labInvoices, tests = [] }) => {
+const ReagentInfoPage: React.FC<ReagentInfoPageProps> = ({ reagents, setReagents, detailedExpenses, labInvoices, tests = [], performBlockingSync }) => {
     const [viewMode, setViewMode] = useState<'inventory' | 'requisition' | 'ledger'>('inventory');
     const [ledgerReagentId, setLedgerReagentId] = useState<string | null>(null);
     const [ledgerStartDate, setLedgerStartDate] = useState<string>('');
@@ -402,8 +403,17 @@ const ReagentInfoPage: React.FC<ReagentInfoPageProps> = ({ reagents, setReagents
                                                 newReagents[rIdx].manualStockUpdates.push({ date: d, quantity: q, note: 'Manual Stock Calibration' });
                                                 // Also update raw quantity as base
                                                 newReagents[rIdx].quantity = q;
-                                                setReagents(newReagents);
-                                                (document.getElementById('reset-qty') as HTMLInputElement).value = '';
+                                                if (performBlockingSync) {
+                                                    performBlockingSync({ reagents: newReagents }).then(success => {
+                                                        if (success) {
+                                                            setReagents(newReagents);
+                                                            (document.getElementById('reset-qty') as HTMLInputElement).value = '';
+                                                        }
+                                                    });
+                                                } else {
+                                                    setReagents(newReagents);
+                                                    (document.getElementById('reset-qty') as HTMLInputElement).value = '';
+                                                }
                                             }} className="bg-amber-600 hover:bg-amber-500 text-white px-6 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest shadow-xl active:scale-95 transition-all">Set Stock</button>
                                         </div>
                                     </div>

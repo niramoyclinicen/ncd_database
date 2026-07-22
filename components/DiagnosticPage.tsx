@@ -332,7 +332,7 @@ const DiagnosticPage: React.FC<DiagnosticPageProps> = ({
       case 'test_info':
         return <div className="animate-fade-in"><TestInfoPage tests={tests} setTests={setTests} reagents={reagents} performBlockingSync={performBlockingSync} /></div>;
       case 'reagent_info':
-        return <div className="animate-fade-in"><ReagentInfoPage reagents={reagents} setReagents={setReagents} detailedExpenses={detailedExpenses} labInvoices={labInvoices} tests={tests} /></div>;
+        return <div className="animate-fade-in"><ReagentInfoPage reagents={reagents} setReagents={setReagents} detailedExpenses={detailedExpenses} labInvoices={labInvoices} tests={tests} performBlockingSync={performBlockingSync} /></div>;
       case 'employee_info':
         return (
             <div className="animate-fade-in">
