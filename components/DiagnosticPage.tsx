@@ -210,7 +210,7 @@ const DiagnosticPage: React.FC<DiagnosticPageProps> = ({
       switch (activeTab) {
         case 'doctor_appointment':
         return (
-          <div className="animate-fade-in relative h-full">
+          <div className="animate-fade-in relative h-full flex flex-col">
             {isLabReporter && (
               <div className="absolute inset-0 bg-slate-900/40 z-50 backdrop-blur-[1px] flex items-center justify-center">
                 <div className="bg-slate-800 p-6 rounded-3xl border border-blue-500/30 text-blue-400 font-bold shadow-2xl">
@@ -234,7 +234,7 @@ const DiagnosticPage: React.FC<DiagnosticPageProps> = ({
         );
       case 'lab_invoice':
         return (
-          <div className="animate-fade-in relative h-full">
+          <div className="animate-fade-in relative h-full flex flex-col">
              {isLabReporter && (
                <div className="absolute inset-0 bg-slate-900/40 z-50 backdrop-blur-[1px] flex items-center justify-center">
                  <div className="bg-slate-800 p-6 rounded-3xl border border-blue-500/30 text-blue-400 font-bold shadow-2xl">
@@ -274,7 +274,7 @@ const DiagnosticPage: React.FC<DiagnosticPageProps> = ({
         );
       case 'due_collection':
         return (
-          <div className="animate-fade-in relative h-full">
+          <div className="animate-fade-in relative h-full flex flex-col">
              {isLabReporter && (
                <div className="absolute inset-0 bg-slate-900/40 z-50 backdrop-blur-[1px] flex items-center justify-center">
                  <div className="bg-slate-800 p-6 rounded-3xl border border-blue-500/30 text-blue-400 font-bold shadow-2xl">
@@ -299,7 +299,7 @@ const DiagnosticPage: React.FC<DiagnosticPageProps> = ({
         );
       case 'lab_reporting':
         return (
-          <div className="animate-fade-in h-full relative">
+          <div className="animate-fade-in h-full relative flex flex-col">
              {isDiagAdmin && (
                <div className="absolute inset-0 bg-slate-900/40 z-50 backdrop-blur-[2px] flex items-center justify-center text-center p-6">
                  <div className="bg-slate-800 p-8 rounded-[2.5rem] border-2 border-rose-500/50 text-rose-400 shadow-[0_0_50px_rgba(244,63,94,0.3)] max-w-md">
@@ -324,18 +324,18 @@ const DiagnosticPage: React.FC<DiagnosticPageProps> = ({
           </div>
         );
       case 'patient_info':
-        return <div className="animate-fade-in"><PatientInfoPage patients={patients} setPatients={setPatients} performBlockingSync={performBlockingSync} /></div>;
+        return <div className="animate-fade-in h-full flex flex-col"><PatientInfoPage patients={patients} setPatients={setPatients} performBlockingSync={performBlockingSync} /></div>;
       case 'doctor_info':
-        return <div className="animate-fade-in"><DoctorInfoPage doctors={doctors} setDoctors={setDoctors} performBlockingSync={performBlockingSync} /></div>;
+        return <div className="animate-fade-in h-full flex flex-col"><DoctorInfoPage doctors={doctors} setDoctors={setDoctors} performBlockingSync={performBlockingSync} /></div>;
       case 'referrer_info':
-        return <div className="animate-fade-in"><ReferrerInfoPage referrars={referrars} setReferrars={setReferrars} performBlockingSync={performBlockingSync} /></div>;
+        return <div className="animate-fade-in h-full flex flex-col"><ReferrerInfoPage referrars={referrars} setReferrars={setReferrars} performBlockingSync={performBlockingSync} /></div>;
       case 'test_info':
-        return <div className="animate-fade-in"><TestInfoPage tests={tests} setTests={setTests} reagents={reagents} performBlockingSync={performBlockingSync} /></div>;
+        return <div className="animate-fade-in h-full flex flex-col"><TestInfoPage tests={tests} setTests={setTests} reagents={reagents} performBlockingSync={performBlockingSync} /></div>;
       case 'reagent_info':
-        return <div className="animate-fade-in"><ReagentInfoPage reagents={reagents} setReagents={setReagents} detailedExpenses={detailedExpenses} labInvoices={labInvoices} tests={tests} performBlockingSync={performBlockingSync} /></div>;
+        return <div className="animate-fade-in h-full flex flex-col"><ReagentInfoPage reagents={reagents} setReagents={setReagents} detailedExpenses={detailedExpenses} labInvoices={labInvoices} tests={tests} performBlockingSync={performBlockingSync} /></div>;
       case 'employee_info':
         return (
-            <div className="animate-fade-in">
+            <div className="animate-fade-in h-full flex flex-col">
                 {setEmployees ? (
                     <EmployeeInfoPage 
                       employees={employees} 

@@ -73,19 +73,17 @@ const ReportHeader = ({ patient, currentInvoice, doctors }: { patient: any, curr
 
 const Signatures = ({ customTechName, customTechDegree, customDocName, customDocDegree, techLabel = "Lab Technologist", docLabel = "Pathologist / Reporter" }: any) => (
     <div className="footer-sign-container no-break-inside">
-        <div className="signature-box flex flex-col items-center justify-end">
-            <p className="text-[11px] font-black uppercase text-black mb-1" style={{ color: '#000000 !important' }}>{techLabel}</p>
-            <div className="h-12 w-full"></div>
-            <div className="w-64 border-t-2 border-black"></div>
-            <p className="text-[13px] font-black uppercase pt-1 leading-none text-black" style={{ color: '#000000 !important' }}>{customTechName || ''}</p>
-            <p className="text-[10px] font-bold uppercase mt-1 whitespace-pre-wrap text-center text-black" style={{ color: '#000000 !important' }}>{customTechDegree || ''}</p>
+        <div className="text-center w-64">
+            <div className="h-16 w-full"></div>
+            <div className="border-t-2 border-black w-full mb-1"></div>
+            <p className="text-[12px] font-black uppercase text-black" style={{ color: '#000000 !important' }}>{customTechName || 'Lab Technologist'}</p>
+            <p className="text-[10px] font-bold text-black whitespace-pre-wrap" style={{ color: '#000000 !important' }}>{customTechDegree || ''}</p>
         </div>
-        <div className="signature-box flex flex-col items-center justify-end">
-            <p className="text-[11px] font-black uppercase text-black mb-1" style={{ color: '#000000 !important' }}>{docLabel}</p>
-            <div className="h-12 w-full"></div>
-            <div className="w-64 border-t-2 border-black"></div>
-            <p className="text-[14px] font-black uppercase pt-1 leading-none text-black" style={{ color: '#000000 !important' }}>{customDocName || ''}</p>
-            <p className="text-[10px] font-bold uppercase mt-1 whitespace-pre-wrap text-center text-black" style={{ color: '#000000 !important' }}>{customDocDegree || ''}</p>
+        <div className="text-center w-64">
+            <div className="h-16 w-full"></div>
+            <div className="border-t-2 border-black w-full mb-1"></div>
+            <p className="text-[12px] font-black uppercase text-black" style={{ color: '#000000 !important' }}>{customDocName || 'Consultant Pathologist'}</p>
+            <p className="text-[10px] font-bold text-black whitespace-pre-wrap" style={{ color: '#000000 !important' }}>{customDocDegree || ''}</p>
         </div>
     </div>
 );
@@ -331,32 +329,27 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
                             margin: 0 auto;
                         }
                         .paper-inner { padding: 0 15mm; flex: 1; display: flex; flex-direction: column; width: 100%; }
-                        .report-content-body { ${printFullPad ? 'margin-top: 0;' : 'margin-top: 2.3in;'} flex: 1; width: 100%; padding-bottom: 45mm; }
+                        .report-content-body { ${printFullPad ? 'margin-top: 0;' : 'margin-top: 2.3in;'} flex: 1; width: 100%; padding-bottom: 20px; }
                         
                         @media print {
                             body { height: auto !important; overflow: visible !important; }
                             .footer-sign-container { 
-                                position: fixed !important; 
-                                bottom: 12mm !important; 
-                                left: 15mm !important; 
-                                right: 15mm !important; 
                                 display: flex; 
                                 justify-content: space-between; 
                                 align-items: flex-end; 
-                                background: transparent; 
-                                width: calc(100% - 30mm) !important; 
+                                width: 100%; 
+                                margin-top: auto;
+                                padding-top: 40px;
+                                page-break-inside: avoid;
                             }
                         }
                         .footer-sign-container { 
-                            position: absolute; 
-                            bottom: 12mm; 
-                            left: 15mm; 
-                            right: 15mm; 
                             display: flex; 
                             justify-content: space-between; 
                             align-items: flex-end; 
-                            background: white; 
-                            width: calc(100% - 30mm); 
+                            width: 100%; 
+                            margin-top: auto;
+                            padding-top: 40px;
                         }
                         .no-break-inside { page-break-inside: avoid; }
                         .signature-box { text-align: center; width: 45%; }
@@ -389,8 +382,8 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
         <div className="bg-slate-200 flex-1 flex flex-col font-sans overflow-hidden text-black min-h-0">
             <style>{`
                 .paper-page { width: 210mm; min-height: 294mm; margin: 0 auto; position: relative; background: white; display: flex; flex-direction: column; box-shadow: 0 0 50px rgba(0,0,0,0.1); box-sizing: border-box; overflow: visible; }
-                .paper-inner { padding: 0 15mm 45mm 15mm; flex: 1; display: flex; flex-direction: column; height: 100%; }
-                .footer-sign-container { position: absolute; bottom: 12mm; left: 15mm; right: 15mm; display: flex; justify-content: space-between; align-items: flex-end; }
+                .paper-inner { padding: 0 15mm 15mm 15mm; flex: 1; display: flex; flex-direction: column; min-height: 100%; }
+                .footer-sign-container { display: flex; justify-content: space-between; align-items: flex-end; width: 100%; margin-top: auto; padding-top: 40px; }
                 .signature-box { text-align: center; width: 45%; }
                 .category-title { font-weight: 950 !important; text-transform: uppercase; text-decoration: underline; font-size: 14pt; margin-bottom: 15px; text-align: center; display: block; color: #000000 !important; }
                 

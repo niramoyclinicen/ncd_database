@@ -1,14 +1,18 @@
 import { createClient } from '@supabase/supabase-js';
 
-/**
- * NCD Cloud Database Service
- * Manages real-time sync with Supabase and LocalStorage fallback.
- */
+let fallbackUrl = '';
+try { fallbackUrl = process.env.SUPABASE_URL || ''; } catch (e) {}
 
-// Safely get env vars across both Vite and standard Node environments
-// Use process.env directly because vite.config.ts defines them
-const SUPABASE_URL = import.meta.env?.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '';
-const SUPABASE_ANON_KEY = import.meta.env?.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '';
+let fallbackKey = '';
+try { fallbackKey = process.env.SUPABASE_ANON_KEY || ''; } catch (e) {}
+
+// @ts-ignore
+const envSupabaseUrl = (typeof import.meta !== 'undefined' && import.meta.env) ? import.meta.env.VITE_SUPABASE_URL : '';
+// @ts-ignore
+const envSupabaseKey = (typeof import.meta !== 'undefined' && import.meta.env) ? import.meta.env.VITE_SUPABASE_ANON_KEY : '';
+
+const SUPABASE_URL = envSupabaseUrl || fallbackUrl || '';
+const SUPABASE_ANON_KEY = envSupabaseKey || fallbackKey || '';
 
 // URL validation to prevent Supabase Client from throwing a fatal error
 const isValidSupabaseConfig = (url: string, key: string) => {
@@ -19,7 +23,6 @@ const isValidSupabaseConfig = (url: string, key: string) => {
   }
 };
 
-// Initialize only if valid credentials exist, otherwise keep as null to prevent crash
 const supabase = isValidSupabaseConfig(SUPABASE_URL, SUPABASE_ANON_KEY)
   ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
   : null;
