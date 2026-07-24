@@ -7,8 +7,8 @@ import { createClient } from '@supabase/supabase-js';
 
 // Safely get env vars across both Vite and standard Node environments
 // Use process.env directly because vite.config.ts defines them
-const SUPABASE_URL = (typeof import.meta !== 'undefined' && (import.meta as any).env && (import.meta as any).env.VITE_SUPABASE_URL) || (typeof process !== 'undefined' && process.env && (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL)) || '';
-const SUPABASE_ANON_KEY = (typeof import.meta !== 'undefined' && (import.meta as any).env && (import.meta as any).env.VITE_SUPABASE_ANON_KEY) || (typeof process !== 'undefined' && process.env && (process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY)) || '';
+const SUPABASE_URL = import.meta.env?.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '';
+const SUPABASE_ANON_KEY = import.meta.env?.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '';
 
 // URL validation to prevent Supabase Client from throwing a fatal error
 const isValidSupabaseConfig = (url: string, key: string) => {
@@ -51,7 +51,7 @@ export const dbService = {
   loadFromCloud: async () => {
     try {
       if (!supabase) {
-        return null;
+        return { _error: "Supabase not initialized. Check ENV variables." };
       }
       const { data: record, error } = await supabase
         .from('ncd_state')
@@ -61,12 +61,12 @@ export const dbService = {
       
       if (error) {
         if (error.code === 'PGRST116') return {};
-        return null;
+        return { _error: "Supabase Query Error: " + error.message };
       }
       return (record && record.data) ? record.data : {};
-    } catch (error) {
+    } catch (error: any) {
       console.error("Cloud Connection Error:", error);
-      return null;
+      return { _error: "Exception: " + error.message };
     }
   },
   saveInChunks: async (appState: any, onProgress?: (p: number) => void) => {

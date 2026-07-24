@@ -28,6 +28,7 @@ const App: React.FC = () => {
   const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(false);
   const [isDataLoaded, setIsDataLoaded] = useState(false);
   const [connectionError, setConnectionError] = useState(false);
+  const [connectionErrorMessage, setConnectionErrorMessage] = useState('');
   const [lastSavedAt, setLastSavedAt] = useState<string>(''); // For UI feedback
   const lastSavedAtRef = React.useRef<string>(''); // For logic checks to avoid loops
 
@@ -89,7 +90,7 @@ const App: React.FC = () => {
     const loadData = async () => {
       const loadedData = await dbService.loadFromCloud();
       
-      if (loadedData) {
+      if (loadedData && !loadedData._error) {
         if (Object.keys(loadedData).length > 0) {
           updateLocalState(loadedData);
         }
@@ -97,6 +98,7 @@ const App: React.FC = () => {
         setConnectionError(false);
       } else {
         // Hard block if cloud load fails, to prevent overwriting cloud with empty data
+        setConnectionErrorMessage(loadedData ? loadedData._error : 'Unknown load error');
         setIsDataLoaded(false);
         setConnectionError(true);
       }
@@ -300,7 +302,8 @@ const App: React.FC = () => {
         <div className="bg-slate-800 border-2 border-red-500 p-8 rounded-3xl max-w-md w-full text-center shadow-2xl">
           <div className="w-20 h-20 bg-red-500/20 rounded-full flex items-center justify-center mx-auto text-red-500 text-4xl mb-6">⚠️</div>
           <h2 className="text-2xl font-black text-white mb-4 font-['Hind_Siliguri']">সার্ভার কানেকশন সমস্যা</h2>
-          <p className="text-slate-300 mb-8 font-medium">ইন্টারনেট কানেকশন চেক করুন। অনলাইনে ডাটা লোড না হওয়া পর্যন্ত সফটওয়্যারটি ব্যবহার করা যাবে না।</p>
+          <p className="text-slate-300 mb-4 font-medium">ইন্টারনেট কানেকশন চেক করুন। অনলাইনে ডাটা লোড না হওয়া পর্যন্ত সফটওয়্যারটি ব্যবহার করা যাবে না।</p>
+          {connectionErrorMessage && <p className="text-red-400 mb-8 text-sm font-mono bg-slate-900 p-3 rounded-lg break-words">{connectionErrorMessage}</p>}
           <button onClick={() => window.location.reload()} className="w-full bg-red-600 hover:bg-red-700 transition-all py-4 rounded-2xl text-white font-bold text-xl shadow-lg mb-4">পুনরায় চেষ্টা করুন (RETRY)</button>
           <button onClick={() => { setIsDataLoaded(true); setConnectionError(true); }} className="w-full bg-transparent border-2 border-slate-600 hover:border-slate-400 text-slate-300 transition-all py-3 rounded-2xl font-bold">প্রিভিউ মোডে ওপেন করুন (Test without Saving)</button>
         </div>
