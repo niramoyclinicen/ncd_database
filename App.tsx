@@ -94,13 +94,10 @@ const App: React.FC = () => {
           updateLocalState(loadedData);
         }
         setIsDataLoaded(true);
-        // Show indicator if offline, but don't block
-        setConnectionError(!dbService.isSupabaseConnected());
+        setConnectionError(false);
       } else {
-        // Fallback to local backup to ensure app opens
-        const localBackup = dbService.getLocalBackup();
-        if (localBackup) updateLocalState(localBackup);
-        setIsDataLoaded(true);
+        // Hard block if cloud load fails, to prevent overwriting cloud with empty data
+        setIsDataLoaded(false);
         setConnectionError(true);
       }
     };
@@ -297,13 +294,15 @@ const App: React.FC = () => {
   };
 
   if (connectionError && !isDataLoaded) {
-    // We only show this if it's the absolute first time and no local backup
+    // Hard block if initial load fails
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
-        <div className="bg-slate-800 border-2 border-red-500/50 p-8 rounded-3xl max-w-md w-full text-center shadow-2xl">
-          <h2 className="text-2xl font-black text-white mb-4">ক্লাউড কানেকশন সমস্যা</h2>
-          <p className="text-slate-400 mb-8">ইন্টারনেট কানেকশন চেক করুন। প্রথমবারের মত ডাটা লোড করার জন্য কানেকশন প্রয়োজন।</p>
-          <button onClick={() => window.location.reload()} className="w-full bg-blue-600 py-4 rounded-2xl text-white font-bold">RETRY</button>
+        <div className="bg-slate-800 border-2 border-red-500 p-8 rounded-3xl max-w-md w-full text-center shadow-2xl">
+          <div className="w-20 h-20 bg-red-500/20 rounded-full flex items-center justify-center mx-auto text-red-500 text-4xl mb-6">⚠️</div>
+          <h2 className="text-2xl font-black text-white mb-4 font-['Hind_Siliguri']">সার্ভার কানেকশন সমস্যা</h2>
+          <p className="text-slate-300 mb-8 font-medium">ইন্টারনেট কানেকশন চেক করুন। অনলাইনে ডাটা লোড না হওয়া পর্যন্ত সফটওয়্যারটি ব্যবহার করা যাবে না।</p>
+          <button onClick={() => window.location.reload()} className="w-full bg-red-600 hover:bg-red-700 transition-all py-4 rounded-2xl text-white font-bold text-xl shadow-lg mb-4">পুনরায় চেষ্টা করুন (RETRY)</button>
+          <button onClick={() => { setIsDataLoaded(true); setConnectionError(true); }} className="w-full bg-transparent border-2 border-slate-600 hover:border-slate-400 text-slate-300 transition-all py-3 rounded-2xl font-bold">প্রিভিউ মোডে ওপেন করুন (Test without Saving)</button>
         </div>
       </div>
     );

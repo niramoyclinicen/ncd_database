@@ -5,8 +5,10 @@ import { createClient } from '@supabase/supabase-js';
  * Manages real-time sync with Supabase and LocalStorage fallback.
  */
 
-const SUPABASE_URL = process.env.SUPABASE_URL || '';
-const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || '';
+// Safely get env vars across both Vite and standard Node environments
+// Use process.env directly because vite.config.ts defines them
+const SUPABASE_URL = (typeof import.meta !== 'undefined' && (import.meta as any).env && (import.meta as any).env.VITE_SUPABASE_URL) || (typeof process !== 'undefined' && process.env && (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL)) || '';
+const SUPABASE_ANON_KEY = (typeof import.meta !== 'undefined' && (import.meta as any).env && (import.meta as any).env.VITE_SUPABASE_ANON_KEY) || (typeof process !== 'undefined' && process.env && (process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY)) || '';
 
 // URL validation to prevent Supabase Client from throwing a fatal error
 const isValidSupabaseConfig = (url: string, key: string) => {
@@ -28,71 +30,45 @@ const MASTER_RECORD_ID = 1;
 export const dbService = {
   saveToCloud: async (appState: any) => {
     try {
-      // Defer local storage to avoid blocking the cloud request start
-      setTimeout(() => {
-        try {
-          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(appState));
-        } catch (e) {
-          console.warn("LocalStorage backup failed (likely quota exceeded):", e);
-        }
-      }, 0);
-
-      if (supabase) {
-        const { error } = await supabase
-          .from('ncd_state')
-          .upsert({ 
-            id: MASTER_RECORD_ID, 
-            data: appState,
-            updated_at: new Date().toISOString() 
-          }, { onConflict: 'id' });
-          
-        if (error) throw error;
+      if (!supabase) {
+        throw new Error("Supabase is not connected.");
       }
+      const { error } = await supabase
+        .from('ncd_state')
+        .upsert({ 
+          id: MASTER_RECORD_ID, 
+          data: appState,
+          updated_at: new Date().toISOString() 
+        }, { onConflict: 'id' });
+      
+      if (error) throw error;
       return { success: true };
     } catch (error) {
       console.error("Cloud Sync Error:", error);
       return { success: false, error };
     }
   },
-
   loadFromCloud: async () => {
     try {
-      if (supabase) {
-        const { data: record, error } = await supabase
-          .from('ncd_state')
-          .select('data')
-          .eq('id', MASTER_RECORD_ID)
-          .single();
-        
-        if (error) {
-          if (error.code === 'PGRST116') {
-            return {}; 
-          }
-          throw error;
-        }
-
-        if (record && record.data) {
-          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(record.data));
-          return record.data;
-        }
-        return {};
+      if (!supabase) {
+        return null;
       }
+      const { data: record, error } = await supabase
+        .from('ncd_state')
+        .select('data')
+        .eq('id', MASTER_RECORD_ID)
+        .single();
       
-      // If no supabase, try local storage fallback
-      const localData = localStorage.getItem(LOCAL_STORAGE_KEY);
-      return localData ? JSON.parse(localData) : {};
+      if (error) {
+        if (error.code === 'PGRST116') return {};
+        return null;
+      }
+      return (record && record.data) ? record.data : {};
     } catch (error) {
       console.error("Cloud Connection Error:", error);
-      const localData = localStorage.getItem(LOCAL_STORAGE_KEY);
-      try {
-        return localData ? JSON.parse(localData) : {};
-      } catch {
-        return {};
-      }
+      return null;
     }
   },
-
-  // IMPROVED: Granular 1,2,3% progress and better merging
   saveInChunks: async (appState: any, onProgress?: (p: number) => void) => {
     try {
       if (!supabase) return false;
@@ -147,13 +123,6 @@ export const dbService = {
         }
       }
 
-      // Final local storage sync after all chunks are done
-      try {
-        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(mergedData));
-      } catch (e) {
-        console.warn("Final localStorage sync failed in chunks:", e);
-      }
-
       onProgress?.(100);
       return true;
     } catch (e) {
@@ -163,15 +132,8 @@ export const dbService = {
   },
 
   getLocalBackup: () => {
-    const data = localStorage.getItem(LOCAL_STORAGE_KEY);
-    if (!data) return null;
-    try {
-      return JSON.parse(data);
-    } catch {
-      return null;
-    }
+    return null;
   },
-
   isSupabaseConnected: () => {
     return !!supabase;
   },
