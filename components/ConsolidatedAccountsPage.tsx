@@ -406,7 +406,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                 lastDayWithData = d - 1;
             }
 
-            const displayDate = `${dayStr}-${monthOptions[selectedMonth].name.substring(0, 3)}-${String(selectedYear).substring(2)}`;
+            const displayDate = `${dayStr}/${monthOptions[selectedMonth].name.substring(0, 3)}/${String(selectedYear).substring(2)}`;
             rawRows.push({ 
                 date: displayDate, 
                 diag: { today: diagToday, due: diagDue, total: diagTotal, upto: diagUpto }, 
@@ -459,7 +459,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                 lastDayWithData = d - 1;
             }
 
-            const displayDate = `${String(d).padStart(2, '0')}-${monthOptions[selectedMonth].name.substring(0, 3)}-${String(selectedYear).substring(2)}`;
+            const displayDate = `${String(d).padStart(2, '0')}/${monthOptions[selectedMonth].name.substring(0, 3)}/${String(selectedYear).substring(2)}`;
             rawRows.push({
                 date: displayDate,
                 diag: { today: diagToday, upto: diagUpto },
@@ -734,7 +734,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
     const commonAmtCellClass = "p-1.5 border border-black text-right font-black text-[10.5pt] w-[100px] h-10 font-['JetBrains_Mono']";
 
     const collectionTableCellClass = "p-1 border border-black font-bold text-[10pt] font-['Hind_Siliguri'] h-13 text-center";
-    const collectionAmtCellClass = "p-1 border border-black text-right font-black text-[10pt] w-[90px] h-13 font-['JetBrains_Mono']";
+    const collectionAmtCellClass = "p-1 border border-black text-right font-black text-[10pt] w-[110px] h-13 font-['JetBrains_Mono']";
 
     return (
         <div className="min-h-screen bg-slate-100 flex flex-col font-['Inter']">
@@ -836,20 +836,20 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                             <table className="w-full border-collapse border-2 border-black text-[8pt] print:text-[7.5pt] table-fixed">
                                 <thead>
                                     <tr className="bg-gray-50 h-6 print:h-[5mm]">
-                                        <th className="border-2 border-black p-1 w-[90px] whitespace-nowrap" rowSpan={2}>Date</th>
+                                        <th className="border-2 border-black p-1 w-[8%] whitespace-nowrap" rowSpan={2}>Date</th>
                                         <th className="border-2 border-black p-1" colSpan={4}>Diagnostic</th>
                                         <th className="border-2 border-black p-1" colSpan={4}>Clinic</th>
-                                        <th className="border-2 border-black p-1 bg-slate-50 w-[13%]" rowSpan={2}>Total Collection</th>
+                                        <th className="border-2 border-black p-1 bg-slate-50 w-[10%]" rowSpan={2}>Total Collection</th>
                                     </tr>
                                     <tr className="bg-gray-50 uppercase text-[7px] font-black h-5 print:h-[4mm]">
                                         <th className="border-2 border-black p-1 w-[9%]">Today</th>
-                                        <th className="border-2 border-black p-1 w-[6%]">Due</th>
-                                        <th className="border-2 border-black p-1 w-[10%]">Total</th>
-                                        <th className="border-2 border-black p-1 bg-blue-50 w-[12%]">Upto</th>
+                                        <th className="border-2 border-black p-1 w-[7%]">Due</th>
+                                        <th className="border-2 border-black p-1 w-[11%]">Total</th>
+                                        <th className="border-2 border-black p-1 bg-blue-50 w-[14%]">Upto</th>
                                         <th className="border-2 border-black p-1 w-[9%]">Today</th>
-                                        <th className="border-2 border-black p-1 w-[6%]">Due</th>
-                                        <th className="border-2 border-black p-1 w-[10%]">Total</th>
-                                        <th className="border-2 border-black p-1 bg-emerald-50 w-[12%]">Upto</th>
+                                        <th className="border-2 border-black p-1 w-[7%]">Due</th>
+                                        <th className="border-2 border-black p-1 w-[11%]">Total</th>
+                                        <th className="border-2 border-black p-1 bg-emerald-50 w-[14%]">Upto</th>
                                     </tr>
                                 </thead>
                                 <tbody>

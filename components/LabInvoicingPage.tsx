@@ -790,7 +790,7 @@ pdate the local state and reset form
             
             <div style="text-align: center; font-weight: 900; font-size: 14px; text-decoration: underline; margin-bottom: 5px; font-family: 'Arial', sans-serif;">Test Invoice</div>
 
-            <div class="table-container" style="display: block; overflow: hidden;">
+            <div class="table-container" style="display: block; overflow: hidden; position: relative;">
                 <table style="width:100%; border-collapse: collapse; font-size: 11px;">
                     <thead>
                         <tr style="background:#f3f3f3;">
@@ -802,8 +802,13 @@ pdate the local state and reset form
                     </thead>
                     <tbody>${itemsHtml}</tbody>
                 </table>
-
-                <div class="footer-summary" style="display: flex; justify-content: flex-end; margin-top: 10px;">
+                <div class="footer-summary" style="display: flex; justify-content: space-between; align-items: flex-start; margin-top: 10px;">
+                    <div class="payment-stamp" style="padding-left: 10px; padding-top: 10px;">
+                        ${inv.due_amount > 0 ? 
+                            '<div style="font-size: 32px; font-weight: 900; color: #dc2626; border: 4px solid #dc2626; padding: 4px 16px; transform: rotate(-15deg); display: inline-block; opacity: 0.8; letter-spacing: 2px;">DUE</div>' : 
+                            '<div style="font-size: 32px; font-weight: 900; color: #16a34a; border: 4px solid #16a34a; padding: 4px 16px; transform: rotate(-15deg); display: inline-block; opacity: 0.8; letter-spacing: 2px;">PAID</div>'
+                        }
+                    </div>
                     <div class="totals" style="width: 160px; font-size: 11px;">
                         <div style="display: flex; justify-content: space-between; line-height: 1.1;"><span>Total:</span> <span>${inv.total_amount.toFixed(2)}</span></div>
                         <div style="display: flex; justify-content: space-between; line-height: 1.1;"><span>Discount:</span> <span>${inv.discount_amount.toFixed(2)}</span></div>
@@ -813,7 +818,6 @@ pdate the local state and reset form
                         ${inv.status === 'Returned' ? '<div style="color: #d00; text-align: center; border: 1.5px solid #d00; margin-top: 5px; font-weight: 900; padding: 2px;">RETURNED / REFUNDED</div>' : ''}
                     </div>
                 </div>
-
                 <div style="margin-top: 10px; font-size: 11px; border-top: 1px solid #eee; padding-top: 5px;">
                     <b>Expected Report Delivery:</b> ${inv.expected_delivery_time || 'As per schedule'}
                 </div>

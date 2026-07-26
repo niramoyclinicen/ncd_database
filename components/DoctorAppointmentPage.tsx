@@ -437,7 +437,13 @@ const DoctorAppointmentPage: React.FC<DoctorAppointmentPageProps> = ({
                     <tr><td class="label">Reason:</td><td class="val">${apptToPrint.reason}</td></tr>
                     <tr><td class="label">Fee:</td><td class="val">${apptToPrint.status === 'Returned' ? '৳ 0.00 (Refunded)' : `BDT ${(apptToPrint.doctor_fee || 0).toFixed(2)}`}</td></tr>
                 </table>
-                <div style="margin-left: 10px; text-align: right; min-width: 90px; padding-top: 5px;"><img src="https://bwipjs-api.metafloor.com/?bcid=code128&text=${encodeURIComponent(apptToPrint.patient_id)}&scale=1&height=10&incltext=false" alt="BC" style="height: 35px; width: auto; max-width: 100%;"/><div style="font-size: 8px; font-family: monospace; margin-top: 2px; font-weight: bold;">${apptToPrint.patient_id}</div></div>
+                <div style="margin-left: 10px; display: flex; flex-direction: column; align-items: flex-end; gap: 5px;">
+                    ${apptToPrint.status === 'Returned' ? 
+                        '<div style="font-size: 18px; font-weight: 900; color: #dc2626; border: 3px solid #dc2626; padding: 2px 8px; transform: rotate(-10deg); display: inline-block; opacity: 0.8; letter-spacing: 1px; margin-right: 15px;">REFUNDED</div>' : 
+                        '<div style="font-size: 18px; font-weight: 900; color: #16a34a; border: 3px solid #16a34a; padding: 2px 8px; transform: rotate(-10deg); display: inline-block; opacity: 0.8; letter-spacing: 1px; margin-right: 15px;">PAID</div>'
+                    }
+                    <div style="text-align: right; min-width: 90px; padding-top: 5px;"><img src="https://bwipjs-api.metafloor.com/?bcid=code128&text=${encodeURIComponent(apptToPrint.patient_id)}&scale=1&height=10&incltext=false" alt="BC" style="height: 35px; width: auto; max-width: 100%;"/><div style="font-size: 8px; font-family: monospace; margin-top: 2px; font-weight: bold;">${apptToPrint.patient_id}</div></div>
+                </div>
             </div>
             <div class="doc-box"><div class="doc-name">Consultant: ${doctor?.doctor_name}</div><div class="doc-deg">${doctor?.degree}</div></div>
             <div class="footer">Printed on ${formatDateTime(new Date())}</div>

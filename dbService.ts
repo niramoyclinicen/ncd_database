@@ -135,6 +135,14 @@ export const dbService = {
   },
 
   getLocalBackup: () => {
+    try {
+      const data = localStorage.getItem('ncd_offline_cache_v1');
+      if (data) {
+        return JSON.parse(data);
+      }
+    } catch (e) {
+      console.error("Local backup parse error:", e);
+    }
     return null;
   },
   isSupabaseConnected: () => {

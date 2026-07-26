@@ -89,18 +89,39 @@ const App: React.FC = () => {
   useEffect(() => {
     const loadData = async () => {
       const loadedData = await dbService.loadFromCloud();
+      const localData = dbService.getLocalBackup();
+      
+      let finalDataToLoad = loadedData;
       
       if (loadedData && !loadedData._error) {
-        if (Object.keys(loadedData).length > 0) {
-          updateLocalState(loadedData);
+        if (localData && localData.last_updated_at && loadedData.last_updated_at) {
+            const localTime = new Date(localData.last_updated_at).getTime();
+            const cloudTime = new Date(loadedData.last_updated_at).getTime();
+            if (localTime > cloudTime) {
+                console.log("Local backup is newer than cloud. Using local backup to prevent data loss.");
+                finalDataToLoad = localData;
+                // Trigger a sync so the newer local data is pushed to the cloud
+                setTimeout(() => dbService.saveToCloud(localData), 2000);
+            }
+        }
+        
+        if (Object.keys(finalDataToLoad).length > 0) {
+          updateLocalState(finalDataToLoad);
         }
         setIsDataLoaded(true);
         setConnectionError(false);
       } else {
-        // Hard block if cloud load fails, to prevent overwriting cloud with empty data
-        setConnectionErrorMessage(loadedData ? loadedData._error : 'Unknown load error');
-        setIsDataLoaded(false);
-        setConnectionError(true);
+        if (localData) {
+            console.log("Cloud load failed, but found local data. Using local backup.");
+            updateLocalState(localData);
+            setIsDataLoaded(true);
+            setConnectionError(false);
+        } else {
+            // Hard block if cloud load fails, to prevent overwriting cloud with empty data
+            setConnectionErrorMessage(loadedData ? loadedData._error : 'Unknown load error');
+            setIsDataLoaded(false);
+            setConnectionError(true);
+        }
       }
     };
 
@@ -196,6 +217,13 @@ const App: React.FC = () => {
     lastSavedAtRef.current = now;
     const stateToSync = getCurrentState({ ...overrides, last_updated_at: now });
     
+    // Immediate local backup to prevent data loss if power cuts during sync
+    try {
+      localStorage.setItem('ncd_offline_cache_v1', JSON.stringify(stateToSync));
+    } catch (e) {
+      console.warn("Local backup failed in blocking sync:", e);
+    }
+
     try {
       console.log(`[Sync] Starting blocking sync. Overrides:`, overrides ? Object.keys(overrides) : 'None');
       const result = await dbService.saveToCloud(stateToSync);
@@ -223,6 +251,14 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!isDataLoaded || isManualSyncing) return;
     
+    // Immediate local backup to prevent data loss on power cuts or crashes
+    try {
+      const stateToSave = getCurrentState();
+      localStorage.setItem('ncd_offline_cache_v1', JSON.stringify(stateToSave));
+    } catch (e) {
+      console.warn("Local backup failed:", e);
+    }
+
     const syncData = async () => {
       // Small safety delay to ensure all states are updated
       setIsSyncing(true);
@@ -500,19 +536,13 @@ const App: React.FC = () => {
       {/* CLOUD SAVE SUCCESS MESSAGE - Temporary Toast */}
       {/* (Sub-pages show their own persistent success messages often, but we could add a central toast here if needed) */}
 
-      {/* BLOCKING MANUAL SYNC OVERLAY */}
+      {/* NON-BLOCKING MANUAL SYNC OVERLAY */}
       {isManualSyncing && (
-        <div className="fixed inset-0 z-[110000] bg-slate-900/90 backdrop-blur-xl flex flex-col items-center justify-center text-white">
-           <div className="relative mb-8">
-             <div className="w-24 h-24 border-4 border-blue-500/20 border-t-blue-500 rounded-full animate-spin"></div>
-             <div className="absolute inset-0 flex items-center justify-center">
-               <Activity className="w-10 h-10 text-blue-500 animate-pulse" />
-             </div>
-           </div>
-           <h2 className="text-3xl font-black uppercase tracking-[0.2em] mb-2 font-['Hind_Siliguri']">ডাটা সেভ হচ্ছে...</h2>
-           <p className="text-blue-400 font-bold uppercase tracking-widest text-xs animate-pulse">Saving to Online Cloud Portal</p>
-           <div className="mt-8 px-6 py-2 bg-blue-500/10 border border-blue-500/20 rounded-full">
-             <span className="text-[10px] text-blue-300 font-medium italic whitespace-nowrap">অপেক্ষা করুন, ডাটা ক্লাউড সার্ভারে সংরক্ষিত হচ্ছে।</span>
+        <div className="fixed bottom-6 right-6 z-[110000] bg-slate-900 text-white px-6 py-4 rounded-xl shadow-2xl flex items-center gap-4 animate-fade-in-up border border-slate-700">
+           <div className="w-6 h-6 border-2 border-blue-500/20 border-t-blue-500 rounded-full animate-spin"></div>
+           <div>
+             <h3 className="font-bold text-sm font-['Hind_Siliguri'] text-blue-300">ডাটা অনলাইনে সেভ হচ্ছে...</h3>
+             <p className="text-[10px] text-slate-400">আপনি কাজ চালিয়ে যেতে পারেন</p>
            </div>
         </div>
       )}

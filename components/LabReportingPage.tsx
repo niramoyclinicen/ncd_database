@@ -75,16 +75,18 @@ const ReportHeader = ({ patient, currentInvoice, doctors }: { patient: any, curr
 const Signatures = ({ customTechName, customTechDegree, customDocName, customDocDegree, techLabel = "Lab Technologist", docLabel = "Pathologist / Reporter" }: any) => (
     <div className="footer-sign-container no-break-inside">
         <div className="text-center w-64">
+            <p className="text-[12px] font-black uppercase text-black mb-1">{techLabel}</p>
             <div className="h-16 w-full"></div>
             <div className="border-t-2 border-black w-full mb-1"></div>
-            <p className="text-[12px] font-black uppercase text-black" style={{ color: '#000000 !important' }}>{customTechName || 'Lab Technologist'}</p>
-            <p className="text-[10px] font-bold text-black whitespace-pre-wrap" style={{ color: '#000000 !important' }}>{customTechDegree || ''}</p>
+            <p className="text-[12px] font-black uppercase text-black" style={{ color: '#000000 !important' }}>{customTechName}</p>
+            <p className="text-[10px] font-bold text-black whitespace-pre-wrap" style={{ color: '#000000 !important' }}>{customTechDegree}</p>
         </div>
         <div className="text-center w-64">
+            <p className="text-[12px] font-black uppercase text-black mb-1">{docLabel}</p>
             <div className="h-16 w-full"></div>
             <div className="border-t-2 border-black w-full mb-1"></div>
-            <p className="text-[12px] font-black uppercase text-black" style={{ color: '#000000 !important' }}>{customDocName || 'Consultant Pathologist'}</p>
-            <p className="text-[10px] font-bold text-black whitespace-pre-wrap" style={{ color: '#000000 !important' }}>{customDocDegree || ''}</p>
+            <p className="text-[12px] font-black uppercase text-black" style={{ color: '#000000 !important' }}>{customDocName}</p>
+            <p className="text-[10px] font-bold text-black whitespace-pre-wrap" style={{ color: '#000000 !important' }}>{customDocDegree}</p>
         </div>
     </div>
 );
@@ -292,17 +294,15 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
 
         // 3. Perform blocking sync if requested manually
         if (!isAutoSave && performBlockingSync) {
-            const success = await performBlockingSync({ 
+            setReports(updatedReports);
+            if (finalUpdatedInvoices !== invoices) {
+                setInvoices(finalUpdatedInvoices);
+            }
+            setSuccessMessage(`রিপোর্ট সফলভাবে সেভ হয়েছে!`);
+            performBlockingSync({ 
                 reports: updatedReports, 
                 labInvoices: finalUpdatedInvoices 
-            });
-            if (success) {
-                setReports(updatedReports);
-                if (finalUpdatedInvoices !== invoices) {
-                    setInvoices(finalUpdatedInvoices);
-                }
-                setSuccessMessage(`রিপোর্ট সফলভাবে সেভ হয়েছে!`);
-            }
+            }).catch(console.error);
         } else {
             // For auto-save or if no sync function provided
             setReports(updatedReports);
@@ -535,6 +535,26 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
                                                             ))}
                                                         </optgroup>
                                                     </select>
+                                                    <button 
+                                                        onClick={() => {
+                                                            const name = prompt("Enter Template Name:");
+                                                            if (name) {
+                                                                const newTpl = {
+                                                                    id: `TPL-${Date.now()}`,
+                                                                    templateName: name,
+                                                                    testName: activeTestName,
+                                                                    contentHtml: typeof currentReportData === 'string' ? currentReportData : (currentReportData?.html || currentReportData?.impression || '')
+                                                                };
+                                                                const current = JSON.parse(localStorage.getItem('ncd_rt_templates_v1') || '[]');
+                                                                localStorage.setItem('ncd_rt_templates_v1', JSON.stringify([...current, newTpl]));
+                                                                setRtTemplates([...current, newTpl]);
+                                                                setSuccessMessage("টেমপ্লেট সফলভাবে সেভ হয়েছে!");
+                                                            }
+                                                        }}
+                                                        className="w-full bg-slate-800 text-white hover:bg-slate-700 text-[10px] py-1.5 rounded uppercase font-bold mt-1"
+                                                    >
+                                                        Save As Template
+                                                    </button>
                                                 </div>
                                                 <RichTextToolbar onExec={(cmd, arg) => document.execCommand(cmd, false, arg)} />
                                             </>
@@ -560,7 +580,7 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
                                                             value={typeof currentReportData === 'string' ? currentReportData : (currentReportData?.html || currentReportData?.impression || '')} 
                                                             onChange={(val: string) => setCurrentReportData(val)} 
                                                             readOnly={false}
-                                                            hideToolbar={true}
+                                                            hideToolbar={false}
                                                         />
                                                     </div>
                                                 </div>
@@ -624,7 +644,7 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
                                                                     <div className="report-content-body">
                                                                         <ReportHeader patient={patient} currentInvoice={currentInvoice} doctors={doctors} />
                                                                         <div className="category-title">Hematology Report</div>
-                                                                        <CBCInputPage results={currentReportData} onSaveOverride={handleSaveReport} patient={patient} invoice={currentInvoice} doctors={doctors} employees={employees} technologistId={selectedTechnologistId} consultantId={selectedConsultantId} isEmbedded={true} checkRange={isOutOfRange} />
+                                                                        <CBCInputPage results={currentReportData} onSaveOverride={(data: any) => setCurrentReportData(data)} patient={patient} invoice={currentInvoice} doctors={doctors} employees={employees} technologistId={selectedTechnologistId} consultantId={selectedConsultantId} isEmbedded={true} checkRange={isOutOfRange} />
                                                                     </div>
                                                                     <Signatures customTechName={customTechName} customTechDegree={customTechDegree} customDocName={customDocName} customDocDegree={customDocDegree} />
                                                                 </div>
@@ -638,9 +658,9 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
                                                                         <ReportHeader patient={patient} currentInvoice={currentInvoice} doctors={doctors} />
                                                                         <div className="category-title">Clinical Pathology Report</div>
                                                                         {tName.toLowerCase().includes('urine') ? (
-                                                                            <UrineRMEInputPage results={currentReportData} onSaveOverride={handleSaveReport} patient={patient} invoice={currentInvoice} doctors={doctors} employees={employees} technologistId={selectedTechnologistId} consultantId={selectedConsultantId} isEmbedded={true} />
+                                                                            <UrineRMEInputPage results={currentReportData} onSaveOverride={(data: any) => setCurrentReportData(data)} patient={patient} invoice={currentInvoice} doctors={doctors} employees={employees} technologistId={selectedTechnologistId} consultantId={selectedConsultantId} isEmbedded={true} />
                                                                         ) : (
-                                                                            <SemenAnalysisInputPage results={currentReportData} onSaveOverride={handleSaveReport} patient={patient} invoice={currentInvoice} doctors={doctors} employees={employees} technologistId={selectedTechnologistId} consultantId={selectedConsultantId} isEmbedded={true} />
+                                                                            <SemenAnalysisInputPage results={currentReportData} onSaveOverride={(data: any) => setCurrentReportData(data)} patient={patient} invoice={currentInvoice} doctors={doctors} employees={employees} technologistId={selectedTechnologistId} consultantId={selectedConsultantId} isEmbedded={true} />
                                                                         )}
                                                                     </div>
                                                                     <Signatures customTechName={customTechName} customTechDegree={customTechDegree} customDocName={customDocName} customDocDegree={customDocDegree} />
