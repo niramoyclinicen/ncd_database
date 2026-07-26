@@ -260,6 +260,7 @@ const DiagnosticPage: React.FC<DiagnosticPageProps> = ({
                 tests={tests}
                 setTests={setTests}
                 reagents={reagents}
+                setReagents={setReagents}
                 employees={employees}
                 onNavigateSubPage={handleTabChange}
                 invoices={labInvoices}

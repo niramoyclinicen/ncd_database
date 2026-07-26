@@ -1,6 +1,67 @@
 import React, { useRef, useEffect } from 'react';
 
-export const RichTextEditor = ({ value, onChange, readOnly = false, minHeight = '300px' }: any) => {
+export const RichTextToolbar = ({ onExec }: { onExec: (cmd: string, arg?: string) => void }) => {
+    const btnClass = "px-2 py-1 bg-slate-100 hover:bg-slate-200 rounded text-xs font-bold text-slate-700 border border-slate-300 cursor-pointer flex items-center justify-center";
+    return (
+        <div className="flex flex-col gap-1 p-2 bg-slate-50 border border-slate-300 rounded shadow-sm no-print overflow-y-auto max-h-[60vh] custom-scrollbar">
+            <div className="text-[10px] font-black uppercase text-slate-500 mb-1 text-center">Formatting</div>
+            <div className="grid grid-cols-4 gap-1">
+                <button type="button" onMouseDown={(e) => { e.preventDefault(); onExec('bold'); }} className={btnClass} title="Bold"><b>B</b></button>
+                <button type="button" onMouseDown={(e) => { e.preventDefault(); onExec('italic'); }} className={btnClass} title="Italic"><i>I</i></button>
+                <button type="button" onMouseDown={(e) => { e.preventDefault(); onExec('underline'); }} className={btnClass} title="Underline"><u>U</u></button>
+                <button type="button" onMouseDown={(e) => { e.preventDefault(); onExec('strikeThrough'); }} className={btnClass} title="Strikethrough"><s>S</s></button>
+                <button type="button" onMouseDown={(e) => { e.preventDefault(); onExec('subscript'); }} className={btnClass} title="Subscript">X<sub>2</sub></button>
+                <button type="button" onMouseDown={(e) => { e.preventDefault(); onExec('superscript'); }} className={btnClass} title="Superscript">X<sup>2</sup></button>
+                <button type="button" onMouseDown={(e) => { e.preventDefault(); onExec('undo'); }} className={btnClass} title="Undo">↺</button>
+                <button type="button" onMouseDown={(e) => { e.preventDefault(); onExec('redo'); }} className={btnClass} title="Redo">↻</button>
+            </div>
+            
+            <div className="flex gap-1 mt-1 items-center justify-between text-xs font-bold text-slate-600">
+                <label className="flex items-center gap-1 cursor-pointer">
+                    Color:
+                    <input type="color" onChange={(e) => onExec('foreColor', e.target.value)} className="w-5 h-5 p-0 border-0 cursor-pointer" />
+                </label>
+                <label className="flex items-center gap-1 cursor-pointer">
+                    Bg:
+                    <input type="color" onChange={(e) => onExec('hiliteColor', e.target.value)} className="w-5 h-5 p-0 border-0 cursor-pointer" />
+                </label>
+            </div>
+
+            <select onChange={(e) => onExec('fontSize', e.target.value)} className="border border-slate-300 rounded text-xs px-1 h-7 cursor-pointer outline-none w-full mt-1">
+                <option value="">Size...</option>
+                <option value="1">Smallest</option>
+                <option value="2">Small</option>
+                <option value="3">Normal</option>
+                <option value="4">Large</option>
+                <option value="5">Larger</option>
+                <option value="6">Huge</option>
+                <option value="7">Massive</option>
+            </select>
+            <select onChange={(e) => onExec('fontName', e.target.value)} className="border border-slate-300 rounded text-xs px-1 h-7 cursor-pointer outline-none w-full">
+                <option value="">Font...</option>
+                <option value="Arial">Arial</option>
+                <option value="Times New Roman">Times New Roman</option>
+                <option value="Courier New">Courier New</option>
+                <option value="Georgia">Georgia</option>
+                <option value="Verdana">Verdana</option>
+            </select>
+            <div className="grid grid-cols-2 gap-1 mt-1">
+                <button type="button" onMouseDown={(e) => { e.preventDefault(); onExec('justifyLeft'); }} className={btnClass}>Left</button>
+                <button type="button" onMouseDown={(e) => { e.preventDefault(); onExec('justifyCenter'); }} className={btnClass}>Center</button>
+                <button type="button" onMouseDown={(e) => { e.preventDefault(); onExec('justifyRight'); }} className={btnClass}>Right</button>
+                <button type="button" onMouseDown={(e) => { e.preventDefault(); onExec('justifyFull'); }} className={btnClass}>Justify</button>
+                <button type="button" onMouseDown={(e) => { e.preventDefault(); onExec('insertUnorderedList'); }} className={btnClass}>Bullet</button>
+                <button type="button" onMouseDown={(e) => { e.preventDefault(); onExec('insertOrderedList'); }} className={btnClass}>Number</button>
+                <button type="button" onMouseDown={(e) => { e.preventDefault(); onExec('outdent'); }} className={btnClass}>Outdent</button>
+                <button type="button" onMouseDown={(e) => { e.preventDefault(); onExec('indent'); }} className={btnClass}>Indent</button>
+            </div>
+            <button type="button" onMouseDown={(e) => { e.preventDefault(); onExec('insertHorizontalRule'); }} className={`${btnClass} mt-1`} title="Horizontal Line">Insert Line</button>
+            <button type="button" onMouseDown={(e) => { e.preventDefault(); onExec('removeFormat'); }} className={`${btnClass} mt-1`} title="Clear Formatting">Clear Formatting</button>
+        </div>
+    );
+};
+
+export const RichTextEditor = ({ value, onChange, readOnly = false, minHeight = '300px', hideToolbar = false }: any) => {
     const editorRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -46,47 +107,50 @@ export const RichTextEditor = ({ value, onChange, readOnly = false, minHeight = 
                 .rich-text-content p { margin: 0.5rem 0; }
                 .rich-text-content h1, .rich-text-content h2, .rich-text-content h3 { font-weight: bold; margin: 1rem 0 0.5rem; }
             `}</style>
-            <div className="flex flex-wrap gap-1 p-2 bg-slate-50 border-b border-slate-300 items-center no-print">
-                <button type="button" onClick={() => exec('bold')} className={btnClass}><b>B</b></button>
-                <button type="button" onClick={() => exec('italic')} className={btnClass}><i>I</i></button>
-                <button type="button" onClick={() => exec('underline')} className={btnClass}><u>U</u></button>
-                <div className="w-px h-4 bg-slate-300 mx-1"></div>
-                
-                <select onChange={(e) => exec('fontSize', e.target.value)} className="border border-slate-300 rounded text-xs px-1 h-6 cursor-pointer outline-none">
-                    <option value="">Size...</option>
-                    <option value="1">Smallest</option>
-                    <option value="2">Small</option>
-                    <option value="3">Normal</option>
-                    <option value="4">Large</option>
-                    <option value="5">Larger</option>
-                    <option value="6">Huge</option>
-                    <option value="7">Massive</option>
-                </select>
-                
-                <select onChange={(e) => exec('fontName', e.target.value)} className="border border-slate-300 rounded text-xs px-1 h-6 cursor-pointer outline-none">
-                    <option value="">Font...</option>
-                    <option value="Arial">Arial</option>
-                    <option value="Times New Roman">Times New Roman</option>
-                    <option value="Courier New">Courier New</option>
-                    <option value="Georgia">Georgia</option>
-                    <option value="Verdana">Verdana</option>
-                </select>
+            
+            {!hideToolbar && (
+                <div className="flex flex-wrap gap-1 p-2 bg-slate-50 border-b border-slate-300 items-center no-print">
+                    <button type="button" onMouseDown={(e) => { e.preventDefault(); exec('bold'); }} className={btnClass}><b>B</b></button>
+                    <button type="button" onMouseDown={(e) => { e.preventDefault(); exec('italic'); }} className={btnClass}><i>I</i></button>
+                    <button type="button" onMouseDown={(e) => { e.preventDefault(); exec('underline'); }} className={btnClass}><u>U</u></button>
+                    <div className="w-px h-4 bg-slate-300 mx-1"></div>
+                    
+                    <select onChange={(e) => exec('fontSize', e.target.value)} className="border border-slate-300 rounded text-xs px-1 h-6 cursor-pointer outline-none">
+                        <option value="">Size...</option>
+                        <option value="1">Smallest</option>
+                        <option value="2">Small</option>
+                        <option value="3">Normal</option>
+                        <option value="4">Large</option>
+                        <option value="5">Larger</option>
+                        <option value="6">Huge</option>
+                        <option value="7">Massive</option>
+                    </select>
+                    
+                    <select onChange={(e) => exec('fontName', e.target.value)} className="border border-slate-300 rounded text-xs px-1 h-6 cursor-pointer outline-none">
+                        <option value="">Font...</option>
+                        <option value="Arial">Arial</option>
+                        <option value="Times New Roman">Times New Roman</option>
+                        <option value="Courier New">Courier New</option>
+                        <option value="Georgia">Georgia</option>
+                        <option value="Verdana">Verdana</option>
+                    </select>
 
-                <div className="w-px h-4 bg-slate-300 mx-1"></div>
-                <button type="button" onClick={() => exec('justifyLeft')} className={btnClass}>Left</button>
-                <button type="button" onClick={() => exec('justifyCenter')} className={btnClass}>Center</button>
-                <button type="button" onClick={() => exec('justifyRight')} className={btnClass}>Right</button>
-                <button type="button" onClick={() => exec('justifyFull')} className={btnClass}>Justify</button>
-                
-                <div className="w-px h-4 bg-slate-300 mx-1"></div>
-                <button type="button" onClick={() => exec('insertUnorderedList')} className={btnClass}>Bullet</button>
-                <button type="button" onClick={() => exec('insertOrderedList')} className={btnClass}>Number</button>
+                    <div className="w-px h-4 bg-slate-300 mx-1"></div>
+                    <button type="button" onMouseDown={(e) => { e.preventDefault(); exec('justifyLeft'); }} className={btnClass}>Left</button>
+                    <button type="button" onMouseDown={(e) => { e.preventDefault(); exec('justifyCenter'); }} className={btnClass}>Center</button>
+                    <button type="button" onMouseDown={(e) => { e.preventDefault(); exec('justifyRight'); }} className={btnClass}>Right</button>
+                    <button type="button" onMouseDown={(e) => { e.preventDefault(); exec('justifyFull'); }} className={btnClass}>Justify</button>
+                    
+                    <div className="w-px h-4 bg-slate-300 mx-1"></div>
+                    <button type="button" onMouseDown={(e) => { e.preventDefault(); exec('insertUnorderedList'); }} className={btnClass}>Bullet</button>
+                    <button type="button" onMouseDown={(e) => { e.preventDefault(); exec('insertOrderedList'); }} className={btnClass}>Number</button>
 
-                <div className="w-px h-4 bg-slate-300 mx-1"></div>
-                <button type="button" onClick={() => exec('outdent')} className={btnClass}>Outdent</button>
-                <button type="button" onClick={() => exec('indent')} className={btnClass}>Indent</button>
-                <button type="button" onClick={() => exec('removeFormat')} className={btnClass} title="Clear Formatting">Clear</button>
-            </div>
+                    <div className="w-px h-4 bg-slate-300 mx-1"></div>
+                    <button type="button" onMouseDown={(e) => { e.preventDefault(); exec('outdent'); }} className={btnClass}>Outdent</button>
+                    <button type="button" onMouseDown={(e) => { e.preventDefault(); exec('indent'); }} className={btnClass}>Indent</button>
+                    <button type="button" onMouseDown={(e) => { e.preventDefault(); exec('removeFormat'); }} className={btnClass} title="Clear Formatting">Clear</button>
+                </div>
+            )}
             
             <div 
                 ref={editorRef}

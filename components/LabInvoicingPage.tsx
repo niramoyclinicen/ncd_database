@@ -18,6 +18,7 @@ interface LabInvoicingPageProps {
   setReferrars: React.Dispatch<React.SetStateAction<Referrar[]>>;
   tests: Test[];
   reagents: Reagent[];
+  setReagents: React.Dispatch<React.SetStateAction<Reagent[]>>;
   setTests: React.Dispatch<React.SetStateAction<Test[]>>; // To update test availability
   employees: Employee[];
   onNavigateSubPage: (page: DiagnosticSubPage) => void;
@@ -82,6 +83,7 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
   const [applyPC, setApplyPC] = useState(false); // State for Apply PC checkbox
   const [successMessage, setSuccessMessage] = useState('');
   const [loading, setLoading] = useState(false);
+  const [pendingFilmSelections, setPendingFilmSelections] = useState<{test_id: string, test_name: string, film_reagent_id: string}[] | null>(null);
   const [confirmModal, setConfirmModal] = useState<{
     isOpen: boolean;
     title: string;
@@ -503,6 +505,22 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
         alert('Paid amount cannot be greater than Net Payable.');
         return;
     }
+
+    if (!isEditing) {
+        const xrayTestsInInvoice = formData.items.filter(item => {
+            const testObj = tests.find(t => t.test_id === item.test_id);
+            return testObj && testObj.test_category === 'X-Ray';
+        });
+
+        if (xrayTestsInInvoice.length > 0) {
+            const xrayFilmsAvailable = reagents.filter(r => r.linked_category === 'X-Ray' || r.reagent_name.toLowerCase().includes('film') || r.reagent_name.toLowerCase().includes('x-ray'));
+            if (xrayFilmsAvailable.length > 1) {
+                setPendingFilmSelections(xrayTestsInInvoice.map(t => ({ test_id: t.test_id, test_name: t.test_name, film_reagent_id: xrayFilmsAvailable[0].reagent_id })));
+                return; // wait for modal
+            }
+        }
+    }
+
     setConfirmModal({
         isOpen: true,
         title: 'Confirm Save',
@@ -592,17 +610,51 @@ pdate the local state and reset form
         ? safeInvoices.map(inv => (inv && inv.invoice_id === invoiceToSave.invoice_id) ? invoiceToSave : inv)
         : [invoiceToSave, ...safeInvoices];
 
+      let updatedReagents = [...reagents];
+      let reagentsChanged = false;
+      
+      if (!isEditing) {
+          const xrayFilmsAvailable = reagents.filter(r => r.linked_category === 'X-Ray' || r.reagent_name.toLowerCase().includes('film') || r.reagent_name.toLowerCase().includes('x-ray'));
+          formData.items.forEach(item => {
+              const testObj = tests.find(t => t.test_id === item.test_id);
+              if (testObj) {
+                  if (testObj.test_category === 'X-Ray') {
+                      let selectedFilmId = pendingFilmSelections?.find(p => p.test_id === item.test_id)?.film_reagent_id;
+                      if (!selectedFilmId && xrayFilmsAvailable.length === 1) {
+                          selectedFilmId = xrayFilmsAvailable[0].reagent_id;
+                      }
+                      if (selectedFilmId) {
+                          const rIdx = updatedReagents.findIndex(r => r.reagent_id === selectedFilmId);
+                          if (rIdx !== -1) {
+                              updatedReagents[rIdx] = { ...updatedReagents[rIdx], quantity: (updatedReagents[rIdx].quantity || 0) - 1 };
+                              reagentsChanged = true;
+                          }
+                      }
+                  } else {
+                      const rIdx = updatedReagents.findIndex(r => r.linked_test === testObj.test_name);
+                      if (rIdx !== -1) {
+                          updatedReagents[rIdx] = { ...updatedReagents[rIdx], quantity: (updatedReagents[rIdx].quantity || 0) - 1 };
+                          reagentsChanged = true;
+                      }
+                  }
+              }
+          });
+      }
+
       // If performBlockingSync is available, use it to ensure cloud save
       if (performBlockingSync) {
         try {
-          const success = await performBlockingSync({ labInvoices: newInvoices });
+          const syncPayload: any = { labInvoices: newInvoices };
+          if (reagentsChanged) syncPayload.reagents = updatedReagents;
+          const success = await performBlockingSync(syncPayload);
           
           if (success) {
             setInvoices(newInvoices);
+            if (reagentsChanged && setReagents) setReagents(updatedReagents);
             setSuccessMessage('ডাটা সফলভাবে সেভ হয়েছে');
             resetForm();
+            setPendingFilmSelections(null);
           } else {
-            // App.tsx handles the error modal when performBlockingSync fails
             console.error("Cloud save failed reported by performBlockingSync");
           }
         } catch (err) {
@@ -611,8 +663,10 @@ pdate the local state and reset form
         }
       } else {
         setInvoices(newInvoices);
+        if (reagentsChanged && setReagents) setReagents(updatedReagents);
         setSuccessMessage('ডাটা সেভ হয়েছে (অফলাইন মোড)');
         resetForm();
+        setPendingFilmSelections(null);
       }
     } catch (err) {
       console.error("Save error:", err);
@@ -929,6 +983,47 @@ pdate the local state and reset form
                     <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center text-emerald-600 text-2xl font-black shadow-lg">✓</div>
                     <span className="text-xl font-black uppercase tracking-widest">{successMessage}</span>
                     <button onClick={() => setSuccessMessage('')} className="pointer-events-auto mt-2 text-emerald-200 text-xs underline font-bold">dismiss</button>
+                </div>
+            </div>
+        )}
+
+        {pendingFilmSelections && (
+            <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[1000] flex justify-center items-center" aria-modal="true" role="dialog">
+                <div className="bg-slate-800 border-2 border-slate-700 p-8 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-[1001] w-full max-w-lg animate-zoom-in">
+                    <h3 className="text-2xl font-black text-white mb-6">Select X-Ray Film</h3>
+                    <p className="text-slate-300 text-sm mb-6">Please select which film size to deduct for the following X-Ray tests:</p>
+                    <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
+                        {pendingFilmSelections.map((sel, idx) => (
+                            <div key={sel.test_id} className="bg-slate-900 p-4 rounded-xl border border-slate-700">
+                                <div className="text-emerald-400 font-bold mb-2">{sel.test_name}</div>
+                                <select 
+                                    value={sel.film_reagent_id || ''}
+                                    onChange={e => {
+                                        const newSels = [...pendingFilmSelections];
+                                        newSels[idx].film_reagent_id = e.target.value;
+                                        setPendingFilmSelections(newSels);
+                                    }}
+                                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white outline-none focus:border-emerald-500"
+                                >
+                                    {reagents.filter(r => r.linked_category === 'X-Ray' || r.reagent_name.toLowerCase().includes('film') || r.reagent_name.toLowerCase().includes('x-ray')).map(r => (
+                                        <option key={r.reagent_id} value={r.reagent_id}>{r.reagent_name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        ))}
+                    </div>
+                    <div className="flex gap-4 mt-8">
+                        <button onClick={() => setPendingFilmSelections(null)} className="flex-1 bg-slate-700 text-white font-bold py-3 rounded-xl hover:bg-slate-600 transition-colors">Cancel</button>
+                        <button onClick={() => {
+                            setPendingFilmSelections(null);
+                            setConfirmModal({
+                                isOpen: true,
+                                title: 'Confirm Save',
+                                message: 'আপনি কি এই ল্যাব ইনভয়েসটি সেভ করতে চান?',
+                                onConfirm: () => executeSave()
+                            });
+                        }} className="flex-1 bg-emerald-600 text-white font-bold py-3 rounded-xl hover:bg-emerald-500 transition-colors shadow-lg shadow-emerald-900/50">Continue to Save</button>
+                    </div>
                 </div>
             </div>
         )}

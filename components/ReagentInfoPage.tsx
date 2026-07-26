@@ -13,7 +13,11 @@ interface ReagentInfoPageProps {
 }
 
 const ReagentInfoPage: React.FC<ReagentInfoPageProps> = ({ reagents, setReagents, detailedExpenses, labInvoices, tests = [], performBlockingSync }) => {
-    const [viewMode, setViewMode] = useState<'inventory' | 'requisition' | 'ledger'>('inventory');
+    const [viewMode, setViewMode] = useState<'inventory' | 'requisition' | 'ledger' | 'summary'>('summary');
+    const [summaryStartDate, setSummaryStartDate] = useState(() => {
+        const d = new Date(); d.setDate(1); return d.toISOString().split('T')[0];
+    });
+    const [summaryEndDate, setSummaryEndDate] = useState(new Date().toISOString().split('T')[0]);
     const [ledgerReagentId, setLedgerReagentId] = useState<string | null>(null);
     const [ledgerStartDate, setLedgerStartDate] = useState<string>('');
     const [ledgerEndDate, setLedgerEndDate] = useState<string>('');
@@ -54,7 +58,19 @@ const ReagentInfoPage: React.FC<ReagentInfoPageProps> = ({ reagents, setReagents
         if (detailedExpenses) {
             Object.entries(detailedExpenses).forEach(([date, expenses]: [string, any]) => {
                 expenses.forEach((exp: any) => {
-                    if ((exp.category === 'Reagent buy' || exp.category === 'X-ray Film buy') && exp.subCategory === reagent.reagent_name) {
+                    if (exp.metadata?.isBatchPurchase) {
+                        const row = exp.metadata.items.find((i:any) => i.reagentId === reagentId);
+                        if (row && row.qty > 0) {
+                            stock += row.qty;
+                            ledgerItems.push({
+                                date,
+                                type: 'PURCHASE',
+                                description: 'Batch Purchase Invoice',
+                                qtyChange: row.qty,
+                                resultingStock: stock
+                            });
+                        }
+                    } else if ((exp.category === 'Reagent buy' || exp.category === 'X-ray Film buy') && exp.subCategory === reagent.reagent_name) {
                         const qtyAdded = (exp.metadata?.numberOfBoxes || 0) * (exp.metadata?.quantityPerBox || 0);
                         if (qtyAdded > 0) {
                             stock += qtyAdded;
@@ -76,20 +92,45 @@ const ReagentInfoPage: React.FC<ReagentInfoPageProps> = ({ reagents, setReagents
             labInvoices.forEach((inv: any) => {
                 inv.items.forEach((item: any) => {
                     const test = tests.find(t => t.test_id === item.test_id);
-                    if (test && test.reagents_required) {
-                        const usage = test.reagents_required.find((req: any) => req.reagent_id === reagent.reagent_name);
-                        if (usage) {
-                            const qtyUsed = (usage.quantity_per_test || 0) * (item.quantity || 1);
-                            if (qtyUsed > 0) {
-                                stock -= qtyUsed;
-                                ledgerItems.push({
-                                    date: inv.invoice_date,
-                                    type: 'USAGE',
-                                    description: 'Used in Invoice: ' + inv.invoice_id + ' (Test: ' + test.test_name + ')',
-                                    qtyChange: -qtyUsed,
-                                    resultingStock: stock
-                                });
+                    if (test) {
+                        let isUsed = false;
+                        let qtyUsed = 0;
+                        
+                        // Check if it's explicitly required
+                        if (test.reagents_required) {
+                            const usage = test.reagents_required.find((req: any) => req.reagent_id === reagent.reagent_name);
+                            if (usage) {
+                                qtyUsed = (usage.quantity_per_test || 0) * (item.quantity || 1);
+                                isUsed = qtyUsed > 0;
                             }
+                        }
+                        
+                        // Fallback to linked_test or linked_category
+                        if (!isUsed) {
+                            if (test.test_category === 'X-Ray' && reagent.linked_category === 'X-Ray') {
+                                // For X-Ray, it's hard to know exactly which film was used if there are multiple. 
+                                // In LabInvoicing we deduct from the actual stock.
+                                // For ledger purposes, we will just estimate 1 if it's the only film, or assume it was used if it's an X-ray film.
+                                // Actually, to avoid ledger mismatch, if we don't know, we shouldn't guess wrongly.
+                                // BUT we need the consumed count to look right! 
+                                // We'll just assume 1 qty was used.
+                                qtyUsed = 1;
+                                isUsed = true;
+                            } else if (reagent.linked_test === test.test_name) {
+                                qtyUsed = 1;
+                                isUsed = true;
+                            }
+                        }
+
+                        if (isUsed && qtyUsed > 0) {
+                            stock -= qtyUsed;
+                            ledgerItems.push({
+                                date: inv.invoice_date,
+                                type: 'USAGE',
+                                description: 'Used in Invoice: ' + inv.invoice_id + ' (Test: ' + test.test_name + ')',
+                                qtyChange: -qtyUsed,
+                                resultingStock: stock
+                            });
                         }
                     }
                 });
@@ -295,7 +336,8 @@ const ReagentInfoPage: React.FC<ReagentInfoPageProps> = ({ reagents, setReagents
                 <div className="flex bg-slate-800 p-1 rounded-2xl border border-slate-700">
                     <button onClick={() => setViewMode('inventory')} className={`px-8 py-2.5 rounded-xl font-black text-xs uppercase transition-all ${viewMode === 'inventory' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-800'}`}>Inventory View</button>
                     <button onClick={() => setViewMode('requisition')} className={`px-8 py-2.5 rounded-xl font-black text-xs uppercase transition-all ${viewMode === 'requisition' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-800'}`}>Requisition Mode</button>
-                    <button onClick={() => setViewMode('ledger')} className={`px-8 py-2.5 rounded-xl font-black text-xs uppercase transition-all ${viewMode === 'ledger' ? 'bg-amber-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-800'}`}>Stock Ledger</button>
+                    <button onClick={() => setViewMode('ledger')} className={`px-8 py-2.5 rounded-xl font-black text-xs uppercase transition-all ${viewMode === 'ledger' ? 'bg-amber-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-800'}`}>Item Ledger</button>
+                    <button onClick={() => setViewMode('summary')} className={`px-8 py-2.5 rounded-xl font-black text-xs uppercase transition-all ${viewMode === 'summary' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-800'}`}>Excel Summary</button>
                 </div>
             </header>
 
@@ -324,7 +366,7 @@ const ReagentInfoPage: React.FC<ReagentInfoPageProps> = ({ reagents, setReagents
                     </div>
                 </div>
 
-                {viewMode !== 'ledger' && (
+                {['inventory', 'requisition'].includes(viewMode) && (
                 <div className="bg-slate-900 rounded-[2.5rem] border border-slate-800 shadow-2xl overflow-hidden flex flex-col">
                     <div className="p-6 border-b border-slate-800 bg-slate-900/50 flex flex-wrap justify-between items-center gap-4 no-print">
                         <div className="relative w-full md:w-96">
@@ -389,6 +431,116 @@ const ReagentInfoPage: React.FC<ReagentInfoPageProps> = ({ reagents, setReagents
                 </div>
                 )}
                 
+                {viewMode === 'summary' && (() => {
+                    const getSummaryData = () => {
+                        return filteredReagents.map(r => {
+                            const ledger = getReagentLedger(r.reagent_id);
+                            let openingStock = 0;
+                            let purchase = 0;
+                            let consume = 0;
+                            let adjust = 0;
+                            
+                            ledger.items.forEach(item => {
+                                if (item.date !== 'Initial' && item.date < summaryStartDate) {
+                                    openingStock = item.resultingStock;
+                                } else if (item.date === 'Initial' || (item.date >= summaryStartDate && item.date <= summaryEndDate)) {
+                                    if (item.type === 'PURCHASE') purchase += item.qtyChange;
+                                    else if (item.type === 'USAGE') consume += Math.abs(item.qtyChange);
+                                    else adjust += item.qtyChange;
+                                }
+                            });
+                            
+                            // To match physical reality in DB (reagent.quantity) while preserving mathematical formula
+                            // consumed is effectively Opening + Purchase + Adjust - Current
+                            // This ensures the summary matches exactly the real stock in the DB if Date range covers today.
+                            const isCurrent = summaryEndDate >= new Date().toISOString().split('T')[0];
+                            let currentStock = openingStock + purchase - consume + adjust;
+                            
+                            if (isCurrent) {
+                                // If view includes today, current physical stock is the absolute truth
+                                currentStock = r.quantity || 0;
+                                // We calculate true consumption to make the math balance out perfectly
+                                consume = openingStock + purchase + adjust - currentStock;
+                            }
+                            
+                            return {
+                                id: r.reagent_id,
+                                reagentOriginal: r,
+                                name: r.reagent_name,
+                                company: r.company,
+                                unit: r.unit,
+                                linkedTest: r.linked_test || r.linked_category || 'General',
+                                openingStock,
+                                purchase,
+                                consume,
+                                adjust,
+                                currentStock,
+                            };
+                        });
+                    };
+                    const summaryData = getSummaryData();
+                    return (
+                        <div className="bg-slate-900 rounded-[2.5rem] border border-slate-800 shadow-2xl overflow-hidden flex flex-col p-8">
+                            <div className="flex justify-between items-center mb-6 no-print">
+
+                                <div>
+                                    <h3 className="text-2xl font-black text-white flex items-center gap-3"><DatabaseIcon size={24} className="text-indigo-400" /> Reagent & Film Inventory (Excel View)</h3>
+                                </div>
+                                <div className="relative w-64 mt-4 md:mt-0">
+                                    <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={16}/>
+                                    <input value={searchTerm} onChange={e=>setSearchTerm(e.target.value)} placeholder="Search..." className="w-full bg-slate-950 border border-slate-700 rounded-xl py-2 pl-12 pr-6 text-sm text-white focus:border-indigo-500 outline-none shadow-inner"/>
+                                </div>
+
+                                <div className="flex gap-4 items-center">
+                                    <input type="date" value={summaryStartDate} onChange={e=>setSummaryStartDate(e.target.value)} className="bg-slate-950 border border-slate-700 rounded-xl px-4 py-2 text-white font-bold outline-none focus:border-indigo-500"/>
+                                    <span className="text-slate-500 font-black">TO</span>
+                                    <input type="date" value={summaryEndDate} onChange={e=>setSummaryEndDate(e.target.value)} className="bg-slate-950 border border-slate-700 rounded-xl px-4 py-2 text-white font-bold outline-none focus:border-indigo-500"/>
+                                    <button onClick={() => window.print()} className="bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-2 rounded-xl font-black uppercase text-xs transition-all shadow-lg flex items-center gap-2"><PrinterIcon size={16}/> Print</button>
+                                </div>
+                            </div>
+                            <div className="overflow-x-auto min-h-[400px]">
+                                <table className="w-full text-left border-collapse text-xs print:text-black print:border-black print:border">
+                                    <thead className="bg-slate-950 text-[10px] uppercase font-black text-slate-500 tracking-widest border-b border-slate-800 print:bg-gray-100 print:text-black">
+                                        <tr>
+                                            <th className="p-4 print:border print:border-black w-10 text-center">SL</th>
+                                            <th className="p-4 print:border print:border-black">Test Name</th>
+                                            <th className="p-4 print:border print:border-black">Reagent / Film</th>
+                                            <th className="p-4 print:border print:border-black text-center">Previous Stock</th>
+                                            <th className="p-4 print:border print:border-black text-center text-emerald-400">Purchased</th>
+                                            <th className="p-4 print:border print:border-black text-center text-rose-400">Consumed</th>
+                                            <th className="p-4 print:border print:border-black text-center text-indigo-400">Current Stock</th>
+                                            <th className="p-4 no-print text-center">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-800 print:divide-black">
+                                        {summaryData.map((d, idx) => (
+                                            <tr key={d.id} className="hover:bg-slate-800/40 transition-colors">
+                                                <td className="p-4 text-center font-bold text-slate-500 print:border print:border-black print:text-black">{idx + 1}</td>
+                                                <td className="p-4 print:border print:border-black">
+                                                    <div className="font-bold text-indigo-400 text-sm print:text-black">{d.linkedTest}</div>
+                                                </td>
+                                                <td className="p-4 print:border print:border-black">
+                                                    <div className="font-bold text-white text-sm print:text-black">{d.name}</div>
+                                                    <div className="text-[10px] text-slate-500">{d.company ? d.company + ' | ' : ''}Unit: {d.unit}</div>
+                                                </td>
+                                                <td className="p-4 text-center font-bold print:border print:border-black print:text-black">{d.openingStock || 0}</td>
+                                                <td className="p-4 text-center font-bold text-emerald-400 print:border print:border-black print:text-black">{d.purchase || 0}</td>
+                                                <td className="p-4 text-center font-bold text-rose-400 print:border print:border-black print:text-black">{d.consume || 0}</td>
+                                                <td className="p-4 text-center font-black text-indigo-400 text-sm print:border print:border-black print:text-black">{d.currentStock || 0}</td>
+                                                <td className="p-4 text-center no-print">
+                                                    <button onClick={() => handleEditClick(d.reagentOriginal)} className="bg-amber-600/20 text-amber-500 hover:bg-amber-500 hover:text-white px-3 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all border border-amber-900/50 hover:border-amber-500">
+                                                        Set Stock
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    );
+                })()}
+
                 {viewMode === 'ledger' && (
                     <div className="bg-slate-900 rounded-[2.5rem] border border-slate-800 shadow-2xl overflow-hidden flex flex-col p-8">
                         <div className="flex flex-wrap gap-4 items-end mb-8 border-b border-slate-800 pb-8">

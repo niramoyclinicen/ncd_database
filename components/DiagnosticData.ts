@@ -146,6 +146,8 @@ export interface Reagent {
   expiry_date?: string; 
   company?: string;      
   capacity_per_unit?: string; 
+  linked_test?: string;
+  linked_category?: string;
 }
 
 export const emptyReagent: Reagent = {

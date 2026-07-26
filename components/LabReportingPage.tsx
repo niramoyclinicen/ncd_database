@@ -7,7 +7,8 @@ import CBCInputPage from './CBCInputPage';
 import SemenAnalysisInputPage from './SemenAnalysisInputPage';
 import LipidProfileInputPage from './LipidProfileInputPage';
 import TemplateManagementPage from './TemplateManagementPage';
-import { RichTextEditor } from './RichTextEditor';
+import { RichTextEditor, RichTextToolbar } from './RichTextEditor';
+import SearchableSelect from './SearchableSelect';
 import { SettingsIcon, Activity, SaveIcon, PrinterIcon } from './Icons';
 
 // Use fixed license constant
@@ -211,6 +212,22 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
         if (!Array.isArray(patients) || !currentInvoice) return null;
         return patients.find((p: Patient) => p.pt_id === currentInvoice.patient_id);
     }, [currentInvoice, patients]);
+
+    const isUSG = activeTestName?.toLowerCase().includes('usg') || activeTestName?.toLowerCase().includes('ultra');
+
+    const techOptions = useMemo(() => employees.map((e: any) => ({
+        id: e.emp_id,
+        name: e.emp_name,
+        details: e.job_position || e.degree
+    })), [employees]);
+
+    const doctorOptions = useMemo(() => doctors.map((d: any) => ({
+        id: d.doctor_id,
+        name: d.doctor_name,
+        details: d.degree
+    })), [doctors]);
+
+    const leftSignatureOptions = isUSG ? doctorOptions : techOptions;
 
     // Clear success message quickly (1s)
     useEffect(() => {
@@ -429,40 +446,50 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
                         {currentInvoice?.items.map((it: any) => {
                             const isTestDone = reports.some((rep: any) => rep.invoice_id === selectedInvoiceId && rep.test_name === it.test_name);
                             return (
-                                <button key={it.test_id} onClick={() => handleSelectTest(it.test_name)} className={`w-full text-left p-4 rounded-2xl text-[11px] font-black transition-all border flex justify-between items-center ${activeTestName === it.test_name ? 'bg-indigo-600 text-white border-indigo-500 shadow-lg' : isTestDone ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-white text-slate-600 border-slate-200'}`}>
-                                    <span className="truncate pr-1 uppercase">{it.test_name}</span>
-                                    {isTestDone && <span>✓</span>}
+                                <button key={it.test_id} onClick={() => handleSelectTest(it.test_name)} className={`w-full text-left p-3 rounded-2xl text-[11px] font-black transition-all border flex justify-between items-center ${activeTestName === it.test_name ? 'bg-indigo-600 text-white border-indigo-500 shadow-lg' : isTestDone ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-white text-slate-600 border-slate-200'}`}>
+                                    <span className="truncate pr-1 uppercase flex-1">{it.test_name}</span>
+                                    {isTestDone ? <span className={`text-[8px] px-2 py-0.5 rounded-full shrink-0 uppercase tracking-widest border ${activeTestName === it.test_name ? 'bg-indigo-500 text-white border-indigo-400' : 'bg-emerald-100 text-emerald-700 border-emerald-200'}`}>Done</span> : <span className={`text-[8px] px-2 py-0.5 rounded-full shrink-0 uppercase tracking-widest border ${activeTestName === it.test_name ? 'bg-indigo-400 text-white border-indigo-300' : 'bg-amber-50 text-amber-600 border-amber-200'}`}>Pend</span>}
                                 </button>
                             );
                         })}
                     </div>
                     <div className="p-4 bg-slate-900 border-t border-slate-700 space-y-3">
-                         <select value={selectedTechnologistId} onChange={e=>{
-                             const id = e.target.value;
-                             setSelectedTechnologistId(id);
-                             localStorage.setItem('last_tech_id', id);
-                             const tech = employees.find((emp: any) => emp.emp_id === id);
-                             if (tech) {
-                                 setCustomTechName(tech.emp_name);
-                                 setCustomTechDegree(tech.degree || 'Medical Technologist');
-                             } else {
-                                 setCustomTechName('');
-                                 setCustomTechDegree('');
-                             }
-                         }} className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2 text-[10px] text-white font-bold outline-none"><option value="">-- Select Tech --</option>{employees.map((e: any) => <option key={e.emp_id} value={e.emp_id}>{e.emp_name} ({e.job_position})</option>)}</select>
-                         <select value={selectedConsultantId} onChange={e=>{
-                             const id = e.target.value;
-                             setSelectedConsultantId(id);
-                             localStorage.setItem('last_doc_id', id);
-                             const doc = doctors.find((d: any) => d.doctor_id === id);
-                             if (doc) {
-                                 setCustomDocName(doc.doctor_name);
-                                 setCustomDocDegree(doc.degree);
-                             } else {
-                                 setCustomDocName('');
-                                 setCustomDocDegree('');
-                             }
-                         }} className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2 text-[10px] text-white font-bold outline-none"><option value="">-- Select Doctor --</option>{doctors.map((d: any) => <option key={d.doctor_id} value={d.doctor_id}>{d.doctor_name}</option>)}</select>
+                        <SearchableSelect 
+                            label={isUSG ? "Sonographer" : "Technologist"}
+                            options={leftSignatureOptions}
+                            value={selectedTechnologistId}
+                            onChange={(id) => {
+                                setSelectedTechnologistId(id);
+                                localStorage.setItem('last_tech_id', id);
+                                let person = employees.find((e: any) => e.emp_id === id) || doctors.find((d: any) => d.doctor_id === id);
+                                if (person) {
+                                    setCustomTechName(person.emp_name || person.doctor_name);
+                                    setCustomTechDegree(person.degree || (isUSG ? 'Sonographer' : 'Medical Technologist'));
+                                } else {
+                                    setCustomTechName('');
+                                    setCustomTechDegree('');
+                                }
+                            }}
+                            theme="dark"
+                        />
+                        <SearchableSelect 
+                            label="Pathologist / Sonologist"
+                            options={doctorOptions}
+                            value={selectedConsultantId}
+                            onChange={(id) => {
+                                setSelectedConsultantId(id);
+                                localStorage.setItem('last_doc_id', id);
+                                const doc = doctors.find((d: any) => d.doctor_id === id);
+                                if (doc) {
+                                    setCustomDocName(doc.doctor_name);
+                                    setCustomDocDegree(doc.degree);
+                                } else {
+                                    setCustomDocName('');
+                                    setCustomDocDegree('');
+                                }
+                            }}
+                            theme="dark"
+                        />
                     </div>
                 </div>
 
@@ -474,12 +501,44 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
                                 
                                 {/* STICKY SIDE CONTROLS WITHIN THE WORKSPACE BACKGROUND */}
                                 <div className="side-controls-container no-print">
-                                    <div className="side-controls-left">
+                                    <div className="side-controls-left" style={{ width: '180px' }}>
                                         <div className="bg-indigo-600 text-white px-2 py-1.5 rounded-lg font-black text-[9px] uppercase shadow-lg text-center truncate border border-indigo-400">{activeTestName}</div>
                                         <label className="flex items-center justify-center gap-2 cursor-pointer bg-white px-3 py-2 rounded-lg border-2 border-slate-300 shadow-xl group hover:border-blue-500 transition-all">
                                             <input type="checkbox" checked={printFullPad} onChange={e => setPrintFullPad(e.target.checked)} className="w-4 h-4 text-blue-600" />
                                             <span className="text-[12px] font-black uppercase text-slate-700 group-hover:text-blue-600 leading-none">Pad Mode</span>
                                         </label>
+                                        
+                                        {(activeTestName.toLowerCase().includes('usg') || activeTestName.toLowerCase().includes('ultra') || activeTestName.toLowerCase().includes('semen')) && (
+                                            <>
+                                                <div className="bg-white p-2 rounded-lg border border-slate-300 shadow-xl flex flex-col gap-2">
+                                                    <span className="text-[10px] font-black uppercase text-indigo-800 text-center border-b pb-1">Template</span>
+                                                    <select 
+                                                        className="w-full bg-slate-50 border border-slate-200 rounded p-1.5 text-[10px] font-bold outline-none"
+                                                        onChange={(e) => {
+                                                            const t = rtTemplates.find(x => x.id === e.target.value);
+                                                            if(t) {
+                                                                if(confirm('Replace current content with template?')) {
+                                                                    setCurrentReportData(t.contentHtml);
+                                                                }
+                                                            }
+                                                        }}
+                                                    >
+                                                        <option value="">-- Choose --</option>
+                                                        <optgroup label={`Matches: ${activeTestName}`}>
+                                                            {rtTemplates.filter((t: any) => t.testName === activeTestName).map((t: any) => (
+                                                                <option key={t.id} value={t.id}>{t.templateName}</option>
+                                                            ))}
+                                                        </optgroup>
+                                                        <optgroup label="All Templates">
+                                                            {rtTemplates.filter((t: any) => t.testName !== activeTestName).map((t: any) => (
+                                                                <option key={t.id} value={t.id}>{t.templateName} ({t.testName})</option>
+                                                            ))}
+                                                        </optgroup>
+                                                    </select>
+                                                </div>
+                                                <RichTextToolbar onExec={(cmd, arg) => document.execCommand(cmd, false, arg)} />
+                                            </>
+                                        )}
                                     </div>
                                     <div className="side-controls-right">
                                         <button onClick={() => handleSaveReport(currentReportData)} className="bg-emerald-600 hover:bg-emerald-500 text-white w-9 h-9 rounded-full shadow-xl transition-all flex items-center justify-center border-2 border-white active:scale-90" title="Save Report"><SaveIcon size={16}/></button>
@@ -496,32 +555,12 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
                                                     <ReportHeader patient={patient} currentInvoice={currentInvoice} doctors={doctors} />
                                                     <div className="category-title">{activeTestName}</div>
                                                     
-                                                    {/* Template Selector no-print */}
-                                                    <div className="no-print mb-4 bg-indigo-50 p-3 rounded-lg border border-indigo-100 flex items-center gap-4">
-                                                        <span className="text-[10px] font-black uppercase text-indigo-800">Load Template:</span>
-                                                        <select 
-                                                            className="flex-1 bg-white border border-indigo-200 rounded p-1.5 text-xs font-bold outline-none"
-                                                            onChange={(e) => {
-                                                                const t = rtTemplates.find(x => x.id === e.target.value);
-                                                                if(t) {
-                                                                    if(confirm('Replace current content with template?')) {
-                                                                        setCurrentReportData(t.contentHtml);
-                                                                    }
-                                                                }
-                                                            }}
-                                                        >
-                                                            <option value="">-- Choose Template --</option>
-                                                            {rtTemplates.filter((t: any) => t.testName === activeTestName).map((t: any) => (
-                                                                <option key={t.id} value={t.id}>{t.templateName}</option>
-                                                            ))}
-                                                        </select>
-                                                    </div>
-
                                                     <div className="flex-1 min-h-[400px]">
                                                         <RichTextEditor 
                                                             value={typeof currentReportData === 'string' ? currentReportData : (currentReportData?.html || currentReportData?.impression || '')} 
                                                             onChange={(val: string) => setCurrentReportData(val)} 
                                                             readOnly={false}
+                                                            hideToolbar={true}
                                                         />
                                                     </div>
                                                 </div>
