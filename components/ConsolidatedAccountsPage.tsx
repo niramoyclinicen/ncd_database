@@ -833,20 +833,20 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                 <h1 className="text-xl font-black uppercase text-blue-900 leading-none">Niramoy Clinic & Diagnostic</h1>
                                 <h3 className="text-[10pt] font-bold uppercase tracking-widest mt-1">Collection Breakdown - {monthOptions[selectedMonth].name} {selectedYear}</h3>
                             </div>
-                            <table className="w-full border-collapse border-2 border-black text-[8pt] print:text-[7.5pt] table-fixed">
+                            <table className="w-full border-collapse border-2 border-black text-[8pt] print:text-[7.5pt] table-fixed tracking-tighter">
                                 <thead>
                                     <tr className="bg-gray-50 h-6 print:h-[5mm]">
-                                        <th className="border-2 border-black p-1 w-[8%] whitespace-nowrap" rowSpan={2}>Date</th>
+                                        <th className="border-2 border-black p-1 w-[7%] whitespace-nowrap" rowSpan={2}>Date</th>
                                         <th className="border-2 border-black p-1" colSpan={4}>Diagnostic</th>
                                         <th className="border-2 border-black p-1" colSpan={4}>Clinic</th>
-                                        <th className="border-2 border-black p-1 bg-slate-50 w-[10%]" rowSpan={2}>Total Collection</th>
+                                        <th className="border-2 border-black p-1 bg-slate-50 w-[9%] text-[7px]" rowSpan={2}>Total Collection</th>
                                     </tr>
                                     <tr className="bg-gray-50 uppercase text-[7px] font-black h-5 print:h-[4mm]">
-                                        <th className="border-2 border-black p-1 w-[9%]">Today</th>
+                                        <th className="border-2 border-black p-1 w-[10%]">Today</th>
                                         <th className="border-2 border-black p-1 w-[7%]">Due</th>
                                         <th className="border-2 border-black p-1 w-[11%]">Total</th>
                                         <th className="border-2 border-black p-1 bg-blue-50 w-[14%]">Upto</th>
-                                        <th className="border-2 border-black p-1 w-[9%]">Today</th>
+                                        <th className="border-2 border-black p-1 w-[10%]">Today</th>
                                         <th className="border-2 border-black p-1 w-[7%]">Due</th>
                                         <th className="border-2 border-black p-1 w-[11%]">Total</th>
                                         <th className="border-2 border-black p-1 bg-emerald-50 w-[14%]">Upto</th>

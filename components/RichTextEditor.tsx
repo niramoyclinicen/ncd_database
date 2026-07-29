@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 
 export const RichTextToolbar = ({ onExec }: { onExec: (cmd: string, arg?: string) => void }) => {
     const btnClass = "px-2 py-1 bg-slate-100 hover:bg-slate-200 rounded text-xs font-bold text-slate-700 border border-slate-300 cursor-pointer flex items-center justify-center";
@@ -156,7 +156,7 @@ export const RichTextEditor = ({ value, onChange, readOnly = false, minHeight = 
     const btnClass = "px-2 py-1 bg-slate-100 hover:bg-slate-200 rounded text-xs font-bold text-slate-700 border border-slate-300 cursor-pointer";
 
     return (
-        <div className="flex flex-col h-full border border-slate-300 rounded overflow-hidden bg-white print:border-none print:bg-transparent w-full">
+        <div className="flex flex-col border border-slate-300 rounded overflow-hidden bg-white print:border-none print:bg-transparent w-full">
             <style>{`
                 .rich-text-content ul { list-style-type: disc; padding-left: 1.5rem; margin: 0.5rem 0; }
                 .rich-text-content ol { list-style-type: decimal; padding-left: 1.5rem; margin: 0.5rem 0; }

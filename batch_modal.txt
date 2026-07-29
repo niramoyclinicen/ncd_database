@@ -1,0 +1,116 @@
+283:const BatchPurchaseModal: React.FC<{
+284-    onClose: () => void,
+285-    onSave: (date: string, items: any[], discount: number, paid: number) => void,
+286-    reagents: any[],
+287-    availableTests: any[]
+288-}> = ({ onClose, onSave, reagents, availableTests }) => {
+289-    const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+290-    const [rows, setRows] = useState(() => [{ id: Date.now(), reagentId: '', qty: 1, unitPrice: 0 }]);
+291-    const [discount, setDiscount] = useState(0);
+292-    const [paid, setPaid] = useState(0);
+293-
+294-    const handleAddRow = () => setRows([...rows, { id: Date.now(), reagentId: '', qty: 1, unitPrice: 0 }]);
+295-    const handleRemoveRow = (id: number) => setRows(rows.filter(r => r.id !== id));
+296-    
+297-    const updateRow = (id: number, field: string, value: any) => {
+298-        setRows(rows.map(r => r.id === id ? { ...r, [field]: value } : r));
+299-    };
+300-
+301-    const subTotal = rows.reduce((acc, r) => acc + (r.qty * r.unitPrice), 0);
+302-    const netPayable = subTotal - discount;
+303-
+304-    return (
+305-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[200] flex items-center justify-center p-4">
+306-            <div className="bg-slate-900 border border-slate-700 rounded-3xl w-full max-w-5xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-zoom-in">
+307-                <div className="bg-slate-800 p-6 flex justify-between items-center border-b border-slate-700">
+308-                    <div>
+309-                        <h2 className="text-xl font-black text-sky-400 uppercase tracking-tighter flex items-center gap-2">
+310-                            <FileTextIcon size={24}/> Batch Purchase Entry (Reagent / Film)
+311-                        </h2>
+312-                        <p className="text-xs text-slate-400 font-bold uppercase mt-1">Add multiple items into a single invoice</p>
+313-                    </div>
+314-                    <button onClick={onClose} className="p-2 bg-slate-700 hover:bg-rose-600 rounded-xl transition-all text-white"><XIcon size={20} /></button>
+315-                </div>
+316-                
+317-                <div className="p-6 overflow-y-auto flex-1">
+318-                    <div className="mb-6 bg-slate-800/50 p-4 rounded-2xl border border-slate-700 flex items-center gap-4">
+319-                        <div>
+320-                            <label className="text-[10px] font-black text-slate-500 uppercase mb-2 block">Invoice / Purchase Date</label>
+321-                            <input type="date" value={date} onChange={e => setDate(e.target.value)} className="bg-slate-950 border border-slate-700 rounded-xl px-4 py-2 text-white outline-none focus:border-sky-500"/>
+322-                        </div>
+323-                    </div>
+324-
+325-                    <table className="w-full text-left border-collapse text-xs mb-4">
+326-                        <thead className="bg-slate-950 text-[10px] uppercase font-black text-slate-500 tracking-widest border-b border-slate-800">
+327-                            <tr>
+328-                                <th className="p-3 w-1/3">Item (Reagent / Film)</th>
+329-                                <th className="p-3 w-1/6 text-center">Qty</th>
+330-                                <th className="p-3 w-1/6 text-right">Unit Price</th>
+331-                                <th className="p-3 w-1/6 text-right">Total</th>
+332-                                <th className="p-3 w-16 text-center">Action</th>
+333-                            </tr>
+334-                        </thead>
+335-                        <tbody className="divide-y divide-slate-800">
+336-                            {rows.map((row, i) => (
+337-                                <tr key={row.id}>
+338-                                    <td className="p-3">
+339-                                        <select value={row.reagentId} onChange={e => updateRow(row.id, 'reagentId', e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-white outline-none focus:border-sky-500">
+340-                                            <option value="">-- Select Item --</option>
+341-                                            {reagents.map(rg => <option key={rg.reagent_id} value={rg.reagent_id}>{rg.reagent_name} {rg.company ? `(${rg.company})` : ''}</option>)}
+342-                                        </select>
+343-                                        {(() => {
+344-                                            const rg = reagents.find((r:any) => r.reagent_id === row.reagentId);
+345-                                            if (!rg) return null;
+346-                                            const isFilm = rg.reagent_name.toLowerCase().includes('film') || rg.reagent_name.toLowerCase().includes('x-ray');
+347-                                            if (isFilm) {
+348-                                                return (
+349-                                                    <div className="mt-2">
+350-                                                        <select value={row.linkedCategory || 'X-Ray'} onChange={e => updateRow(row.id, 'linkedCategory', e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-1.5 text-xs text-sky-400 font-bold outline-none">
+351-                                                            <option value="">-- Link to Category --</option>
+352-                                                            {testCategories.map((c: string) => <option key={c} value={c}>{c}</option>)}
+353-                                                        </select>
+354-                                                    </div>
+355-                                                );
+356-                                            } else {
+357-                                                return (
+358-                                                    <div className="mt-2">
+359-                                                        <select value={row.linkedTest || ''} onChange={e => updateRow(row.id, 'linkedTest', e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-1.5 text-xs text-sky-400 font-bold outline-none">
+360-                                                            <option value="">-- Link to Test Name --</option>
+361-                                                            {(availableTests || []).map((t: any) => <option key={t.test_id} value={t.test_name}>{t.test_name}</option>)}
+362-                                                        </select>
+363-                                                    </div>
+364-                                                );
+365-                                            }
+366-                                        })()}
+367-                                    </td>
+368-                                    <td className="p-3">
+369-                                        <input type="number" min="1" value={row.qty} onChange={e => updateRow(row.id, 'qty', parseFloat(e.target.value)||0)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-white outline-none text-center"/>
+370-                                    </td>
+371-                                    <td className="p-3">
+372-                                        <input type="number" min="0" value={row.unitPrice} onChange={e => updateRow(row.id, 'unitPrice', parseFloat(e.target.value)||0)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-white outline-none text-right"/>
+373-                                    </td>
+374-                                    <td className="p-3 text-right font-black text-white text-sm">
+375-                                        {(row.qty * row.unitPrice).toLocaleString()}
+376-                                    </td>
+377-                                    <td className="p-3 text-center">
+378-                                        <button onClick={() => handleRemoveRow(row.id)} className="text-rose-500 hover:text-rose-400 p-1 bg-rose-500/10 rounded"><XIcon size={16}/></button>
+379-                                    </td>
+380-                                </tr>
+381-                            ))}
+382-                        </tbody>
+383-                    </table>
+384-                    <button onClick={handleAddRow} className="bg-slate-800 hover:bg-slate-700 text-sky-400 px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all mb-8">+ Add Row</button>
+385-
+386-                    <div className="flex justify-end pt-6 border-t border-slate-700">
+387-                        <div className="w-64 space-y-3">
+388-                            <div className="flex justify-between text-sm text-slate-300"><span>Sub Total:</span><span className="font-bold">{subTotal.toLocaleString()}</span></div>
+389-                            <div className="flex justify-between text-sm text-slate-300 items-center">
+390-                                <span>Discount:</span>
+391-                                <input type="number" value={discount} onChange={e => setDiscount(parseFloat(e.target.value)||0)} className="w-24 bg-slate-950 border border-slate-700 rounded p-1 text-right text-white"/>
+392-                            </div>
+393-                            <div className="flex justify-between text-base text-white font-black py-2 border-t border-slate-700"><span>Net Payable:</span><span>{netPayable.toLocaleString()}</span></div>
+394-                            <div className="flex justify-between text-sm text-slate-300 items-center">
+395-                                <span>Paid Amount:</span>
+396-                                <input type="number" value={paid} onChange={e => setPaid(parseFloat(e.target.value)||0)} className="w-24 bg-slate-950 border border-slate-700 rounded p-1 text-right text-white"/>
+397-                            </div>
+398-                            <div className="flex justify-between text-base font-black pt-2 border-t border-slate-700">

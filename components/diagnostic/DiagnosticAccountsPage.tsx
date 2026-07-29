@@ -1,3 +1,4 @@
+import SearchableSelect from "../SearchableSelect";
 import React, { useMemo, useState, useEffect } from 'react';
 import { LabInvoice as Invoice, DueCollection, ExpenseItem, Employee, testCategories } from '../DiagnosticData';
 import { Activity, BackIcon, FileTextIcon, SearchIcon, PrinterIcon, XIcon, PlusIcon } from '../Icons';
@@ -282,16 +283,47 @@ const InvoiceViewModal: React.FC<{ inv: any, patients: any[], doctors: any[], on
 
 const BatchPurchaseModal: React.FC<{
     onClose: () => void,
-    onSave: (date: string, items: any[], discount: number, paid: number) => void,
+    onSave: (date: string, items: any[], discount: number, paid: number, existingItem?: any) => void,
     reagents: any[],
-    availableTests: any[]
-}> = ({ onClose, onSave, reagents, availableTests }) => {
-    const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
-    const [rows, setRows] = useState(() => [{ id: Date.now(), reagentId: '', qty: 1, unitPrice: 0 }]);
-    const [discount, setDiscount] = useState(0);
-    const [paid, setPaid] = useState(0);
+    availableTests: any[],
+    initialData?: any
+}> = ({ onClose, onSave, reagents, availableTests, initialData }) => {
+    const [date, setDate] = useState(initialData?.date || new Date().toISOString().split('T')[0]);
+    const [rows, setRows] = useState(() => {
+        if (initialData?.metadata?.items && Array.isArray(initialData.metadata.items)) {
+            // Keep identical item structure so we can edit quantities
+            return initialData.metadata.items;
+        }
+        return [{ 
+            id: Date.now(), 
+            reagentId: '', 
+            isNew: false,
+            newReagentName: '',
+            newCompany: '',
+            newUnit: 'Bottle',
+            newCapacity: '',
+            linkedTest: '',
+            linkedCategory: '',
+            qty: 1, 
+            unitPrice: 0 
+        }];
+    });
+    const [discount, setDiscount] = useState(initialData?.metadata?.discount || 0);
+    const [paid, setPaid] = useState(initialData?.paidAmount || 0);
 
-    const handleAddRow = () => setRows([...rows, { id: Date.now(), reagentId: '', qty: 1, unitPrice: 0 }]);
+    const handleAddRow = () => setRows([...rows, { 
+        id: Date.now(), 
+        reagentId: '', 
+        isNew: false,
+        newReagentName: '',
+        newCompany: '',
+        newUnit: 'Bottle',
+        newCapacity: '',
+        linkedTest: '',
+        linkedCategory: '',
+        qty: 1, 
+        unitPrice: 0 
+    }]);
     const handleRemoveRow = (id: number) => setRows(rows.filter(r => r.id !== id));
     
     const updateRow = (id: number, field: string, value: any) => {
@@ -303,7 +335,7 @@ const BatchPurchaseModal: React.FC<{
 
     return (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[200] flex items-center justify-center p-4">
-            <div className="bg-slate-900 border border-slate-700 rounded-3xl w-full max-w-5xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-zoom-in">
+            <div className="bg-slate-900 border border-slate-700 rounded-3xl w-full max-w-6xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-zoom-in">
                 <div className="bg-slate-800 p-6 flex justify-between items-center border-b border-slate-700">
                     <div>
                         <h2 className="text-xl font-black text-sky-400 uppercase tracking-tighter flex items-center gap-2">
@@ -322,65 +354,105 @@ const BatchPurchaseModal: React.FC<{
                         </div>
                     </div>
 
-                    <table className="w-full text-left border-collapse text-xs mb-4">
-                        <thead className="bg-slate-950 text-[10px] uppercase font-black text-slate-500 tracking-widest border-b border-slate-800">
-                            <tr>
-                                <th className="p-3 w-1/3">Item (Reagent / Film)</th>
-                                <th className="p-3 w-1/6 text-center">Qty</th>
-                                <th className="p-3 w-1/6 text-right">Unit Price</th>
-                                <th className="p-3 w-1/6 text-right">Total</th>
-                                <th className="p-3 w-16 text-center">Action</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-800">
-                            {rows.map((row, i) => (
-                                <tr key={row.id}>
-                                    <td className="p-3">
-                                        <select value={row.reagentId} onChange={e => updateRow(row.id, 'reagentId', e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-white outline-none focus:border-sky-500">
-                                            <option value="">-- Select Item --</option>
-                                            {reagents.map(rg => <option key={rg.reagent_id} value={rg.reagent_id}>{rg.reagent_name} {rg.company ? `(${rg.company})` : ''}</option>)}
-                                        </select>
-                                        {(() => {
-                                            const rg = reagents.find((r:any) => r.reagent_id === row.reagentId);
-                                            if (!rg) return null;
-                                            const isFilm = rg.reagent_name.toLowerCase().includes('film') || rg.reagent_name.toLowerCase().includes('x-ray');
-                                            if (isFilm) {
-                                                return (
-                                                    <div className="mt-2">
-                                                        <select value={row.linkedCategory || 'X-Ray'} onChange={e => updateRow(row.id, 'linkedCategory', e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-1.5 text-xs text-sky-400 font-bold outline-none">
+                    <div className="space-y-4 mb-4">
+                        {rows.map((row, i) => {
+                            const isFilm = row.isNew 
+                                ? (row.newReagentName.toLowerCase().includes('film') || row.newReagentName.toLowerCase().includes('x-ray'))
+                                : (() => {
+                                    const rg = reagents.find((r:any) => r.reagent_id === row.reagentId);
+                                    return rg ? (rg.reagent_name.toLowerCase().includes('film') || rg.reagent_name.toLowerCase().includes('x-ray')) : false;
+                                })();
+                                
+                            return (
+                                <div key={row.id} className="bg-slate-950 border border-slate-700 rounded-xl p-4 flex flex-col gap-4">
+                                    <div className="flex gap-4 items-start">
+                                        <div className="flex-1">
+                                            <div className="flex justify-between items-center mb-1">
+                                                <label className="text-[10px] font-black text-slate-500 uppercase">Item Selection</label>
+                                                <label className="flex items-center gap-1 cursor-pointer text-emerald-400 font-bold text-xs border border-emerald-500/30 px-2 py-1 rounded bg-emerald-500/10 hover:bg-emerald-500/20 transition-colors">
+                                                    <input type="checkbox" checked={row.isNew} onChange={e => updateRow(row.id, 'isNew', e.target.checked)} className="rounded bg-slate-900 border-slate-700" />
+                                                    📝 Enter New Reagent Manually
+                                                </label>
+                                            </div>
+                                            {!row.isNew ? (
+                                                <SearchableSelect 
+                                                    label=""
+                                                    options={reagents.map((rg:any) => ({ id: rg.reagent_id, name: rg.reagent_name, details: rg.company }))}
+                                                    value={row.reagentId}
+                                                    onChange={(id, name) => {
+                                                        const exists = reagents.find((r:any) => r.reagent_id === id);
+                                                        if (!exists) {
+                                                            // Custom name entered
+                                                            updateRow(row.id, 'isNew', true);
+                                                            updateRow(row.id, 'newReagentName', name);
+                                                            updateRow(row.id, 'reagentId', '');
+                                                        } else {
+                                                            updateRow(row.id, 'reagentId', id);
+                                                            updateRow(row.id, 'isNew', false);
+                                                        }
+                                                    }}
+                                                    placeholder="Type Reagent Name to Search or Create New..."
+                                                    theme="dark"
+                                                    allowCustom={true}
+                                                />
+                                            ) : (
+                                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                                                    <input type="text" placeholder="Reagent Generic Name" value={row.newReagentName} onChange={e => updateRow(row.id, 'newReagentName', e.target.value)} className="bg-slate-900 border border-slate-700 rounded-lg p-2 text-white text-xs outline-none focus:border-sky-500" />
+                                                    <input type="text" placeholder="Company Name" value={row.newCompany} onChange={e => updateRow(row.id, 'newCompany', e.target.value)} className="bg-slate-900 border border-slate-700 rounded-lg p-2 text-white text-xs outline-none focus:border-sky-500" />
+                                                    <select value={row.newUnit} onChange={e => updateRow(row.id, 'newUnit', e.target.value)} className="bg-slate-900 border border-slate-700 rounded-lg p-2 text-white text-xs outline-none focus:border-sky-500">
+                                                        <option value="Bottle">Bottle</option>
+                                                        <option value="Box">Box</option>
+                                                        <option value="Piece">Piece</option>
+                                                        <option value="Vial">Vial</option>
+                                                        <option value="Kit">Kit</option>
+                                                        <option value="Pack">Pack</option>
+                                                    </select>
+                                                    <input type="number" placeholder="Tests Per Unit" value={row.newCapacity} onChange={e => updateRow(row.id, 'newCapacity', e.target.value)} className="bg-slate-900 border border-slate-700 rounded-lg p-2 text-white text-xs outline-none focus:border-sky-500" title="How many tests per unit" />
+                                                </div>
+                                            )}
+                                            
+                                            {(row.reagentId || row.isNew) && (
+                                                <div className="mt-3">
+                                                    <label className="text-[10px] font-black text-slate-500 uppercase block mb-1">Link with Test or Category</label>
+                                                    {isFilm ? (
+                                                        <select value={row.linkedCategory || 'X-Ray'} onChange={e => updateRow(row.id, 'linkedCategory', e.target.value)} className="w-1/2 bg-slate-900 border border-slate-700 rounded-lg p-1.5 text-xs text-sky-400 font-bold outline-none">
                                                             <option value="">-- Link to Category --</option>
-                                                            {testCategories.map((c: string) => <option key={c} value={c}>{c}</option>)}
+                                                            {testCategories.map((c) => <option key={c} value={c}>{c}</option>)}
                                                         </select>
-                                                    </div>
-                                                );
-                                            } else {
-                                                return (
-                                                    <div className="mt-2">
-                                                        <select value={row.linkedTest || ''} onChange={e => updateRow(row.id, 'linkedTest', e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-1.5 text-xs text-sky-400 font-bold outline-none">
+                                                    ) : (
+                                                        <select value={row.linkedTest || ''} onChange={e => updateRow(row.id, 'linkedTest', e.target.value)} className="w-1/2 bg-slate-900 border border-slate-700 rounded-lg p-1.5 text-xs text-sky-400 font-bold outline-none">
                                                             <option value="">-- Link to Test Name --</option>
                                                             {(availableTests || []).map((t: any) => <option key={t.test_id} value={t.test_name}>{t.test_name}</option>)}
                                                         </select>
-                                                    </div>
-                                                );
-                                            }
-                                        })()}
-                                    </td>
-                                    <td className="p-3">
-                                        <input type="number" min="1" value={row.qty} onChange={e => updateRow(row.id, 'qty', parseFloat(e.target.value)||0)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-white outline-none text-center"/>
-                                    </td>
-                                    <td className="p-3">
-                                        <input type="number" min="0" value={row.unitPrice} onChange={e => updateRow(row.id, 'unitPrice', parseFloat(e.target.value)||0)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-white outline-none text-right"/>
-                                    </td>
-                                    <td className="p-3 text-right font-black text-white text-sm">
-                                        {(row.qty * row.unitPrice).toLocaleString()}
-                                    </td>
-                                    <td className="p-3 text-center">
-                                        <button onClick={() => handleRemoveRow(row.id)} className="text-rose-500 hover:text-rose-400 p-1 bg-rose-500/10 rounded"><XIcon size={16}/></button>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <div className="w-24">
+                                            <label className="text-[10px] font-black text-slate-500 uppercase mb-1 block text-center">Qty</label>
+                                            <input type="number" min="1" value={row.qty} onChange={e => updateRow(row.id, 'qty', parseFloat(e.target.value)||0)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white outline-none text-center text-xs"/>
+                                        </div>
+                                        <div className="w-28">
+                                            <label className="text-[10px] font-black text-slate-500 uppercase mb-1 block text-right">Unit Price</label>
+                                            <input type="number" min="0" value={row.unitPrice} onChange={e => updateRow(row.id, 'unitPrice', parseFloat(e.target.value)||0)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white outline-none text-right text-xs"/>
+                                        </div>
+                                        <div className="w-28 text-right flex flex-col justify-center">
+                                            <label className="text-[10px] font-black text-slate-500 uppercase mb-1 block">Total</label>
+                                            <div className="font-black text-white text-sm py-2 mt-4">
+                                                {(row.qty * row.unitPrice).toLocaleString()}
+                                            </div>
+                                        </div>
+                                        <div className="w-10 flex flex-col justify-center items-center">
+                                            <label className="text-[10px] font-black text-transparent uppercase mb-1 block">X</label>
+                                            <button onClick={() => handleRemoveRow(row.id)} className="text-rose-500 hover:text-rose-400 p-2 bg-rose-500/10 rounded-lg mt-5"><XIcon size={16}/></button>
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                    
                     <button onClick={handleAddRow} className="bg-slate-800 hover:bg-slate-700 text-sky-400 px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all mb-8">+ Add Row</button>
 
                     <div className="flex justify-end pt-6 border-t border-slate-700">
@@ -396,18 +468,17 @@ const BatchPurchaseModal: React.FC<{
                                 <input type="number" value={paid} onChange={e => setPaid(parseFloat(e.target.value)||0)} className="w-24 bg-slate-950 border border-slate-700 rounded p-1 text-right text-white"/>
                             </div>
                             <div className="flex justify-between text-base font-black pt-2 border-t border-slate-700">
-                                <span className={(netPayable - paid) > 0 ? "text-rose-400" : "text-emerald-400"}>Due:</span>
+                                <span>Due:</span>
                                 <span className={(netPayable - paid) > 0 ? "text-rose-400" : "text-emerald-400"}>{(netPayable - paid).toLocaleString()}</span>
                             </div>
                         </div>
                     </div>
                 </div>
-
                 <div className="bg-slate-800 p-6 border-t border-slate-700 flex justify-end gap-4">
                     <button onClick={onClose} className="px-6 py-2.5 rounded-xl font-black text-xs uppercase text-slate-300 hover:bg-slate-700 transition-all">Cancel</button>
                     <button onClick={() => {
-                        const validRows = rows.filter(r => r.reagentId && r.qty > 0 && r.unitPrice > 0);
-                        if(validRows.length === 0) return alert('Please enter valid items.');
+                        const validRows = rows.filter(r => r.qty > 0 && r.unitPrice > 0 && (r.reagentId || (r.isNew && r.newReagentName)));
+                        if(validRows.length === 0) return alert('Please enter valid items. Ensure Reagent name is specified.');
                         onSave(date, validRows, discount, paid);
                     }} className="bg-sky-600 hover:bg-sky-500 text-white px-8 py-2.5 rounded-xl font-black text-xs uppercase shadow-xl transition-all flex items-center gap-2">Save Invoice & Update Stock</button>
                 </div>
@@ -415,7 +486,6 @@ const BatchPurchaseModal: React.FC<{
         </div>
     );
 };
-
 const SummaryBox = ({ title, items, totalLabel, totalValue, colorClass }: any) => (
     <div className={`bg-slate-800 border border-slate-700 rounded-2xl p-6 shadow-lg flex flex-col h-full`}>
         <h4 className={`text-lg font-black ${colorClass} mb-4 uppercase border-b border-slate-700 pb-2 text-white`}>{title}</h4>
@@ -538,56 +608,103 @@ const DailyExpenseForm: React.FC<any> = ({
     const addItem = () => setItems(prev => [...prev, { id: Date.now(), category: expenseCategories[0], subCategory: '', description: '', billAmount: 0, paidAmount: 0, dept: 'Diagnostic' }]);
     const removeItem = (id: number) => setItems(prev => prev.filter(i => i.id !== id));
 
+    const [editingBatchItem, setEditingBatchItem] = useState<any>(null);
+
     const handleEditSavedItem = (savedItem: any) => {
         onDateChange(savedItem.date);
-        onEdit(savedItem);
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+        if (savedItem.metadata?.isBatchPurchase) {
+            setEditingBatchItem(savedItem);
+            setShowBatchModal(true);
+        } else {
+            onEdit(savedItem);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
     };
 
-    const handleSaveBatch = async (batchDate: string, batchItems: any[], discount: number, paid: number) => {
+    const handleSaveBatch = async (batchDate: string, batchItems: any[], discount: number, paid: number, existingItem?: any) => {
         setIsSaving(true);
-        const subTotal = batchItems.reduce((acc, r) => acc + (r.qty * r.unitPrice), 0);
+        const subTotal = batchItems.reduce((acc, r) => acc + (Number(r.qty) * Number(r.unitPrice)), 0);
         const netPayable = subTotal - discount;
 
-        // Create ExpenseItems for each reagent row to properly show up in ledger and detailed expenses
-        // Wait, the user wants "a single invoice" but in expense list it might be better to split them or group them
-        // Let's create one ExpenseItem that contains all details in metadata
+        let updatedReagents = [...reagents];
         
+        // Revert old stock if editing an existing batch purchase
+        if (existingItem && existingItem.metadata?.isBatchPurchase && Array.isArray(existingItem.metadata.items)) {
+            existingItem.metadata.items.forEach((oldB: any) => {
+                const rIdx = updatedReagents.findIndex(rg => rg.reagent_id === oldB.reagentId);
+                if (rIdx !== -1) {
+                    updatedReagents[rIdx] = {
+                        ...updatedReagents[rIdx],
+                        quantity: Math.max(0, (updatedReagents[rIdx].quantity || 0) - (Number(oldB.qty) || 0))
+                    };
+                }
+            });
+        }
+        
+        batchItems.forEach(b => {
+            if(b.isNew) {
+                const newId = `rg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                b.reagentId = newId; 
+                updatedReagents.push({
+                    reagent_id: newId,
+                    reagent_name: b.newReagentName,
+                    quantity: Number(b.qty) || 0,
+                    unit: b.newUnit || 'Bottle',
+                    availability: true,
+                    company: b.newCompany || '',
+                    capacity_per_unit: b.newCapacity || '',
+                    linked_test: b.linkedTest || '',
+                    linked_category: b.linkedCategory || ''
+                });
+            } else {
+                const rIdx = updatedReagents.findIndex(rg => rg.reagent_id === b.reagentId);
+                if(rIdx !== -1) {
+                    updatedReagents[rIdx] = {
+                        ...updatedReagents[rIdx],
+                        quantity: (updatedReagents[rIdx].quantity || 0) + (Number(b.qty) || 0),
+                        linked_test: b.linkedTest || updatedReagents[rIdx].linked_test,
+                        linked_category: b.linkedCategory || updatedReagents[rIdx].linked_category
+                    };
+                }
+            }
+        });
+
         const descriptionList = batchItems.map(b => {
-            const r = reagents.find((rg:any) => rg.reagent_id === b.reagentId);
-            return `${r?.reagent_name} (${b.qty})`;
+            const r = updatedReagents.find((rg:any) => rg.reagent_id === b.reagentId);
+            return `${r?.reagent_name || 'Unknown'} (${b.qty})`;
         }).join(', ');
         
         const newExpense: ExpenseItem = {
-            id: Date.now(),
-            category: 'Reagent buy', // Default category
+            id: existingItem ? existingItem.id : Date.now(),
+            category: 'Reagent buy',
             subCategory: 'Batch Purchase',
             description: descriptionList,
             billAmount: netPayable,
             paidAmount: paid,
             dept: 'Diagnostic',
-            metadata: { isBatchPurchase: true, discount, items: batchItems }
+            metadata: { isBatchPurchase: true, discount, items: batchItems },
+            editHistory: existingItem ? [...(existingItem.editHistory || []), { timestamp: new Date().toISOString(), field: 'UPDATED', oldValue: 'Batch Edited', newValue: 'Batch Edited' }] : []
         };
 
         const currentExpenses = allDetailedExpenses[batchDate] || [];
+        let updatedDateExpenses = [...currentExpenses];
+        
+        if (existingItem && existingItem.date === batchDate) {
+            const idx = updatedDateExpenses.findIndex(it => it.id === existingItem.id);
+            if (idx !== -1) updatedDateExpenses[idx] = newExpense;
+        } else if (existingItem && existingItem.date !== batchDate) {
+            // Remove from old date, add to new date
+            const oldDateExpenses = allDetailedExpenses[existingItem.date] || [];
+            allDetailedExpenses[existingItem.date] = oldDateExpenses.filter(it => it.id !== existingItem.id);
+            updatedDateExpenses.push(newExpense);
+        } else {
+            updatedDateExpenses.push(newExpense);
+        }
+
         const newDetailedExpenses = {
             ...allDetailedExpenses,
-            [batchDate]: [...currentExpenses, newExpense]
+            [batchDate]: updatedDateExpenses
         };
-
-        // Update Reagents Stock!
-        const updatedReagents = [...reagents];
-        batchItems.forEach(b => {
-            const rIdx = updatedReagents.findIndex(rg => rg.reagent_id === b.reagentId);
-            if(rIdx !== -1) {
-                updatedReagents[rIdx] = {
-                    ...updatedReagents[rIdx],
-                    quantity: (updatedReagents[rIdx].quantity || 0) + b.qty,
-                    linked_test: b.linkedTest || updatedReagents[rIdx].linked_test,
-                    linked_category: b.linkedCategory || updatedReagents[rIdx].linked_category
-                };
-            }
-        });
 
         if (performBlockingSync) {
             const success = await performBlockingSync({ 
@@ -854,10 +971,17 @@ const DailyExpenseForm: React.FC<any> = ({
                 
                 {showBatchModal && (
                     <BatchPurchaseModal 
-                        onClose={() => setShowBatchModal(false)}
-                        onSave={handleSaveBatch}
+                        onClose={() => {
+                            setShowBatchModal(false);
+                            setEditingBatchItem(null);
+                        }}
+                        onSave={(date, items, discount, paid, existingItem) => {
+                            handleSaveBatch(date, items, discount, paid, existingItem);
+                            setEditingBatchItem(null);
+                        }}
                         reagents={reagents}
-                        availableTests={[]}
+                        availableTests={availableTests}
+                        initialData={editingBatchItem}
                     />
                 )}
                 {/* Blocking Loader for Save */}
@@ -871,7 +995,7 @@ const DailyExpenseForm: React.FC<any> = ({
                 <div className="flex justify-between items-center mb-6 border-b border-sky-800 pb-4">
                     <h3 className="text-xl font-black text-sky-100 flex items-center gap-3"><Activity className="w-6 h-6 text-sky-400" /> Daily Expense Entry</h3>
                     <div className="flex items-center gap-4">
-                        <button onClick={() => setShowBatchModal(true)} className="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-2.5 rounded-xl font-black uppercase text-xs shadow-xl active:scale-95 transition-all flex items-center gap-2">
+                        <button onClick={() => { setEditingBatchItem(null); setShowBatchModal(true); }} className="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-2.5 rounded-xl font-black uppercase text-xs shadow-xl active:scale-95 transition-all flex items-center gap-2">
                             <PlusIcon size={16}/> Batch Reagent/Film Buy
                         </button>
                         <input 
@@ -1345,6 +1469,10 @@ const DiagnosticAccountsPage: React.FC<any> = ({
             setConfirmModal(prev => ({ ...prev, isOpen: false }));
             const safeDetailedExpenses = detailedExpenses || {};
             const existingItems = safeDetailedExpenses[date] || [];
+            
+            let updatedReagents = [...reagents];
+            let reagentsModified = false;
+
             const updatedItems = existingItems.map((it: any) => {
                 if (it.id === id) {
                     const history = it.editHistory || [];
@@ -1354,6 +1482,21 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                         oldValue: 'Active',
                         newValue: 'Deleted'
                     };
+                    
+                    // IF it's a batch purchase, revert stock
+                    if (it.metadata?.isBatchPurchase && Array.isArray(it.metadata.items)) {
+                        it.metadata.items.forEach((b: any) => {
+                            const rIdx = updatedReagents.findIndex(rg => rg.reagent_id === b.reagentId);
+                            if (rIdx !== -1) {
+                                updatedReagents[rIdx] = {
+                                    ...updatedReagents[rIdx],
+                                    quantity: Math.max(0, (updatedReagents[rIdx].quantity || 0) - (b.qty || 0))
+                                };
+                                reagentsModified = true;
+                            }
+                        });
+                    }
+
                     return { ...it, isDeleted: true, editHistory: [...history, newLog] };
                 }
                 return it;
@@ -1362,11 +1505,18 @@ const DiagnosticAccountsPage: React.FC<any> = ({
             const newDetailedExpenses = { ...safeDetailedExpenses, [date]: updatedItems };
             
             console.log(`[DiagnosticAccounts] Deleting item ${id} for ${date}`);
-            const success = await performBlockingSync({ detailedExpenses: newDetailedExpenses });
+            
+            const syncPayload: any = { detailedExpenses: newDetailedExpenses };
+            if (reagentsModified) {
+                syncPayload.reagents = updatedReagents;
+            }
+            
+            const success = await performBlockingSync(syncPayload);
             
             if (success) {
                 setDetailedExpenses(newDetailedExpenses);
-                setSuccessMessage("খরচটি সফলভাবে ডিলিট করা হয়েছে।");
+                if (reagentsModified) setReagents(updatedReagents);
+                setSuccessMessage("খরচটি সফলভাবে ডিলিট করা হয়েছে। (Reagent Stock Reverted)");
             } else {
                 console.error("[DiagnosticAccounts] Sync failed during delete");
                 alert("ডাটাসিঙ্ক করতে সমস্যা হয়েছে। দয়া করে আবার চেষ্টা করুন।");
