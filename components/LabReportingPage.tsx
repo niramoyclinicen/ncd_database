@@ -513,6 +513,7 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
                                                 <div className="bg-white p-2 rounded-lg border border-slate-300 shadow-xl flex flex-col gap-2">
                                                     <span className="text-[10px] font-black uppercase text-indigo-800 text-center border-b pb-1">Template</span>
                                                     <select 
+                                                        value=""
                                                         className="w-full bg-slate-50 border border-slate-200 rounded p-1.5 text-[10px] font-bold outline-none"
                                                         onChange={(e) => {
                                                             const t = rtTemplates.find(x => x.id === e.target.value);
@@ -580,7 +581,7 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
                                                             value={typeof currentReportData === 'string' ? currentReportData : (currentReportData?.html || currentReportData?.impression || '')} 
                                                             onChange={(val: string) => setCurrentReportData(val)} 
                                                             readOnly={false}
-                                                            hideToolbar={false}
+                                                            hideToolbar={true}
                                                         />
                                                     </div>
                                                 </div>
