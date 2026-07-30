@@ -85,12 +85,12 @@ const UrineRMEInputPage: React.FC<any> = ({ results: initialResults, onSaveOverr
 
   return (
     <div className={`flex flex-col ${isEmbedded ? 'flex-1 min-h-0 bg-transparent' : 'h-full bg-slate-100 overflow-hidden'} font-sans text-black`}>
-      <div className={`flex-1 ${isEmbedded ? '' : 'overflow-y-auto p-4 flex justify-center custom-scrollbar bg-slate-200/50'}`}>
+      <div className={`flex-1 ${isEmbedded ? '' : 'overflow-y-auto p-1 flex justify-center custom-scrollbar bg-slate-200/50'}`}>
         <div className={`${isEmbedded ? 'w-full' : 'bg-white w-full max-w-[820px] shadow-2xl p-12'} flex flex-col font-serif relative`}>
-            <h1 className="text-xl text-center font-black underline uppercase tracking-[0.2em] mb-10 text-black">Urine Routine Examination (Urine R/M/E)</h1>
+            <h1 className="text-xl text-center font-black underline uppercase tracking-[0.2em] mb-4 text-black">Urine Routine Examination (Urine R/M/E)</h1>
             <div className="flex-1">
               <div className="flex flex-col bg-white">
-                <div className="border-2 border-black rounded-xl overflow-hidden mb-8">
+                <div className="border-2 border-black rounded-xl overflow-hidden mb-2">
                   <SectionHeader title="Physical Examination" />
                   <div className="grid grid-cols-2 divide-x border-black">
                     <div className="flex flex-col">
@@ -104,7 +104,7 @@ const UrineRMEInputPage: React.FC<any> = ({ results: initialResults, onSaveOverr
                     </div>
                   </div>
                 </div>
-                <div className="border-2 border-black rounded-xl overflow-hidden mb-8">
+                <div className="border-2 border-black rounded-xl overflow-hidden mb-2">
                   <SectionHeader title="Chemical Examination" />
                   <div className="grid grid-cols-2 divide-x border-black">
                     <div className="flex flex-col">
@@ -119,7 +119,7 @@ const UrineRMEInputPage: React.FC<any> = ({ results: initialResults, onSaveOverr
                     </div>
                   </div>
                 </div>
-                <div className="border-2 border-black rounded-xl overflow-hidden mb-8">
+                <div className="border-2 border-black rounded-xl overflow-hidden mb-2">
                   <SectionHeader title="Microscopic Examination" />
                   <div className="grid grid-cols-2 divide-x border-black">
                     <div className="flex flex-col">
@@ -139,12 +139,12 @@ const UrineRMEInputPage: React.FC<any> = ({ results: initialResults, onSaveOverr
                   </div>
                 </div>
               </div>
-              <div className="mt-4 pt-6 border-t-2 border-black mb-12">
+              <div className="mt-2 pt-2 border-t-2 border-black mb-2">
                   <h4 className="text-[13px] font-black uppercase underline mb-3 italic tracking-tighter text-black">Impression / Notes:</h4>
                   <textarea 
                     value={localResults.others || ''} 
                     onChange={e => updateField('others', e.target.value)} 
-                    className="w-full bg-blue-50/20 p-4 font-black text-[18px] leading-snug outline-none border-2 border-slate-200 rounded-2xl italic text-slate-950 no-print" 
+                    className="w-full bg-blue-50/20 p-1 font-black text-[18px] leading-snug outline-none border-2 border-slate-200 rounded-2xl italic text-slate-950 no-print" 
                     rows={2} 
                     placeholder="Type any other findings..." 
                   />

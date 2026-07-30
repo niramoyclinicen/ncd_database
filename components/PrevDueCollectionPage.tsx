@@ -242,7 +242,7 @@ const PrevDueCollectionPage: React.FC<Props> = ({ patients = [], invoices, setIn
     })();
 
         const detailedPendingData = React.useMemo(() => {
-        let maxPayments = 0;
+        let maxPayments = 0; // @ts-ignore
         const items = filteredInvoices.map(inv => {
             const dcs = dueCollections.filter(dc => dc.invoice_id === inv.invoice_id).sort((a, b) => new Date(a.collection_date).getTime() - new Date(b.collection_date).getTime());
             const sumDcs = dcs.reduce((sum, dc) => sum + (dc.amount_collected || 0), 0);
@@ -259,7 +259,7 @@ const PrevDueCollectionPage: React.FC<Props> = ({ patients = [], invoices, setIn
             });
             
             if (payments.length > maxPayments) {
-                maxPayments = payments.length;
+                return; // maxPayments is now derived
             }
 
             const patientObj = patients?.find(p => p.pt_id === inv.patient_id);

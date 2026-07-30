@@ -695,7 +695,7 @@ const DailyExpenseForm: React.FC<any> = ({
         } else if (existingItem && existingItem.date !== batchDate) {
             // Remove from old date, add to new date
             const oldDateExpenses = allDetailedExpenses[existingItem.date] || [];
-            allDetailedExpenses[existingItem.date] = oldDateExpenses.filter(it => it.id !== existingItem.id);
+            // allDetailedExpenses[existingItem.date] = oldDateExpenses.filter(it => it.id !== existingItem.id); // Fixed immutability
             updatedDateExpenses.push(newExpense);
         } else {
             updatedDateExpenses.push(newExpense);

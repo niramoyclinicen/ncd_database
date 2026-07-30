@@ -16,24 +16,56 @@ const DIAGNOSTIC_LICENSE = 'HSM41671';
 
 // --- STABLE SUB-COMPONENTS ---
 
-const MasterPadHeader = () => (
-    <div className="header p-8 border-b-2 border-slate-950 flex justify-between items-start shrink-0 mb-6">
+const MasterPadHeader = () => {
+    const [logo, setLogo] = useState<string | null>(null);
+    useEffect(() => { setLogo(localStorage.getItem('ncd_custom_logo')); }, []);
+    const handleLogoUpload = (e: any) => {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                const b64 = ev.target?.result as string;
+                setLogo(b64);
+                localStorage.setItem('ncd_custom_logo', b64);
+            };
+            reader.readAsDataURL(file);
+        }
+    };
+    return (
+    <div className="header p-8 border-b-2 border-slate-950 flex justify-between items-start shrink-0 mb-6 group/header">
         <div className="flex gap-4">
-            <div className="w-16 h-16 rounded-xl flex items-center justify-center overflow-hidden shrink-0">
-                <img src="/logo.jpg" alt="Logo" className="w-full h-full object-contain" onError={(e) => { e.currentTarget.style.display = 'none'; e.currentTarget.nextElementSibling!.classList.remove('hidden'); }} />
-                <svg xmlns="http://www.w3.org/2000/svg" className="w-8 h-8 text-slate-400 hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+            <div className="w-20 h-20 rounded-xl flex items-center justify-center overflow-hidden shrink-0 relative border border-transparent hover:border-dashed hover:border-slate-400 transition-all cursor-pointer group no-print">
+                <input type="file" accept="image/png, image/jpeg" className="absolute inset-0 opacity-0 cursor-pointer z-10" onChange={handleLogoUpload} title="Change Logo" />
+                {logo ? (
+                    <img src={logo} alt="Logo" className="w-full h-full object-contain" />
+                ) : (
+                    <img src="/logo.jpg" alt="Logo" className="w-full h-full object-contain" onError={(e) => { e.currentTarget.style.display = 'none'; e.currentTarget.nextElementSibling!.classList.remove('hidden'); }} />
+                )}
+                {!logo && <svg xmlns="http://www.w3.org/2000/svg" className="w-8 h-8 text-slate-400 hidden absolute" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>}
+                <div className="absolute inset-0 bg-black/50 hidden group-hover:flex items-center justify-center text-white text-[8px] font-bold text-center leading-none">Upload<br/>Logo</div>
             </div>
-            <div>
+            
+            <div className="w-20 h-20 rounded-xl items-center justify-center overflow-hidden shrink-0 hidden print:flex">
+                {logo ? (
+                    <img src={logo} alt="Logo" className="w-full h-full object-contain" />
+                ) : (
+                    <img src="/logo.jpg" alt="Logo" className="w-full h-full object-contain" onError={(e) => { e.currentTarget.style.display = 'none'; e.currentTarget.nextElementSibling!.classList.remove('hidden'); }} />
+                )}
+                {!logo && <svg xmlns="http://www.w3.org/2000/svg" className="w-8 h-8 text-slate-400 hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>}
+            </div>
+
+            <div className="flex flex-col justify-center">
                 <h1 className="text-2xl font-black text-blue-900 leading-tight uppercase tracking-tighter">Niramoy Clinic & Diagnostic</h1>
                 <p className="text-[10px] font-bold text-slate-700">Enayetpur, Sirajgonj | Mobile: 01730 923007</p>
                 <p className="text-[8px] text-slate-500 mt-0.5 uppercase tracking-widest font-sans font-bold">Govt. Reg No: {DIAGNOSTIC_LICENSE} | Open 24/7</p>
             </div>
         </div>
-        <div className="text-right">
+        <div className="text-right flex items-center">
             <h2 className="text-sm font-black text-white bg-slate-900 px-4 py-1.5 rounded-lg inline-block uppercase tracking-tighter shadow-md">Lab Report</h2>
         </div>
     </div>
 );
+};
 
 const ReportHeader = ({ patient, currentInvoice, doctors }: { patient: any, currentInvoice: any, doctors: any[] }) => {
     const regNo = currentInvoice?.invoice_id?.split('-').pop() + '/' + (currentInvoice?.invoice_date.substring(2,4) || '25');
@@ -118,7 +150,20 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
     const [selectedTechnologistId, setSelectedTechnologistId] = useState<string>('');
     const [selectedConsultantId, setSelectedConsultantId] = useState<string>('');
     const [currentReportData, setCurrentReportData] = useState<any>(null);
-    const [rtTemplates, setRtTemplates] = useState<any[]>([]);
+    const [rtTemplates, setRtTemplates] = useState<any[]>(() => {
+        try { return JSON.parse(localStorage.getItem('ncd_rt_templates_v1') || '[]'); } catch { return []; }
+    });
+    
+    // Listen for storage events in case they change it in Template Management
+    useEffect(() => {
+        const handleStorage = () => {
+            try { setRtTemplates(JSON.parse(localStorage.getItem('ncd_rt_templates_v1') || '[]')); } catch {}
+        };
+        window.addEventListener('storage', handleStorage);
+        // Also poll every 2 seconds just in case it was changed in same window
+        const interval = setInterval(handleStorage, 2000);
+        return () => { window.removeEventListener('storage', handleStorage); clearInterval(interval); }
+    }, []);
     useEffect(() => { setRtTemplates(JSON.parse(localStorage.getItem('ncd_rt_templates_v1') || '[]')); }, [viewMode]);
     
     const [customTechName, setCustomTechName] = useState('');
@@ -346,7 +391,7 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
                             margin: 0 auto;
                         }
                         .paper-inner { padding: 0 15mm; flex: 1; display: flex; flex-direction: column; width: 100%; }
-                        .report-content-body { ${printFullPad ? 'margin-top: 0;' : 'margin-top: 2.3in;'} flex: 1; width: 100%; padding-bottom: 20px; }
+                        .report-content-body { ${printFullPad ? 'margin-top: 0;' : 'margin-top: 2.3in;'} flex: 1; width: 100%; padding-bottom: 10px; }
                         
                         @media print {
                             body { height: auto !important; overflow: visible !important; }
@@ -400,7 +445,7 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
             <style>{`
                 .paper-page { width: 210mm; min-height: 294mm; margin: 0 auto; position: relative; background: white; display: flex; flex-direction: column; box-shadow: 0 0 50px rgba(0,0,0,0.1); box-sizing: border-box; overflow: visible; }
                 .paper-inner { padding: 0 15mm 15mm 15mm; flex: 1; display: flex; flex-direction: column; min-height: 100%; }
-                .footer-sign-container { display: flex; justify-content: space-between; align-items: flex-end; width: 100%; margin-top: auto; padding-top: 40px; }
+                .footer-sign-container { display: flex; justify-content: space-between; align-items: flex-end; width: 100%; margin-top: auto; padding-top: 20px; page-break-inside: avoid; break-inside: avoid; }
                 .signature-box { text-align: center; width: 45%; }
                 .category-title { font-weight: 950 !important; text-transform: uppercase; text-decoration: underline; font-size: 14pt; margin-bottom: 15px; text-align: center; display: block; color: #000000 !important; }
                 
@@ -516,7 +561,8 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
                                                         value=""
                                                         className="w-full bg-slate-50 border border-slate-200 rounded p-1.5 text-[10px] font-bold outline-none"
                                                         onChange={(e) => {
-                                                            const t = rtTemplates.find(x => x.id === e.target.value);
+                                                            const currentTemplates = JSON.parse(localStorage.getItem('ncd_rt_templates_v1') || '[]');
+                                                            const t = currentTemplates.find((x: any) => x.id === e.target.value);
                                                             if(t) {
                                                                 if(confirm('Replace current content with template?')) {
                                                                     setCurrentReportData(t.contentHtml);
@@ -524,17 +570,21 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
                                                             }
                                                         }}
                                                     >
-                                                        <option value="">-- Choose --</option>
-                                                        <optgroup label={`Matches: ${activeTestName}`}>
-                                                            {rtTemplates.filter((t: any) => t.testName === activeTestName).map((t: any) => (
-                                                                <option key={t.id} value={t.id}>{t.templateName}</option>
-                                                            ))}
-                                                        </optgroup>
-                                                        <optgroup label="All Templates">
-                                                            {rtTemplates.filter((t: any) => t.testName !== activeTestName).map((t: any) => (
-                                                                <option key={t.id} value={t.id}>{t.templateName} ({t.testName})</option>
-                                                            ))}
-                                                        </optgroup>
+                                                        <option value="">-- Choose Template --</option>
+                                                        
+                                                        {rtTemplates.filter((t: any) => t.testName === activeTestName).length > 0 && (
+                                                            <option disabled>--- EXACT MATCHES ---</option>
+                                                        )}
+                                                        {rtTemplates.filter((t: any) => t.testName === activeTestName).map((t: any) => (
+                                                            <option key={t.id} value={t.id}>➡️ {t.templateName || 'Unnamed'}</option>
+                                                        ))}
+                                                        
+                                                        {rtTemplates.filter((t: any) => t.testName !== activeTestName).length > 0 && (
+                                                            <option disabled>--- OTHER TEMPLATES ---</option>
+                                                        )}
+                                                        {rtTemplates.filter((t: any) => t.testName !== activeTestName).map((t: any) => (
+                                                            <option key={t.id} value={t.id}>{t.templateName || 'Unnamed'} ({t.testName || 'Unknown'})</option>
+                                                        ))}
                                                     </select>
                                                     <button 
                                                         onClick={() => {
