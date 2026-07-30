@@ -100,6 +100,44 @@ const ReportHeader = ({ patient, currentInvoice, doctors }: { patient: any, curr
                     </tr>
                 </tbody>
             </table>
+
+
+
+            {/* Template Save Modal */}
+            {showTemplateModal && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[1000] p-4">
+                    <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-sm">
+                        <h3 className="text-lg font-black text-slate-800 mb-4">Save Template</h3>
+                        <label className="block text-sm font-bold text-slate-700 mb-2">Template Name:</label>
+                        <input 
+                            type="text" 
+                            className="w-full border-2 border-slate-300 rounded-lg p-3 outline-none focus:border-blue-500 mb-6 font-bold text-slate-800"
+                            placeholder="e.g. Normal Study"
+                            value={templateSaveName}
+                            onChange={e => setTemplateSaveName(e.target.value)}
+                            autoFocus
+                        />
+                        <div className="flex gap-3 justify-end">
+                            <button onClick={() => setShowTemplateModal(false)} className="px-4 py-2 bg-slate-200 text-slate-800 font-bold rounded-lg hover:bg-slate-300">Cancel</button>
+                            <button onClick={() => {
+                                if (!templateSaveName.trim()) { alert("Please enter a name"); return; }
+                                const newTpl = {
+                                    id: `TPL-${Date.now()}`,
+                                    templateName: templateSaveName.trim(),
+                                    testName: activeTestName,
+                                    contentHtml: typeof currentReportData === 'string' ? currentReportData : (currentReportData?.html || currentReportData?.impression || '')
+                                };
+                                const current = JSON.parse(localStorage.getItem('ncd_rt_templates_v1') || '[]');
+                                localStorage.setItem('ncd_rt_templates_v1', JSON.stringify([...current, newTpl]));
+                                setRtTemplates([...current, newTpl]);
+                                setShowTemplateModal(false);
+                                setSuccessMessage("টেমপ্লেট সফলভাবে সেভ হয়েছে!");
+                                setTimeout(() => setSuccessMessage(''), 3000);
+                            }} className="px-4 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700">Save</button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
@@ -150,6 +188,8 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
     const [selectedTechnologistId, setSelectedTechnologistId] = useState<string>('');
     const [selectedConsultantId, setSelectedConsultantId] = useState<string>('');
     const [currentReportData, setCurrentReportData] = useState<any>(null);
+    const [showTemplateModal, setShowTemplateModal] = useState(false);
+    const [templateSaveName, setTemplateSaveName] = useState('');
     const [rtTemplates, setRtTemplates] = useState<any[]>(() => {
         try { return JSON.parse(localStorage.getItem('ncd_rt_templates_v1') || '[]'); } catch { return []; }
     });
@@ -438,7 +478,7 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
         win.document.close();
     };
 
-    if (viewMode === 'template_mgmt') return <TemplateManagementPage onBack={() => setViewMode('reporting')} />;
+    if (viewMode === 'template_mgmt') return <TemplateManagementPage onBack={() => setViewMode('reporting')} tests={tests} />;
 
     return (
         <div className="bg-slate-200 flex-1 flex flex-col font-sans overflow-hidden text-black min-h-0">
@@ -555,54 +595,56 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
                                         
                                         {(activeTestName.toLowerCase().includes('usg') || activeTestName.toLowerCase().includes('ultra') || activeTestName.toLowerCase().includes('semen')) && (
                                             <>
-                                                <div className="bg-white p-2 rounded-lg border border-slate-300 shadow-xl flex flex-col gap-2">
-                                                    <span className="text-[10px] font-black uppercase text-indigo-800 text-center border-b pb-1">Template</span>
-                                                    <select 
-                                                        value=""
-                                                        className="w-full bg-slate-50 border border-slate-200 rounded p-1.5 text-[10px] font-bold outline-none"
-                                                        onChange={(e) => {
-                                                            const currentTemplates = JSON.parse(localStorage.getItem('ncd_rt_templates_v1') || '[]');
-                                                            const t = currentTemplates.find((x: any) => x.id === e.target.value);
-                                                            if(t) {
-                                                                if(confirm('Replace current content with template?')) {
-                                                                    setCurrentReportData(t.contentHtml);
-                                                                }
-                                                            }
-                                                        }}
-                                                    >
-                                                        <option value="">-- Choose Template --</option>
-                                                        
-                                                        {rtTemplates.filter((t: any) => t.testName === activeTestName).length > 0 && (
-                                                            <option disabled>--- EXACT MATCHES ---</option>
+                                                <div className="bg-white p-2 rounded-lg border border-slate-300 shadow-xl flex flex-col gap-2 max-h-[350px]">
+                                                    <span className="text-[10px] font-black uppercase text-indigo-800 text-center border-b pb-1">Templates</span>
+                                                    
+                                                    <div className="flex-1 overflow-y-auto flex flex-col gap-1 pr-1 custom-scrollbar">
+                                                        {rtTemplates.filter((t: any) => t.testName === activeTestName).length === 0 && (
+                                                            <div className="text-[9px] text-slate-400 text-center py-3 font-bold italic">No templates for this test.</div>
                                                         )}
                                                         {rtTemplates.filter((t: any) => t.testName === activeTestName).map((t: any) => (
-                                                            <option key={t.id} value={t.id}>➡️ {t.templateName || 'Unnamed'}</option>
+                                                            <button 
+                                                                key={t.id} 
+                                                                onClick={() => {
+                                                                    if(confirm('Replace current content with template?')) {
+                                                                        setCurrentReportData(t.contentHtml);
+                                                                    }
+                                                                }}
+                                                                className="w-full text-left bg-blue-50 hover:bg-blue-500 text-blue-900 hover:text-white px-2 py-1.5 rounded text-[10px] font-bold truncate transition-colors border border-blue-200 shadow-sm"
+                                                                title={t.templateName}
+                                                            >
+                                                                {t.templateName || 'Unnamed'}
+                                                            </button>
                                                         ))}
-                                                        
-                                                        {rtTemplates.filter((t: any) => t.testName !== activeTestName).length > 0 && (
-                                                            <option disabled>--- OTHER TEMPLATES ---</option>
-                                                        )}
-                                                        {rtTemplates.filter((t: any) => t.testName !== activeTestName).map((t: any) => (
-                                                            <option key={t.id} value={t.id}>{t.templateName || 'Unnamed'} ({t.testName || 'Unknown'})</option>
-                                                        ))}
-                                                    </select>
+                                                    </div>
+                                                    
+                                                    {rtTemplates.filter((t: any) => t.testName !== activeTestName).length > 0 && (
+                                                        <select 
+                                                            value=""
+                                                            className="w-full bg-slate-50 border border-slate-200 rounded p-1.5 text-[9px] font-bold outline-none mt-1 text-slate-600"
+                                                            onChange={(e) => {
+                                                                const currentTemplates = JSON.parse(localStorage.getItem('ncd_rt_templates_v1') || '[]');
+                                                                const t = currentTemplates.find((x: any) => x.id === e.target.value);
+                                                                if(t) {
+                                                                    if(confirm('Replace current content with template?')) {
+                                                                        setCurrentReportData(t.contentHtml);
+                                                                    }
+                                                                }
+                                                            }}
+                                                        >
+                                                            <option value="">Other Templates...</option>
+                                                            {rtTemplates.filter((t: any) => t.testName !== activeTestName).map((t: any) => (
+                                                                <option key={t.id} value={t.id}>{t.templateName || 'Unnamed'} ({t.testName || 'Unknown'})</option>
+                                                            ))}
+                                                        </select>
+                                                    )}
+
                                                     <button 
                                                         onClick={() => {
-                                                            const name = prompt("Enter Template Name:");
-                                                            if (name) {
-                                                                const newTpl = {
-                                                                    id: `TPL-${Date.now()}`,
-                                                                    templateName: name,
-                                                                    testName: activeTestName,
-                                                                    contentHtml: typeof currentReportData === 'string' ? currentReportData : (currentReportData?.html || currentReportData?.impression || '')
-                                                                };
-                                                                const current = JSON.parse(localStorage.getItem('ncd_rt_templates_v1') || '[]');
-                                                                localStorage.setItem('ncd_rt_templates_v1', JSON.stringify([...current, newTpl]));
-                                                                setRtTemplates([...current, newTpl]);
-                                                                setSuccessMessage("টেমপ্লেট সফলভাবে সেভ হয়েছে!");
-                                                            }
+                                                            setTemplateSaveName('');
+                                                            setShowTemplateModal(true);
                                                         }}
-                                                        className="w-full bg-slate-800 text-white hover:bg-slate-700 text-[10px] py-1.5 rounded uppercase font-bold mt-1"
+                                                        className="w-full bg-slate-800 text-white hover:bg-slate-700 text-[10px] py-2 rounded uppercase font-black mt-1 shadow-md transition-all active:scale-95"
                                                     >
                                                         Save As Template
                                                     </button>

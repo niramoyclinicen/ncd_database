@@ -656,17 +656,14 @@ pdate the local state and reset form
             setPendingFilmSelections(null);
           } else {
             console.error("Cloud save failed reported by performBlockingSync");
+            alert("ইন্টারনেট সংযোগ সমস্যা বা সার্ভার ত্রুটির কারণে ডাটা সেভ হয়নি। আবার চেষ্টা করুন।");
           }
         } catch (err) {
           console.error("Critical error in performBlockingSync:", err);
           alert("ইন্টারনেট সংযোগ বিচ্ছিন্ন হয়েছে। ডাটা সেভ করা যায়নি।");
         }
       } else {
-        setInvoices(newInvoices);
-        if (reagentsChanged && setReagents) setReagents(updatedReagents);
-        setSuccessMessage('ডাটা সেভ হয়েছে (অফলাইন মোড)');
-        resetForm();
-        setPendingFilmSelections(null);
+        alert("সিস্টেম ত্রুটি: ক্লাউড সিঙ্ক উপলব্ধ নেই।");
       }
     } catch (err) {
       console.error("Save error:", err);
@@ -731,12 +728,14 @@ pdate the local state and reset form
     }
   };
 
-  const handlePrintInvoice = () => {
-    if (!selectedInvoiceId) return;
+  const handlePrintInvoice = (idToPrint?: string) => {
+    const targetId = typeof idToPrint === "string" ? idToPrint : selectedInvoiceId;
+    if (!targetId) return;
+    if (!targetId) return;
     const safeInvoices = Array.isArray(invoices) ? invoices : [];
     const safePatients = Array.isArray(patients) ? patients : [];
     const safeDoctors = Array.isArray(doctors) ? doctors : [];
-    const inv = safeInvoices.find(i => i && i.invoice_id === selectedInvoiceId);
+    const inv = safeInvoices.find(i => i && i.invoice_id === targetId);
     if (!inv) return;
     const patient = safePatients.find(p => p && p.pt_id === inv.patient_id);
     const doctor = safeDoctors.find(d => d && d.doctor_id === inv.doctor_id);
@@ -862,15 +861,27 @@ pdate the local state and reset form
         </html>
     `;
 
-    const printWindow = window.open('', '_blank');
-    if (printWindow) {
-      printWindow.document.write(printContent);
-      printWindow.document.close();
-      setTimeout(() => {
-          printWindow.focus();
-          printWindow.print();
-          printWindow.close();
-      }, 750);
+    // Use iframe for embedded printing
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = 'none';
+    document.body.appendChild(iframe);
+    const win = iframe.contentWindow;
+    if (win) {
+        win.document.open();
+        win.document.write(printContent);
+        win.document.close();
+        win.focus();
+        setTimeout(() => {
+            win.print();
+            setTimeout(() => {
+                document.body.removeChild(iframe);
+            }, 1000);
+        }, 500);
     }
   };
 

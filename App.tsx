@@ -249,38 +249,9 @@ const App: React.FC = () => {
 
   // --- DATA SYNCING ---
   useEffect(() => {
-    if (!isDataLoaded || isManualSyncing) return;
-    
-    // Immediate local backup to prevent data loss on power cuts or crashes
-    try {
-      const stateToSave = getCurrentState();
-      localStorage.setItem('ncd_offline_cache_v1', JSON.stringify(stateToSave));
-    } catch (e) {
-      console.warn("Local backup failed:", e);
-    }
-
-    const syncData = async () => {
-      // Small safety delay to ensure all states are updated
-      setIsSyncing(true);
-      const now = new Date().toISOString();
-      // Important: Update ref immediately to prevent incoming cloud updates from triggering during this process
-      setLastSavedAt(now);
-      lastSavedAtRef.current = now;
-      
-      const result = await dbService.saveToCloud(getCurrentState({ last_updated_at: now }));
-      
-      setIsSyncing(false);
-      setSyncError(!result.success);
-    };
-
-    const syncInterval = setTimeout(syncData, 5000); // Increased interval to 5s for auto-sync to reduce load
-    return () => clearTimeout(syncInterval);
-  }, [
-    patients, doctors, referrars, tests, reagents, labInvoices, 
-    dueCollections, reports, employees, medicines, clinicalDrugs,
-    purchaseInvoices, salesInvoices, admissions, indoorInvoices,
-    detailedExpenses, prescriptions, appointments, attendanceLog, leaveLog, monthlyRoster, diagnosticSettings, isDataLoaded, getCurrentState, isManualSyncing
-  ]);
+    // Auto-sync is completely disabled as per user request.
+    // The application relies entirely on manual explicit saves via performBlockingSync.
+  }, []);
 
   // --- HANDLERS ---
   const handleDepartmentLogin = (password: string, dept: keyof DepartmentPasswords, role: UserRole, targetView: ViewState) => {
@@ -565,16 +536,6 @@ const App: React.FC = () => {
                আবার চেষ্টা করুন (Retry)
              </button>
            </div>
-        </div>
-      )}
-
-      {/* Cloud Sync Indicator (Background) - Removed as per user request */}
-      {syncError && (
-        <div className={`fixed bottom-4 right-4 z-[9999] flex items-center gap-2 bg-slate-800/95 backdrop-blur-md border border-red-500/50 px-5 py-2.5 rounded-full shadow-2xl transition-all duration-500`}>
-          <div className={`w-2 h-2 bg-red-500 shadow-[0_0_10px_rgba(239,68,68,1)] rounded-full`}></div>
-          <span className={`text-[10px] font-black text-red-400 uppercase tracking-[0.2em]`}>
-            Sync Failed (Offline)
-          </span>
         </div>
       )}
     </div>
