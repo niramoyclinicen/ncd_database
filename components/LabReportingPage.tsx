@@ -103,46 +103,13 @@ const ReportHeader = ({ patient, currentInvoice, doctors }: { patient: any, curr
 
 
 
-            {/* Template Save Modal */}
-            {showTemplateModal && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[1000] p-4">
-                    <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-sm">
-                        <h3 className="text-lg font-black text-slate-800 mb-4">Save Template</h3>
-                        <label className="block text-sm font-bold text-slate-700 mb-2">Template Name:</label>
-                        <input 
-                            type="text" 
-                            className="w-full border-2 border-slate-300 rounded-lg p-3 outline-none focus:border-blue-500 mb-6 font-bold text-slate-800"
-                            placeholder="e.g. Normal Study"
-                            value={templateSaveName}
-                            onChange={e => setTemplateSaveName(e.target.value)}
-                            autoFocus
-                        />
-                        <div className="flex gap-3 justify-end">
-                            <button onClick={() => setShowTemplateModal(false)} className="px-4 py-2 bg-slate-200 text-slate-800 font-bold rounded-lg hover:bg-slate-300">Cancel</button>
-                            <button onClick={() => {
-                                if (!templateSaveName.trim()) { alert("Please enter a name"); return; }
-                                const newTpl = {
-                                    id: `TPL-${Date.now()}`,
-                                    templateName: templateSaveName.trim(),
-                                    testName: activeTestName,
-                                    contentHtml: typeof currentReportData === 'string' ? currentReportData : (currentReportData?.html || currentReportData?.impression || '')
-                                };
-                                const current = JSON.parse(localStorage.getItem('ncd_rt_templates_v1') || '[]');
-                                localStorage.setItem('ncd_rt_templates_v1', JSON.stringify([...current, newTpl]));
-                                setRtTemplates([...current, newTpl]);
-                                setShowTemplateModal(false);
-                                setSuccessMessage("টেমপ্লেট সফলভাবে সেভ হয়েছে!");
-                                setTimeout(() => setSuccessMessage(''), 3000);
-                            }} className="px-4 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700">Save</button>
-                        </div>
-                    </div>
-                </div>
-            )}
         </div>
     );
 };
 
 const Signatures = ({ customTechName, customTechDegree, customDocName, customDocDegree, techLabel = "Lab Technologist", docLabel = "Pathologist / Reporter" }: any) => (
+
+
     <div className="footer-sign-container no-break-inside">
         <div className="text-center w-64">
             <p className="text-[12px] font-black uppercase text-black mb-1">{techLabel}</p>
@@ -188,8 +155,15 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
     const [selectedTechnologistId, setSelectedTechnologistId] = useState<string>('');
     const [selectedConsultantId, setSelectedConsultantId] = useState<string>('');
     const [currentReportData, setCurrentReportData] = useState<any>(null);
-    const [showTemplateModal, setShowTemplateModal] = useState(false);
+    const [showSaveTemplateModal, setShowSaveTemplateModal] = useState(false);
+    const [showInsertTemplateModal, setShowInsertTemplateModal] = useState(false);
     const [templateSaveName, setTemplateSaveName] = useState('');
+    const [templateSaveCategory, setTemplateSaveCategory] = useState('');
+    const [templateSaveSubCategory, setTemplateSaveSubCategory] = useState('');
+    
+    const [insertTemplateCategoryFilter, setInsertTemplateCategoryFilter] = useState('All');
+    const [insertTemplateSubCategoryFilter, setInsertTemplateSubCategoryFilter] = useState('All');
+    const [insertTemplateSearchTerm, setInsertTemplateSearchTerm] = useState('');
     const [rtTemplates, setRtTemplates] = useState<any[]>(() => {
         try { return JSON.parse(localStorage.getItem('ncd_rt_templates_v1') || '[]'); } catch { return []; }
     });
@@ -300,7 +274,7 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
         return patients.find((p: Patient) => p.pt_id === currentInvoice.patient_id);
     }, [currentInvoice, patients]);
 
-    const isUSG = activeTestName?.toLowerCase().includes('usg') || activeTestName?.toLowerCase().includes('ultra');
+    const isUSG = (activeTestName || '').toLowerCase().includes('usg') || (activeTestName || '').toLowerCase().includes('ultra');
 
     const techOptions = useMemo(() => employees.map((e: any) => ({
         id: e.emp_id,
@@ -480,6 +454,177 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
 
     if (viewMode === 'template_mgmt') return <TemplateManagementPage onBack={() => setViewMode('reporting')} tests={tests} />;
 
+    const renderModals = () => (
+        <>
+            {/* Template Save Modal */}
+            {showSaveTemplateModal && (
+                <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-[1000] p-4 animate-fade-in">
+                    <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md border border-slate-200">
+                        <h3 className="text-xl font-black text-slate-800 mb-6 uppercase tracking-widest border-b pb-2">Save Template</h3>
+                        
+                        <div className="space-y-4 mb-6">
+                            <div>
+                                <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">Category</label>
+                                <input 
+                                    type="text" 
+                                    className="w-full border-2 border-slate-200 rounded-xl p-3 outline-none focus:border-blue-500 font-bold text-slate-800"
+                                    placeholder="e.g. Ultrasonography"
+                                    value={templateSaveCategory}
+                                    onChange={e => setTemplateSaveCategory(e.target.value)}
+                                    list="save-cat-list"
+                                />
+                                <datalist id="save-cat-list">
+                                    {Array.from(new Set(rtTemplates.map(t => t.category).filter(Boolean))).map(c => <option key={c as string} value={c as string} />)}
+                                </datalist>
+                            </div>
+                            
+                            <div>
+                                <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">Sub Category</label>
+                                <input 
+                                    type="text" 
+                                    className="w-full border-2 border-slate-200 rounded-xl p-3 outline-none focus:border-blue-500 font-bold text-slate-800"
+                                    placeholder="e.g. Pregnancy"
+                                    value={templateSaveSubCategory}
+                                    onChange={e => setTemplateSaveSubCategory(e.target.value)}
+                                    list="save-subcat-list"
+                                />
+                                <datalist id="save-subcat-list">
+                                    {Array.from(new Set(rtTemplates.filter(t => t.category === templateSaveCategory).map(t => t.subCategory).filter(Boolean))).map(c => <option key={c as string} value={c as string} />)}
+                                </datalist>
+                            </div>
+
+                            <div>
+                                <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">Template Name</label>
+                                <input 
+                                    type="text" 
+                                    className="w-full border-2 border-slate-200 rounded-xl p-3 outline-none focus:border-blue-500 font-bold text-slate-800"
+                                    placeholder="e.g. Normal Study"
+                                    value={templateSaveName}
+                                    onChange={e => setTemplateSaveName(e.target.value)}
+                                    autoFocus
+                                />
+                            </div>
+                        </div>
+                        
+                        <div className="flex gap-3 justify-end">
+                            <button onClick={() => setShowSaveTemplateModal(false)} className="px-5 py-2.5 bg-slate-100 text-slate-700 font-black uppercase tracking-widest text-xs rounded-xl hover:bg-slate-200 transition-colors">Cancel</button>
+                            <button onClick={() => {
+                                if (!templateSaveName.trim() || !templateSaveCategory.trim() || !templateSaveSubCategory.trim()) { alert("Please fill all fields"); return; }
+                                const newTpl = {
+                                    id: 'TPL-' + Date.now(),
+                                    templateName: templateSaveName.trim(),
+                                    category: templateSaveCategory.trim(),
+                                    subCategory: templateSaveSubCategory.trim(),
+                                    testName: templateSaveSubCategory.trim(),
+                                    contentHtml: typeof currentReportData === 'string' ? currentReportData : (currentReportData?.html || currentReportData?.impression || '')
+                                };
+                                const current = JSON.parse(localStorage.getItem('ncd_rt_templates_v1') || '[]');
+                                localStorage.setItem('ncd_rt_templates_v1', JSON.stringify([...current, newTpl]));
+                                setRtTemplates([...current, newTpl]);
+                                setShowSaveTemplateModal(false);
+                                setSuccessMessage("টেমপ্লেট সফলভাবে সেভ হয়েছে!");
+                                setTimeout(() => setSuccessMessage(''), 3000);
+                            }} className="px-5 py-2.5 bg-indigo-600 text-white font-black uppercase tracking-widest text-xs rounded-xl hover:bg-indigo-700 transition-colors shadow-lg">Save Template</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Template Insert Modal */}
+            {showInsertTemplateModal && (
+                <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-[1000] p-4 animate-fade-in">
+                    <div className="bg-slate-50 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[85vh] flex flex-col overflow-hidden border border-slate-200">
+                        <div className="bg-white px-6 py-4 border-b flex justify-between items-center shrink-0">
+                            <div>
+                                <h3 className="text-xl font-black text-slate-800 uppercase tracking-widest">Insert Template</h3>
+                                <p className="text-xs font-bold text-slate-500">Find and insert a template into your report</p>
+                            </div>
+                            <button onClick={() => setShowInsertTemplateModal(false)} className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-rose-100 hover:text-rose-600 transition-colors">×</button>
+                        </div>
+                        
+                        <div className="flex flex-1 overflow-hidden min-h-0">
+                            {/* Filter Sidebar */}
+                            <div className="w-[250px] bg-white border-r p-4 flex flex-col gap-4 overflow-y-auto custom-scrollbar shrink-0">
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">Search Templates</label>
+                                    <input 
+                                        type="text" 
+                                        placeholder="Search..."
+                                        value={insertTemplateSearchTerm}
+                                        onChange={e => setInsertTemplateSearchTerm(e.target.value)}
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-sm font-bold text-slate-800 outline-none focus:border-blue-500"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">Category</label>
+                                    <select 
+                                        value={insertTemplateCategoryFilter}
+                                        onChange={e => { setInsertTemplateCategoryFilter(e.target.value); setInsertTemplateSubCategoryFilter('All'); }}
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-sm font-bold text-slate-800 outline-none focus:border-blue-500"
+                                    >
+                                        <option value="All">All Categories</option>
+                                        {Array.from(new Set(rtTemplates.map(t => t.category).filter(Boolean))).map(c => <option key={c as string} value={c as string}>{c as string}</option>)}
+                                    </select>
+                                </div>
+                                {insertTemplateCategoryFilter !== 'All' && (
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">Sub Category</label>
+                                        <select 
+                                            value={insertTemplateSubCategoryFilter}
+                                            onChange={e => setInsertTemplateSubCategoryFilter(e.target.value)}
+                                            className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-sm font-bold text-slate-800 outline-none focus:border-blue-500"
+                                        >
+                                            <option value="All">All Sub Categories</option>
+                                            {Array.from(new Set(rtTemplates.filter(t => t.category === insertTemplateCategoryFilter).map(t => t.subCategory).filter(Boolean))).map(c => <option key={c as string} value={c as string}>{c as string}</option>)}
+                                        </select>
+                                    </div>
+                                )}
+                            </div>
+                            
+                            {/* Results Grid */}
+                            <div className="flex-1 p-6 overflow-y-auto bg-slate-50 custom-scrollbar">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {(() => {
+                                        const filtered = rtTemplates.filter(t => 
+                                            (insertTemplateCategoryFilter === 'All' || t.category === insertTemplateCategoryFilter) &&
+                                            (insertTemplateSubCategoryFilter === 'All' || t.subCategory === insertTemplateSubCategoryFilter) &&
+                                            (t.templateName.toLowerCase().includes(insertTemplateSearchTerm.toLowerCase()) || 
+                                             (t.subCategory && t.subCategory.toLowerCase().includes(insertTemplateSearchTerm.toLowerCase())))
+                                        );
+                                        
+                                        if (filtered.length === 0) {
+                                            return <div className="col-span-full py-10 text-center text-slate-400 font-bold">No templates found matching your criteria.</div>;
+                                        }
+                                        
+                                        return filtered.map(t => (
+                                            <div key={t.id} className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 hover:border-indigo-400 hover:shadow-md transition-all flex flex-col">
+                                                <div className="mb-3">
+                                                    <div className="flex flex-wrap gap-1 mb-1">
+                                                        <span className="text-[8px] px-1.5 py-0.5 bg-indigo-50 text-indigo-700 rounded-sm font-black uppercase">{t.category}</span>
+                                                        <span className="text-[8px] px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded-sm font-black uppercase">{t.subCategory}</span>
+                                                    </div>
+                                                    <h4 className="font-black text-slate-800 text-sm leading-tight">{t.templateName}</h4>
+                                                </div>
+                                                <button onClick={() => {
+                                                    if(confirm('Replace current content with this template?')) {
+                                                        setCurrentReportData(t.contentHtml);
+                                                        setShowInsertTemplateModal(false);
+                                                    }
+                                                }} className="mt-auto w-full py-2 bg-indigo-50 text-indigo-700 font-black uppercase tracking-widest text-[10px] rounded-lg hover:bg-indigo-600 hover:text-white transition-colors">
+                                                    Insert
+                                                </button>
+                                            </div>
+                                        ));
+                                    })()}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </>
+    );
+
     return (
         <div className="bg-slate-200 flex-1 flex flex-col font-sans overflow-hidden text-black min-h-0">
             <style>{`
@@ -598,53 +743,25 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
                                                 <div className="bg-white p-2 rounded-lg border border-slate-300 shadow-xl flex flex-col gap-2 max-h-[350px]">
                                                     <span className="text-[10px] font-black uppercase text-indigo-800 text-center border-b pb-1">Templates</span>
                                                     
-                                                    <div className="flex-1 overflow-y-auto flex flex-col gap-1 pr-1 custom-scrollbar">
-                                                        {rtTemplates.filter((t: any) => t.testName === activeTestName).length === 0 && (
-                                                            <div className="text-[9px] text-slate-400 text-center py-3 font-bold italic">No templates for this test.</div>
-                                                        )}
-                                                        {rtTemplates.filter((t: any) => t.testName === activeTestName).map((t: any) => (
-                                                            <button 
-                                                                key={t.id} 
-                                                                onClick={() => {
-                                                                    if(confirm('Replace current content with template?')) {
-                                                                        setCurrentReportData(t.contentHtml);
-                                                                    }
-                                                                }}
-                                                                className="w-full text-left bg-blue-50 hover:bg-blue-500 text-blue-900 hover:text-white px-2 py-1.5 rounded text-[10px] font-bold truncate transition-colors border border-blue-200 shadow-sm"
-                                                                title={t.templateName}
-                                                            >
-                                                                {t.templateName || 'Unnamed'}
-                                                            </button>
-                                                        ))}
-                                                    </div>
-                                                    
-                                                    {rtTemplates.filter((t: any) => t.testName !== activeTestName).length > 0 && (
-                                                        <select 
-                                                            value=""
-                                                            className="w-full bg-slate-50 border border-slate-200 rounded p-1.5 text-[9px] font-bold outline-none mt-1 text-slate-600"
-                                                            onChange={(e) => {
-                                                                const currentTemplates = JSON.parse(localStorage.getItem('ncd_rt_templates_v1') || '[]');
-                                                                const t = currentTemplates.find((x: any) => x.id === e.target.value);
-                                                                if(t) {
-                                                                    if(confirm('Replace current content with template?')) {
-                                                                        setCurrentReportData(t.contentHtml);
-                                                                    }
-                                                                }
-                                                            }}
-                                                        >
-                                                            <option value="">Other Templates...</option>
-                                                            {rtTemplates.filter((t: any) => t.testName !== activeTestName).map((t: any) => (
-                                                                <option key={t.id} value={t.id}>{t.templateName || 'Unnamed'} ({t.testName || 'Unknown'})</option>
-                                                            ))}
-                                                        </select>
-                                                    )}
-
+                                                    <button 
+                                                        onClick={() => {
+                                                            setInsertTemplateSearchTerm('');
+                                                            setInsertTemplateCategoryFilter(isUSG ? 'Ultrasonography (USG)' : 'Pathology');
+                                                            setInsertTemplateSubCategoryFilter(activeTestName || 'All');
+                                                            setShowInsertTemplateModal(true);
+                                                        }}
+                                                        className="w-full bg-indigo-600 text-white hover:bg-indigo-700 text-[10px] py-2 rounded uppercase font-black shadow-md transition-all active:scale-95 mb-1"
+                                                    >
+                                                        Insert Template
+                                                    </button>
                                                     <button 
                                                         onClick={() => {
                                                             setTemplateSaveName('');
-                                                            setShowTemplateModal(true);
+                                                            setTemplateSaveCategory(isUSG ? 'Ultrasonography (USG)' : 'Pathology');
+                                                            setTemplateSaveSubCategory(activeTestName || '');
+                                                            setShowSaveTemplateModal(true);
                                                         }}
-                                                        className="w-full bg-slate-800 text-white hover:bg-slate-700 text-[10px] py-2 rounded uppercase font-black mt-1 shadow-md transition-all active:scale-95"
+                                                        className="w-full bg-slate-800 text-white hover:bg-slate-700 text-[10px] py-2 rounded uppercase font-black shadow-md transition-all active:scale-95"
                                                     >
                                                         Save As Template
                                                     </button>
@@ -776,6 +893,7 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
                     )}
                 </div>
             </div>
+            {renderModals()}
         </div>
     );
 };

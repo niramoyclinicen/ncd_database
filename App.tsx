@@ -217,25 +217,26 @@ const App: React.FC = () => {
     lastSavedAtRef.current = now;
     const stateToSync = getCurrentState({ ...overrides, last_updated_at: now });
     
-    // Immediate local backup to prevent data loss if power cuts during sync
-    try {
-      localStorage.setItem('ncd_offline_cache_v1', JSON.stringify(stateToSync));
-    } catch (e) {
-      console.warn("Local backup failed in blocking sync:", e);
-    }
-
     try {
       console.log(`[Sync] Starting blocking sync. Overrides:`, overrides ? Object.keys(overrides) : 'None');
       const result = await dbService.saveToCloud(stateToSync);
       if (result.success) {
         console.log(`[Sync] Success!`);
+        
+        // Backup to local storage ONLY after successful cloud save
+        try {
+          localStorage.setItem('ncd_offline_cache_v1', JSON.stringify(stateToSync));
+        } catch (e) {
+          console.warn("Local backup failed after successful sync:", e);
+        }
+        
         setIsManualSyncing(false);
         setSyncError(false);
         setLastManualSyncTime(Date.now());
         return true;
       } else {
         console.error(`[Sync] Failure:`, result.error);
-        setManualSyncError("Internet Connection Failure. Please check your connection and try again.");
+        setManualSyncError("ইন্টারনেট কানেকশন নেই বা সার্ভার সমস্যা। দয়া করে ইন্টারনেট চেক করুন।");
         setIsManualSyncing(false);
         return false;
       }
@@ -507,13 +508,13 @@ const App: React.FC = () => {
       {/* CLOUD SAVE SUCCESS MESSAGE - Temporary Toast */}
       {/* (Sub-pages show their own persistent success messages often, but we could add a central toast here if needed) */}
 
-      {/* NON-BLOCKING MANUAL SYNC OVERLAY */}
+      {/* BLOCKING MANUAL SYNC OVERLAY */}
       {isManualSyncing && (
-        <div className="fixed bottom-6 right-6 z-[110000] bg-slate-900 text-white px-6 py-4 rounded-xl shadow-2xl flex items-center gap-4 animate-fade-in-up border border-slate-700">
-           <div className="w-6 h-6 border-2 border-blue-500/20 border-t-blue-500 rounded-full animate-spin"></div>
-           <div>
-             <h3 className="font-bold text-sm font-['Hind_Siliguri'] text-blue-300">ডাটা অনলাইনে সেভ হচ্ছে...</h3>
-             <p className="text-[10px] text-slate-400">আপনি কাজ চালিয়ে যেতে পারেন</p>
+        <div className="fixed inset-0 z-[110000] bg-slate-900/90 backdrop-blur-sm text-white px-6 py-4 flex flex-col items-center justify-center gap-6 animate-fade-in border border-slate-700">
+           <div className="w-16 h-16 border-4 border-blue-500/20 border-t-blue-500 rounded-full animate-spin"></div>
+           <div className="text-center">
+             <h3 className="font-bold text-2xl font-['Hind_Siliguri'] text-blue-300 mb-2">ডাটা অনলাইনে সেভ হচ্ছে...</h3>
+             <p className="text-sm text-slate-300">দয়া করে অপেক্ষা করুন, সেভ সম্পন্ন না হওয়া পর্যন্ত অন্য কাজ করা যাবে না।</p>
            </div>
         </div>
       )}
