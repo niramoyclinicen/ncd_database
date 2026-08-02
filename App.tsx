@@ -373,6 +373,7 @@ const App: React.FC = () => {
             attendanceLog={attendanceLog} setAttendanceLog={setAttendanceLog}
             leaveLog={leaveLog} setLeaveLog={setLeaveLog}
             appointments={appointments} setAppointments={setAppointments}
+            diagnosticSettings={diagnosticSettings} setDiagnosticSettings={setDiagnosticSettings}
             monthlyRoster={monthlyRoster} setMonthlyRoster={setMonthlyRoster}
             employeeReferrerMap={employeeReferrerMap} setEmployeeReferrerMap={setEmployeeReferrerMap}
             performBlockingSync={performBlockingSync}

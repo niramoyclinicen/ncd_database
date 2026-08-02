@@ -11,7 +11,8 @@ interface RichTextTemplate {
     contentHtml: string;
 }
 
-const TemplateManagementPage: React.FC<any> = ({ onBack, tests = [], templates, setTemplates, performBlockingSync }) => {
+const TemplateManagementPage: React.FC<any> = ({ onBack, tests = [], templates: _templates, setTemplates, performBlockingSync }) => {
+    const templates = Array.isArray(_templates) ? _templates : [];
     
 
     const [isEditing, setIsEditing] = useState(false);

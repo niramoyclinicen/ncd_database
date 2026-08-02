@@ -35,6 +35,10 @@ interface DiagnosticPageProps {
   setDueCollections: React.Dispatch<React.SetStateAction<DueCollection[]>>;
   reports: LabReport[];
   setReports: React.Dispatch<React.SetStateAction<LabReport[]>>;
+  rtTemplates: any[];
+  setRtTemplates: React.Dispatch<React.SetStateAction<any[]>>;
+  diagnosticSettings?: any;
+  setDiagnosticSettings?: React.Dispatch<React.SetStateAction<any>>;
   employees: Employee[];
   setEmployees?: React.Dispatch<React.SetStateAction<Employee[]>>;
   patients: Patient[];
@@ -141,7 +145,7 @@ const DiagnosticPage: React.FC<DiagnosticPageProps> = ({
   tests, setTests,
   labInvoices, setLabInvoices,
   dueCollections, setDueCollections,
-  reports, setReports,
+  reports, setReports, rtTemplates, setRtTemplates,
   employees,
   setEmployees,
   patients, 
@@ -315,6 +319,10 @@ const DiagnosticPage: React.FC<DiagnosticPageProps> = ({
                 setInvoices={setLabInvoices}
                 reports={reports}
                 setReports={setReports}
+                rtTemplates={rtTemplates}
+                setRtTemplates={setRtTemplates}
+                diagnosticSettings={diagnosticSettings}
+                setDiagnosticSettings={setDiagnosticSettings}
                 patients={patients}
                 employees={employees}
                 tests={tests}

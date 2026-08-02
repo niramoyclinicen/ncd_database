@@ -16,17 +16,32 @@ const DIAGNOSTIC_LICENSE = 'HSM41671';
 
 // --- STABLE SUB-COMPONENTS ---
 
-const MasterPadHeader = () => {
-    const [logo, setLogo] = useState<string | null>(null);
-    useEffect(() => { setLogo(localStorage.getItem('ncd_custom_logo')); }, []);
+const MasterPadHeader = ({ logo, setLogo }: any) => {
     const handleLogoUpload = (e: any) => {
         const file = e.target.files[0];
         if (file) {
             const reader = new FileReader();
             reader.onload = (ev) => {
                 const b64 = ev.target?.result as string;
-                setLogo(b64);
-                localStorage.setItem('ncd_custom_logo', b64);
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    const MAX_SIZE = 150;
+                    let width = img.width;
+                    let height = img.height;
+                    if (width > height) {
+                        if (width > MAX_SIZE) { height *= MAX_SIZE / width; width = MAX_SIZE; }
+                    } else {
+                        if (height > MAX_SIZE) { width *= MAX_SIZE / height; height = MAX_SIZE; }
+                    }
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx?.drawImage(img, 0, 0, width, height);
+                    const resizedB64 = canvas.toDataURL('image/jpeg', 0.8);
+                    setLogo(resizedB64);
+                };
+                img.src = b64;
             };
             reader.readAsDataURL(file);
         }
@@ -146,7 +161,9 @@ const isOutOfRange = (valStr: string, rangeStr: string): boolean => {
 
 // --- MAIN COMPONENT ---
 
-const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setReports, rtTemplates, setRtTemplates, patients, employees, tests, doctors, performBlockingSync }) => {
+const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setReports, rtTemplates: _rtTemplates, setRtTemplates, diagnosticSettings, setDiagnosticSettings, patients, employees, tests, doctors, performBlockingSync }) => {
+    const rtTemplates = Array.isArray(_rtTemplates) ? _rtTemplates : [];
+    const handleSetLogo = (newLogo: string) => { setDiagnosticSettings({ ...diagnosticSettings, clinicLogo: newLogo }); if(performBlockingSync) performBlockingSync({ diagnosticSettings: { ...diagnosticSettings, clinicLogo: newLogo } }); };
     const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
     const [activeTestName, setActiveTestName] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
@@ -193,14 +210,18 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
             return cat === activeCategory;
         }) : [tName];
         
-        let mergedData = {};
+        let mergedData: any = {};
         let foundAny = false;
         let lastTech = '', lastDoc = '';
         
         groupTests.forEach(gName => {
             const saved = reports.find((r: LabReport) => r.invoice_id === selectedInvoiceId && r.test_name === gName);
             if (saved) {
-                mergedData = { ...mergedData, ...saved.data };
+                if (typeof saved.data === 'string') {
+                    mergedData = saved.data;
+                } else if (typeof mergedData === 'object' && mergedData !== null) {
+                    mergedData = { ...mergedData, ...saved.data };
+                }
                 foundAny = true;
                 if (saved?.technologistId) lastTech = saved?.technologistId;
                 if (saved?.consultantId) lastDoc = saved?.consultantId;
@@ -318,8 +339,9 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
         let updatedReports = [...reports];
         activeTestGroup.forEach((tName: string) => {
              const existing = updatedReports.find((r: LabReport) => r.invoice_id === selectedInvoiceId && r.test_name === tName);
+             const safeTName = tName || 'UnknownTest';
              const newReport: LabReport = {
-                 report_id: existing?.report_id || `REP-${selectedInvoiceId}-${tName.replace(/\s+/g, '')}`,
+                 report_id: existing?.report_id || `REP-${selectedInvoiceId}-${safeTName.replace(/\s+/g, '')}`,
                  invoice_id: selectedInvoiceId, test_name: tName, patient_id: patient?.pt_id || '',
                  report_date: new Date().toISOString().split('T')[0], status: 'Completed', data: reportData,
                  technologistId: selectedTechnologistId, consultantId: selectedConsultantId,
@@ -778,7 +800,7 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
                                     {(activeTestName.toLowerCase().includes('usg') || activeTestName.toLowerCase().includes('ultra') || activeTestName.toLowerCase().includes('semen')) ? (
                                         <div className="paper-page">
                                             <div className="paper-inner">
-                                                {printFullPad && <MasterPadHeader />}
+                                                {printFullPad && <MasterPadHeader logo={diagnosticSettings?.clinicLogo} setLogo={handleSetLogo} />}
                                                 <div className="report-content-body flex flex-col">
                                                     <ReportHeader patient={patient} currentInvoice={currentInvoice} doctors={doctors} />
                                                     <div className="category-title">{activeTestName}</div>
@@ -808,7 +830,7 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
                                                         {regularTests.length > 0 && (
                                                             <div className="paper-page">
                                                                 <div className="paper-inner">
-                                                                    {printFullPad && <MasterPadHeader />}
+                                                                    {printFullPad && <MasterPadHeader logo={diagnosticSettings?.clinicLogo} setLogo={handleSetLogo} />}
                                                                     <div className="report-content-body">
                                                                         <ReportHeader patient={patient} currentInvoice={currentInvoice} doctors={doctors} />
                                                                         <div className="category-title">{category} Report</div>
@@ -848,7 +870,7 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
                                                         {cbcTest && (
                                                             <div className="paper-page">
                                                                 <div className="paper-inner">
-                                                                    {printFullPad && <MasterPadHeader />}
+                                                                    {printFullPad && <MasterPadHeader logo={diagnosticSettings?.clinicLogo} setLogo={handleSetLogo} />}
                                                                     <div className="report-content-body">
                                                                         <ReportHeader patient={patient} currentInvoice={currentInvoice} doctors={doctors} />
                                                                         <div className="category-title">Hematology Report</div>
@@ -861,7 +883,7 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
                                                         {specialTests.map(tName => (
                                                             <div key={tName} className="paper-page">
                                                                 <div className="paper-inner">
-                                                                    {printFullPad && <MasterPadHeader />}
+                                                                    {printFullPad && <MasterPadHeader logo={diagnosticSettings?.clinicLogo} setLogo={handleSetLogo} />}
                                                                     <div className="report-content-body">
                                                                         <ReportHeader patient={patient} currentInvoice={currentInvoice} doctors={doctors} />
                                                                         <div className="category-title">Clinical Pathology Report</div>
