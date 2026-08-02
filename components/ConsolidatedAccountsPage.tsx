@@ -204,7 +204,37 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
         profitShareKey = `custom-${profitShareStartDate}_${profitShareEndDate}`;
     }
 
-    const profitShareAdj = monthlyAdjustments[profitShareKey] || { profitDist: 0, houseRent: 0, loanInstallment: 0 };
+    const profitShareAdj = useMemo(() => {
+        if (profitShareReportType === 'monthly') {
+            return monthlyAdjustments[currentMonthKey] || { profitDist: 0, houseRent: 0, loanInstallment: 0 };
+        } else if (profitShareReportType === 'yearly') {
+            let total = 0;
+            for (let i = 0; i < 12; i++) {
+                const k = `${profitShareYearStr}-${i}`;
+                if (monthlyAdjustments[k]) total += (monthlyAdjustments[k].profitDist || 0);
+            }
+            return { profitDist: total, houseRent: 0, loanInstallment: 0 };
+        } else if (profitShareReportType === 'custom') {
+            let total = 0;
+            if (profitShareStartDate && profitShareEndDate) {
+                const s = new Date(profitShareStartDate);
+                const e = new Date(profitShareEndDate);
+                Object.keys(monthlyAdjustments).forEach(k => {
+                    const match = k.match(/^(\d{4})-(\d{1,2})$/);
+                    if (match) {
+                        const y = parseInt(match[1]);
+                        const m = parseInt(match[2]);
+                        const mDate = new Date(y, m, 15);
+                        if (mDate >= s && mDate <= e) {
+                            total += (monthlyAdjustments[k].profitDist || 0);
+                        }
+                    }
+                });
+            }
+            return { profitDist: total, houseRent: 0, loanInstallment: 0 };
+        }
+        return { profitDist: 0, houseRent: 0, loanInstallment: 0 };
+    }, [profitShareReportType, currentMonthKey, profitShareYearStr, profitShareStartDate, profitShareEndDate, monthlyAdjustments]);
     const updateProfitShareAdjustment = (field: 'profitDist', val: number) => {
         setMonthlyAdjustments(prev => ({
             ...prev,
@@ -1547,6 +1577,16 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                         <input type="date" value={profitShareEndDate} onChange={e => setProfitShareEndDate(e.target.value)} className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm bg-white" />
                                     </div>
                                 )}
+                                {profitShareReportType !== 'monthly' && (
+                                    <button onClick={() => {
+                                        setProfitShareReportType('monthly');
+                                        setProfitShareStartDate('');
+                                        setProfitShareEndDate('');
+                                        setProfitShareYearStr(new Date().getFullYear().toString());
+                                    }} className="px-4 py-1.5 bg-slate-200 text-slate-700 font-bold rounded-lg hover:bg-slate-300 text-sm">
+                                        Clear / Reset
+                                    </button>
+                                )}
                             </div>
 
                             <div className="text-center mb-8 border-b pb-6 print:mb-8 print:pb-2">
@@ -1563,16 +1603,22 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                 <div className="bg-blue-50 p-4 rounded-3xl border border-blue-100 text-center print:bg-white print:rounded-none print:border-black print:p-1 print:flex print:items-center print:justify-between print:px-3">
                                     <p className="text-[13px] font-black text-blue-500 uppercase mb-1 font-['Hind_Siliguri'] print:text-[8pt] print:mb-0 print:text-black">বন্টনযোগ্য লভ্যাংশ</p>
                                     <div className="flex items-center justify-center gap-2">
-                                        <span className="text-lg font-black text-blue-900 no-print invisible">৳</span>
-                                        <input type="number" value={profitShareAdj.profitDist || ''} onChange={e=>updateProfitShareAdjustment('profitDist', parseFloat(e.target.value)||0)} className="w-24 bg-transparent border-b-2 border-blue-300 text-center text-2xl font-black text-blue-900 outline-none no-print" />
-                                        <button 
-                                            onClick={() => setShowSaveConfirm(true)}
-                                            className="no-print p-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors shadow-md"
-                                            title="Save"
-                                        >
-                                            <SaveIcon className="w-4 h-4" />
-                                        </button>
-                                        <span className="text-2xl font-black text-blue-900 print:inline-block hidden print:text-[10pt]">{safeNum(profitShareAdj.profitDist).toLocaleString()}</span>
+                                        {profitShareReportType === 'monthly' ? (
+                                            <>
+                                                <span className="text-lg font-black text-blue-900 no-print invisible">৳</span>
+                                                <input type="number" value={profitShareAdj.profitDist || ''} onChange={e=>updateProfitShareAdjustment('profitDist', parseFloat(e.target.value)||0)} className="w-24 bg-transparent border-b-2 border-blue-300 text-center text-2xl font-black text-blue-900 outline-none no-print" />
+                                                <button 
+                                                    onClick={() => setShowSaveConfirm(true)}
+                                                    className="no-print p-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors shadow-md"
+                                                    title="Save"
+                                                >
+                                                    <SaveIcon className="w-4 h-4" />
+                                                </button>
+                                                <span className="text-2xl font-black text-blue-900 print:inline-block hidden print:text-[10pt]">{safeNum(profitShareAdj.profitDist).toLocaleString()}</span>
+                                            </>
+                                        ) : (
+                                            <span className="text-2xl font-black text-blue-900">{safeNum(profitShareAdj.profitDist).toLocaleString()}</span>
+                                        )}
                                     </div>
                                 </div>
                                 <div className="bg-indigo-50 p-4 rounded-3xl border border-indigo-100 text-center print:bg-white print:rounded-none print:border-black print:p-1 print:flex print:items-center print:justify-between print:px-3">
