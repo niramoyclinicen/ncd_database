@@ -62,6 +62,7 @@ const App: React.FC = () => {
   const [labInvoices, setLabInvoices] = useState(mockInvoices);
   const [dueCollections, setDueCollections] = useState(mockDueCollections);
   const [reports, setReports] = useState<LabReport[]>([]);
+  const [rtTemplates, setRtTemplates] = useState<any[]>(() => { try { return JSON.parse(localStorage.getItem('ncd_rt_templates_v1') || '[]'); } catch { return []; } });
   const [employees, setEmployees] = useState(mockEmployees);
   const [medicines, setMedicines] = useState(mockMedicines);
   const [clinicalDrugs, setClinicalDrugs] = useState(initialClinicalDrugs);
@@ -148,6 +149,12 @@ const App: React.FC = () => {
       if (Array.isArray(data.labInvoices)) setLabInvoices(data.labInvoices);
       if (Array.isArray(data.dueCollections)) setDueCollections(data.dueCollections);
       if (Array.isArray(data.reports)) setReports(data.reports);
+      if (Array.isArray(data.rtTemplates)) {
+          setRtTemplates(data.rtTemplates);
+          try {
+              localStorage.setItem('ncd_rt_templates_v1', JSON.stringify(data.rtTemplates));
+          } catch(e){}
+      }
       if (Array.isArray(data.employees)) setEmployees(data.employees);
       if (Array.isArray(data.medicines)) setMedicines(data.medicines);
       if (Array.isArray(data.clinicalDrugs)) setClinicalDrugs(data.clinicalDrugs);
@@ -196,7 +203,7 @@ const App: React.FC = () => {
   const getCurrentState = useCallback((overrides: any = {}) => {
     return {
       patients, doctors, referrars, tests, reagents, labInvoices, 
-      dueCollections, reports, employees, medicines, clinicalDrugs,
+      dueCollections, reports, rtTemplates, employees, medicines, clinicalDrugs,
       purchaseInvoices, salesInvoices, admissions, indoorInvoices,
       detailedExpenses, prescriptions, appointments, attendanceLog, leaveLog, monthlyRoster,
       diagnosticSettings, employeeReferrerMap,
@@ -204,7 +211,7 @@ const App: React.FC = () => {
       last_updated_at: new Date().toISOString(),
       ...overrides
     };
-  }, [patients, doctors, referrars, tests, reagents, labInvoices, dueCollections, reports, employees, medicines, clinicalDrugs, purchaseInvoices, salesInvoices, admissions, indoorInvoices, detailedExpenses, prescriptions, appointments, attendanceLog, leaveLog, monthlyRoster, diagnosticSettings, employeeReferrerMap, passwords]);
+  }, [patients, doctors, referrars, tests, reagents, labInvoices, dueCollections, reports, rtTemplates, employees, medicines, clinicalDrugs, purchaseInvoices, salesInvoices, admissions, indoorInvoices, detailedExpenses, prescriptions, appointments, attendanceLog, leaveLog, monthlyRoster, diagnosticSettings, employeeReferrerMap, passwords]);
 
   // Blocking Manual Sync Handler
   const performBlockingSync = useCallback(async (overrides?: any) => {
@@ -360,7 +367,7 @@ const App: React.FC = () => {
             reagents={reagents} setReagents={setReagents}
             labInvoices={labInvoices} setLabInvoices={setLabInvoices}
             dueCollections={dueCollections} setDueCollections={setDueCollections}
-            reports={reports} setReports={setReports}
+            reports={reports} setReports={setReports} rtTemplates={rtTemplates} setRtTemplates={setRtTemplates}
             employees={employees} setEmployees={setEmployees}
             detailedExpenses={detailedExpenses}
             attendanceLog={attendanceLog} setAttendanceLog={setAttendanceLog}

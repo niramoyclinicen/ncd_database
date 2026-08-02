@@ -11,17 +11,8 @@ interface RichTextTemplate {
     contentHtml: string;
 }
 
-const TemplateManagementPage: React.FC<any> = ({ onBack, tests = [] }) => {
-    const [templates, setTemplates] = useState<RichTextTemplate[]>(() => {
-        const saved = localStorage.getItem('ncd_rt_templates_v1');
-        let parsed = saved ? JSON.parse(saved) : [];
-        // Migration of old templates
-        return parsed.map((t: any) => ({
-            ...t,
-            category: t.category || (t.testName?.includes('USG') ? 'Ultrasonography (USG)' : 'Pathology'),
-            subCategory: t.subCategory || t.testName || 'Unknown',
-        }));
-    });
+const TemplateManagementPage: React.FC<any> = ({ onBack, tests = [], templates, setTemplates, performBlockingSync }) => {
+    
 
     const [isEditing, setIsEditing] = useState(false);
     const [currentTemplate, setCurrentTemplate] = useState<RichTextTemplate>({
@@ -33,7 +24,9 @@ const TemplateManagementPage: React.FC<any> = ({ onBack, tests = [] }) => {
     const [selectedSubCategoryFilter, setSelectedSubCategoryFilter] = useState('All');
 
     useEffect(() => {
-        localStorage.setItem('ncd_rt_templates_v1', JSON.stringify(templates));
+        try {
+            localStorage.setItem('ncd_rt_templates_v1', JSON.stringify(templates));
+        } catch(e) {}
     }, [templates]);
 
     const handleSave = () => {
@@ -48,7 +41,8 @@ const TemplateManagementPage: React.FC<any> = ({ onBack, tests = [] }) => {
             updated.push({ ...currentTemplate, id: 'T-' + Date.now() });
         }
         setTemplates(updated);
-        setIsEditing(false);
+            setIsEditing(false);
+            if (performBlockingSync) performBlockingSync({ rtTemplates: updated });
     };
 
     const editTemplate = (t: RichTextTemplate) => {
@@ -209,7 +203,11 @@ const TemplateManagementPage: React.FC<any> = ({ onBack, tests = [] }) => {
                                     </div>
                                     <div className="mt-auto flex gap-2 pt-4">
                                         <button onClick={() => editTemplate(t)} className="flex-1 py-2 bg-slate-900 rounded-xl text-[10px] font-black uppercase tracking-widest text-white hover:bg-blue-600 transition-all shadow-md">Edit</button>
-                                        <button onClick={() => { if(confirm("Delete this template?")) setTemplates(templates.filter(x=>x.id!==t.id)) }} className="px-3 py-2 bg-rose-50 text-rose-500 hover:bg-rose-500 hover:text-white rounded-xl transition-all font-black text-sm">×</button>
+                                        <button onClick={() => { if(confirm("Delete this template?")) { 
+    const updated = templates.filter(x=>x.id!==t.id); 
+    setTemplates(updated); 
+    if(performBlockingSync) performBlockingSync({ rtTemplates: updated }); 
+} }} className="px-3 py-2 bg-rose-50 text-rose-500 hover:bg-rose-500 hover:text-white rounded-xl transition-all font-black text-sm">×</button>
                                     </div>
                                 </div>
                             ))}

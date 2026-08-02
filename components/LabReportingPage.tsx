@@ -146,7 +146,7 @@ const isOutOfRange = (valStr: string, rangeStr: string): boolean => {
 
 // --- MAIN COMPONENT ---
 
-const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setReports, patients, employees, tests, doctors, performBlockingSync }) => {
+const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setReports, rtTemplates, setRtTemplates, patients, employees, tests, doctors, performBlockingSync }) => {
     const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
     const [activeTestName, setActiveTestName] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
@@ -164,21 +164,9 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
     const [insertTemplateCategoryFilter, setInsertTemplateCategoryFilter] = useState('All');
     const [insertTemplateSubCategoryFilter, setInsertTemplateSubCategoryFilter] = useState('All');
     const [insertTemplateSearchTerm, setInsertTemplateSearchTerm] = useState('');
-    const [rtTemplates, setRtTemplates] = useState<any[]>(() => {
-        try { return JSON.parse(localStorage.getItem('ncd_rt_templates_v1') || '[]'); } catch { return []; }
-    });
     
-    // Listen for storage events in case they change it in Template Management
-    useEffect(() => {
-        const handleStorage = () => {
-            try { setRtTemplates(JSON.parse(localStorage.getItem('ncd_rt_templates_v1') || '[]')); } catch {}
-        };
-        window.addEventListener('storage', handleStorage);
-        // Also poll every 2 seconds just in case it was changed in same window
-        const interval = setInterval(handleStorage, 2000);
-        return () => { window.removeEventListener('storage', handleStorage); clearInterval(interval); }
-    }, []);
-    useEffect(() => { setRtTemplates(JSON.parse(localStorage.getItem('ncd_rt_templates_v1') || '[]')); }, [viewMode]);
+    
+    
     
     const [customTechName, setCustomTechName] = useState('');
     const [customTechDegree, setCustomTechDegree] = useState('');
@@ -452,7 +440,7 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
         win.document.close();
     };
 
-    if (viewMode === 'template_mgmt') return <TemplateManagementPage onBack={() => setViewMode('reporting')} tests={tests} />;
+    if (viewMode === 'template_mgmt') return <TemplateManagementPage onBack={() => setViewMode('reporting')} tests={tests} templates={rtTemplates} setTemplates={setRtTemplates} performBlockingSync={performBlockingSync} />;
 
     const renderModals = () => (
         <>
@@ -518,12 +506,22 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
                                     testName: templateSaveSubCategory.trim(),
                                     contentHtml: typeof currentReportData === 'string' ? currentReportData : (currentReportData?.html || currentReportData?.impression || '')
                                 };
-                                const current = JSON.parse(localStorage.getItem('ncd_rt_templates_v1') || '[]');
-                                localStorage.setItem('ncd_rt_templates_v1', JSON.stringify([...current, newTpl]));
-                                setRtTemplates([...current, newTpl]);
-                                setShowSaveTemplateModal(false);
-                                setSuccessMessage("টেমপ্লেট সফলভাবে সেভ হয়েছে!");
-                                setTimeout(() => setSuccessMessage(''), 3000);
+                                try {
+                                    const current = JSON.parse(localStorage.getItem('ncd_rt_templates_v1') || '[]');
+                                    const updated = [...current, newTpl];
+                                    try { localStorage.setItem('ncd_rt_templates_v1', JSON.stringify(updated)); } catch(e){}
+                                    setRtTemplates(updated);
+                                    setShowSaveTemplateModal(false);
+                                    setSuccessMessage("টেমপ্লেট সফলভাবে সেভ হয়েছে!");
+                                    setTimeout(() => setSuccessMessage(''), 3000);
+                                    if (performBlockingSync) performBlockingSync({ rtTemplates: updated });
+                                } catch (e: any) {
+                                    if (e.name === 'QuotaExceededError' || e.message.includes('exceeded the quota')) {
+                                        alert("আপনার ব্রাউজারের স্টোরেজ ফুল হয়ে গেছে (5MB Limit)। দয়া করে কিছু অপ্রয়োজনীয় টেমপ্লেট ডিলিট করুন।");
+                                    } else {
+                                        alert("Failed to save: " + e.message);
+                                    }
+                                }
                             }} className="px-5 py-2.5 bg-indigo-600 text-white font-black uppercase tracking-widest text-xs rounded-xl hover:bg-indigo-700 transition-colors shadow-lg">Save Template</button>
                         </div>
                     </div>
