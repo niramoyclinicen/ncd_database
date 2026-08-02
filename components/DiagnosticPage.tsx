@@ -145,7 +145,7 @@ const DiagnosticPage: React.FC<DiagnosticPageProps> = ({
   tests, setTests,
   labInvoices, setLabInvoices,
   dueCollections, setDueCollections,
-  reports, setReports, rtTemplates, setRtTemplates,
+  reports, setReports, rtTemplates, setRtTemplates, diagnosticSettings, setDiagnosticSettings,
   employees,
   setEmployees,
   patients, 

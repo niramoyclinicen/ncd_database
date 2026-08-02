@@ -189,6 +189,35 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
         }));
     };
 
+    const [profitShareReportType, setProfitShareReportType] = useState<'monthly' | 'yearly' | 'custom'>('monthly');
+    const [profitShareYearStr, setProfitShareYearStr] = useState<string>(new Date().getFullYear().toString());
+    const [profitShareStartDate, setProfitShareStartDate] = useState<string>('');
+    const [profitShareEndDate, setProfitShareEndDate] = useState<string>('');
+
+    let profitShareTitle = `${monthOptions[selectedMonth].name} ${selectedYear}`;
+    let profitShareKey = currentMonthKey;
+    if (profitShareReportType === 'yearly') {
+        profitShareTitle = `Yearly Report - ${profitShareYearStr}`;
+        profitShareKey = `yearly-${profitShareYearStr}`;
+    } else if (profitShareReportType === 'custom') {
+        profitShareTitle = `Custom Report (${profitShareStartDate} to ${profitShareEndDate})`;
+        profitShareKey = `custom-${profitShareStartDate}_${profitShareEndDate}`;
+    }
+
+    const profitShareAdj = monthlyAdjustments[profitShareKey] || { profitDist: 0, houseRent: 0, loanInstallment: 0 };
+    const updateProfitShareAdjustment = (field: 'profitDist', val: number) => {
+        setMonthlyAdjustments(prev => ({
+            ...prev,
+            [profitShareKey]: {
+                ...(prev[profitShareKey] || { profitDist: 0, houseRent: 0, loanInstallment: 0 }),
+                [field]: val
+            }
+        }));
+    };
+
+    const profitShareTotalShares = dynamicShareholders.reduce((sum, s) => sum + s.shares, 0);
+    const profitSharePerShare = profitShareTotalShares > 0 ? profitShareAdj.profitDist / profitShareTotalShares : 0;
+
     const [newPlan, setNewPlan] = useState<Partial<FuturePlan>>({ title: '', estimatedCost: 0, status: 'Pending', targetDate: '' });
     const [newCompanyEntry, setNewCompanyEntry] = useState({ companyName: '', amount: 0, date: new Date().toISOString().split('T')[0] });
 
@@ -1494,22 +1523,48 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                     <div id="section-profit-share" className="max-w-5xl mx-auto space-y-8 animate-fade-in">
                         <div className="bg-white p-8 rounded-[2.5rem] shadow-2xl border border-slate-200 relative">
                             <button onClick={() => handlePrintSpecific('section-profit-share')} className="no-print absolute top-8 right-8 p-3 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-500 transition-all"><PrinterIcon size={20}/></button>
+                            <div className="no-print flex gap-4 items-center justify-center mb-6 bg-slate-50 p-4 rounded-2xl border border-slate-200 w-fit mx-auto">
+                                <div className="flex items-center gap-2">
+                                    <label className="text-sm font-bold text-slate-700">Report Type:</label>
+                                    <select value={profitShareReportType} onChange={e => setProfitShareReportType(e.target.value as any)} className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm bg-white">
+                                        <option value="monthly">Monthly</option>
+                                        <option value="yearly">Yearly</option>
+                                        <option value="custom">Custom Date Range</option>
+                                    </select>
+                                </div>
+                                {profitShareReportType === 'yearly' && (
+                                    <div className="flex items-center gap-2">
+                                        <label className="text-sm font-bold text-slate-700">Year:</label>
+                                        <select value={profitShareYearStr} onChange={e => setProfitShareYearStr(e.target.value)} className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm bg-white">
+                                            {[2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
+                                        </select>
+                                    </div>
+                                )}
+                                {profitShareReportType === 'custom' && (
+                                    <div className="flex items-center gap-2">
+                                        <input type="date" value={profitShareStartDate} onChange={e => setProfitShareStartDate(e.target.value)} className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm bg-white" />
+                                        <span className="text-slate-400 font-bold">to</span>
+                                        <input type="date" value={profitShareEndDate} onChange={e => setProfitShareEndDate(e.target.value)} className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm bg-white" />
+                                    </div>
+                                )}
+                            </div>
+
                             <div className="text-center mb-8 border-b pb-6 print:mb-8 print:pb-2">
                                 <h1 className="text-3xl font-black text-blue-900 uppercase tracking-tighter leading-none mb-2 print:text-2xl">Niramoy Clinic & Diagnostic</h1>
                                 <h2 className="text-xl font-black text-slate-700 font-['Hind_Siliguri'] print:text-base">অংশীদারদের লভ্যাংশ বন্টন রিপোর্ট</h2>
-                                <p className="text-sm font-bold text-slate-500 uppercase tracking-widest mt-2 print:text-xs print:mt-1">{monthOptions[selectedMonth].name} {selectedYear}</p>
+                                <p className="text-sm font-bold text-slate-500 uppercase tracking-widest mt-2 print:text-xs print:mt-1">{profitShareTitle}</p>
                             </div>
 
                             <div className="grid grid-cols-4 gap-4 mb-8 print:gap-1 print:mb-8 print:mt-0">
                                 <div className="bg-slate-50 p-4 rounded-3xl border border-slate-200 text-center print:bg-white print:rounded-none print:border-black print:p-1 print:flex print:items-center print:justify-between print:px-3">
                                     <p className="text-[13px] font-black text-slate-500 uppercase mb-1 font-['Hind_Siliguri'] print:text-[8pt] print:mb-0 print:text-black">মোট নিট মুনাফা</p>
-                                    <p className="text-2xl font-black text-slate-800 print:text-[10pt]">{safeNum(adj.profitDist).toLocaleString()}</p>
+                                    <p className="text-2xl font-black text-slate-800 print:text-[10pt]">{safeNum(profitShareAdj.profitDist).toLocaleString()}</p>
                                 </div>
                                 <div className="bg-blue-50 p-4 rounded-3xl border border-blue-100 text-center print:bg-white print:rounded-none print:border-black print:p-1 print:flex print:items-center print:justify-between print:px-3">
                                     <p className="text-[13px] font-black text-blue-500 uppercase mb-1 font-['Hind_Siliguri'] print:text-[8pt] print:mb-0 print:text-black">বন্টনযোগ্য লভ্যাংশ</p>
                                     <div className="flex items-center justify-center gap-2">
                                         <span className="text-lg font-black text-blue-900 no-print invisible">৳</span>
-                                        <input type="number" value={adj.profitDist || ''} onChange={e=>updateAdjustment('profitDist', parseFloat(e.target.value)||0)} className="w-24 bg-transparent border-b-2 border-blue-300 text-center text-2xl font-black text-blue-900 outline-none no-print" />
+                                        <input type="number" value={profitShareAdj.profitDist || ''} onChange={e=>updateProfitShareAdjustment('profitDist', parseFloat(e.target.value)||0)} className="w-24 bg-transparent border-b-2 border-blue-300 text-center text-2xl font-black text-blue-900 outline-none no-print" />
                                         <button 
                                             onClick={() => setShowSaveConfirm(true)}
                                             className="no-print p-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors shadow-md"
@@ -1517,16 +1572,16 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                         >
                                             <SaveIcon className="w-4 h-4" />
                                         </button>
-                                        <span className="text-2xl font-black text-blue-900 print:inline-block hidden print:text-[10pt]">{safeNum(adj.profitDist).toLocaleString()}</span>
+                                        <span className="text-2xl font-black text-blue-900 print:inline-block hidden print:text-[10pt]">{safeNum(profitShareAdj.profitDist).toLocaleString()}</span>
                                     </div>
                                 </div>
                                 <div className="bg-indigo-50 p-4 rounded-3xl border border-indigo-100 text-center print:bg-white print:rounded-none print:border-black print:p-1 print:flex print:items-center print:justify-between print:px-3">
                                     <p className="text-[13px] font-black text-indigo-500 uppercase mb-1 font-['Hind_Siliguri'] print:text-[8pt] print:mb-0 print:text-black">মোট শেয়ার সংখ্যা</p>
-                                    <p className="text-2xl font-black text-indigo-900 print:text-[10pt]">{summary.totalShares}</p>
+                                    <p className="text-2xl font-black text-indigo-900 print:text-[10pt]">{profitShareTotalShares}</p>
                                 </div>
                                 <div className="bg-emerald-50 p-4 rounded-3xl border border-emerald-100 text-center print:bg-white print:rounded-none print:border-black print:p-1 print:flex print:items-center print:justify-between print:px-3">
                                     <p className="text-[13px] font-black text-emerald-500 uppercase mb-1 font-['Hind_Siliguri'] print:text-[8pt] print:mb-0 print:text-black">প্রতি শেয়ারে লভ্যাংশ</p>
-                                    <p className="text-2xl font-black text-emerald-900 print:text-[10pt]">{summary.profitPerShare.toFixed(2)}</p>
+                                    <p className="text-2xl font-black text-emerald-900 print:text-[10pt]">{profitSharePerShare.toFixed(2)}</p>
                                 </div>
                             </div>
 
@@ -1547,7 +1602,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                                 <td className="p-4 text-center font-bold text-slate-400 border-b border-r border-slate-100 print:border-black print:text-black print:p-1 text-xs">{i+1}</td>
                                                 <td className="p-4 font-black text-slate-800 uppercase font-['Hind_Siliguri'] border-b border-r border-slate-100 print:border-black print:p-1 print:px-3 text-sm">{s.name}</td>
                                                 <td className="p-4 text-center font-black text-blue-600 border-b border-r border-slate-100 print:border-black print:p-1 text-sm">{s.shares}</td>
-                                                <td className="p-4 text-right font-black text-emerald-600 border-b border-r border-slate-100 print:border-black print:p-1 print:px-3 text-sm">{(s.shares * summary.profitPerShare).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                                                <td className="p-4 text-right font-black text-emerald-600 border-b border-r border-slate-100 print:border-black print:p-1 print:px-3 text-sm">{(s.shares * profitSharePerShare).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
                                                 <td className="p-4 border-b print:border-black print:p-1"></td>
                                             </tr>
                                         ))}
@@ -1555,8 +1610,8 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                     <tfoot className="bg-slate-50 font-black border-t-2 border-slate-200 print:border-black">
                                         <tr className="h-12 print:h-9">
                                             <td colSpan={2} className="p-4 text-right uppercase text-slate-500 border-r border-slate-200 print:border-black print:text-black font-['Hind_Siliguri'] print:p-1 print:px-3 text-sm">সর্বমোট বন্টন:</td>
-                                            <td className="p-4 text-center text-blue-900 border-r border-slate-200 print:border-black print:text-black print:p-1 text-sm">{summary.totalShares}</td>
-                                            <td className="p-4 text-right text-emerald-700 text-lg border-r border-slate-200 print:border-black print:text-black print:p-1 print:px-3 text-sm">{safeNum(adj.profitDist).toLocaleString()}</td>
+                                            <td className="p-4 text-center text-blue-900 border-r border-slate-200 print:border-black print:text-black print:p-1 text-sm">{profitShareTotalShares}</td>
+                                            <td className="p-4 text-right text-emerald-700 text-lg border-r border-slate-200 print:border-black print:text-black print:p-1 print:px-3 text-sm">{safeNum(profitShareAdj.profitDist).toLocaleString()}</td>
                                             <td className="p-4 print:p-1"></td>
                                         </tr>
                                     </tfoot>
