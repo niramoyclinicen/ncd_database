@@ -5,7 +5,7 @@ import SearchableSelect from './SearchableSelect';
 import PatientInfoPage from './PatientInfoPage';
 import DoctorInfoPage from './DoctorInfoPage';
 import ReferrerInfoPage from './ReferrerInfoPage';
-import { BackIcon, ClinicIcon, StethoscopeIcon, ClipboardIcon, FileTextIcon, SettingsIcon, UserPlusIcon, Armchair, Activity, SaveIcon, MoneyIcon, TrashIcon, PrinterIcon, EyeIcon, SearchIcon, PlusIcon, RefreshIcon, Database as DatabaseIcon, Plus, Save, Trash2, Loader2, Trash2Icon, AlertCircle } from './Icons';
+import { BackIcon, ClinicIcon, StethoscopeIcon, ClipboardIcon, FileTextIcon, SettingsIcon, UserPlusIcon, Armchair, Activity, SaveIcon, MoneyIcon, TrashIcon, PrinterIcon, EyeIcon, SearchIcon, PlusIcon, RefreshIcon, Database as DatabaseIcon, Plus, Save, Trash2, Loader2, Trash2Icon, AlertCircle, UsersIcon } from './Icons';
 
 // Fixed Clinic Config
 const CLINIC_REGISTRATION = 'HSM76710';
@@ -810,6 +810,72 @@ const AdmissionAndTreatmentPage: React.FC<{
     const [showNewPatientForm, setShowNewPatientForm] = useState(false);
     const [showNewDoctorForm, setShowNewDoctorForm] = useState(false);
     const [showNewReferrarForm, setShowNewReferrarForm] = useState(false);
+    
+    // Patient Search Modal State
+    const [showPatientSearchModal, setShowPatientSearchModal] = useState(false);
+    const [patientSearchFilters, setPatientSearchFilters] = useState({ name: '', mobile: '', address: '', thana: '', age: '' });
+    const [barcodeInput, setBarcodeInput] = useState('');
+
+    const openAdvancedPatientSearch = (currentTerm: string) => {
+        setPatientSearchFilters(prev => ({ ...prev, name: currentTerm }));
+        setShowPatientSearchModal(true);
+    };
+
+    const handleBarcodeScan = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === 'Enter') {
+            const code = barcodeInput.trim();
+            if (!code) return;
+            const safePatients = Array.isArray(patients) ? patients : [];
+            const targetPatient = safePatients.find(p => p && p.pt_id === code);
+            
+            if (targetPatient) {
+                setAdmissionData({
+                    ...admissionData, 
+                    patient_id: targetPatient.pt_id, 
+                    patient_name: targetPatient.pt_name,
+                    patient_mobile: targetPatient.mobile || '',
+                    mobile_relation: targetPatient.mobile_relation || ''
+                });
+                setSuccessMessage(`Patient ${targetPatient.pt_name} found!`);
+                setBarcodeInput('');
+            } else {
+                alert(`No patient found with ID: ${code}`);
+                setBarcodeInput('');
+            }
+        }
+    };
+
+    const filteredPatientsForModal = useMemo(() => {
+        return (Array.isArray(patients) ? patients : []).filter(p => {
+          if (!p) return false;
+          const searchName = (patientSearchFilters.name || '').toLowerCase();
+          const searchMobile = (patientSearchFilters.mobile || '').toLowerCase();
+          const searchAddress = (patientSearchFilters.address || '').toLowerCase();
+          const searchThana = (patientSearchFilters.thana || '').toLowerCase();
+          const searchAge = (patientSearchFilters.age || '').toLowerCase();
+          
+          return (
+            (p.pt_name || '').toLowerCase().includes(searchName) &&
+            (p.mobile || '').toLowerCase().includes(searchMobile) &&
+            (p.address || '').toLowerCase().includes(searchAddress) &&
+            (p.thana || '').toLowerCase().includes(searchThana) &&
+            (p.ageY?.toString() || '').includes(searchAge)
+          );
+        });
+    }, [patients, patientSearchFilters]);
+
+    const handlePatientSelectModal = (id: string, name: string) => {
+        const p = (Array.isArray(patients) ? patients : []).find(pt => pt.pt_id === id);
+        setAdmissionData({
+            ...admissionData, 
+            patient_id: id, 
+            patient_name: name,
+            patient_mobile: p?.mobile || '',
+            mobile_relation: p?.mobile_relation || ''
+        });
+        setShowPatientSearchModal(false);
+        setPatientSearchFilters({ name: '', mobile: '', address: '', thana: '', age: '' });
+    };
 
     const handleGetNewId = () => {
         const today = new Date();
@@ -844,6 +910,14 @@ const AdmissionAndTreatmentPage: React.FC<{
         }
         if (!admissionData.patient_id) {
             alert("Please select a Patient.");
+            return;
+        }
+        if (!admissionData.patient_mobile) {
+            alert("মোবাইল নাম্বার অবশ্যই দিতে হবে (Mobile number is required).");
+            return;
+        }
+        if (!admissionData.mobile_relation) {
+            alert("মোবাইল নাম্বারটি কার (Relation) তা নির্বাচন করুন।");
             return;
         }
 
@@ -1141,11 +1215,54 @@ const AdmissionAndTreatmentPage: React.FC<{
                         <div className="space-y-6">
                             {/* Top Section - Source Info: Using a soft blue-slate background */}
                             <div className="bg-blue-900/20 p-6 rounded-3xl border border-blue-500/30 shadow-[inner_0_2px_10px_rgba(0,0,0,0.3)]">
-                                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                                    <div><label className="text-[10px] font-black text-blue-300 uppercase ml-2 mb-1.5 block tracking-widest">Adm ID</label><input value={admissionData.admission_id} disabled className="w-full p-3.5 bg-slate-900 border border-blue-500/20 rounded-xl text-blue-400 font-mono font-black shadow-inner outline-none"/></div>
-                                    <div><SearchableSelect label="Select Patient" theme="dark" options={(Array.isArray(patients) ? patients : []).filter(p => p).map(p=>({id: p.pt_id, name: p.pt_name, details: `${p.gender}, ${p.ageY}Y | Addr: ${p.address || 'N/A'}`}))} value={admissionData.patient_id} onChange={(id, name)=>setAdmissionData({...admissionData, patient_id: id, patient_name: name})} onAddNew={()=>setShowNewPatientForm(true)} /></div>
-                                    <div><SearchableSelect label="Consultant / MO" theme="dark" options={(Array.isArray(doctors) ? doctors : []).filter(d => d).map(d=>({id: d.doctor_id, name: d.doctor_name, details: d.degree}))} value={admissionData.doctor_id} onChange={(id, name)=>setAdmissionData({...admissionData, doctor_id: id, doctor_name: name})} onAddNew={()=>setShowNewDoctorForm(true)} /></div>
-                                    <div><SearchableSelect label="Referrer / Agent" theme="dark" options={(Array.isArray(referrars) ? referrars : []).filter(r => r).map(r=>({id: r.ref_id, name: r.ref_name, details: r.ref_degrees}))} value={admissionData.referrer_id} onChange={(id, name)=>setAdmissionData({...admissionData, referrer_id: id, referrer_name: name})} onAddNew={()=>setShowNewReferrarForm(true)} /></div>
+                                <div className="flex flex-col gap-6">
+                                    <div className="flex items-center gap-4 border-b border-blue-500/20 pb-4">
+                                        <label htmlFor="barcode_scanner_adm" className="font-black text-[9px] text-sky-400 uppercase tracking-widest whitespace-nowrap">Scanner Mode:</label>
+                                        <input
+                                            type="text"
+                                            id="barcode_scanner_adm"
+                                            placeholder="Scan Patient ID..."
+                                            value={barcodeInput}
+                                            onChange={(e) => setBarcodeInput(e.target.value)}
+                                            onKeyDown={handleBarcodeScan}
+                                            className="w-48 py-2 px-3 border border-sky-500/30 bg-slate-950 text-white rounded-lg text-[10px] font-mono focus:ring-1 focus:ring-sky-400 focus:outline-none placeholder:text-slate-700"
+                                            autoComplete="off"
+                                        />
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-6 gap-6">
+                                        <div className="col-span-1"><label className="text-[10px] font-black text-blue-300 uppercase ml-2 mb-1.5 block tracking-widest">Adm ID</label><input value={admissionData.admission_id} disabled className="w-full p-3.5 bg-slate-900 border border-blue-500/20 rounded-xl text-blue-400 font-mono font-black shadow-inner outline-none"/></div>
+                                        <div className="col-span-2">
+                                            <SearchableSelect 
+                                                label="Select Patient" 
+                                                theme="dark" 
+                                                options={(Array.isArray(patients) ? patients : []).filter(p => p).map(p=>({id: p.pt_id, name: p.pt_name, details: `${p.gender}, ${p.ageY}Y | Addr: ${p.address || 'N/A'}`}))} 
+                                                value={admissionData.patient_id} 
+                                                onChange={(id, name) => {
+                                                    const p = patients.find(pt => pt.pt_id === id);
+                                                    setAdmissionData({...admissionData, patient_id: id, patient_name: name, patient_mobile: p?.mobile || '', mobile_relation: p?.mobile_relation || ''});
+                                                }} 
+                                                onAddNew={() => openAdvancedPatientSearch('')} 
+                                                onEnter={(term) => openAdvancedPatientSearch(term)}
+                                            />
+                                        </div>
+                                        <div className="col-span-1">
+                                            <label className="text-[10px] font-black text-rose-300 uppercase ml-2 mb-1.5 block tracking-widest">Mobile *</label>
+                                            <input value={admissionData.patient_mobile || ''} onChange={(e)=>setAdmissionData({...admissionData, patient_mobile: e.target.value})} placeholder="017..." className="w-full p-3.5 bg-slate-950 border border-slate-700 focus:border-blue-500 rounded-xl text-slate-200 font-bold outline-none transition-all shadow-inner"/>
+                                        </div>
+                                        <div className="col-span-2">
+                                            <label className="text-[10px] font-black text-rose-300 uppercase ml-2 mb-1.5 block tracking-widest">Relation *</label>
+                                            <select value={admissionData.mobile_relation || ''} onChange={(e)=>setAdmissionData({...admissionData, mobile_relation: e.target.value})} className="w-full p-3.5 bg-slate-950 border border-slate-700 focus:border-blue-500 rounded-xl text-slate-200 font-bold outline-none transition-all cursor-pointer shadow-inner">
+                                                <option value="" className="bg-slate-900">Select...</option>
+                                                <option value="Self" className="bg-slate-900">Self (নিজ)</option>
+                                                <option value="Father" className="bg-slate-900">Father (পিতা)</option>
+                                                <option value="Husband" className="bg-slate-900">Husband (স্বামী)</option>
+                                                <option value="Son" className="bg-slate-900">Son (পুত্র)</option>
+                                                <option value="Other" className="bg-slate-900">Other (অন্যান্য)</option>
+                                            </select>
+                                        </div>
+                                        <div className="col-span-3"><SearchableSelect label="Consultant / MO" theme="dark" options={(Array.isArray(doctors) ? doctors : []).filter(d => d).map(d=>({id: d.doctor_id, name: d.doctor_name, details: d.degree}))} value={admissionData.doctor_id} onChange={(id, name)=>setAdmissionData({...admissionData, doctor_id: id, doctor_name: name})} onAddNew={()=>setShowNewDoctorForm(true)} /></div>
+                                        <div className="col-span-3"><SearchableSelect label="Referrer / Agent" theme="dark" options={(Array.isArray(referrars) ? referrars : []).filter(r => r).map(r=>({id: r.ref_id, name: r.ref_name, details: r.ref_degrees}))} value={admissionData.referrer_id} onChange={(id, name)=>setAdmissionData({...admissionData, referrer_id: id, referrer_name: name})} onAddNew={()=>setShowNewReferrarForm(true)} /></div>
+                                    </div>
                                 </div>
                             </div>
 
@@ -1161,13 +1278,19 @@ const AdmissionAndTreatmentPage: React.FC<{
                                             className="w-full p-3.5 bg-slate-900 border border-slate-700 rounded-xl text-slate-100 font-black outline-none focus:ring-2 focus:ring-blue-500 transition-all cursor-pointer"
                                         >
                                             <option value="" className="bg-slate-900">Select Bed...</option>
-                                            <optgroup label="General Ward" className="bg-slate-900 text-slate-400 font-bold">
-                                                {Array.from({length: 7}, (_, i) => `W-${String(i+1).padStart(2, '0')}`).map(b => {
+                                            <optgroup label="পুরুষ ওয়ার্ড (০২ বেড)" className="bg-slate-900 text-slate-400 font-bold">
+                                                {['Male-Bed-01', 'Male-Bed-02'].map(b => {
                                                     const isOccupied = (Array.isArray(admissions) ? admissions : []).some(a => a && a.bed_no === b && !a.discharge_date);
                                                     return <option key={b} value={b} disabled={isOccupied} className={`bg-slate-900 ${isOccupied ? 'text-rose-500' : 'text-slate-200'}`}>{b} {isOccupied ? '(OCCUPIED)' : ''}</option>;
                                                 })}
                                             </optgroup>
-                                            <optgroup label="Cabins" className="bg-slate-900 text-slate-400 font-bold">
+                                            <optgroup label="মহিলা ওয়ার্ড (০৫ বেড)" className="bg-slate-900 text-slate-400 font-bold">
+                                                {['Female-Bed-01', 'Female-Bed-02', 'Female-Bed-03', 'Female-Bed-04', 'Female-Bed-05'].map(b => {
+                                                    const isOccupied = (Array.isArray(admissions) ? admissions : []).some(a => a && a.bed_no === b && !a.discharge_date);
+                                                    return <option key={b} value={b} disabled={isOccupied} className={`bg-slate-900 ${isOccupied ? 'text-rose-500' : 'text-slate-200'}`}>{b} {isOccupied ? '(OCCUPIED)' : ''}</option>;
+                                                })}
+                                            </optgroup>
+                                            <optgroup label="(০৩ বেড) ক্যাবিন" className="bg-slate-900 text-slate-400 font-bold">
                                                 {['CAB-101', 'CAB-102', 'CAB-103'].map(b => {
                                                     const isOccupied = (Array.isArray(admissions) ? admissions : []).some(a => a && a.bed_no === b && !a.discharge_date);
                                                     return <option key={b} value={b} disabled={isOccupied} className={`bg-slate-900 ${isOccupied ? 'text-rose-500' : 'text-slate-200'}`}>{b} {isOccupied ? '(OCCUPIED)' : ''}</option>;
@@ -1926,6 +2049,178 @@ const AdmissionAndTreatmentPage: React.FC<{
                                     className="flex-1 px-6 py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-lg shadow-blue-900/40 transition-all active:scale-95 border border-blue-400/30"
                                 >
                                     Yes, Confirm
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* PATIENT SEARCH MODAL */}
+            {showPatientSearchModal && (
+                <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/90 backdrop-blur-xl p-4 animate-in fade-in zoom-in duration-300">
+                    <div className="bg-slate-900 border border-slate-700 w-full max-w-6xl max-h-[95vh] rounded-[2rem] shadow-[0_0_100px_rgba(0,0,0,0.8)] flex flex-col overflow-hidden">
+                        
+                        {/* Modal Header */}
+                        <div className="px-8 py-6 border-b border-white/5 bg-slate-950/40 flex justify-between items-center shrink-0">
+                            <div className="flex items-center gap-5">
+                                <div className="w-14 h-14 bg-blue-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-blue-900/50">
+                                    <UsersIcon className="w-8 h-8" />
+                                </div>
+                                <div>
+                                    <h2 className="text-3xl font-black text-white uppercase tracking-tighter">Advanced Patient Search</h2>
+                                    <p className="text-xs text-slate-500 font-bold uppercase tracking-widest leading-none mt-1">Search by Name, mobile, address or Upazila</p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-4">
+                                <button 
+                                    onClick={() => setShowNewPatientForm(true)}
+                                    className="flex items-center gap-3 px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-sm font-black uppercase tracking-widest transition-all active:scale-95 shadow-xl shadow-emerald-900/20"
+                                >
+                                    <span className="text-lg">+</span> New Patient
+                                </button>
+                                <button 
+                                    onClick={() => {
+                                        setShowPatientSearchModal(false);
+                                        setPatientSearchFilters({ name: '', mobile: '', address: '', thana: '', age: '' });
+                                    }}
+                                    className="w-12 h-12 flex items-center justify-center bg-slate-800 hover:bg-rose-600 text-slate-400 hover:text-white rounded-xl transition-all duration-300 font-bold text-xl"
+                                >
+                                    X
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Modal Content - SEARCH FILTERS */}
+                        <div className="px-8 py-5 bg-slate-950/20 grid grid-cols-1 md:grid-cols-5 gap-6 border-b border-white/5 shrink-0">
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Search Name</label>
+                                <div className="relative group">
+                                    <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-blue-500 transition-colors" size={16} />
+                                    <input 
+                                        type="text" 
+                                        placeholder="Name..."
+                                        value={patientSearchFilters.name}
+                                        onChange={(e) => setPatientSearchFilters(prev => ({ ...prev, name: e.target.value }))}
+                                        className="w-full bg-slate-950/50 border-2 border-slate-800 focus:border-blue-500 rounded-xl py-3 pl-12 pr-4 text-sm text-white placeholder:text-slate-700 outline-none transition-all shadow-inner"
+                                        autoFocus
+                                    />
+                                </div>
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Age</label>
+                                <input 
+                                    type="text" 
+                                    placeholder="Age..."
+                                    value={patientSearchFilters.age}
+                                    onChange={(e) => setPatientSearchFilters(prev => ({ ...prev, age: e.target.value }))}
+                                    className="w-full bg-slate-950/50 border-2 border-slate-800 focus:border-blue-500 rounded-xl py-3 px-4 text-sm text-white placeholder:text-slate-700 outline-none transition-all shadow-inner"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Mobile Number</label>
+                                <input 
+                                    type="text" 
+                                    placeholder="017..."
+                                    value={patientSearchFilters.mobile}
+                                    onChange={(e) => setPatientSearchFilters(prev => ({ ...prev, mobile: e.target.value }))}
+                                    className="w-full bg-slate-950/50 border-2 border-slate-800 focus:border-blue-500 rounded-xl py-3 px-4 text-sm text-white placeholder:text-slate-700 outline-none transition-all shadow-inner"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Address / Village</label>
+                                <input 
+                                    type="text" 
+                                    placeholder="Address..."
+                                    value={patientSearchFilters.address}
+                                    onChange={(e) => setPatientSearchFilters(prev => ({ ...prev, address: e.target.value }))}
+                                    className="w-full bg-slate-950/50 border-2 border-slate-800 focus:border-blue-500 rounded-xl py-3 px-4 text-sm text-white placeholder:text-slate-700 outline-none transition-all shadow-inner"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Upazila / Thana</label>
+                                <input 
+                                    type="text" 
+                                    placeholder="Thana..."
+                                    value={patientSearchFilters.thana}
+                                    onChange={(e) => setPatientSearchFilters(prev => ({ ...prev, thana: e.target.value }))}
+                                    className="w-full bg-slate-950/50 border-2 border-slate-800 focus:border-blue-500 rounded-xl py-3 px-4 text-sm text-white placeholder:text-slate-700 outline-none transition-all shadow-inner"
+                                />
+                            </div>
+                        </div>
+
+                        {/* List Header */}
+                        <div className="bg-slate-950 px-10 py-3 border-b border-white/5 grid grid-cols-12 gap-5 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] shrink-0">
+                            <div className="col-span-1">ID</div>
+                            <div className="col-span-3">Patient Name</div>
+                            <div className="col-span-2">Age/Sex</div>
+                            <div className="col-span-2">Mobile</div>
+                            <div className="col-span-2">Address / Thana</div>
+                            <div className="col-span-2 text-right">Selection</div>
+                        </div>
+
+                        {/* Scrolling List */}
+                        <div className="flex-1 overflow-y-auto p-4 no-scrollbar bg-slate-900/20">
+                            {filteredPatientsForModal.length > 0 ? (
+                                <div className="grid grid-cols-1 gap-2">
+                                    {filteredPatientsForModal.map(p => (
+                                        <div 
+                                            key={p.pt_id}
+                                            onClick={() => handlePatientSelectModal(p.pt_id, p.pt_name)}
+                                            onDoubleClick={() => handlePatientSelectModal(p.pt_id, p.pt_name)}
+                                            className="px-6 py-4 bg-slate-800/20 hover:bg-blue-600/10 border border-slate-800 hover:border-blue-500/50 rounded-2xl grid grid-cols-12 gap-5 items-center cursor-pointer transition-all group active:scale-[0.99]"
+                                        >
+                                            <div className="col-span-1 font-mono text-xs text-slate-600">{p.pt_id}</div>
+                                            <div className="col-span-3">
+                                                <p className="text-base font-black text-slate-200 group-hover:text-blue-400 transition-colors uppercase tracking-tight">{p.pt_name}</p>
+                                            </div>
+                                            <div className="col-span-2">
+                                                <span className="px-2 py-1 bg-slate-800 rounded-md text-[10px] font-black text-slate-400 uppercase">{p.ageY}Y | {p.gender}</span>
+                                            </div>
+                                            <div className="col-span-2">
+                                                <p className="text-sm font-mono text-white/80">{p.mobile || '---'}</p>
+                                            </div>
+                                            <div className="col-span-2">
+                                                <p className="text-xs text-white/60 truncate leading-tight">{p.address}{p.thana ? `\n${p.thana}` : ''}</p>
+                                            </div>
+                                            <div className="col-span-2 text-right">
+                                                <button className="px-5 py-2 bg-blue-600/20 hover:bg-blue-600 text-blue-400 hover:text-white border border-blue-500/30 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">Select</button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="flex flex-col items-center justify-center py-20 text-slate-700">
+                                    <div className="w-24 h-24 bg-slate-800/50 rounded-full flex items-center justify-center mb-6 opacity-30">
+                                        <UsersIcon className="w-12 h-12" />
+                                    </div>
+                                    <p className="text-2xl font-black uppercase tracking-tighter opacity-50 mb-2">Patient Not Found</p>
+                                    <p className="text-xs font-bold uppercase tracking-widest opacity-30 max-w-xs text-center leading-relaxed">The searched record does not exist in our database. You can add a new one.</p>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Modal Footer */}
+                        <div className="px-10 py-5 bg-slate-950/60 border-t border-white/5 flex justify-between items-center shrink-0">
+                            <div className="flex items-center gap-4">
+                                <div className="flex items-center gap-2">
+                                    <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></div>
+                                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Total Records: {patients.length}</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
+                                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Filter Results: {filteredPatientsForModal.length}</span>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <button 
+                                    onClick={() => {
+                                        setShowPatientSearchModal(false);
+                                        setPatientSearchFilters({ name: '', mobile: '', address: '', thana: '', age: '' });
+                                    }}
+                                    className="px-8 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-black uppercase tracking-widest transition-all"
+                                >
+                                    Close
                                 </button>
                             </div>
                         </div>
@@ -3398,9 +3693,9 @@ const ReportSummaryPage: React.FC<{
 // 5. Bed Management
 const BedManagementPage: React.FC<{ admissions: AdmissionRecord[]; setAdmissions: React.Dispatch<React.SetStateAction<AdmissionRecord[]>>; setSuccessMessage: (msg: string) => void; performBlockingSync?: (overrides?: any) => Promise<boolean>; }> = ({ admissions, setAdmissions, setSuccessMessage, performBlockingSync }) => {
     const wards = [
-        { id: 'cabin', name: 'Cabins', beds: ['CAB-101', 'CAB-102', 'CAB-103'] },
-        { id: 'female_ward', name: 'Female Ward', beds: Array.from({length: 5}, (_, i) => `F-${String(i+1).padStart(2, '0')}`) },
-        { id: 'male_ward', name: 'Male Ward', beds: Array.from({length: 2}, (_, i) => `M-${String(i+1).padStart(2, '0')}`) }
+        { id: 'male_ward', name: 'পুরুষ ওয়ার্ড', beds: ['Male-Bed-01', 'Male-Bed-02'] },
+        { id: 'female_ward', name: 'মহিলা ওয়ার্ড', beds: ['Female-Bed-01', 'Female-Bed-02', 'Female-Bed-03', 'Female-Bed-04', 'Female-Bed-05'] },
+        { id: 'cabin', name: 'ক্যাবিন', beds: ['Cabin-01', 'Cabin-02', 'Cabin-03'] }
     ];
 
     const getBedStatus = (bedId: string) => {

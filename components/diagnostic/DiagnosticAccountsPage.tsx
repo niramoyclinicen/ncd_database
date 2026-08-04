@@ -304,6 +304,7 @@ const BatchPurchaseModal: React.FC<{
             newCapacity: '',
             linkedTest: '',
             linkedCategory: '',
+            usageStartDate: new Date().toISOString().split('T')[0],
             qty: 1, 
             unitPrice: 0 
         }];
@@ -321,6 +322,7 @@ const BatchPurchaseModal: React.FC<{
         newCapacity: '',
         linkedTest: '',
         linkedCategory: '',
+            usageStartDate: new Date().toISOString().split('T')[0],
         qty: 1, 
         unitPrice: 0 
     }]);
@@ -412,19 +414,30 @@ const BatchPurchaseModal: React.FC<{
                                             )}
                                             
                                             {(row.reagentId || row.isNew) && (
-                                                <div className="mt-3">
-                                                    <label className="text-[10px] font-black text-slate-500 uppercase block mb-1">Link with Test or Category</label>
-                                                    {isFilm ? (
-                                                        <select value={row.linkedCategory || 'X-Ray'} onChange={e => updateRow(row.id, 'linkedCategory', e.target.value)} className="w-1/2 bg-slate-900 border border-slate-700 rounded-lg p-1.5 text-xs text-sky-400 font-bold outline-none">
-                                                            <option value="">-- Link to Category --</option>
-                                                            {testCategories.map((c) => <option key={c} value={c}>{c}</option>)}
-                                                        </select>
-                                                    ) : (
-                                                        <select value={row.linkedTest || ''} onChange={e => updateRow(row.id, 'linkedTest', e.target.value)} className="w-1/2 bg-slate-900 border border-slate-700 rounded-lg p-1.5 text-xs text-sky-400 font-bold outline-none">
-                                                            <option value="">-- Link to Test Name --</option>
-                                                            {(availableTests || []).map((t: any) => <option key={t.test_id} value={t.test_name}>{t.test_name}</option>)}
-                                                        </select>
-                                                    )}
+                                                <div className="mt-3 flex gap-4">
+                                                    <div className="flex-1">
+                                                        <label className="text-[10px] font-black text-slate-500 uppercase block mb-1">Link with Test or Category</label>
+                                                        {isFilm ? (
+                                                            <select value={row.linkedCategory || 'X-Ray'} onChange={e => updateRow(row.id, 'linkedCategory', e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-1.5 text-xs text-sky-400 font-bold outline-none">
+                                                                <option value="">-- Link to Category --</option>
+                                                                {testCategories.map((c) => <option key={c} value={c}>{c}</option>)}
+                                                            </select>
+                                                        ) : (
+                                                            <select value={row.linkedTest || ''} onChange={e => updateRow(row.id, 'linkedTest', e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-1.5 text-xs text-sky-400 font-bold outline-none">
+                                                                <option value="">-- Link to Test Name --</option>
+                                                                {(availableTests || []).map((t: any) => <option key={t.test_id} value={t.test_name}>{t.test_name}</option>)}
+                                                            </select>
+                                                        )}
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-[10px] font-black text-slate-500 uppercase block mb-1">Count Start Date (কাউন্ট শুরুর তারিখ)</label>
+                                                        <input 
+                                                            type="date" 
+                                                            value={row.usageStartDate || date} 
+                                                            onChange={e => updateRow(row.id, 'usageStartDate', e.target.value)} 
+                                                            className="w-full bg-slate-900 border border-slate-700 rounded-lg p-1.5 text-xs text-emerald-400 font-bold outline-none"
+                                                        />
+                                                    </div>
                                                 </div>
                                             )}
                                         </div>
@@ -654,7 +667,8 @@ const DailyExpenseForm: React.FC<any> = ({
                     company: b.newCompany || '',
                     capacity_per_unit: b.newCapacity || '',
                     linked_test: b.linkedTest || '',
-                    linked_category: b.linkedCategory || ''
+                    linked_category: b.linkedCategory || '',
+                    usage_start_date: b.usageStartDate || ''
                 });
             } else {
                 const rIdx = updatedReagents.findIndex(rg => rg.reagent_id === b.reagentId);
@@ -663,7 +677,8 @@ const DailyExpenseForm: React.FC<any> = ({
                         ...updatedReagents[rIdx],
                         quantity: (updatedReagents[rIdx].quantity || 0) + (Number(b.qty) || 0),
                         linked_test: b.linkedTest || updatedReagents[rIdx].linked_test,
-                        linked_category: b.linkedCategory || updatedReagents[rIdx].linked_category
+                        linked_category: b.linkedCategory || updatedReagents[rIdx].linked_category,
+                        usage_start_date: b.usageStartDate || updatedReagents[rIdx].usage_start_date
                     };
                 }
             }

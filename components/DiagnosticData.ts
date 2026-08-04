@@ -343,6 +343,8 @@ export interface AdmissionRecord {
     admission_date: string;
     patient_id: string;
     patient_name: string;
+    patient_mobile?: string;
+    mobile_relation?: string;
     doctor_id: string;
     doctor_name: string;
     referrer_id: string;
