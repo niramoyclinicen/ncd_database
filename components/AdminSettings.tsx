@@ -99,7 +99,7 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ passwords, onSave, onBack
 
 যেহেতু অনলাইনে ইতিমধ্যে ডাটা আছে, তাই এটি শুধু নতুন/মিসিং ডাটাগুলো অনলাইনে যুক্ত করবে (Merge)।
 
-আপনি যদি নির্দিষ্ট কোনো দিনের ডাটা পাঠাতে চান, তবে তারিখটি লিখুন (যেমন: 2024-07-16)।
+আপনি যদি নির্দিষ্ট কোনো দিনের ডাটা পাঠাতে চান, তবে তারিখটি লিখুন (যেমন: 2026-07-20)।
 সব ডাটা পাঠাতে চাইলে ফাঁকা রেখে OK চাপুন।`
         );
 
@@ -121,6 +121,88 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ passwords, onSave, onBack
             setIsRestoring(false);
             setRestoreProgress(0);
         }
+    };
+
+    // Date Range Inspector State & Function
+    const [scanStartDate, setScanStartDate] = useState('2026-07-20');
+    const [scanEndDate, setScanEndDate] = useState('2026-08-31');
+    const [scanSummary, setScanSummary] = useState<{ counts: Record<string, number>; items: any; total: number } | null>(null);
+
+    const handleScanDateRange = () => {
+        const backup = dbService.deepScanRecovery() || dbService.getLocalBackup();
+        if (!backup || Object.keys(backup).length === 0) {
+            alert("ব্রাউজারে কোনো লোকাল ব্যাকআপ ডাটা পাওয়া যায়নি!");
+            return;
+        }
+
+        const counts: Record<string, number> = {};
+        const filteredItems: Record<string, any[]> = {};
+        let totalFound = 0;
+
+        const start = new Date(scanStartDate).getTime();
+        const end = new Date(scanEndDate + 'T23:59:59').getTime();
+
+        Object.keys(backup).forEach(key => {
+            const val = backup[key];
+            if (!Array.isArray(val)) return;
+
+            const matches = val.filter((item: any) => {
+                let itemDateStr = item.date || item.invoice_date || item.createdAt || item.payment_date || item.expense_date || item.usageStartDate;
+                if (!itemDateStr) return false;
+                if (typeof itemDateStr === 'string') {
+                    itemDateStr = itemDateStr.split('T')[0];
+                }
+                const itemTime = new Date(itemDateStr).getTime();
+                return !isNaN(itemTime) && itemTime >= start && itemTime <= end;
+            });
+
+            if (matches.length > 0) {
+                counts[key] = matches.length;
+                filteredItems[key] = matches;
+                totalFound += matches.length;
+            }
+        });
+
+        setScanSummary({ counts, items: filteredItems, total: totalFound });
+    };
+
+    const handlePushRangeToCloud = async () => {
+        if (!scanSummary || scanSummary.total === 0) return;
+        
+        const confirmPush = window.confirm(`মোট ${scanSummary.total} টি লোকাল এন্ট্রি পাওয়া গেছে (${scanStartDate} থেকে ${scanEndDate})। আপনি কি এগুলো অনলাইনে (Supabase) পাঠাতে চান?`);
+        if (!confirmPush) return;
+
+        setIsRestoring(true);
+        setRestoreProgress(0);
+        try {
+            // Merge all items for each key
+            const fullBackup = dbService.deepScanRecovery() || {};
+            const result = await dbService.smartMergeByDate(fullBackup, '', (p) => setRestoreProgress(p));
+            if (result?.success) {
+                alert("সফলভাবে লোকাল ডাটা অনলাইনে আপডেট করা হয়েছে! পেজ রিলোড হচ্ছে...");
+                window.location.reload();
+            } else {
+                alert("আপডেট ব্যর্থ হয়েছে: " + (result?.message || 'Unknown error'));
+            }
+        } catch (e: any) {
+            alert("Error syncing: " + e.message);
+        } finally {
+            setIsRestoring(false);
+            setRestoreProgress(0);
+        }
+    };
+
+    const handleDownloadRangeJSON = () => {
+        if (!scanSummary || scanSummary.total === 0) return;
+        const blob = new Blob([JSON.stringify(scanSummary.items, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `NCD_Local_Data_${scanStartDate}_to_${scanEndDate}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
     };
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -272,6 +354,83 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ passwords, onSave, onBack
                             <DatabaseIcon size={24} className={`text-blue-600 group-hover:text-white transition-all ${isRestoring ? 'animate-spin' : ''}`} />
                         </div>
                     </button>
+
+                    {/* DATE RANGE INSPECTOR & SCANNER TOOL */}
+                    <div className="bg-slate-900/90 border border-amber-500/30 p-5 rounded-2xl space-y-3 shadow-xl">
+                        <div className="flex items-center justify-between">
+                            <span className="text-xs font-black text-amber-400 uppercase tracking-widest flex items-center gap-1.5">
+                                🔍 তারিখভিত্তিক লোকাল ডাটা ফিল্টার ও স্ক্যান
+                            </span>
+                        </div>
+                        <p className="text-[10px] text-slate-400 leading-snug font-medium">
+                            আপনার ব্রাউজারে সংরক্ষিত লোকাল স্টোরে নির্দিষ্ট তারিখের (যেমন: ২০ জুলাই - ৩১ আগস্ট) কোনো মিসিং ডাটা আছে কিনা তা স্ক্যান করে দেখুন ও অনলাইনে পাঠান:
+                        </p>
+                        <div className="grid grid-cols-2 gap-2">
+                            <div>
+                                <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">শুরুর তারিখ</label>
+                                <input 
+                                    type="date" 
+                                    value={scanStartDate} 
+                                    onChange={e => setScanStartDate(e.target.value)}
+                                    className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-xs font-bold text-white outline-none focus:border-amber-500"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">শেষ তারিখ</label>
+                                <input 
+                                    type="date" 
+                                    value={scanEndDate} 
+                                    onChange={e => setScanEndDate(e.target.value)}
+                                    className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-xs font-bold text-white outline-none focus:border-amber-500"
+                                />
+                            </div>
+                        </div>
+
+                        <button 
+                            onClick={handleScanDateRange}
+                            className="w-full bg-amber-600 hover:bg-amber-500 text-slate-950 font-black text-xs py-2 rounded-xl uppercase tracking-wider transition-all shadow-md"
+                        >
+                            🔎 লোকাল ডাটা স্ক্যান করুন
+                        </button>
+
+                        {scanSummary && (
+                            <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-2 mt-2 animate-fade-in">
+                                <div className="text-xs font-black text-emerald-400 border-b border-slate-800 pb-1 flex justify-between">
+                                    <span>স্ক্যান ফলাফল:</span>
+                                    <span>মোট {scanSummary.total} টি রেকর্ড পাওয়া গেছে</span>
+                                </div>
+                                {scanSummary.total === 0 ? (
+                                    <p className="text-[11px] text-slate-400 italic">এই তারিখের মধ্যে লোকাল স্টোরেজ এ কোনো ডাটা পাওয়া যায়নি।</p>
+                                ) : (
+                                    <>
+                                        <div className="max-h-32 overflow-y-auto space-y-1 text-[10px] font-mono text-slate-300">
+                                            {Object.entries(scanSummary.counts).map(([k, count]) => (
+                                                <div key={k} className="flex justify-between py-0.5 border-b border-slate-900">
+                                                    <span className="text-amber-300 font-bold">{k}:</span>
+                                                    <span className="text-white font-black">{count} টি</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800">
+                                            <button 
+                                                onClick={handlePushRangeToCloud}
+                                                disabled={isRestoring}
+                                                className="bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-black py-2 rounded-lg uppercase tracking-wider transition-all"
+                                            >
+                                                ☁️ অনলাইনে পাঠান
+                                            </button>
+                                            <button 
+                                                onClick={handleDownloadRangeJSON}
+                                                className="bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-black py-2 rounded-lg uppercase tracking-wider transition-all"
+                                            >
+                                                📥 JSON ডাউনলোড
+                                            </button>
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        )}
+                    </div>
 
                     <div className="pt-4 border-t border-slate-800">
                         <button 
