@@ -122,8 +122,6 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ passwords, onSave, onBack
             setRestoreProgress(0);
         }
     };
-$d
-
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     

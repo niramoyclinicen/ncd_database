@@ -407,6 +407,7 @@ const ReagentInfoPage: React.FC<ReagentInfoPageProps> = ({ reagents, setReagents
                                         <td className="p-5">
                                             <div className="font-black text-white text-base uppercase tracking-tighter">{r.reagent_name}</div>
                                             <div className="text-[10px] text-slate-500 font-bold uppercase mt-1">ID: {r.reagent_id} | Unit: {r.unit}</div>
+                                            <div className="text-[10px] text-emerald-400 font-bold uppercase mt-0.5">Count Start Date: {r.usage_start_date || 'N/A'}</div>
                                         </td>
                                         <td className="p-5 font-black text-sky-400 uppercase italic">{r.company || 'Generic'}</td>
                                         <td className="p-5 text-center">
@@ -691,6 +692,10 @@ const ReagentInfoPage: React.FC<ReagentInfoPageProps> = ({ reagents, setReagents
                                 <div>
                                     <label className="block text-[10px] font-black text-slate-500 uppercase mb-2">Expiry Date</label>
                                     <input type="date" value={formData.expiry_date || ''} onChange={e => setFormData({...formData, expiry_date: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white font-bold outline-none focus:border-blue-500" />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black text-slate-500 uppercase mb-2">Count Start Date (কাউন্ট বা হিসাব শুরুর তারিখ)</label>
+                                    <input type="date" value={formData.usage_start_date || ''} onChange={e => setFormData({...formData, usage_start_date: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white font-bold outline-none focus:border-blue-500" />
                                 </div>
                                 <div className="flex flex-col justify-end">
                                     <label className="flex items-center gap-2 cursor-pointer text-white font-bold mt-4 p-3 bg-slate-800 rounded-xl">

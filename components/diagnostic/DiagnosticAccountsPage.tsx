@@ -702,7 +702,7 @@ const DailyExpenseForm: React.FC<any> = ({
         };
 
         const currentExpenses = allDetailedExpenses[batchDate] || [];
-        let updatedDateExpenses = [...currentExpenses];
+        const updatedDateExpenses = [...currentExpenses];
         
         if (existingItem && existingItem.date === batchDate) {
             const idx = updatedDateExpenses.findIndex(it => it.id === existingItem.id);
@@ -1099,29 +1099,42 @@ const DailyExpenseForm: React.FC<any> = ({
                                             ))}
                                         </datalist>
                                         {(item.category === 'Reagent buy' || item.category === 'X-ray Film buy') && (
-                                            <div className="flex items-center gap-2 mt-2 bg-slate-900 p-2 rounded-lg border border-slate-800">
-                                                <input
-                                                    type="number"
-                                                    placeholder="Box/Pcs"
-                                                    value={item.metadata?.numberOfBoxes || ''}
-                                                    onChange={e => handleItemChange(item.id, 'metadata', { ...item.metadata, numberOfBoxes: parseFloat(e.target.value) || 0 })}
-                                                    className="w-16 bg-slate-950 border border-slate-700 rounded p-1.5 text-xs font-black text-white text-center focus:border-blue-500 outline-none"
-                                                    title="Number of Boxes/Pieces"
-                                                />
-                                                <span className="text-slate-500 font-bold text-xs">×</span>
-                                                <input
-                                                    type="number"
-                                                    placeholder="Qty/Box"
-                                                    value={item.metadata?.quantityPerBox || ''}
-                                                    onChange={e => handleItemChange(item.id, 'metadata', { ...item.metadata, quantityPerBox: parseFloat(e.target.value) || 0 })}
-                                                    className="w-16 bg-slate-950 border border-slate-700 rounded p-1.5 text-xs font-black text-white text-center focus:border-blue-500 outline-none"
-                                                    title="Quantity per Box"
-                                                />
-                                                <div className="ml-auto text-right">
-                                                    <div className="text-[9px] text-slate-500 font-black uppercase">Total Add</div>
-                                                    <div className="text-emerald-400 font-black text-sm">
-                                                        +{(item.metadata?.numberOfBoxes || 0) * (item.metadata?.quantityPerBox || 0)}
+                                            <div className="flex flex-col gap-1.5 mt-2 bg-slate-900 p-2 rounded-lg border border-slate-800">
+                                                <div className="flex items-center gap-2">
+                                                    <input
+                                                        type="number"
+                                                        placeholder="Box/Pcs"
+                                                        value={item.metadata?.numberOfBoxes || ''}
+                                                        onChange={e => handleItemChange(item.id, 'metadata', { ...item.metadata, numberOfBoxes: parseFloat(e.target.value) || 0 })}
+                                                        className="w-16 bg-slate-950 border border-slate-700 rounded p-1.5 text-xs font-black text-white text-center focus:border-blue-500 outline-none"
+                                                        title="Number of Boxes/Pieces"
+                                                    />
+                                                    <span className="text-slate-500 font-bold text-xs">×</span>
+                                                    <input
+                                                        type="number"
+                                                        placeholder="Qty/Box"
+                                                        value={item.metadata?.quantityPerBox || ''}
+                                                        onChange={e => handleItemChange(item.id, 'metadata', { ...item.metadata, quantityPerBox: parseFloat(e.target.value) || 0 })}
+                                                        className="w-16 bg-slate-950 border border-slate-700 rounded p-1.5 text-xs font-black text-white text-center focus:border-blue-500 outline-none"
+                                                        title="Quantity per Box"
+                                                    />
+                                                    <div className="ml-auto text-right">
+                                                        <div className="text-[9px] text-slate-500 font-black uppercase">Total Add</div>
+                                                        <div className="text-emerald-400 font-black text-sm">
+                                                            +{(item.metadata?.numberOfBoxes || 0) * (item.metadata?.quantityPerBox || 0)}
+                                                        </div>
                                                     </div>
+                                                </div>
+                                                <div className="flex items-center gap-2 pt-1.5 border-t border-slate-800">
+                                                    <label className="text-[10px] font-black text-amber-400 uppercase whitespace-nowrap">
+                                                        Count Start Date (কাউন্ট শুরুর তারিখ):
+                                                    </label>
+                                                    <input
+                                                        type="date"
+                                                        value={item.metadata?.usageStartDate || selectedDate}
+                                                        onChange={e => handleItemChange(item.id, 'metadata', { ...item.metadata, usageStartDate: e.target.value })}
+                                                        className="bg-slate-950 border border-slate-700 rounded px-2 py-1 text-xs text-emerald-400 font-bold outline-none focus:border-emerald-500 w-full"
+                                                    />
                                                 </div>
                                             </div>
                                         )}
@@ -1427,21 +1440,36 @@ const DiagnosticAccountsPage: React.FC<any> = ({
             
             const newState = { ...safePrev, [date]: [...otherDeptItems, ...finalDiagItems] };
             
-            // If there are reagent buys or film buys, we might want to update the Reagent's linked_test or linked_category globally!
+            // If there are reagent buys or film buys, update the Reagent's linked_test, linked_category, usage_start_date, and stock quantity
             let updatedReagents = [...reagents];
             let reagentsModified = false;
             incomingItems.forEach(it => {
                 if (it.category === 'Reagent buy' || it.category === 'X-ray Film buy') {
                     const rIdx = updatedReagents.findIndex(rg => rg.reagent_name === it.subCategory);
+                    const qtyToAdd = (it.metadata?.numberOfBoxes || 0) * (it.metadata?.quantityPerBox || 0);
                     if (rIdx !== -1) {
-                        if (it.metadata?.linkedTest || it.metadata?.linkedCategory) {
-                            updatedReagents[rIdx] = {
-                                ...updatedReagents[rIdx],
-                                linked_test: it.metadata?.linkedTest || updatedReagents[rIdx].linked_test,
-                                linked_category: it.metadata?.linkedCategory || updatedReagents[rIdx].linked_category
-                            };
-                            reagentsModified = true;
-                        }
+                        updatedReagents[rIdx] = {
+                            ...updatedReagents[rIdx],
+                            quantity: (updatedReagents[rIdx].quantity || 0) + qtyToAdd,
+                            linked_test: it.metadata?.linkedTest || updatedReagents[rIdx].linked_test,
+                            linked_category: it.metadata?.linkedCategory || updatedReagents[rIdx].linked_category,
+                            usage_start_date: it.metadata?.usageStartDate || updatedReagents[rIdx].usage_start_date || date
+                        };
+                        reagentsModified = true;
+                    } else if (it.subCategory) {
+                        const newId = `rg_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+                        updatedReagents.push({
+                            reagent_id: newId,
+                            reagent_name: it.subCategory,
+                            quantity: qtyToAdd,
+                            unit: 'Box/Pcs',
+                            availability: true,
+                            company: '',
+                            linked_test: it.metadata?.linkedTest || '',
+                            linked_category: it.metadata?.linkedCategory || '',
+                            usage_start_date: it.metadata?.usageStartDate || date
+                        });
+                        reagentsModified = true;
                     }
                 }
             });
