@@ -204,6 +204,175 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ passwords, onSave, onBack
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
     };
+
+    // Cloud Snapshots Inspector State & Handler
+    const [cloudRows, setCloudRows] = useState<any[]>([]);
+    const [isFetchingCloudRows, setIsFetchingCloudRows] = useState(false);
+    const [cloudExtractStartDate, setCloudExtractStartDate] = useState('2026-07-20');
+    const [cloudExtractEndDate, setCloudExtractEndDate] = useState('2026-08-02');
+    const [cloudExtractedData, setCloudExtractedData] = useState<{ counts: Record<string, number>; payload: any; total: number } | null>(null);
+
+    const handleFetchCloudAllSnapshots = async () => {
+        setIsFetchingCloudRows(true);
+        try {
+            const rows = await dbService.fetchAllCloudRows();
+            if (!rows || rows.length === 0) {
+                alert("Supabase অনলাইনে 'ncd_state' টেবিলে কোনো ডাটা রো পাওয়া যায়নি!");
+            } else {
+                setCloudRows(rows);
+                alert(`Supabase থেকে মোট ${rows.length} টি ক্লাউড স্ন্যাপশট ডাটা রো পাওয়া গেছে!`);
+            }
+        } catch (e: any) {
+            alert("ক্লাউড ডাটা আনতে সমস্যা হয়েছে: " + e.message);
+        } finally {
+            setIsFetchingCloudRows(false);
+        }
+    };
+
+    const handleExtractCloudByDateRange = async () => {
+        setIsFetchingCloudRows(true);
+        try {
+            const rows = await dbService.fetchAllCloudRows();
+            if (!rows || rows.length === 0) {
+                alert("Supabase অনলাইনে 'ncd_state' টেবিলে কোনো ডাটা পাওয়া যায়নি!");
+                return;
+            }
+            setCloudRows(rows);
+
+            const start = new Date(cloudExtractStartDate).getTime();
+            const end = new Date(cloudExtractEndDate + 'T23:59:59').getTime();
+
+            const combinedPayload: Record<string, any[]> = {};
+            const itemCounts: Record<string, number> = {};
+            let totalItemCount = 0;
+
+            // Iterate through all fetched rows from Supabase
+            rows.forEach((row: any) => {
+                const data = row.data;
+                if (!data || typeof data !== 'object') return;
+
+                Object.keys(data).forEach(key => {
+                    const val = data[key];
+                    if (Array.isArray(val)) {
+                        const matches = val.filter((item: any) => {
+                            if (!item) return false;
+                            let dateStr = item.date || item.invoice_date || item.createdAt || item.payment_date || item.expense_date || item.usageStartDate;
+                            if (!dateStr) return false;
+                            if (typeof dateStr === 'string') dateStr = dateStr.split('T')[0];
+                            const time = new Date(dateStr).getTime();
+                            return !isNaN(time) && time >= start && time <= end;
+                        });
+
+                        if (matches.length > 0) {
+                            if (!combinedPayload[key]) combinedPayload[key] = [];
+                            // Append and deduplicate by id or invoice_number
+                            matches.forEach((m: any) => {
+                                const mId = m.id || m.invoice_no || m.patient_id || m.report_id || m.receipt_no;
+                                const exists = mId ? combinedPayload[key].some((x: any) => (x.id || x.invoice_no || x.patient_id || x.report_id || x.receipt_no) === mId) : false;
+                                if (!exists) {
+                                    combinedPayload[key].push(m);
+                                }
+                            });
+                        }
+                    }
+                });
+            });
+
+            // Calculate total counts
+            Object.keys(combinedPayload).forEach(k => {
+                const cnt = combinedPayload[k].length;
+                itemCounts[k] = cnt;
+                totalItemCount += cnt;
+            });
+
+            setCloudExtractedData({
+                counts: itemCounts,
+                payload: combinedPayload,
+                total: totalItemCount
+            });
+
+            if (totalItemCount === 0) {
+                alert(`Supabase ক্লাউডে ${cloudExtractStartDate} থেকে ${cloudExtractEndDate} তারিখের মধ্যে কোনো ডাটা আইটেম মিলেনি।`);
+            } else {
+                alert(`Supabase থেকে ${cloudExtractStartDate} থেকে ${cloudExtractEndDate} তারিখের মোট ${totalItemCount} টি নির্দিষ্ট আইটেম সফলভাবে ফিল্টার করা হয়েছে!`);
+            }
+        } catch (e: any) {
+            alert("Supabase ডাটা ফিল্টার করতে ত্রুটি: " + e.message);
+        } finally {
+            setIsFetchingCloudRows(false);
+        }
+    };
+
+    const handleMergeExtractedCloudData = async () => {
+        if (!cloudExtractedData || cloudExtractedData.total === 0) return;
+        const confirmMerge = window.confirm(`আপনি কি Supabase থেকে ফিল্টারকৃত ${cloudExtractStartDate} থেকে ${cloudExtractEndDate} এর ${cloudExtractedData.total} টি ডাটা আইটেম লাইভ অ্যাপে যুক্ত (Merge) করতে চান?`);
+        if (!confirmMerge) return;
+
+        setIsRestoring(true);
+        setRestoreProgress(0);
+        try {
+            const result = await dbService.smartMergeByDate(cloudExtractedData.payload, '', (p) => setRestoreProgress(p));
+            if (result?.success) {
+                alert("সফলভাবে ২০ জুলাই - ২ আগস্ট এর ক্লাউড ডাটা বর্তমান অ্যাপে যুক্ত করা হয়েছে! পেজ রিফ্রেশ হচ্ছে...");
+                window.location.reload();
+            } else {
+                alert("মার্চ ব্যর্থ হয়েছে: " + (result?.message || 'Unknown error'));
+            }
+        } catch (e: any) {
+            alert("Error merging extracted cloud data: " + e.message);
+        } finally {
+            setIsRestoring(false);
+            setRestoreProgress(0);
+        }
+    };
+
+    const handleDownloadExtractedCloudJSON = () => {
+        if (!cloudExtractedData || cloudExtractedData.total === 0) return;
+        const blob = new Blob([JSON.stringify(cloudExtractedData.payload, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Supabase_Cloud_Data_${cloudExtractStartDate}_to_${cloudExtractEndDate}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    };
+
+    const handleDownloadCloudRow = (row: any) => {
+        const blob = new Blob([JSON.stringify(row.data, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Supabase_NCD_State_Row_${row.id}_${row.updated_at || 'data'}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    };
+
+    const handleMergeCloudRow = async (row: any) => {
+        if (!row || !row.data) return;
+        const confirmMerge = window.confirm(`আপনি কি Supabase Row #${row.id} (${row.updated_at || 'Date N/A'}) এর ডাটা বর্তমান লাইভ অ্যাপে যুক্ত (Merge) করতে চান?`);
+        if (!confirmMerge) return;
+
+        setIsRestoring(true);
+        setRestoreProgress(0);
+        try {
+            const result = await dbService.smartMergeByDate(row.data, '', (p) => setRestoreProgress(p));
+            if (result?.success) {
+                alert("সফলভাবে ক্লাউড রেকর্ড মার্চ করা হয়েছে! পেজ রিলোড হচ্ছে...");
+                window.location.reload();
+            } else {
+                alert("মার্চ ব্যর্থ হয়েছে: " + (result?.message || 'Unknown error'));
+            }
+        } catch (e: any) {
+            alert("Error merging cloud row: " + e.message);
+        } finally {
+            setIsRestoring(false);
+            setRestoreProgress(0);
+        }
+    };
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -428,6 +597,127 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ passwords, onSave, onBack
                                         </div>
                                     </>
                                 )}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* SUPABASE CLOUD DATA RECOVERY CARD */}
+                    <div className="bg-slate-900/90 border border-sky-500/30 p-5 rounded-2xl space-y-3 shadow-xl">
+                        <div className="flex items-center justify-between">
+                            <span className="text-xs font-black text-sky-400 uppercase tracking-widest flex items-center gap-1.5">
+                                ☁️ Supabase ক্লাউড থেকে ডাটা ফেচ ও তারিখ ফিল্টার (২০ জুলাই - ২ আগস্ট)
+                            </span>
+                        </div>
+                        <p className="text-[10px] text-slate-400 leading-snug font-medium">
+                            অনলাইনে (Supabase) সেভ থাকা সকল ডাটা স্ন্যাপশট স্ক্যান করে আপনার পছন্দমতো তারিখের (যেমন: ২০ জুলাই - ২ আগস্ট) ডাটা আলাদা করুন এবং সরাসরি লাইভ অ্যাপে মার্চ করুন:
+                        </p>
+
+                        <div className="grid grid-cols-2 gap-2 bg-slate-950/60 p-2.5 rounded-xl border border-slate-800/80">
+                            <div>
+                                <label className="block text-[9px] font-bold text-sky-400 uppercase mb-1">ক্লাউড শুরুর তারিখ</label>
+                                <input 
+                                    type="date" 
+                                    value={cloudExtractStartDate} 
+                                    onChange={e => setCloudExtractStartDate(e.target.value)}
+                                    className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-xs font-bold text-white outline-none focus:border-sky-500"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-[9px] font-bold text-sky-400 uppercase mb-1">ক্লাউড শেষ তারিখ</label>
+                                <input 
+                                    type="date" 
+                                    value={cloudExtractEndDate} 
+                                    onChange={e => setCloudExtractEndDate(e.target.value)}
+                                    className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-xs font-bold text-white outline-none focus:border-sky-500"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2">
+                            <button 
+                                onClick={handleExtractCloudByDateRange}
+                                disabled={isFetchingCloudRows}
+                                className="bg-sky-600 hover:bg-sky-500 text-white font-black text-xs py-2.5 rounded-xl uppercase tracking-wider transition-all shadow-md flex items-center justify-center gap-1"
+                            >
+                                {isFetchingCloudRows ? 'স্ক্যান হচ্ছে...' : '🔍 Supabase থেকে তারিখভিত্তিক ডাটা এক্সট্র্যাক্ট করুন'}
+                            </button>
+                            <button 
+                                onClick={handleFetchCloudAllSnapshots}
+                                disabled={isFetchingCloudRows}
+                                className="bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs py-2.5 rounded-xl uppercase tracking-wider transition-all border border-slate-700"
+                            >
+                                📦 সকল স্ন্যাপশট তালিকা দেখুন
+                            </button>
+                        </div>
+
+                        {cloudExtractedData && (
+                            <div className="bg-slate-950 p-3.5 rounded-xl border border-sky-500/40 space-y-2.5 mt-2 animate-fade-in shadow-2xl">
+                                <div className="text-xs font-black text-emerald-400 border-b border-slate-800 pb-1.5 flex justify-between">
+                                    <span>Supabase ফিল্টার ফলাফল ({cloudExtractStartDate} থেকে {cloudExtractEndDate}):</span>
+                                    <span className="text-amber-400">মোট {cloudExtractedData.total} টি আইটেম</span>
+                                </div>
+                                {cloudExtractedData.total === 0 ? (
+                                    <p className="text-[11px] text-slate-400 italic">Supabase ক্লাউডে এই তারিখের মধ্যে কোনো ডাটা আইটেম পাওয়া যায়নি।</p>
+                                ) : (
+                                    <>
+                                        <div className="max-h-36 overflow-y-auto space-y-1 text-[10px] font-mono text-slate-300">
+                                            {Object.entries(cloudExtractedData.counts).map(([k, count]) => (
+                                                <div key={k} className="flex justify-between py-0.5 border-b border-slate-900">
+                                                    <span className="text-sky-300 font-bold">{k}:</span>
+                                                    <span className="text-emerald-400 font-black">{count} টি</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800">
+                                            <button 
+                                                onClick={handleMergeExtractedCloudData}
+                                                disabled={isRestoring}
+                                                className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black py-2.5 rounded-lg uppercase tracking-wider transition-all shadow-md flex items-center justify-center gap-1"
+                                            >
+                                                🔄 অ্যাপে যুক্ত (Merge) করুন
+                                            </button>
+                                            <button 
+                                                onClick={handleDownloadExtractedCloudJSON}
+                                                className="bg-blue-600 hover:bg-blue-500 text-white text-xs font-black py-2.5 rounded-lg uppercase tracking-wider transition-all shadow-md flex items-center justify-center gap-1"
+                                            >
+                                                📥 JSON ডাউনলোড
+                                            </button>
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        )}
+
+                        {cloudRows.length > 0 && (
+                            <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-2 mt-2">
+                                <div className="text-xs font-black text-sky-400 border-b border-slate-800 pb-1 flex justify-between">
+                                    <span>Supabase টেবিল রেকর্ডসমূহ:</span>
+                                    <span>মোট {cloudRows.length} টি স্ন্যাপশট</span>
+                                </div>
+                                <div className="max-h-48 overflow-y-auto space-y-2 pt-1">
+                                    {cloudRows.map((row: any) => (
+                                        <div key={row.id} className="bg-slate-900 p-2.5 rounded-lg border border-slate-800 flex items-center justify-between gap-2">
+                                            <div>
+                                                <div className="text-xs font-black text-white">Row ID: #{row.id}</div>
+                                                <div className="text-[9px] text-slate-400">আপডেট: {row.updated_at ? new Date(row.updated_at).toLocaleString('bn-BD') : 'N/A'}</div>
+                                            </div>
+                                            <div className="flex items-center gap-1">
+                                                <button 
+                                                    onClick={() => handleDownloadCloudRow(row)}
+                                                    className="bg-blue-600 hover:bg-blue-500 text-white text-[9px] font-black px-2 py-1 rounded"
+                                                >
+                                                    📥 JSON
+                                                </button>
+                                                <button 
+                                                    onClick={() => handleMergeCloudRow(row)}
+                                                    className="bg-emerald-600 hover:bg-emerald-500 text-white text-[9px] font-black px-2 py-1 rounded"
+                                                >
+                                                    🔄 মার্চ করুন
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
                             </div>
                         )}
                     </div>

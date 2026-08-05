@@ -72,6 +72,22 @@ export const dbService = {
       return { _error: "Exception: " + error.message };
     }
   },
+  fetchAllCloudRows: async () => {
+    try {
+      if (!supabase) return [];
+      const { data, error } = await supabase
+        .from('ncd_state')
+        .select('*');
+      if (error) {
+        console.error("fetchAllCloudRows error:", error);
+        return [];
+      }
+      return data || [];
+    } catch (e) {
+      console.error("fetchAllCloudRows exception:", e);
+      return [];
+    }
+  },
     smartMergeByDate: async (localData: any, targetDate: string, onProgress?: (p: number) => void) => {
     try {
       if (!supabase) return false;
