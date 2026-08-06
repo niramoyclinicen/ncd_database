@@ -462,7 +462,21 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
       }
       const existingItem = formData.items.find(item => item.test_id === testId);
       if (existingItem) {
-        alert('This test is already added to the invoice.');
+        setFormData(prev => ({
+          ...prev,
+          items: prev.items.map(item => {
+            if (item.test_id === testId) {
+              const newQty = (item.quantity || 1) + 1;
+              return {
+                ...item,
+                quantity: newQty,
+                subtotal: (item.price || 0) * newQty
+              };
+            }
+            return item;
+          })
+        }));
+        if (errors.items) setErrors(prev => ({...prev, items: false}));
         return;
       }
       const newItem: LabInvoiceItem = {
@@ -478,6 +492,23 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
       setFormData(prev => ({ ...prev, items: [...prev.items, newItem] }));
       if (errors.items) setErrors(prev => ({...prev, items: false}));
     }
+  };
+
+  const handleItemQuantityChange = (testId: string, newQty: number) => {
+    const qty = Math.max(1, isNaN(newQty) ? 1 : newQty);
+    setFormData(prev => ({
+      ...prev,
+      items: prev.items.map(item => {
+        if (item.test_id === testId) {
+          return {
+            ...item,
+            quantity: qty,
+            subtotal: (item.price || 0) * qty
+          };
+        }
+        return item;
+      })
+    }));
   };
 
   const handleRemoveItem = (testId: string) => {
@@ -626,14 +657,14 @@ pdate the local state and reset form
                       if (selectedFilmId) {
                           const rIdx = updatedReagents.findIndex(r => r.reagent_id === selectedFilmId);
                           if (rIdx !== -1) {
-                              updatedReagents[rIdx] = { ...updatedReagents[rIdx], quantity: (updatedReagents[rIdx].quantity || 0) - 1 };
+                              updatedReagents[rIdx] = { ...updatedReagents[rIdx], quantity: (updatedReagents[rIdx].quantity || 0) - (item.quantity || 1) };
                               reagentsChanged = true;
                           }
                       }
                   } else {
                       const rIdx = updatedReagents.findIndex(r => r.linked_test === testObj.test_name);
                       if (rIdx !== -1) {
-                          updatedReagents[rIdx] = { ...updatedReagents[rIdx], quantity: (updatedReagents[rIdx].quantity || 0) - 1 };
+                          updatedReagents[rIdx] = { ...updatedReagents[rIdx], quantity: (updatedReagents[rIdx].quantity || 0) - (item.quantity || 1) };
                           reagentsChanged = true;
                       }
                   }
@@ -1515,8 +1546,34 @@ pdate the local state and reset form
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-200 font-medium">{item.test_name}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300 text-right">{(item.price || 0).toFixed(2)}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300 text-right">{applyPC ? (item.test_commission || 0).toFixed(2) : '0.00'}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300 text-right">{item.quantity}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-200 font-medium text-right">{(item.subtotal || 0).toFixed(2)}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleItemQuantityChange(item.test_id, (item.quantity || 1) - 1)}
+                            className="w-7 h-7 rounded bg-slate-800 hover:bg-slate-700 text-sky-400 font-black text-base flex items-center justify-center transition-colors border border-slate-700 active:scale-95"
+                            title="পরিমাণ কমান"
+                          >
+                            -
+                          </button>
+                          <input
+                            type="number"
+                            min="1"
+                            value={item.quantity || 1}
+                            onChange={(e) => handleItemQuantityChange(item.test_id, parseInt(e.target.value) || 1)}
+                            className="w-16 bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-center text-sm font-bold text-amber-400 focus:outline-none focus:border-sky-500"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleItemQuantityChange(item.test_id, (item.quantity || 1) + 1)}
+                            className="w-7 h-7 rounded bg-slate-800 hover:bg-slate-700 text-sky-400 font-black text-base flex items-center justify-center transition-colors border border-slate-700 active:scale-95"
+                            title="পরিমাণ বাড়ান"
+                          >
+                            +
+                          </button>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-200 font-medium text-right">{((item.price || 0) * (item.quantity || 1)).toFixed(2)}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium"><button type="button" onClick={() => handleRemoveItem(item.test_id)} className="text-red-400 hover:text-red-300 transition-colors">Remove</button></td>
                     </tr>
                   ))}
