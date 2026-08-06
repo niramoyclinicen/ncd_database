@@ -30,13 +30,39 @@ export const ZKTecoBridgeModal: React.FC<ZKTecoBridgeModalProps> = ({
   const [subnetMask, setSubnetMask] = useState<string>('255.255.255.0');
   const [gateway, setGateway] = useState<string>('192.168.0.1');
 
-  const [activeTab, setActiveTab] = useState<'config' | 'agent' | 'usb_import' | 'mapping'>('config');
+  const [activeTab, setActiveTab] = useState<'config' | 'export_users' | 'usb_import' | 'agent' | 'mapping'>('export_users');
   const [copiedCode, setCopiedCode] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [importStatus, setImportStatus] = useState<string | null>(null);
   const [mappedEmployees, setMappedEmployees] = useState<Employee[]>(employees);
 
   if (!isOpen) return null;
+
+  // Export Employees formatted for ZKTime / K50 USB Import
+  const handleExportEmployeesForMachine = () => {
+    if (!employees || employees.length === 0) {
+      alert('কোনো সক্রিয় কর্মচারী পাওয়া যায়নি!');
+      return;
+    }
+
+    let csv = "User_ID,Name,Card,Privilege,Password,Group,Timezone,PIN2,Position\n";
+    employees.forEach((emp, idx) => {
+      const hid = emp.machine_id || (100 + idx + 1);
+      const name = emp.emp_name.replace(/,/g, '');
+      const position = (emp.job_position || 'Staff').replace(/,/g, '');
+      csv += `"${hid}","${name}","0","0","","1","1","${emp.emp_id}","${position}"\n`;
+    });
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `ZKTeco_K50_Employee_UserList_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    alert('✅ কর্মচারীদের তথ্য সম্বলিত CSV ফাইল ডাউনলোড হয়েছে!\n\nএই ফাইলটি ZKTime সফটওয়্যার অথবা USB পেনড্রাইভের মাধ্যমে K50 মেশিনে ইম্পোর্ট করতে পারবেন।');
+  };
 
   const handleSaveConfig = () => {
     localStorage.setItem('zk_machine_ip', ipAddress);
@@ -241,8 +267,48 @@ syncAttendance();
         {/* Tab Navigation */}
         <div className="flex border-b border-slate-800 mb-6 overflow-x-auto gap-2">
           <button
+            onClick={() => setActiveTab('export_users')}
+            className={`py-2.5 px-4 font-bold text-xs uppercase tracking-wider rounded-t-xl transition-all whitespace-nowrap ${
+              activeTab === 'export_users'
+                ? 'bg-sky-600 text-white border-b-2 border-sky-400'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800'
+            }`}
+          >
+            📤 ১. কর্মচারীর তথ্য মেশিনে আপলোড
+          </button>
+          <button
+            onClick={() => setActiveTab('usb_import')}
+            className={`py-2.5 px-4 font-bold text-xs uppercase tracking-wider rounded-t-xl transition-all whitespace-nowrap ${
+              activeTab === 'usb_import'
+                ? 'bg-sky-600 text-white border-b-2 border-sky-400'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800'
+            }`}
+          >
+            📥 ২. হাজিরা ফাইল ইম্পোর্ট (.dat / CSV)
+          </button>
+          <button
+            onClick={() => setActiveTab('mapping')}
+            className={`py-2.5 px-4 font-bold text-xs uppercase tracking-wider rounded-t-xl transition-all whitespace-nowrap ${
+              activeTab === 'mapping'
+                ? 'bg-sky-600 text-white border-b-2 border-sky-400'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800'
+            }`}
+          >
+            👥 ৩. স্টাফ HID ম্যাপিং
+          </button>
+          <button
+            onClick={() => setActiveTab('agent')}
+            className={`py-2.5 px-4 font-bold text-xs uppercase tracking-wider rounded-t-xl transition-all whitespace-nowrap ${
+              activeTab === 'agent'
+                ? 'bg-sky-600 text-white border-b-2 border-sky-400'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800'
+            }`}
+          >
+            💻 ৪. অটো-সিঙ্ক এজেন্ট
+          </button>
+          <button
             onClick={() => setActiveTab('config')}
-            className={`py-2.5 px-4 font-bold text-xs uppercase tracking-wider rounded-t-xl transition-all ${
+            className={`py-2.5 px-4 font-bold text-xs uppercase tracking-wider rounded-t-xl transition-all whitespace-nowrap ${
               activeTab === 'config'
                 ? 'bg-sky-600 text-white border-b-2 border-sky-400'
                 : 'text-slate-400 hover:text-white hover:bg-slate-800'
@@ -250,37 +316,64 @@ syncAttendance();
           >
             ⚙️ নেটওয়ার্ক সেটআপ
           </button>
-          <button
-            onClick={() => setActiveTab('agent')}
-            className={`py-2.5 px-4 font-bold text-xs uppercase tracking-wider rounded-t-xl transition-all ${
-              activeTab === 'agent'
-                ? 'bg-sky-600 text-white border-b-2 border-sky-400'
-                : 'text-slate-400 hover:text-white hover:bg-slate-800'
-            }`}
-          >
-            💻 ১-ক্লিক লোকাল সিঙ্ক এজেন্ট
-          </button>
-          <button
-            onClick={() => setActiveTab('usb_import')}
-            className={`py-2.5 px-4 font-bold text-xs uppercase tracking-wider rounded-t-xl transition-all ${
-              activeTab === 'usb_import'
-                ? 'bg-sky-600 text-white border-b-2 border-sky-400'
-                : 'text-slate-400 hover:text-white hover:bg-slate-800'
-            }`}
-          >
-            📁 USB / .DAT ফাইল ইম্পোর্ট
-          </button>
-          <button
-            onClick={() => setActiveTab('mapping')}
-            className={`py-2.5 px-4 font-bold text-xs uppercase tracking-wider rounded-t-xl transition-all ${
-              activeTab === 'mapping'
-                ? 'bg-sky-600 text-white border-b-2 border-sky-400'
-                : 'text-slate-400 hover:text-white hover:bg-slate-800'
-            }`}
-          >
-            👥 স্টাফ HID ম্যাপিং
-          </button>
         </div>
+
+        {/* TAB 1: EXPORT USERS TO MACHINE */}
+        {activeTab === 'export_users' && (
+          <div className="space-y-4 animate-fade-in">
+            <div className="bg-slate-950 p-6 rounded-2xl border border-slate-800 space-y-4">
+              <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+                <div>
+                  <h3 className="text-sm font-bold text-sky-400 uppercase tracking-wider flex items-center gap-2">
+                    📤 সফটওয়্যারের কর্মচারীদের তথ্য ZKTeco K50 মেশিনে প্রেরণের ফাইল
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-1">
+                    গ্লোবাল প্রোফাইলে এন্ট্রি করা কর্মচারীদের নাম, পদবী ও আইডি মেশিনে ইম্পোর্ট করার উপযুক্ত ফরম্যাট করা ফাইল ডাউনলোড করুন।
+                  </p>
+                </div>
+                <button
+                  onClick={handleExportEmployeesForMachine}
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-5 py-2.5 rounded-xl transition-all shadow-lg active:scale-95 flex items-center gap-2"
+                >
+                  📥 কর্মচারী ইউজার এক্সপোর্ট ফাইল ডাউনলোড (.csv)
+                </button>
+              </div>
+
+              <div className="p-4 bg-slate-900 border border-slate-800 rounded-xl space-y-2">
+                <div className="text-xs font-bold text-amber-300">📋 কীভাবে মেশিনে যুক্ত করবেন:</div>
+                <ol className="list-decimal list-inside text-xs text-slate-300 space-y-1.5 opacity-90">
+                  <li>ওপরের <b>"কমর্চারী ইউজার এক্সপোর্ট ফাইল ডাউনলোড"</b> বাটনে ক্লিক করে CSV ফাইলটি সেভ করুন।</li>
+                  <li>ফাইলটি একটি USB পেনড্রাইভে নিয়ে ZKTeco K50 মেশিনের USB পোর্টে লাগান।</li>
+                  <li>K50 মেশিনের মেনু খুলে যান: <b>User Mgt. &gt; Upload User Data</b> অথবা <b>ZKTime</b> সফটওয়্যারে ইম্পোর্ট করুন।</li>
+                  <li>মেশিনে আপলোড হওয়ার পর আপনি মেশিনে গিয়ে প্রতি কর্মচারীর জন্য হাতের ফিঙ্গারপ্রিন্ট সেট করে নিতে পারবেন।</li>
+                </ol>
+              </div>
+
+              <div className="max-h-48 overflow-y-auto rounded-xl border border-slate-800">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-900 text-sky-400 font-bold border-b border-slate-800">
+                    <tr>
+                      <th className="p-2.5">মেশিন HID</th>
+                      <th className="p-2.5">কর্মচারীর নাম</th>
+                      <th className="p-2.5">পদবী</th>
+                      <th className="p-2.5">সফটওয়্যার EMP ID</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800 text-slate-300">
+                    {employees.map((emp, idx) => (
+                      <tr key={emp.emp_id}>
+                        <td className="p-2.5 font-mono text-amber-400 font-bold">{emp.machine_id || (100 + idx + 1)}</td>
+                        <td className="p-2.5 font-bold text-white">{emp.emp_name}</td>
+                        <td className="p-2.5 text-slate-400">{emp.job_position}</td>
+                        <td className="p-2.5 font-mono text-slate-400">{emp.emp_id}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* TAB 1: CONFIG */}
         {activeTab === 'config' && (
