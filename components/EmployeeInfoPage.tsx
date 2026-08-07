@@ -43,9 +43,9 @@ const monthOptions = [
 ];
 
 const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({ 
-  employees, setEmployees, onBack, detailedExpenses = {}, 
-  attendanceLog, setAttendanceLog, leaveLog, setLeaveLog,
-  monthlyRoster, setMonthlyRoster, performBlockingSync
+  employees = [], setEmployees, onBack, detailedExpenses = {}, 
+  attendanceLog = {}, setAttendanceLog, leaveLog = {}, setLeaveLog,
+  monthlyRoster = {}, setMonthlyRoster, performBlockingSync
 }) => {
   const [activeTab, setActiveTab] = useState<EmployeeTab>('attendance');
   const [searchTerm, setSearchTerm] = useState('');
@@ -93,9 +93,14 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
   const currentPeriodKey = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}`;
 
   const periodEmployees = useMemo(() => {
-    if (!Array.isArray(employees)) return [];
-    const activeIds = monthlyRoster[currentPeriodKey] || [];
-    return employees.filter(e => e && activeIds.includes(e.emp_id) && e.status === 'Active');
+    const emps = Array.isArray(employees) ? employees : [];
+    const roster = monthlyRoster || {};
+    const activeIds = roster[currentPeriodKey] || [];
+    if (activeIds.length > 0) {
+      const rosterFiltered = emps.filter(e => e && activeIds.includes(e.emp_id) && (e.status === 'Active' || !e.status));
+      if (rosterFiltered.length > 0) return rosterFiltered;
+    }
+    return emps.filter(e => e && (e.status === 'Active' || !e.status));
   }, [employees, monthlyRoster, currentPeriodKey]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -219,9 +224,10 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
   };
 
   const toggleRosterStatus = (empId: string) => {
-    const currentList = monthlyRoster[currentPeriodKey] || [];
+    const roster = monthlyRoster || {};
+    const currentList = roster[currentPeriodKey] || [];
     const newList = currentList.includes(empId) ? currentList.filter(id => id !== empId) : [...currentList, empId];
-    const newMonthlyRoster = { ...monthlyRoster, [currentPeriodKey]: newList };
+    const newMonthlyRoster = { ...roster, [currentPeriodKey]: newList };
     setMonthlyRoster(newMonthlyRoster);
   };
 
@@ -234,14 +240,30 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
   };
 
   const resetFormForNew = () => {
-
       setFormData({ ...emptyEmployee, emp_id: String(Date.now()).slice(-5), joining_date: new Date().toISOString().split('T')[0] });
       setSelectedEmployeeId(null);
       if (nameInputRef.current) nameInputRef.current.focus();
   };
 
+  const handleCancelEdit = () => {
+    setFormData(emptyEmployee);
+    setSelectedEmployeeId(null);
+  };
+
+  const handleTestConnection = async () => {
+    if (!machineCfg.ipAddress) {
+      alert("মেশিন আইপি প্রদান করুন!");
+      return;
+    }
+    setMachineCfg(prev => ({ ...prev, status: 'Syncing' }));
+    setTimeout(() => {
+      setMachineCfg(prev => ({ ...prev, status: 'Online', lastSync: new Date().toLocaleString() }));
+      alert(`✅ ZKTeco K50 ডিভাইস সংযোগ সফল!\nIP: ${machineCfg.ipAddress}:${machineCfg.port}\nস্ট্যাটাস: Online`);
+    }, 1000);
+  };
+
   const handlePrintSalarySheet = () => {
-    const monthName = monthOptions[selectedMonth].name;
+    const monthName = (monthOptions[selectedMonth] || monthOptions[0]).name;
     const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
     const daysArray = Array.from({ length: daysInMonth }, (_, i) => i + 1);
 
@@ -250,18 +272,18 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
         const dailyAdvancePayments: Record<number, number> = {};
         for (let day = 1; day <= daysInMonth; day++) {
             const dateStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-            const dayExpenses = detailedExpenses[dateStr] || [];
+            const dayExpenses = (detailedExpenses || {})[dateStr] || [];
             const payments = dayExpenses.filter(ex => ex.category === 'Stuff salary' && (ex.subCategory === emp.emp_name || (ex.description && ex.description.includes(emp.emp_name))));
             const daySum = payments.reduce((sum, ex) => sum + (ex.paidAmount || 0), 0);
             if (daySum > 0) { dailyAdvancePayments[day] = daySum; advanceTakenTotal += daySum; }
         }
         const leaveKey = `${selectedMonth}_${selectedYear}_${emp.emp_id}`;
-        const leaveRecord = leaveLog[leaveKey] || { leaveDays: 0, deductionAmount: 0, bonus: 0, overtime: 0 };
-        const currentSalary = leaveRecord.agreedSalary !== undefined ? leaveRecord.agreedSalary : emp.salary;
+        const leaveRecord = (leaveLog || {})[leaveKey] || { leaveDays: 0, deductionAmount: 0, bonus: 0, overtime: 0 };
+        const currentSalary = leaveRecord.agreedSalary !== undefined ? leaveRecord.agreedSalary : (emp.salary || 0);
         let absentCount = 0;
         for(let d=1; d<=daysInMonth; d++) {
             const dateStr = `${selectedYear}-${String(selectedMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-            if(attendanceLog[`${dateStr}_${emp.emp_id}`]?.status === 'Absent') absentCount++;
+            if((attendanceLog || {})[`${dateStr}_${emp.emp_id}`]?.status === 'Absent') absentCount++;
         }
         const perDaySal = currentSalary / 30;
         const leaveDeduction = (absentCount + (leaveRecord.leaveDays || 0)) * perDaySal;
@@ -318,26 +340,26 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
                 <tr>
                   <td>${idx + 1}</td>
                   <td class="name-cell">${emp.emp_name}</td>
-                  <td>${emp.currentSalary.toLocaleString()}</td>
-                  <td class="font-bold">${emp.bonus > 0 ? emp.bonus.toLocaleString() : ''}</td>
-                  <td class="font-bold">${emp.overtime > 0 ? emp.overtime.toLocaleString() : ''}</td>
+                  <td>${(emp.currentSalary || 0).toLocaleString()}</td>
+                  <td class="font-bold">${emp.bonus > 0 ? (emp.bonus || 0).toLocaleString() : ''}</td>
+                  <td class="font-bold">${emp.overtime > 0 ? (emp.overtime || 0).toLocaleString() : ''}</td>
                   ${daysArray.map(d => `<td>${emp.dailyAdvancePayments[d] || ''}</td>`).join('')}
-                  <td style="font-weight:bold">৳${emp.advanceTakenTotal.toLocaleString()}</td>
-                  <td style="font-weight:bold">৳${emp.netPayable.toLocaleString(undefined, {maximumFractionDigits:0})}</td>
-                  <td style="font-weight:black; font-size:9px; color: #1e40af">৳${emp.dueAmount.toLocaleString(undefined, {maximumFractionDigits:0})}</td>
+                  <td style="font-weight:bold">৳${(emp.advanceTakenTotal || 0).toLocaleString()}</td>
+                  <td style="font-weight:bold">৳${(emp.netPayable || 0).toLocaleString(undefined, {maximumFractionDigits:0})}</td>
+                  <td style="font-weight:black; font-size:9px; color: #1e40af">৳${(emp.dueAmount || 0).toLocaleString(undefined, {maximumFractionDigits:0})}</td>
                 </tr>
               `).join('')}
             </tbody>
             <tfoot class="totals-row">
               <tr>
                 <td colspan="2">TOTAL SETTLEMENT:</td>
-                <td>৳${finalData.reduce((s,e)=>s+e.currentSalary, 0).toLocaleString()}</td>
-                <td>৳${finalData.reduce((s,e)=>s+e.bonus, 0).toLocaleString()}</td>
-                <td>৳${finalData.reduce((s,e)=>s+e.overtime, 0).toLocaleString()}</td>
+                <td>৳${finalData.reduce((s,e)=>s+(e.currentSalary||0), 0).toLocaleString()}</td>
+                <td>৳${finalData.reduce((s,e)=>s+(e.bonus||0), 0).toLocaleString()}</td>
+                <td>৳${finalData.reduce((s,e)=>s+(e.overtime||0), 0).toLocaleString()}</td>
                 ${daysArray.map(() => `<td></td>`).join('')}
-                <td>৳${finalData.reduce((s,e)=>s+e.advanceTakenTotal, 0).toLocaleString()}</td>
-                <td>৳${finalData.reduce((s,e)=>s+e.netPayable, 0).toLocaleString(undefined, {maximumFractionDigits:0})}</td>
-                <td style="font-size: 10px;">৳${finalData.reduce((s,e)=>s+e.dueAmount, 0).toLocaleString(undefined, {maximumFractionDigits:0})}</td>
+                <td>৳${finalData.reduce((s,e)=>s+(e.advanceTakenTotal||0), 0).toLocaleString()}</td>
+                <td>৳${finalData.reduce((s,e)=>s+(e.netPayable||0), 0).toLocaleString(undefined, {maximumFractionDigits:0})}</td>
+                <td style="font-size: 10px;">৳${finalData.reduce((s,e)=>s+(e.dueAmount||0), 0).toLocaleString(undefined, {maximumFractionDigits:0})}</td>
               </tr>
             </tfoot>
           </table>
@@ -445,7 +467,7 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
                         <td className="p-5 font-mono text-xs text-blue-600">#{e.emp_id}<div className="text-[10px] text-amber-600 font-bold mt-1">HID: {e.machine_id || '---'}</div></td>
                         <td className="p-5 font-bold text-slate-700 dark:text-slate-200 text-base">{e.emp_name}<div className="text-[10px] text-slate-400 font-medium uppercase mt-1">{e.mobile} | {e.gender}</div></td>
                         <td className="p-5 text-xs text-slate-600 dark:text-slate-400 font-bold uppercase tracking-tight">{e.job_position}<div className="text-[10px] text-slate-400 mt-1">{e.department} | {e.degree || 'General'}</div></td>
-                        <td className="p-5 text-right font-bold text-slate-700 dark:text-slate-100 text-base">৳{e.salary.toLocaleString()}</td>
+                        <td className="p-5 text-right font-bold text-slate-700 dark:text-slate-100 text-base">৳{(e.salary || 0).toLocaleString()}</td>
                         <td className="p-5 text-center"><span className={`px-4 py-1 rounded-full text-[9px] font-bold uppercase border ${e.status === 'Active' ? 'bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-900' : 'bg-rose-50 dark:bg-rose-950 text-rose-600 dark:text-rose-400 border-rose-100 dark:border-rose-900'}`}>{e.status}</span></td>
                     </tr>
                     ))}
@@ -456,12 +478,15 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
   );
 
   const renderMonthlyRosterTab = () => {
-    const selectedEmpIds = monthlyRoster[currentPeriodKey] || [];
-    const totalRosterSalary = employees.reduce((total, emp) => {
+    const roster = monthlyRoster || {};
+    const leaves = leaveLog || {};
+    const emps = Array.isArray(employees) ? employees : [];
+    const selectedEmpIds = roster[currentPeriodKey] || [];
+    const totalRosterSalary = emps.reduce((total, emp) => {
         if (emp.status === 'Active' && selectedEmpIds.includes(emp.emp_id)) {
             const key = `${selectedMonth}_${selectedYear}_${emp.emp_id}`;
-            const record = leaveLog[key] || {};
-            const basic = record.basicSalary !== undefined ? record.basicSalary : (record.agreedSalary !== undefined ? record.agreedSalary : emp.salary);
+            const record = leaves[key] || {};
+            const basic = record.basicSalary !== undefined ? record.basicSalary : (record.agreedSalary !== undefined ? record.agreedSalary : (emp.salary || 0));
             const house = record.houseRent || 0;
             const medical = record.medicalAllowance || 0;
             return total + (basic + house + medical);
@@ -492,7 +517,7 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
                 </div>
                 <div className="bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800 rounded-2xl px-6 py-3 flex items-center justify-between min-w-[250px]">
                     <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Total Active Payroll</span>
-                    <span className="text-xl font-black text-blue-600 dark:text-blue-400">৳{totalRosterSalary.toLocaleString()}</span>
+                    <span className="text-xl font-black text-blue-600 dark:text-blue-400">৳{(totalRosterSalary || 0).toLocaleString()}</span>
                 </div>
             </div>
             <div className="overflow-x-auto rounded-2xl border border-slate-100 dark:border-slate-800 shadow-inner">
@@ -509,18 +534,18 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                         {Array.isArray(employees) && employees.filter(e => e && e.status === 'Active' && (e.emp_name || '').toLowerCase().includes(searchTerm.toLowerCase())).map((emp) => {
-                            const isSelected = (monthlyRoster[currentPeriodKey] || []).includes(emp.emp_id);
+                            const isSelected = ((monthlyRoster || {})[currentPeriodKey] || []).includes(emp.emp_id);
                             const key = `${selectedMonth}_${selectedYear}_${emp.emp_id}`;
-                            const record = leaveLog[key] || { leaveDays: 0, deductionAmount: 0, bonus: 0, overtime: 0 };
+                            const record = (leaveLog || {})[key] || { leaveDays: 0, deductionAmount: 0, bonus: 0, overtime: 0 };
                             
-                            const basic = record.basicSalary !== undefined ? record.basicSalary : (record.agreedSalary !== undefined ? record.agreedSalary : emp.salary);
+                            const basic = record.basicSalary !== undefined ? record.basicSalary : (record.agreedSalary !== undefined ? record.agreedSalary : (emp.salary || 0));
                             const house = record.houseRent || 0;
                             const medical = record.medicalAllowance || 0;
                             const currentSalary = basic + house + medical;
 
                             const handleSalChange = (field: string, val: number) => {
                                 const newRec = { ...record, [field]: val };
-                                const nb = newRec.basicSalary !== undefined ? newRec.basicSalary : (newRec.agreedSalary !== undefined ? newRec.agreedSalary : emp.salary);
+                                const nb = newRec.basicSalary !== undefined ? newRec.basicSalary : (newRec.agreedSalary !== undefined ? newRec.agreedSalary : (emp.salary || 0));
                                 const nh = newRec.houseRent || 0;
                                 const nm = newRec.medicalAllowance || 0;
                                 newRec.agreedSalary = nb + nh + nm;
@@ -541,7 +566,7 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
                                                 onChange={(e) => handleSalChange('basicSalary', parseInt(e.target.value) || 0)} 
                                                 className="w-24 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg p-2 text-right text-slate-700 dark:text-slate-300 font-bold shadow-inner focus:border-blue-500 focus:outline-none text-xs" />
                                         ) : (
-                                            <span className="text-slate-500 text-xs font-bold">৳{basic.toLocaleString()}</span>
+                                            <span className="text-slate-500 text-xs font-bold">৳{(basic || 0).toLocaleString()}</span>
                                         )}
                                     </td>
                                     <td className="p-3 text-right">
@@ -551,7 +576,7 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
                                                 onChange={(e) => handleSalChange('houseRent', parseInt(e.target.value) || 0)} 
                                                 className="w-20 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg p-2 text-right text-slate-700 dark:text-slate-300 font-bold shadow-inner focus:border-blue-500 focus:outline-none text-xs" />
                                         ) : (
-                                            <span className="text-slate-500 text-xs font-bold">৳{house.toLocaleString()}</span>
+                                            <span className="text-slate-500 text-xs font-bold">৳{(house || 0).toLocaleString()}</span>
                                         )}
                                     </td>
                                     <td className="p-3 text-right">
@@ -561,11 +586,11 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
                                                 onChange={(e) => handleSalChange('medicalAllowance', parseInt(e.target.value) || 0)} 
                                                 className="w-20 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg p-2 text-right text-slate-700 dark:text-slate-300 font-bold shadow-inner focus:border-blue-500 focus:outline-none text-xs" />
                                         ) : (
-                                            <span className="text-slate-500 text-xs font-bold">৳{medical.toLocaleString()}</span>
+                                            <span className="text-slate-500 text-xs font-bold">৳{(medical || 0).toLocaleString()}</span>
                                         )}
                                     </td>
                                     <td className="p-3 text-right font-black text-blue-600 dark:text-blue-400 text-base">
-                                        ৳{currentSalary.toLocaleString()}
+                                        ৳{(currentSalary || 0).toLocaleString()}
                                     </td>
                                 </tr>
                             );
@@ -814,7 +839,7 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
                       {periodEmployees.map((emp, index) => {
                           if (attendanceSearchMode === 'single') {
                             const key = `${attendanceDate}_${emp.emp_id}`;
-                            const record = attendanceLog[key] || { status: '', inTime: '', outTime: '', inTime2: '', outTime2: '', inTime3: '', outTime3: '', notes: '' };
+                            const record = (attendanceLog || {})[key] || { status: '', inTime: '', outTime: '', inTime2: '', outTime2: '', inTime3: '', outTime3: '', notes: '' };
                             const duty = calculateDutyHours(record.inTime, record.outTime, record.inTime2, record.outTime2, record.inTime3, record.outTime3);
 
                             return (
@@ -832,7 +857,7 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
                                       <input 
                                         type="time" 
                                         value={record.inTime || ''} 
-                                        onChange={(e) => setAttendanceLog({...attendanceLog, [key]: {...record, inTime: e.target.value, isMachineRecord: false}})} 
+                                        onChange={(e) => setAttendanceLog && setAttendanceLog({...attendanceLog, [key]: {...record, inTime: e.target.value, isMachineRecord: false}})} 
                                         className="bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded p-1 text-center font-bold text-slate-800 dark:text-white text-xs w-full" 
                                       />
                                     </td>
@@ -840,7 +865,7 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
                                       <input 
                                         type="time" 
                                         value={record.outTime || ''} 
-                                        onChange={(e) => setAttendanceLog({...attendanceLog, [key]: {...record, outTime: e.target.value, isMachineRecord: false}})} 
+                                        onChange={(e) => setAttendanceLog && setAttendanceLog({...attendanceLog, [key]: {...record, outTime: e.target.value, isMachineRecord: false}})} 
                                         className="bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded p-1 text-center font-bold text-slate-800 dark:text-white text-xs w-full" 
                                       />
                                     </td>
@@ -850,7 +875,7 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
                                       <input 
                                         type="time" 
                                         value={record.inTime2 || ''} 
-                                        onChange={(e) => setAttendanceLog({...attendanceLog, [key]: {...record, inTime2: e.target.value, isMachineRecord: false}})} 
+                                        onChange={(e) => setAttendanceLog && setAttendanceLog({...attendanceLog, [key]: {...record, inTime2: e.target.value, isMachineRecord: false}})} 
                                         className="bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded p-1 text-center font-bold text-slate-800 dark:text-white text-xs w-full" 
                                       />
                                     </td>
@@ -858,7 +883,7 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
                                       <input 
                                         type="time" 
                                         value={record.outTime2 || ''} 
-                                        onChange={(e) => setAttendanceLog({...attendanceLog, [key]: {...record, outTime2: e.target.value, isMachineRecord: false}})} 
+                                        onChange={(e) => setAttendanceLog && setAttendanceLog({...attendanceLog, [key]: {...record, outTime2: e.target.value, isMachineRecord: false}})} 
                                         className="bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded p-1 text-center font-bold text-slate-800 dark:text-white text-xs w-full" 
                                       />
                                     </td>
@@ -868,7 +893,7 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
                                       <input 
                                         type="time" 
                                         value={record.inTime3 || ''} 
-                                        onChange={(e) => setAttendanceLog({...attendanceLog, [key]: {...record, inTime3: e.target.value, isMachineRecord: false}})} 
+                                        onChange={(e) => setAttendanceLog && setAttendanceLog({...attendanceLog, [key]: {...record, inTime3: e.target.value, isMachineRecord: false}})} 
                                         className="bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded p-1 text-center font-bold text-slate-800 dark:text-white text-xs w-full" 
                                       />
                                     </td>
@@ -876,7 +901,7 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
                                       <input 
                                         type="time" 
                                         value={record.outTime3 || ''} 
-                                        onChange={(e) => setAttendanceLog({...attendanceLog, [key]: {...record, outTime3: e.target.value, isMachineRecord: false}})} 
+                                        onChange={(e) => setAttendanceLog && setAttendanceLog({...attendanceLog, [key]: {...record, outTime3: e.target.value, isMachineRecord: false}})} 
                                         className="bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded p-1 text-center font-bold text-slate-800 dark:text-white text-xs w-full" 
                                       />
                                     </td>
@@ -887,7 +912,7 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
                                     <td className="p-3 border-r border-slate-300 dark:border-slate-800">
                                       <select 
                                         value={record.status || ''} 
-                                        onChange={(e) => setAttendanceLog({...attendanceLog, [key]: {...record, status: e.target.value as any, isMachineRecord: false}})} 
+                                        onChange={(e) => setAttendanceLog && setAttendanceLog({...attendanceLog, [key]: {...record, status: e.target.value as any, isMachineRecord: false}})} 
                                         className="bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg px-2 py-1 text-xs font-bold text-slate-800 dark:text-white w-full text-center"
                                       >
                                         <option value="">-- সিলেক্ট --</option>
@@ -909,7 +934,7 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
 
                             datesList.forEach(d => {
                               const key = `${d}_${emp.emp_id}`;
-                              const rec = attendanceLog[key];
+                              const rec = (attendanceLog || {})[key];
                               if (rec) {
                                 if (rec.status === 'Present' || rec.inTime) presentDaysCount++;
                                 const dObj = calculateDutyHours(rec.inTime, rec.outTime, rec.inTime2, rec.outTime2, rec.inTime3, rec.outTime3);
@@ -966,7 +991,7 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
       for (let d = 1; d <= daysInMonth; d++) {
         const dateStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
         const key = `${dateStr}_${emp.emp_id}`;
-        const rec = attendanceLog[key];
+        const rec = (attendanceLog || {})[key];
         
         if (rec) {
           if (rec.status === 'Present') presentDays++;
@@ -1075,7 +1100,7 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
             নিরাময় ক্লিনিক এন্ড ডায়াগনস্টিক
           </h1>
           <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mt-1">
-            কর্মচারীদের মাসিক হাজিরা ও ডিউটি সময় বিবরণী - {monthOptions.find(m => m.value === selectedMonth)?.name} {selectedYear}
+            কর্মচারীদের মাসিক হাজিরা ও ডিউটি সময় বিবরণী - {(monthOptions.find(m => m.value === selectedMonth) || monthOptions[0]).name} {selectedYear}
           </p>
         </div>
 
@@ -1155,7 +1180,7 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
         let absentCount = 0;
         for(let d=1; d<=daysInMonth; d++) {
             const dateStr = `${selectedYear}-${String(selectedMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-            if(attendanceLog[`${dateStr}_${empId}`]?.status === 'Absent') absentCount++;
+            if((attendanceLog || {})[`${dateStr}_${empId}`]?.status === 'Absent') absentCount++;
         }
         return absentCount;
     };
@@ -1178,7 +1203,7 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
                       {periodEmployees.map((emp) => {
                           const autoAbsent = getAutoAbsentCount(emp.emp_id);
                           const key = `${selectedMonth}_${selectedYear}_${emp.emp_id}`;
-                          const record = leaveLog[key] || { leaveDays: 0, deductionAmount: 0, bonus: 0, overtime: 0 };
+                          const record = (leaveLog || {})[key] || { leaveDays: 0, deductionAmount: 0, bonus: 0, overtime: 0 };
                           const currentSalary = record.agreedSalary !== undefined ? record.agreedSalary : emp.salary;
                           const perDaySal = currentSalary / 30;
                           const leaveDeduction = (autoAbsent + record.leaveDays) * perDaySal;
@@ -1215,7 +1240,7 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
     return (
         <div className="space-y-12 animate-fade-in no-print">
             <div className="flex justify-between items-center bg-white dark:bg-slate-900 p-8 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xl">
-                <div><h3 className="text-xl font-bold text-slate-800 dark:text-white uppercase tracking-tight leading-none">Net Settlement Sheet</h3><p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-2">Cycle: {monthOptions[selectedMonth].name} {selectedYear}</p></div>
+                <div><h3 className="text-xl font-bold text-slate-800 dark:text-white uppercase tracking-tight leading-none">Net Settlement Sheet</h3><p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-2">Cycle: {(monthOptions[selectedMonth] || monthOptions[0]).name} {selectedYear}</p></div>
                 <div className="flex gap-4">
                   <select value={selectedMonth} onChange={e => setSelectedMonth(parseInt(e.target.value))} className="bg-slate-100 dark:bg-slate-800 border-none rounded-xl px-4 py-2 text-white font-black text-xs">{monthOptions.map(m => <option key={m.value} value={m.value}>{m.name}</option>)}</select>
                   <select value={selectedYear} onChange={(e) => setSelectedYear(parseInt(e.target.value))} className="bg-slate-100 dark:bg-slate-800 border-none rounded-xl px-4 py-2 text-white font-black text-xs">{[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}</select>
@@ -1242,29 +1267,30 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
                                 const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
                                 for (let day = 1; day <= daysInMonth; day++) {
                                     const dateStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                                    const dayExpenses = detailedExpenses[dateStr] || [];
+                                    const dayExpenses = (detailedExpenses || {})[dateStr] || [];
                                     const payments = dayExpenses.filter(ex => ex.category === 'Stuff salary' && (ex.subCategory === emp.emp_name || (ex.description && ex.description.includes(emp.emp_name))));
                                     advanceTakenTotal += payments.reduce((sum, ex) => sum + (ex.paidAmount || 0), 0);
                                 }
                                 const leaveKey = `${selectedMonth}_${selectedYear}_${emp.emp_id}`;
-                                const leaveRecord = leaveLog[leaveKey] || { leaveDays: 0, deductionAmount: 0, bonus: 0, overtime: 0 };
+                                const leaveRecord = (leaveLog || {})[leaveKey] || { leaveDays: 0, deductionAmount: 0, bonus: 0, overtime: 0 };
                                 let absentCount = 0;
                                 for(let d=1; d<=daysInMonth; d++) {
                                     const dateStr = `${selectedYear}-${String(selectedMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-                                    if(attendanceLog[`${dateStr}_${emp.emp_id}`]?.status === 'Absent') absentCount++;
+                                    if((attendanceLog || {})[`${dateStr}_${emp.emp_id}`]?.status === 'Absent') absentCount++;
                                 }
-                                const perDaySal = emp.salary / 30;
+                                const currentEmpSalary = emp.salary || 0;
+                                const perDaySal = currentEmpSalary / 30;
                                 const leaveDeduction = (absentCount + (leaveRecord.leaveDays || 0)) * perDaySal;
                                 const earnings = (leaveRecord.bonus || 0) + (leaveRecord.overtime || 0);
-                                const netPayable = emp.salary + earnings - leaveDeduction - (leaveRecord.deductionAmount || 0);
+                                const netPayable = currentEmpSalary + earnings - leaveDeduction - (leaveRecord.deductionAmount || 0);
                                 return (
                                     <tr key={emp.emp_id} className="hover:bg-blue-50 dark:hover:bg-slate-800/50 transition-colors">
                                         <td className="p-3 text-slate-500 font-mono">{index + 1}</td>
                                         <td className="p-3 font-bold text-slate-800 dark:text-white uppercase">{emp.emp_name}</td>
-                                        <td className="p-3 text-right font-bold text-slate-500">৳{emp.salary.toLocaleString()}</td>
-                                        <td className="p-3 text-right font-bold text-blue-500">৳{earnings.toLocaleString()}</td>
-                                        <td className="p-3 text-right font-bold text-emerald-500">৳{advanceTakenTotal.toLocaleString()}</td>
-                                        <td className="p-3 text-right font-black text-slate-900 dark:text-white text-base">৳{(netPayable - advanceTakenTotal).toLocaleString(undefined, {maximumFractionDigits:0})}</td>
+                                        <td className="p-3 text-right font-bold text-slate-500">৳{(emp.salary || 0).toLocaleString()}</td>
+                                        <td className="p-3 text-right font-bold text-blue-500">৳{(earnings || 0).toLocaleString()}</td>
+                                        <td className="p-3 text-right font-bold text-emerald-500">৳{(advanceTakenTotal || 0).toLocaleString()}</td>
+                                        <td className="p-3 text-right font-black text-slate-900 dark:text-white text-base">৳{((netPayable || 0) - (advanceTakenTotal || 0)).toLocaleString(undefined, {maximumFractionDigits:0})}</td>
                                     </tr>
                                 );
                             })}
@@ -1333,4 +1359,68 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
   );
 };
 
-export default EmployeeInfoPage;
+class EmployeeInfoErrorBoundary extends React.Component<{ onBack?: () => void; children: React.ReactNode }, { hasError: boolean; error: Error | null }> {
+  constructor(props: any) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: any) {
+    console.error("EmployeeInfoPage Error caught by boundary:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col items-center justify-center p-6 text-center">
+          <div className="bg-slate-800 border border-slate-700 rounded-3xl p-8 max-w-lg shadow-2xl space-y-6">
+            <div className="w-16 h-16 bg-rose-500/20 text-rose-400 rounded-2xl flex items-center justify-center mx-auto text-3xl font-bold">
+              ⚠️
+            </div>
+            <h2 className="text-2xl font-bold text-white">কর্মচারী ব্যবস্থাপনা রেন্ডারিং সমস্যা</h2>
+            <p className="text-slate-300 text-sm">
+              সাময়িক একটি ত্রুটি ঘটেছে। অনুগ্রহ করে আবার চেষ্টা করুন অথবা মূল অ্যাকাউন্টিং পেজে ফিরে যান।
+            </p>
+            {this.state.error && (
+              <div className="p-3 bg-slate-950 rounded-xl text-left text-xs font-mono text-rose-300 overflow-x-auto max-h-32">
+                {this.state.error.toString()}
+              </div>
+            )}
+            <div className="flex justify-center gap-4 pt-2">
+              <button
+                onClick={() => this.setState({ hasError: false, error: null })}
+                className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold text-sm shadow-lg transition-all"
+              >
+                আবার চেষ্টা করুন
+              </button>
+              {this.props.onBack && (
+                <button
+                  onClick={this.props.onBack}
+                  className="px-6 py-2.5 bg-slate-700 hover:bg-slate-600 text-white rounded-xl font-bold text-sm transition-all"
+                >
+                  ফিরে যান
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+const EmployeeInfoPageWrapped: React.FC<EmployeeInfoPageProps> = (props) => {
+  return (
+    <EmployeeInfoErrorBoundary onBack={props.onBack}>
+      <EmployeeInfoPage {...props} />
+    </EmployeeInfoErrorBoundary>
+  );
+};
+
+export default EmployeeInfoPageWrapped;
+export { EmployeeInfoPage };

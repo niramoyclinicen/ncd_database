@@ -90,8 +90,8 @@ const { createClient } = require('@supabase/supabase-js');
 // Config
 const ZK_IP = '${ipAddress}';
 const ZK_PORT = ${port};
-const SUPABASE_URL = "${import.meta.env.VITE_SUPABASE_URL || 'YOUR_SUPABASE_URL'}";
-const SUPABASE_KEY = "${import.meta.env.VITE_SUPABASE_ANON_KEY || 'YOUR_SUPABASE_KEY'}";
+const SUPABASE_URL = "${(import.meta as any).env?.VITE_SUPABASE_URL || 'YOUR_SUPABASE_URL'}";
+const SUPABASE_KEY = "${(import.meta as any).env?.VITE_SUPABASE_ANON_KEY || 'YOUR_SUPABASE_KEY'}";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 

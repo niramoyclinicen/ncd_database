@@ -588,9 +588,9 @@ const DailyExpenseForm: React.FC<any> = ({
         setSearchDate(newDate);
     };
 
-    const periodKey = selectedDate.substring(0, 7); // YYYY-MM
-    const activeEmpIds = monthlyRoster[periodKey] || [];
-    const filteredEmployees = employees.filter((e: any) => activeEmpIds.includes(e.emp_id));
+    const periodKey = selectedDate ? selectedDate.substring(0, 7) : new Date().toISOString().substring(0, 7); // YYYY-MM
+    const activeEmpIds = (monthlyRoster && monthlyRoster[periodKey]) || [];
+    const filteredEmployees = (employees || []).filter((e: any) => activeEmpIds.length > 0 ? activeEmpIds.includes(e.emp_id) : (e.status === 'Active' || !e.status));
 
     const handleItemChange = (id: number, field: keyof ExpenseItem, value: any) => {
         setItems(prev => prev.map(item => {

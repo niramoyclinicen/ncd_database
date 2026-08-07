@@ -118,11 +118,11 @@ const BackgroundGraphic = () => (
 );
 
 const AccountingPage: React.FC<AccountingPageProps> = ({ 
-  onBack, invoices, dueCollections, detailedExpenses, setDetailedExpenses, employees, setEmployees, reagents,
-  purchaseInvoices, salesInvoices, indoorInvoices, medicines, tests, setReagents,
-  attendanceLog, setAttendanceLog, leaveLog, setLeaveLog,
-  monthlyRoster, setMonthlyRoster, patients, doctors,
-  diagnosticSettings, setDiagnosticSettings, performBlockingSync
+  onBack, invoices = [], dueCollections = [], detailedExpenses = {}, setDetailedExpenses, employees = [], setEmployees, reagents = [],
+  purchaseInvoices = [], salesInvoices = [], indoorInvoices = [], medicines = [], tests = [], setReagents,
+  attendanceLog = {}, setAttendanceLog, leaveLog = {}, setLeaveLog,
+  monthlyRoster = {}, setMonthlyRoster, patients = [], doctors = [],
+  diagnosticSettings = {}, setDiagnosticSettings, performBlockingSync
 }) => {
   const [activeView, setActiveView] = useState<'main' | 'diagnostic' | 'clinic_accounts' | 'employee_info' | 'medicine_accounts' | 'consolidated'>('main');
 
@@ -165,15 +165,15 @@ const AccountingPage: React.FC<AccountingPageProps> = ({
   if (activeView === 'employee_info') {
     return (
         <EmployeeInfoPage 
-            employees={employees} 
+            employees={employees || []} 
             setEmployees={setEmployees} 
-            detailedExpenses={detailedExpenses}
+            detailedExpenses={detailedExpenses || {}}
             onBack={() => setActiveView('main')}
-            attendanceLog={attendanceLog}
+            attendanceLog={attendanceLog || {}}
             setAttendanceLog={setAttendanceLog}
-            leaveLog={leaveLog}
+            leaveLog={leaveLog || {}}
             setLeaveLog={setLeaveLog}
-            monthlyRoster={monthlyRoster}
+            monthlyRoster={monthlyRoster || {}}
             setMonthlyRoster={setMonthlyRoster}
             performBlockingSync={performBlockingSync}
         />
