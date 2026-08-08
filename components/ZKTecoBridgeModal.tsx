@@ -76,13 +76,85 @@ export const ZKTecoBridgeModal: React.FC<ZKTecoBridgeModalProps> = ({
     alert(`ZKTeco মেশিন কনফিগারেশন সংরক্ষিত হয়েছে!\nIP: ${ipAddress}:${port}`);
   };
 
+  // Download zk_bridge.js
+  const handleDownloadZkScript = () => {
+    const blob = new Blob([bridgeScriptCode], { type: 'application/javascript;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', 'zk_bridge.js');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // Download start_zk_agent.bat
+  const handleDownloadBatchInstaller = () => {
+    const batContent = `@echo off
+title ZKTeco K50 Auto Sync Agent - Niramoy Clinic
+color 0A
+cls
+
+echo ============================================================
+echo   ZKTeco K50 Auto Sync Agent - Niramoy Clinic ^& Diagnostic
+echo ============================================================
+echo.
+
+where node >nul 2>nul
+if %errorlevel% neq 0 (
+    color 0C
+    echo 🔴 [ERROR] আপনার কম্পিউটারে Node.js ইনস্টল করা পাওয়া যায়নি!
+    echo.
+    echo অনুগ্রহ করে ব্রাউজার থেকে Node.js ডাউনলোড করে ইনস্টল করুন:
+    echo https://nodejs.org
+    echo.
+    echo Node.js ইনস্টল সম্পন্ন হলে এই start_zk_agent.bat ফাইলটিতে আবার ডাবল ক্লিক করুন।
+    echo.
+    start https://nodejs.org
+    pause
+    exit /b
+)
+
+echo ✅ Node.js ইনস্টল পাওয়া গেছে!
+echo.
+echo [১/২] প্রয়োজনীয় প্যাকেজ (node-zklib ও supabase) অটো ইনস্টল হচ্ছে...
+echo এটি কয়েক সেকেন্ড সময় নিতে পারে...
+echo.
+call npm install node-zklib @supabase/supabase-js
+
+echo.
+echo [২/২] ZKTeco K50 অটো সিঙ্ক ব্যাকগ্রাউন্ড এজেন্ট চালিত হচ্ছে...
+echo.
+if exist zk_bridge.js (
+    node zk_bridge.js
+) else (
+    color 0C
+    echo 🔴 [ERROR] zk_bridge.js ফাইলটি এই ফোল্ডারে পাওয়া যায়নি!
+    echo অনুগ্রহ করে start_zk_agent.bat এবং zk_bridge.js দুটি ফাইলই একই ফোল্ডারে রাখুন।
+    pause
+)
+`;
+
+    const blob = new Blob([batContent], { type: 'application/x-bat' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', 'start_zk_agent.bat');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleDownloadBoth = () => {
+    handleDownloadZkScript();
+    setTimeout(() => {
+      handleDownloadBatchInstaller();
+    }, 500);
+  };
+
   // Node.js local bridge agent code tailored for ZKTeco K50
   const bridgeScriptCode = `// ZKTeco K50 Local Attendance Sync Bridge for Niramoy Clinic & Diagnostic
 // Machine IP: ${ipAddress}:${port}
-// Instruction:
-// 1. Install Node.js on your local PC (connected to same Wi-Fi router).
-// 2. Open terminal in a folder and run: npm install node-zklib @supabase/supabase-js
-// 3. Save this file as "zk_bridge.js" and run: node zk_bridge.js
 
 const ZKLib = require('node-zklib');
 const { createClient } = require('@supabase/supabase-js');
@@ -96,35 +168,106 @@ const SUPABASE_KEY = "${(import.meta as any).env?.VITE_SUPABASE_ANON_KEY || 'YOU
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 async function syncAttendance() {
-  console.log(\`[ZKTeco Bridge] Connecting to machine at \${ZK_IP}:\${ZK_PORT}...\`);
+  console.log(\`[\${new Date().toLocaleTimeString()}] ZKTeco K50 কানেক্ট করা হচ্ছে (\${ZK_IP}:\${ZK_PORT})...\`);
   let zkInstance = new ZKLib(ZK_IP, ZK_PORT, 10000, 4000);
 
   try {
     await zkInstance.createSocket();
-    console.log('[ZKTeco Bridge] Connected successfully!');
+    console.log('✅ ZKTeco K50 ডিভাইসে সফলভাবে কানেক্ট হয়েছে!');
 
-    // Get attendance logs from machine
     const logs = await zkInstance.getAttendances();
-    console.log(\`[ZKTeco Bridge] Total logs fetched: \${logs.data ? logs.data.length : 0}\`);
+    const records = logs && logs.data ? logs.data : [];
+    console.log(\`📊 মোট পাঞ্চ ডাটা রেকর্ড পাওয়া গেছে: \${records.length} টি\`);
 
-    if (!logs || !logs.data || logs.data.length === 0) {
-      console.log('[ZKTeco Bridge] No punch records found.');
+    if (records.length === 0) {
+      console.log('ℹ️ মেশিনে নতুন কোনো পাঞ্চ রেকর্ড নেই।');
       await zkInstance.disconnect();
       return;
     }
 
-    // Process logs and sync to Supabase
-    // ...
-    console.log('[ZKTeco Bridge] Sync completed successfully!');
+    // Load master state from Supabase
+    const { data: record, error: fetchErr } = await supabase
+      .from('ncd_state')
+      .select('data')
+      .eq('id', 1)
+      .single();
+
+    if (fetchErr) {
+      console.error('❌ Supabase ডাটা লোড ব্যর্থ:', fetchErr.message);
+      await zkInstance.disconnect();
+      return;
+    }
+
+    let stateData = (record && record.data) ? record.data : {};
+    let attendanceLog = stateData.attendanceLog || {};
+    let employees = stateData.employees || [];
+
+    let updatedCount = 0;
+
+    records.forEach(log => {
+      const hid = String(log.deviceUserId || log.userId || log.sn || '').trim();
+      if (!hid) return;
+
+      const dt = new Date(log.recordTime);
+      if (isNaN(dt.getTime())) return;
+
+      const dateKey = dt.toISOString().split('T')[0];
+      const timeStr = dt.toTimeString().substring(0, 5); // HH:mm
+
+      // Find matching employee by machine_id (HID) or emp_id
+      const emp = employees.find(e => 
+        (e.machine_id && String(e.machine_id).trim() === hid) ||
+        (e.emp_id && String(e.emp_id).trim() === hid)
+      );
+
+      if (emp) {
+        const key = \`\${dateKey}_\${emp.emp_id}\`;
+        const existing = attendanceLog[key] || { status: 'Present', inTime: '', outTime: '', notes: '' };
+
+        let changed = false;
+        if (!existing.inTime) {
+          existing.inTime = timeStr;
+          changed = true;
+        } else if (timeStr > existing.inTime && (!existing.outTime || timeStr > existing.outTime)) {
+          existing.outTime = timeStr;
+          changed = true;
+        }
+
+        existing.status = 'Present';
+        existing.isMachineRecord = true;
+        existing.notes = \`ZKTeco K50 Auto-Sync (HID: \${hid})\`;
+
+        if (changed) {
+          attendanceLog[key] = existing;
+          updatedCount++;
+        }
+      }
+    });
+
+    if (updatedCount > 0) {
+      stateData.attendanceLog = attendanceLog;
+      const { error: updateErr } = await supabase
+        .from('ncd_state')
+        .upsert({ id: 1, data: stateData, updated_at: new Date().toISOString() });
+
+      if (updateErr) {
+        console.error('❌ Supabase আপডেট ব্যর্থ:', updateErr.message);
+      } else {
+        console.log(\`🎉 সফলভাবে \${updatedCount} জন কর্মচারীর নতুন পাঞ্চ টাইম সফটওয়্যারে সেভ হয়েছে!\`);
+      }
+    } else {
+      console.log('ℹ️ সব পাঞ্চ ডাটা ইতিপূর্বে আপ-টু-ডেট আছে।');
+    }
+
     await zkInstance.disconnect();
   } catch (error) {
-    console.error('[ZKTeco Bridge Error]:', error.message);
+    console.error('❌ ZKTeco কানেকশন সমস্যা:', error.message);
   }
 }
 
-// Run every 2 minutes
-setInterval(syncAttendance, 2 * 60 * 1000);
+console.log('🚀 ZKTeco K50 ব্যাকগ্রাউন্ড অটো-সিঙ্ক সার্ভিস চালু হয়েছে (প্রতি ২ মিনিটে চেক করবে)...');
 syncAttendance();
+setInterval(syncAttendance, 2 * 60 * 1000);
 `;
 
   const handleCopyCode = () => {
@@ -436,36 +579,86 @@ syncAttendance();
         {/* TAB 2: LOCAL AGENT */}
         {activeTab === 'agent' && (
           <div className="space-y-4 animate-fade-in">
-            <div className="bg-slate-950 p-5 rounded-2xl border border-slate-800 space-y-3">
-              <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+            <div className="bg-slate-950 p-5 rounded-2xl border border-slate-800 space-y-4">
+              <div className="flex flex-wrap justify-between items-center gap-3 border-b border-slate-800 pb-3">
                 <div>
-                  <h3 className="text-sm font-bold text-sky-400 uppercase tracking-wider">
-                    লোকাল পিসি অটো-সিঙ্ক ব্রিজ এজেন্ট (Node.js Script)
+                  <h3 className="text-sm font-bold text-sky-400 uppercase tracking-wider flex items-center gap-2">
+                    💻 ৪. লোকাল পিসি অটো-সিঙ্ক এজেন্ট (1-Click Auto Setup)
                   </h3>
-                  <p className="text-[11px] text-slate-400">
-                    এই স্ক্রিপ্টটি আপনার ওয়াইফাই রাউটারে যুক্ত যেকোনো কম্পিউটারে চালিয়ে রাখলে স্বয়ংক্রিয়ভাবে ZKTeco ডিভাইস থেকে ডাটা এনে সফটওয়্যারে সেভ করবে।
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    আপনার পিসিতে ম্যানুয়ালি কোনো কমান্ড টাইপ না করেই ১-ক্লিকে জেকেটেকো মেশিনের সাথে সিঙ্ক চালু করুন।
                   </p>
                 </div>
-                <button
-                  onClick={handleCopyCode}
-                  className="bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold px-4 py-2 rounded-xl transition-all flex items-center gap-1.5"
-                >
-                  {copiedCode ? '✅ কপি হয়েছে!' : '📋 কপি কোড'}
-                </button>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    onClick={handleDownloadBoth}
+                    className="bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs px-5 py-2.5 rounded-xl transition-all shadow-lg active:scale-95 flex items-center gap-2 border border-emerald-400/30"
+                  >
+                    🚀 ১-ক্লিকে অটো ইনস্টলার ফাইল ডাউনলোড (Start Sync)
+                  </button>
+                  <button
+                    onClick={handleDownloadZkScript}
+                    className="bg-slate-800 hover:bg-slate-700 text-sky-300 font-bold text-xs px-3.5 py-2.5 rounded-xl transition-all border border-slate-700"
+                  >
+                    📄 zk_bridge.js
+                  </button>
+                  <button
+                    onClick={handleDownloadBatchInstaller}
+                    className="bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold text-xs px-3.5 py-2.5 rounded-xl transition-all border border-slate-700"
+                  >
+                    ⚡ start_zk_agent.bat
+                  </button>
+                </div>
               </div>
 
-              <pre className="bg-slate-900 p-4 rounded-xl text-xs font-mono text-emerald-400 overflow-x-auto max-h-64 border border-slate-800">
-                {bridgeScriptCode}
-              </pre>
+              {/* Error Explanation Box for User's Screenshot */}
+              <div className="p-4 bg-sky-950/60 border border-sky-500/40 rounded-2xl space-y-2">
+                <div className="flex items-center gap-2 text-sky-300 font-bold text-xs">
+                  <span className="text-base">🛠️</span> আপনার স্ক্রিনশটের সমাধান (Cannot find module 'node-zklib'):
+                </div>
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  আপনার কম্পিউটারের <code className="text-amber-300 bg-slate-900 px-1.5 py-0.5 rounded font-mono">New folder</code> এ <code className="text-amber-300 bg-slate-900 px-1.5 py-0.5 rounded font-mono">node-zklib</code> প্যাকেজটি ইনস্টল করা ছিল না বলেই উক্ত এররটি এসেছে।
+                  এখন আপনাকে কোনো কমান্ড টাইপ করতে হবে না!
+                </p>
+                <div className="bg-slate-900 p-3 rounded-xl border border-slate-800 space-y-1.5 text-xs text-slate-300">
+                  <div className="font-bold text-emerald-400">সহজ ৩ ধাপের সমাধান:</div>
+                  <ol className="list-decimal list-inside space-y-1 text-slate-300">
+                    <li>ওপরের <b>"🚀 ১-ক্লিকে অটো ইনস্টলার ফাইল ডাউনলোড"</b> বাটনে ক্লিক করুন (এতে দুটি ফাইল সেভ হবে)।</li>
+                    <li>ফাইল দুটি আপনার <code className="text-amber-300 bg-black/40 px-1 rounded font-mono">New folder</code> বা ডেক্সটপ ফোল্ডারে একসাথে রাখুন।</li>
+                    <li><code className="text-amber-300 bg-black/40 px-1 rounded font-mono">start_zk_agent.bat</code> ফাইলটিতে ডাবল ক্লিক করুন! এটি নিজে থেকেই প্যাকেজ ইনস্টল করে অটো-সিঙ্ক চালু করে দেবে।</li>
+                  </ol>
+                </div>
+              </div>
 
-              <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-xs text-amber-300 space-y-1">
-                <div className="font-bold">💡 কীভাবে চালাবেন:</div>
-                <ol className="list-decimal list-inside space-y-1 text-[11px] opacity-90">
-                  <li>আপনার কম্পিউটারে Node.js ইনস্টল করুন (nodejs.org)।</li>
-                  <li>একটি ফোল্ডার বানিয়ে ওপরের কোডটি <code className="bg-black/40 px-1 rounded font-mono text-amber-200">zk_bridge.js</code> নামে সেভ করুন।</li>
-                  <li>কমান্ড প্রম্পট (cmd) বা PowerShell খুলে চালান: <code className="bg-black/40 px-1 rounded font-mono text-amber-200">cmd /c npm install node-zklib @supabase/supabase-js</code> অথবা <code className="bg-black/40 px-1 rounded font-mono text-amber-200">cmd</code> টাইপ করে enter চাপুন।</li>
-                  <li>তারপর চালান: <code className="bg-black/40 px-1 rounded font-mono text-amber-200">node zk_bridge.js</code></li>
-                </ol>
+              {/* Node.js Check Alert */}
+              <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-xs text-amber-200 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <span>ℹ️</span>
+                  <span>যদি পিসিতে Node.js ইনস্টল করা না থাকে, তবে <code className="font-mono font-bold">start_zk_agent.bat</code> স্বয়ংক্রিয়ভাবে নোড জেএস ডাউনলোডের লিংক ওপেন করে দেবে।</span>
+                </div>
+                <a
+                  href="https://nodejs.org"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-[11px] px-3 py-1.5 rounded-lg whitespace-nowrap transition-all shadow-md"
+                >
+                  Node.js ডাউনলোড করুন ↗
+                </a>
+              </div>
+
+              <div className="space-y-1.5">
+                <div className="flex justify-between items-center text-xs text-slate-400">
+                  <span className="font-bold text-slate-300">📄 zk_bridge.js কোড সোর্স:</span>
+                  <button
+                    onClick={handleCopyCode}
+                    className="text-sky-400 hover:text-sky-300 text-[11px] font-bold"
+                  >
+                    {copiedCode ? '✅ কপি হয়েছে!' : '📋 কোড কপি করুন'}
+                  </button>
+                </div>
+                <pre className="bg-slate-900 p-4 rounded-xl text-[11px] font-mono text-emerald-400 overflow-x-auto max-h-48 border border-slate-800">
+                  {bridgeScriptCode}
+                </pre>
               </div>
             </div>
           </div>
