@@ -54,6 +54,7 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState('');
   const nameInputRef = useRef<HTMLInputElement>(null);
+  const usbFileInputRef = useRef<HTMLInputElement>(null);
 
   const [isZkModalOpen, setIsZkModalOpen] = useState(false);
 
@@ -139,67 +140,209 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
     return `${h}h ${m}m`;
   };
 
-  // --- UPDATED MACHINE SYNC LOGIC (MULTI-SESSION ACCUMULATION) ---
-  const handleMachineSync = async () => {
-    if (!machineCfg.ipAddress) {
-        alert("মেশিন আইপি সেট করা নেই। কনসোল থেকে আইপি সেট করুন।");
-        return;
-    }
+  // --- UNIVERSAL ZKTECO K50 PUNCH LOG PARSER ---
+  const parseZkPunchLogText = (textContent: string) => {
+    const lines = textContent.split(/\r?\n/);
+    const groupedPunches: Record<string, { emp: Employee; dateKey: string; times: string[] }> = {};
+    let totalPunches = 0;
+    const matchedHids = new Set<string>();
 
-    setMachineCfg(prev => ({ ...prev, status: 'Syncing' }));
-    
-    // Original logic had a setTimeout, but we need to stay async for the sync call
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    const now = new Date();
-    setMachineCfg(prev => ({ ...prev, status: 'Online', lastSync: now.toLocaleString() }));
-    
-    const newLog = { ...attendanceLog };
-    let matchCount = 0;
+    const cleanHid = (val: any) => String(val || '').trim().replace(/^0+/, '');
 
-    periodEmployees.forEach(emp => {
-        if (emp.machine_id) {
-            const key = `${attendanceDate}_${emp.emp_id}`;
-            const punches = ["08:45", "12:00", "17:00", "20:30"].sort();
+    lines.forEach(line => {
+      const trimmed = line.trim().replace(/"/g, '');
+      if (!trimmed || trimmed.startsWith('User') || trimmed.startsWith('ID') || trimmed.startsWith('PIN')) return;
 
-            let totalMinutes = 0;
-            const sessionDetails = [];
+      // Split by tab, comma, or spaces
+      const parts = trimmed.split(/[\t,]+/).flatMap(p => p.trim().split(/\s+/)).filter(Boolean);
+      if (parts.length < 2) return;
 
-            for (let i = 0; i < punches.length; i += 2) {
-                if (punches[i] && punches[i+1]) {
-                    const start = punches[i];
-                    const end = punches[i+1];
-                    const diff = calculateDuration(start, end);
-                    if (diff > 0) {
-                        totalMinutes += diff;
-                        sessionDetails.push(`${start}-${end}`);
-                    }
-                }
-            }
+      const rawHid = parts[0];
+      const hid = cleanHid(rawHid);
+      if (!hid) return;
 
-            const totalDutyStr = formatMinsToDuration(totalMinutes);
+      let dateStr = '';
+      let timeStr = '';
 
-            if (!newLog[key] || newLog[key].status === '' || newLog[key].isMachineRecord) {
-                newLog[key] = { 
-                    status: 'Present', 
-                    inTime: punches[0], 
-                    outTime: punches[punches.length - 1], 
-                    notes: `Total: ${totalDutyStr} | Sessions: ${sessionDetails.join(', ')}`, 
-                    totalMinutes: totalMinutes,
-                    isMachineRecord: true 
-                };
-                matchCount++;
-            }
+      for (let i = 1; i < parts.length; i++) {
+        const part = parts[i];
+        if (/^\d{4}-\d{2}-\d{2}$/.test(part)) {
+          dateStr = part;
+        } else if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(part)) {
+          const [d, m, y] = part.split('/');
+          dateStr = `${y}-${d.padStart(2, '0')}-${m.padStart(2, '0')}`;
+        } else if (/^\d{2}:\d{2}(:\d{2})?$/.test(part)) {
+          timeStr = part.substring(0, 5); // HH:mm
         }
+      }
+
+      if (!dateStr || !timeStr) {
+        const fullDtMatch = trimmed.match(/(\d{4}-\d{2}-\d{2}|\d{1,2}\/\d{1,2}\/\d{4})\s+(\d{2}:\d{2})/);
+        if (fullDtMatch) {
+          dateStr = fullDtMatch[1];
+          if (dateStr.includes('/')) {
+            const [d, m, y] = dateStr.split('/');
+            dateStr = `${y}-${d.padStart(2, '0')}-${m.padStart(2, '0')}`;
+          }
+          timeStr = fullDtMatch[2];
+        }
+      }
+
+      if (!dateStr || !timeStr) return;
+
+      const matchedEmp = (employees || []).find(emp => {
+        const mId = cleanHid(emp.machine_id);
+        const eId = cleanHid(emp.emp_id);
+        return (mId && mId === hid) || (eId && eId === hid);
+      });
+
+      if (matchedEmp) {
+        matchedHids.add(hid);
+        const groupKey = `${dateStr}_${matchedEmp.emp_id}`;
+        if (!groupedPunches[groupKey]) {
+          groupedPunches[groupKey] = { emp: matchedEmp, dateKey: dateStr, times: [] };
+        }
+        if (!groupedPunches[groupKey].times.includes(timeStr)) {
+          groupedPunches[groupKey].times.push(timeStr);
+          totalPunches++;
+        }
+      }
     });
 
-    if (performBlockingSync) {
-      const success = await performBlockingSync({ attendanceLog: newLog });
-      if (!success) return;
-    }
+    return { groupedPunches, totalPunches, matchedHidsCount: matchedHids.size };
+  };
+
+  // --- USB PENDRIVE ATTLOG.DAT / CSV IMPORT ---
+  const handleUsbFileImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
+        const text = event.target?.result as string;
+        if (!text) throw new Error('ফাইলটি খালি!');
+
+        const { groupedPunches, totalPunches, matchedHidsCount } = parseZkPunchLogText(text);
+
+        if (totalPunches === 0) {
+          alert('⚠️ ফাইলটিতে কোনো মেলানো রিয়েল পাঞ্চ রেকর্ড পাওয়া যায়নি!\n\nসম্ভাব্য কারণ:\n১. সফটওয়্যারে কর্মচারীদের Machine HID (যেমন: 101, 103, 111) মিলিয়ে সেটিং করা নেই।\n২. পিসিতে তোলা ফাইলের HID এর সাথে সফটওয়্যারের HID মিলছে না।');
+          return;
+        }
+
+        const newLog = { ...attendanceLog };
+
+        Object.keys(groupedPunches).forEach(groupKey => {
+          const { emp, dateKey, times } = groupedPunches[groupKey];
+          times.sort(); // Chronological order
+
+          const inTime = times[0] || '';
+          const outTime = times.length > 1 ? times[1] : '';
+          const inTime2 = times.length > 2 ? times[2] : '';
+          const outTime2 = times.length > 3 ? times[3] : '';
+          const inTime3 = times.length > 4 ? times[4] : '';
+          const outTime3 = times.length > 5 ? times[times.length - 1] : '';
+
+          newLog[groupKey] = {
+            status: 'Present',
+            inTime,
+            outTime,
+            inTime2,
+            outTime2,
+            inTime3,
+            outTime3,
+            isMachineRecord: true,
+            notes: `ZKTeco K50 Real USB Punch (HID: ${emp.machine_id || emp.emp_id}) [${times.length}টি পাঞ্চ]`
+          };
+        });
+
+        setAttendanceLog(newLog);
+
+        if (performBlockingSync) {
+          await performBlockingSync({ attendanceLog: newLog });
+        }
+
+        alert(`🎉 সফলভাবে ${matchedHidsCount} জন কর্মচারীর মোট ${totalPunches} টি রিয়েল পাঞ্চ ডাটা সফটওয়্যারে ইম্পোর্ট করা হয়েছে!`);
+      } catch (err: any) {
+        alert(`⚠️ ফাইল ইম্পোর্ট ব্যর্থ: ${err?.message || 'সঠিক .dat, .csv বা .txt ফাইল সিলেক্ট করুন'}`);
+      } finally {
+        if (e.target) e.target.value = '';
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  // --- CLEAR DUMMY MOCK DATA ---
+  const handleClearFakeAttendance = async () => {
+    if (!confirm('আপনি কি সকল ভুয়া/ডামি অটো-জেনারেটেড হাজিরা ডাটা মুছে ডাটাবেজ পরিষ্কার করতে চান? (হাত দিয়ে এন্ট্রি করা ডাটা নষ্ট হবে না)')) return;
+
+    const newLog = { ...attendanceLog };
+    let removedCount = 0;
+
+    Object.keys(newLog).forEach(key => {
+      const rec = newLog[key];
+      if (rec) {
+        const isFakeNote = rec.notes?.includes('Auto-Sync') || rec.notes?.includes('Sessions:');
+        const isFakeTime = rec.inTime === '08:30' && rec.outTime === '12:30' && rec.inTime2 === '01:30' && rec.outTime2 === '05:30';
+        const isFakeTime2 = rec.inTime === '08:45' && rec.outTime === '20:30';
+        if (isFakeNote || isFakeTime || isFakeTime2) {
+          delete newLog[key];
+          removedCount++;
+        }
+      }
+    });
 
     setAttendanceLog(newLog);
-    setSuccessMessage(`সফলভাবে ${matchCount} জন এমপ্লয়ীর উপস্থিতির "মোট কর্মঘণ্টা" সিঙ্ক করা হয়েছে।`);
+
+    if (performBlockingSync) {
+      await performBlockingSync({ attendanceLog: newLog });
+    }
+
+    alert(`✅ মোট ${removedCount} টি ডামি ডাটা মুছে ফেলা হয়েছে! এখন শুধুমাত্র রিয়েল ডাটা থাকবে।`);
+  };
+
+  // --- CLOUD DB REFRESH SYNC ---
+  const handleMachineSync = async () => {
+    setMachineCfg(prev => ({ ...prev, status: 'Syncing' }));
+
+    try {
+      const cloudData = await dbService.loadFromCloud();
+      let updatedLog = { ...attendanceLog };
+
+      if (cloudData && cloudData.attendanceLog) {
+        updatedLog = { ...updatedLog, ...cloudData.attendanceLog };
+        setAttendanceLog(updatedLog);
+      }
+
+      const searchDates = getDatesForCurrentSearch();
+      let machineRecordsFound = 0;
+
+      searchDates.forEach(dateKey => {
+        periodEmployees.forEach(emp => {
+          const key = `${dateKey}_${emp.emp_id}`;
+          const record = updatedLog[key];
+          if (record && record.isMachineRecord) {
+            machineRecordsFound++;
+          }
+        });
+      });
+
+      if (performBlockingSync) {
+        await performBlockingSync({ attendanceLog: updatedLog });
+      }
+
+      setMachineCfg(prev => ({ ...prev, status: 'Online', lastSync: new Date().toLocaleString() }));
+
+      if (machineRecordsFound > 0) {
+        alert(`✅ জেকেটেকো কে৫০ ডিভাইস থেকে প্রাপ্ত মোট ${machineRecordsFound} টি রিয়েল পাঞ্চ ডাটা ক্লাউড থেকে লোড ও রিফ্রেশ হয়েছে!`);
+      } else {
+        alert(`ℹ️ ক্লাউড ডাটাবেজ রিফ্রেশ করা হয়েছে!\n\nবর্তমানে নির্বাচিত তারিখ (${searchDates.length} দিন)-এর জন্য ক্লাউডে কোনো নতুন পাঞ্চ রেকর্ড পাওয়া যায়নি।\n\nরিয়েল পাঞ্চ লোড করার ২ টি সহজ উপায়:\n১. USB পেনড্রাইভ: K50 মেশিন থেকে attlog.dat ফাইল নিয়ে '📁 K50 USB ফাইল ইম্পোর্ট' বাটনে আপলোড করুন।\n২. ব্যাকগ্রাউন্ড এজেন্ট: পিসিতে 'start_zk_agent.bat' ডাবল ক্লিক করে চালু রাখুন।`);
+      }
+    } catch (err: any) {
+      console.error("Machine Sync Error:", err);
+      setMachineCfg(prev => ({ ...prev, status: 'Offline' }));
+      alert(`⚠️ ডাটাবেজ সিঙ্ক করতে সমস্যা হয়েছে: ${err?.message || 'নেটওয়ার্ক চেক করুন'}`);
+    }
   };
 
   const handleSaveProfile = async () => {
@@ -738,7 +881,7 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
 
     return (
       <div className="bg-white dark:bg-slate-900 rounded-3xl p-8 border border-slate-200 dark:border-slate-800 shadow-xl animate-fade-in relative overflow-hidden space-y-6">
-          {/* Automatic ZKTeco Status & Node.js Notice Banner */}
+          {/* Automatic ZKTeco Status & Action Controls Banner */}
           <div className="bg-slate-950 p-4 rounded-2xl border border-sky-900/50 flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
             <div className="flex items-center gap-3">
               <span className="flex h-3 w-3 relative">
@@ -746,26 +889,53 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
                 <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
               </span>
               <div>
-                <div className="text-xs font-bold text-sky-300 uppercase tracking-wide">⚡ অটো-সিঙ্ক সার্ভিস রেডি</div>
+                <div className="text-xs font-bold text-sky-300 uppercase tracking-wide">⚡ ZKTeco K50 রিয়েল পাঞ্চ সিঙ্ক কন্ট্রোল</div>
                 <div className="text-[11px] text-slate-400">
-                  আপনার পিসিতে <b>Node.js</b> ইনস্টল করা থাকলে এটি ব্যাকগ্রাউন্ডে স্বয়ংক্রিয়ভাবে ZKTeco K50 মেশিনের পাঞ্চ গ্রহণ করবে।
+                  পেনড্রাইভ দিয়ে অথবা পিসির ব্যাকগ্রাউন্ড এজেন্ট <b>(start_zk_agent.bat)</b> এর মাধ্যমে কর্মচারীদের রিয়েল পাঞ্চ ইম্পোর্ট করুন।
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <a
-                href="https://nodejs.org/"
-                target="_blank"
-                rel="noreferrer"
-                className="text-[10px] bg-slate-800 hover:bg-slate-700 text-sky-400 px-3 py-1.5 rounded-lg border border-slate-700 font-bold transition-all"
+
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* USB File Import Input & Button */}
+              <input 
+                type="file" 
+                ref={usbFileInputRef} 
+                onChange={handleUsbFileImport} 
+                accept=".dat,.txt,.csv,.log,.tsv,.xlsx" 
+                className="hidden" 
+              />
+              <button
+                onClick={() => usbFileInputRef.current?.click()}
+                className="text-xs bg-emerald-600 hover:bg-emerald-500 text-white px-3.5 py-2 rounded-xl font-bold shadow transition-all flex items-center gap-1.5 active:scale-95"
+                title="ZKTeco K50 পেনড্রাইভ থেকে attlog.dat বা CSV পাঞ্চ ফাইল আপলোড করুন"
               >
-                🌐 Node.js ডাউনলোড লিংক (যদি না থাকে)
-              </a>
+                📁 K50 USB ফাইল ইম্পোর্ট (.dat / .csv)
+              </button>
+
+              {/* Refresh from Cloud Sync */}
+              <button
+                onClick={handleDownloadMachineData}
+                className="text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-2 rounded-xl font-bold shadow transition-all flex items-center gap-1 active:scale-95"
+                title="ক্লাউড ডাটাবেজ থেকে রিফ্রেশ করুন"
+              >
+                🔄 ক্লাউড সিঙ্ক রিফ্রেশ
+              </button>
+
+              {/* Reset Dummy Data */}
+              <button
+                onClick={handleClearFakeAttendance}
+                className="text-xs bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white px-3 py-2 rounded-xl font-bold border border-rose-500/30 transition-all flex items-center gap-1 active:scale-95"
+                title="ভুয়া/ডামি অটো-জেনারেটেড ডাটা মুছে ফেলুন"
+              >
+                🧹 ডামি ডাটা রিসেট
+              </button>
+
               <button 
                 onClick={() => setIsZkModalOpen(true)} 
-                className="text-[10px] bg-sky-600 hover:bg-sky-500 text-white px-3 py-1.5 rounded-lg font-bold shadow transition-all"
+                className="text-xs bg-sky-600 hover:bg-sky-500 text-white px-3 py-2 rounded-xl font-bold shadow transition-all"
               >
-                📟 ZKTeco হাব খুলুন
+                📟 ZKTeco হাব
               </button>
             </div>
           </div>
