@@ -57,6 +57,8 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
   const usbFileInputRef = useRef<HTMLInputElement>(null);
 
   const [isZkModalOpen, setIsZkModalOpen] = useState(false);
+  const [isDownloadingFromMachine, setIsDownloadingFromMachine] = useState(false);
+  const [stagedUnsavedCount, setStagedUnsavedCount] = useState<number>(0);
 
   const [machineCfg, setMachineCfg] = useState<MachineConfig>(() => {
     const saved = localStorage.getItem('ncd_machine_config');
@@ -231,6 +233,7 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
         }
 
         const newLog = { ...attendanceLog };
+        let count = 0;
 
         Object.keys(groupedPunches).forEach(groupKey => {
           const { emp, dateKey, times } = groupedPunches[groupKey];
@@ -252,17 +255,16 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
             inTime3,
             outTime3,
             isMachineRecord: true,
+            isStagedUnsaved: true,
             notes: `ZKTeco K50 Real USB Punch (HID: ${emp.machine_id || emp.emp_id}) [${times.length}টি পাঞ্চ]`
           };
+          count++;
         });
 
         setAttendanceLog(newLog);
+        setStagedUnsavedCount(count);
 
-        if (performBlockingSync) {
-          await performBlockingSync({ attendanceLog: newLog });
-        }
-
-        alert(`🎉 সফলভাবে ${matchedHidsCount} জন কর্মচারীর মোট ${totalPunches} টি রিয়েল পাঞ্চ ডাটা সফটওয়্যারে ইম্পোর্ট করা হয়েছে!`);
+        alert(`✅ ফাইল থেকে ${matchedHidsCount} জন কর্মচারীর মোট ${totalPunches} টি পাঞ্চ ডাটা সফটওয়্যারে ডাউনলোড করা হয়েছে এবং নিচে টেবিলে দেখা যাচ্ছে!\n\nসুপাবেজ ডাটাবেজে স্থায়ীভাবে সেভ করার জন্য '💾 ২. সুপাবেজে (Supabase) সেভ করুন' বাটনে চাপ দিন।`);
       } catch (err: any) {
         alert(`⚠️ ফাইল ইম্পোর্ট ব্যর্থ: ${err?.message || 'সঠিক .dat, .csv বা .txt ফাইল সিলেক্ট করুন'}`);
       } finally {
@@ -270,6 +272,116 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
       }
     };
     reader.readAsText(file);
+  };
+
+  // --- STEP 1: DOWNLOAD PUNCH DATA FROM MACHINE TO SOFTWARE ---
+  const handleDownloadFromMachine = async () => {
+    setIsDownloadingFromMachine(true);
+    const searchDates = getDatesForCurrentSearch(); // Array of YYYY-MM-DD strings
+    const targetEmpIds = selectedEmpFilter === 'all' 
+      ? periodEmployees.map(e => e.emp_id) 
+      : [selectedEmpFilter];
+
+    let matchesAdded = 0;
+    const newLog = { ...attendanceLog };
+
+    try {
+      // Check local ZK Agent endpoint if user is running start_zk_agent.bat on local PC
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2000);
+      const resp = await fetch('http://localhost:5000/api/punches', { signal: controller.signal }).catch(() => null);
+      clearTimeout(timeoutId);
+
+      if (resp && resp.ok) {
+        const data = await resp.json();
+        if (data && data.punches) {
+          const parsed = parseZkPunchLogText(typeof data.punches === 'string' ? data.punches : JSON.stringify(data.punches));
+          Object.keys(parsed.groupedPunches).forEach(key => {
+            const [dateStr, empId] = key.split('_');
+            if (searchDates.includes(dateStr) && targetEmpIds.includes(empId)) {
+              const pData = parsed.groupedPunches[key];
+              const times = pData.times.sort();
+              newLog[key] = {
+                status: 'Present',
+                inTime: times[0] || '',
+                outTime: times.length > 1 ? times[1] : '',
+                inTime2: times.length > 2 ? times[2] : '',
+                outTime2: times.length > 3 ? times[3] : '',
+                isMachineRecord: true,
+                isStagedUnsaved: true,
+                notes: `ZKTeco K50 Machine Live Punch (${times.length}টি পাঞ্চ)`
+              };
+              matchesAdded++;
+            }
+          });
+        }
+      }
+    } catch (e) {
+      console.log("Local agent HTTP query finished");
+    }
+
+    // If HTTP agent was not running directly on port 5000, trigger local sync / attlog USB file prompt
+    if (matchesAdded === 0) {
+      // Check if we have cloud records for these dates/emps
+      let cloudMatches = 0;
+      searchDates.forEach(dateStr => {
+        targetEmpIds.forEach(empId => {
+          const key = `${dateStr}_${empId}`;
+          if (newLog[key] && newLog[key].isMachineRecord) {
+            cloudMatches++;
+          }
+        });
+      });
+
+      const choice = confirm(
+        `📥 জেকেটেকো কে৫০ (ZKTeco K50) পাঞ্চ ডাটা ডাউনলোড:\n\n` +
+        `ফিল্টার নির্বাচন:\n` +
+        `• কর্মচারী: ${selectedEmpFilter === 'all' ? 'সকল কর্মচারী (' + targetEmpIds.length + ' জন)' : (periodEmployees.find(e => e.emp_id === selectedEmpFilter)?.emp_name || selectedEmpFilter)}\n` +
+        `• সময়কাল: ${searchDates[0] || ''} হতে ${searchDates[searchDates.length - 1] || ''} (${searchDates.length} দিন)\n\n` +
+        `আপনার পিসির USB পেনড্রাইভের 'attlog.dat' ফাইল সিলেক্ট করতে 'OK' চাপুন।`
+      );
+
+      if (choice) {
+        usbFileInputRef.current?.click();
+      }
+      setIsDownloadingFromMachine(false);
+      return;
+    }
+
+    setAttendanceLog(newLog);
+    setStagedUnsavedCount(matchesAdded);
+    setIsDownloadingFromMachine(false);
+
+    alert(`✅ জেকেটেকো মেশিন থেকে মোট ${matchesAdded} টি পাঞ্চ ডাটা সফটওয়্যারে ডাউনলোড হয়ে নিচে টেবিলে দেখানো হচ্ছে!\n\nসুপাবেজ ক্লাউড ডাটাবেজে সেভ করতে '💾 ২. সুপাবেজে (Supabase) সেভ করুন' বাটনে চাপ দিন।`);
+  };
+
+  // --- STEP 2: SAVE DOWNLOADED PUNCH DATA TO SUPABASE ---
+  const handleSaveToSupabase = async () => {
+    const updatedLog = { ...attendanceLog };
+    let savedCount = 0;
+
+    Object.keys(updatedLog).forEach(key => {
+      if (updatedLog[key]) {
+        if (updatedLog[key].isStagedUnsaved) {
+          delete updatedLog[key].isStagedUnsaved;
+          savedCount++;
+        }
+      }
+    });
+
+    setAttendanceLog(updatedLog);
+
+    if (performBlockingSync) {
+      const success = await performBlockingSync({ attendanceLog: updatedLog });
+      if (success) {
+        setStagedUnsavedCount(0);
+        alert(`🎉 সফলভাবে সুপাবেজ (Supabase) ক্লাউড ডাটাবেজে আপনার পাঞ্চ ডাটা স্থায়ীভাবে সেভ হয়েছে!`);
+      } else {
+        alert(`⚠️ সুপাবেজে সেভ করতে সমস্যা হয়েছে। নেটওয়ার্ক চেক করুন।`);
+      }
+    } else {
+      alert(`🎉 ডাটা লোকাল মেমোরিতে সেভ হয়েছে!`);
+    }
   };
 
   // --- CLEAR DUMMY MOCK DATA ---
@@ -881,61 +993,194 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
 
     return (
       <div className="bg-white dark:bg-slate-900 rounded-3xl p-8 border border-slate-200 dark:border-slate-800 shadow-xl animate-fade-in relative overflow-hidden space-y-6">
-          {/* Automatic ZKTeco Status & Action Controls Banner */}
-          <div className="bg-slate-950 p-4 rounded-2xl border border-sky-900/50 flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
-            <div className="flex items-center gap-3">
-              <span className="flex h-3 w-3 relative">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
-              </span>
-              <div>
-                <div className="text-xs font-bold text-sky-300 uppercase tracking-wide">⚡ ZKTeco K50 রিয়েল পাঞ্চ সিঙ্ক কন্ট্রোল</div>
-                <div className="text-[11px] text-slate-400">
-                  পেনড্রাইভ দিয়ে অথবা পিসির ব্যাকগ্রাউন্ড এজেন্ট <b>(start_zk_agent.bat)</b> এর মাধ্যমে কর্মচারীদের রিয়েল পাঞ্চ ইম্পোর্ট করুন।
+          {/* Dedicated ZKTeco Machine Download & Supabase Save Workflow Card */}
+          <div className="bg-gradient-to-r from-slate-950 via-sky-950 to-slate-950 text-white p-5 rounded-3xl border-2 border-sky-600/50 shadow-2xl space-y-4">
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 border-b border-sky-800/40 pb-3">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-sky-600/30 rounded-2xl border border-sky-400/30 text-sky-300">
+                  <span className="text-xl">📟</span>
                 </div>
+                <div>
+                  <h3 className="text-sm font-black text-sky-200 uppercase tracking-wider flex items-center gap-2">
+                    ZKTeco K50 মেশিন ডাটা ডাউনলোড ও সুপাবেজ সেভ প্যানেল
+                  </h3>
+                  <p className="text-xs text-slate-300">
+                    কর্মচারী ও সময়কাল নির্বাচন করুন ➔ <b>'১. মেশিন থেকে ডাটা ডাউনলোড করুন'</b> চাপুন ➔ তারপর <b>'২. সুপাবেজে (Supabase) সেভ করুন'</b> চাপুন।
+                  </p>
+                </div>
+              </div>
+
+              {/* Status Badge */}
+              <div className="flex items-center gap-2 flex-wrap">
+                {stagedUnsavedCount > 0 ? (
+                  <span className="text-xs font-bold bg-amber-500 text-slate-950 px-3.5 py-1.5 rounded-full animate-pulse flex items-center gap-1.5 shadow">
+                    <span>⚠️</span> {stagedUnsavedCount} টি পাঞ্চ ডাউনলোড হয়েছে (সুপাবেজে সেভ করতে নিচের ২ নং বাটনে চাপ দিন)
+                  </span>
+                ) : (
+                  <span className="text-xs font-bold bg-emerald-950 text-emerald-300 border border-emerald-700/50 px-3.5 py-1.5 rounded-full flex items-center gap-1.5">
+                    <span className="h-2 w-2 rounded-full bg-emerald-400 animate-ping"></span> সুপাবেজ ক্লাউড প্রস্তুত
+                  </span>
+                )}
+
+                <button 
+                  onClick={() => setIsZkModalOpen(true)} 
+                  className="text-xs bg-slate-800 hover:bg-slate-700 text-sky-300 px-3 py-1.5 rounded-xl font-bold border border-sky-800 transition-all"
+                  title="জেকেটেকো হাব ও ব্যাকগ্রাউন্ড এজেন্ট গাইড"
+                >
+                  📟 ZKTeco হাব
+                </button>
+
+                <button
+                  onClick={handleClearFakeAttendance}
+                  className="text-xs bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white px-3 py-1.5 rounded-xl font-bold border border-rose-500/30 transition-all"
+                  title="ভুয়া/ডামি ডাটা মুছে ফেলা"
+                >
+                  🧹 ডামি ডাটা রিসেট
+                </button>
               </div>
             </div>
 
-            <div className="flex items-center gap-2 flex-wrap">
-              {/* USB File Import Input & Button */}
-              <input 
-                type="file" 
-                ref={usbFileInputRef} 
-                onChange={handleUsbFileImport} 
-                accept=".dat,.txt,.csv,.log,.tsv,.xlsx" 
-                className="hidden" 
-              />
-              <button
-                onClick={() => usbFileInputRef.current?.click()}
-                className="text-xs bg-emerald-600 hover:bg-emerald-500 text-white px-3.5 py-2 rounded-xl font-bold shadow transition-all flex items-center gap-1.5 active:scale-95"
-                title="ZKTeco K50 পেনড্রাইভ থেকে attlog.dat বা CSV পাঞ্চ ফাইল আপলোড করুন"
-              >
-                📁 K50 USB ফাইল ইম্পোর্ট (.dat / .csv)
-              </button>
+            {/* Step 1: Filter Selection Row */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 bg-slate-900/80 p-3.5 rounded-2xl border border-sky-900/40">
+              {/* Employee Selector */}
+              <div className="flex flex-col gap-1">
+                <label className="text-[11px] font-bold text-sky-300 flex items-center gap-1">
+                  👤 কর্মচারী সিলেক্ট করুন:
+                </label>
+                <select
+                  value={selectedEmpFilter}
+                  onChange={(e) => setSelectedEmpFilter(e.target.value)}
+                  className="bg-slate-950 border border-sky-700/60 rounded-xl px-3 py-2 text-white font-bold text-xs outline-none focus:ring-2 focus:ring-sky-500"
+                >
+                  <option value="all">👥 সকল কর্মচারী ({periodEmployees.length} জন)</option>
+                  {periodEmployees.map(e => (
+                    <option key={e.emp_id} value={e.emp_id}>
+                      👤 {e.emp_name} ({e.job_position || 'কর্মী'}) - HID: {e.machine_id || e.emp_id}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-              {/* Refresh from Cloud Sync */}
-              <button
-                onClick={handleDownloadMachineData}
-                className="text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-2 rounded-xl font-bold shadow transition-all flex items-center gap-1 active:scale-95"
-                title="ক্লাউড ডাটাবেজ থেকে রিফ্রেশ করুন"
-              >
-                🔄 ক্লাউড সিঙ্ক রিফ্রেশ
-              </button>
+              {/* Date Filter Type Switch */}
+              <div className="flex flex-col gap-1">
+                <label className="text-[11px] font-bold text-sky-300 flex items-center gap-1">
+                  📅 সময়কাল সিলেক্ট মোড:
+                </label>
+                <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-sky-800/50">
+                  <button
+                    type="button"
+                    onClick={() => setAttendanceSearchMode('single')}
+                    className={`px-3 py-1 text-[11px] font-bold rounded-lg transition-all ${attendanceSearchMode === 'single' ? 'bg-sky-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
+                  >
+                    📅 একদিন
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAttendanceSearchMode('range')}
+                    className={`px-3 py-1 text-[11px] font-bold rounded-lg transition-all ${attendanceSearchMode === 'range' ? 'bg-sky-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
+                  >
+                    📆 তারিখ রেঞ্জ
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAttendanceSearchMode('month')}
+                    className={`px-3 py-1 text-[11px] font-bold rounded-lg transition-all ${attendanceSearchMode === 'month' ? 'bg-sky-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
+                  >
+                    🗓️ পুরো মাস
+                  </button>
+                </div>
+              </div>
 
-              {/* Reset Dummy Data */}
-              <button
-                onClick={handleClearFakeAttendance}
-                className="text-xs bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white px-3 py-2 rounded-xl font-bold border border-rose-500/30 transition-all flex items-center gap-1 active:scale-95"
-                title="ভুয়া/ডামি অটো-জেনারেটেড ডাটা মুছে ফেলুন"
-              >
-                🧹 ডামি ডাটা রিসেট
-              </button>
+              {/* Date / Date Range Input */}
+              <div className="flex flex-col gap-1">
+                <label className="text-[11px] font-bold text-sky-300">
+                  {attendanceSearchMode === 'single' ? 'তারিখ নির্বাচন:' : attendanceSearchMode === 'range' ? 'তারিখের রেঞ্জ:' : 'মাস নির্বাচন:'}
+                </label>
+                {attendanceSearchMode === 'single' ? (
+                  <input 
+                    type="date" 
+                    value={attendanceDate} 
+                    onChange={(e) => setAttendanceDate(e.target.value)} 
+                    className="bg-slate-950 border border-sky-700/60 rounded-xl px-3 py-1.5 text-white font-bold text-xs outline-none" 
+                  />
+                ) : attendanceSearchMode === 'range' ? (
+                  <div className="flex items-center gap-1">
+                    <input 
+                      type="date" 
+                      value={attendanceStartDate} 
+                      onChange={(e) => setAttendanceStartDate(e.target.value)} 
+                      className="bg-slate-950 border border-sky-700/60 rounded-xl p-1.5 text-white font-bold text-[11px] outline-none w-1/2" 
+                    />
+                    <span className="text-[10px] text-slate-400 font-bold">হতে</span>
+                    <input 
+                      type="date" 
+                      value={attendanceEndDate} 
+                      onChange={(e) => setAttendanceEndDate(e.target.value)} 
+                      className="bg-slate-950 border border-sky-700/60 rounded-xl p-1.5 text-white font-bold text-[11px] outline-none w-1/2" 
+                    />
+                  </div>
+                ) : (
+                  <input 
+                    type="month" 
+                    value={attendanceMonth} 
+                    onChange={(e) => setAttendanceMonth(e.target.value)} 
+                    className="bg-slate-950 border border-sky-700/60 rounded-xl px-3 py-1.5 text-white font-bold text-xs outline-none" 
+                  />
+                )}
+              </div>
+            </div>
 
-              <button 
-                onClick={() => setIsZkModalOpen(true)} 
-                className="text-xs bg-sky-600 hover:bg-sky-500 text-white px-3 py-2 rounded-xl font-bold shadow transition-all"
+            {/* Action Buttons: 1. DOWNLOAD FROM MACHINE, 2. SAVE TO SUPABASE */}
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                {/* STEP 1: DOWNLOAD BUTTON */}
+                <button
+                  onClick={handleDownloadFromMachine}
+                  disabled={isDownloadingFromMachine}
+                  className="bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 text-white font-black text-xs px-5 py-2.5 rounded-2xl shadow-lg transition-all flex items-center gap-2 active:scale-95 border border-sky-300/30 disabled:opacity-50"
+                  title="মেশিন বা সিঙ্ক থেকে সফটওয়্যারে পাঞ্চ ডাটা ডাউনলোড করুন"
+                >
+                  <span className="text-base">📥</span>
+                  <span>১. মেশিন থেকে পাঞ্চ ডাটা ডাউনলোড করুন</span>
+                </button>
+
+                {/* USB FILE PICKER BUTTON */}
+                <input 
+                  type="file" 
+                  ref={usbFileInputRef} 
+                  onChange={handleUsbFileImport} 
+                  accept=".dat,.txt,.csv,.log,.tsv,.xlsx" 
+                  className="hidden" 
+                />
+                <button
+                  onClick={() => usbFileInputRef.current?.click()}
+                  className="bg-slate-800 hover:bg-slate-700 text-sky-300 font-bold text-xs px-3.5 py-2.5 rounded-2xl border border-sky-800 transition-all flex items-center gap-1.5 active:scale-95"
+                  title="USB পেনড্রাইভের attlog.dat বা CSV ফাইল ব্রাউজ করুন"
+                >
+                  <span>📁</span> USB (.dat) আপলোড
+                </button>
+
+                <button
+                  onClick={handleDownloadMachineData}
+                  className="bg-indigo-950 hover:bg-indigo-900 text-indigo-300 font-bold text-xs px-3 py-2.5 rounded-2xl border border-indigo-700/50 transition-all flex items-center gap-1 active:scale-95"
+                  title="ক্লাউড ডাটাবেজ থেকে রিফ্রেশ"
+                >
+                  <span>🔄</span> রিফ্রেশ
+                </button>
+              </div>
+
+              {/* STEP 2: SAVE TO SUPABASE BUTTON */}
+              <button
+                onClick={handleSaveToSupabase}
+                className={`font-black text-xs px-6 py-2.5 rounded-2xl shadow-xl transition-all flex items-center gap-2 active:scale-95 border ${
+                  stagedUnsavedCount > 0 
+                    ? 'bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-400 hover:to-green-500 text-white border-emerald-300 animate-bounce' 
+                    : 'bg-emerald-700 hover:bg-emerald-600 text-white border-emerald-500'
+                }`}
+                title="ডাউনলোডকৃত পাঞ্চ ডাটা সুপাবেজ ক্লাউড ডাটাবেজে স্থায়ীভাবে সেভ করুন"
               >
-                📟 ZKTeco হাব
+                <span className="text-base">💾</span>
+                <span>২. সুপাবেজে (Supabase) সেভ করুন</span>
               </button>
             </div>
           </div>
