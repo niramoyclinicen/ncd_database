@@ -153,122 +153,157 @@ if exist zk_bridge.js (
   };
 
   // Node.js local bridge agent code tailored for ZKTeco K50
-  const bridgeScriptCode = `// ZKTeco K50 Local Attendance Sync Bridge for Niramoy Clinic & Diagnostic
-// Machine IP: ${ipAddress}:${port}
+  const sbUrl = (import.meta as any).env?.VITE_SUPABASE_URL || 'YOUR_SUPABASE_URL';
+  const sbKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || 'YOUR_SUPABASE_KEY';
 
-const ZKLib = require('node-zklib');
-const { createClient } = require('@supabase/supabase-js');
-
-// Config
-const ZK_IP = '${ipAddress}';
-const ZK_PORT = ${port};
-const SUPABASE_URL = "${(import.meta as any).env?.VITE_SUPABASE_URL || 'YOUR_SUPABASE_URL'}";
-const SUPABASE_KEY = "${(import.meta as any).env?.VITE_SUPABASE_ANON_KEY || 'YOUR_SUPABASE_KEY'}";
-
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
-
-async function syncAttendance() {
-  console.log(\`[\${new Date().toLocaleTimeString()}] ZKTeco K50 কানেক্ট করা হচ্ছে (\${ZK_IP}:\${ZK_PORT})...\`);
-  let zkInstance = new ZKLib(ZK_IP, ZK_PORT, 10000, 4000);
-
-  try {
-    await zkInstance.createSocket();
-    console.log('✅ ZKTeco K50 ডিভাইসে সফলভাবে কানেক্ট হয়েছে!');
-
-    const logs = await zkInstance.getAttendances();
-    const records = logs && logs.data ? logs.data : [];
-    console.log(\`📊 মোট পাঞ্চ ডাটা রেকর্ড পাওয়া গেছে: \${records.length} টি\`);
-
-    if (records.length === 0) {
-      console.log('ℹ️ মেশিনে নতুন কোনো পাঞ্চ রেকর্ড নেই।');
-      await zkInstance.disconnect();
-      return;
-    }
-
-    // Load master state from Supabase
-    const { data: record, error: fetchErr } = await supabase
-      .from('ncd_state')
-      .select('data')
-      .eq('id', 1)
-      .single();
-
-    if (fetchErr) {
-      console.error('❌ Supabase ডাটা লোড ব্যর্থ:', fetchErr.message);
-      await zkInstance.disconnect();
-      return;
-    }
-
-    let stateData = (record && record.data) ? record.data : {};
-    let attendanceLog = stateData.attendanceLog || {};
-    let employees = stateData.employees || [];
-
-    let updatedCount = 0;
-
-    records.forEach(log => {
-      const hid = String(log.deviceUserId || log.userId || log.sn || '').trim();
-      if (!hid) return;
-
-      const dt = new Date(log.recordTime);
-      if (isNaN(dt.getTime())) return;
-
-      const dateKey = dt.toISOString().split('T')[0];
-      const timeStr = dt.toTimeString().substring(0, 5); // HH:mm
-
-      // Find matching employee by machine_id (HID) or emp_id
-      const emp = employees.find(e => 
-        (e.machine_id && String(e.machine_id).trim() === hid) ||
-        (e.emp_id && String(e.emp_id).trim() === hid)
-      );
-
-      if (emp) {
-        const key = \`\${dateKey}_\${emp.emp_id}\`;
-        const existing = attendanceLog[key] || { status: 'Present', inTime: '', outTime: '', notes: '' };
-
-        let changed = false;
-        if (!existing.inTime) {
-          existing.inTime = timeStr;
-          changed = true;
-        } else if (timeStr > existing.inTime && (!existing.outTime || timeStr > existing.outTime)) {
-          existing.outTime = timeStr;
-          changed = true;
-        }
-
-        existing.status = 'Present';
-        existing.isMachineRecord = true;
-        existing.notes = \`ZKTeco K50 Auto-Sync (HID: \${hid})\`;
-
-        if (changed) {
-          attendanceLog[key] = existing;
-          updatedCount++;
-        }
-      }
-    });
-
-    if (updatedCount > 0) {
-      stateData.attendanceLog = attendanceLog;
-      const { error: updateErr } = await supabase
-        .from('ncd_state')
-        .upsert({ id: 1, data: stateData, updated_at: new Date().toISOString() });
-
-      if (updateErr) {
-        console.error('❌ Supabase আপডেট ব্যর্থ:', updateErr.message);
-      } else {
-        console.log(\`🎉 সফলভাবে \${updatedCount} জন কর্মচারীর নতুন পাঞ্চ টাইম সফটওয়্যারে সেভ হয়েছে!\`);
-      }
-    } else {
-      console.log('ℹ️ সব পাঞ্চ ডাটা ইতিপূর্বে আপ-টু-ডেট আছে।');
-    }
-
-    await zkInstance.disconnect();
-  } catch (error) {
-    console.error('❌ ZKTeco কানেকশন সমস্যা:', error.message);
-  }
-}
-
-console.log('🚀 ZKTeco K50 ব্যাকগ্রাউন্ড অটো-সিঙ্ক সার্ভিস চালু হয়েছে (প্রতি ২ মিনিটে চেক করবে)...');
-syncAttendance();
-setInterval(syncAttendance, 2 * 60 * 1000);
-`;
+  const bridgeScriptCode = [
+    "// ZKTeco K50 Local Attendance Sync Bridge for Niramoy Clinic & Diagnostic",
+    "// Machine IP: " + ipAddress + ":" + port,
+    "",
+    "const ZKLib = require('node-zklib');",
+    "const { createClient } = require('@supabase/supabase-js');",
+    "",
+    "// Config",
+    "const ZK_IP = '" + ipAddress + "';",
+    "const ZK_PORT = " + port + ";",
+    'const SUPABASE_URL = "' + sbUrl + '";',
+    'const SUPABASE_KEY = "' + sbKey + '";',
+    "",
+    "const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);",
+    "",
+    "async function syncAttendance() {",
+    "  console.log('[' + new Date().toLocaleTimeString() + '] ZKTeco K50 কানেক্ট করা হচ্ছে (' + ZK_IP + ':' + ZK_PORT + ')...');",
+    "  let zkInstance = new ZKLib(ZK_IP, ZK_PORT, 10000, 4000);",
+    "",
+    "  try {",
+    "    await zkInstance.createSocket();",
+    "    console.log('✅ ZKTeco K50 ডিভাইসে সফলভাবে কানেক্ট হয়েছে!');",
+    "",
+    "    const logs = await zkInstance.getAttendances();",
+    "    const records = logs && logs.data ? logs.data : [];",
+    "    console.log('📊 মোট পাঞ্চ ডাটা রেকর্ড পাওয়া গেছে: ' + records.length + ' টি');",
+    "",
+    "    if (records.length === 0) {",
+    "      console.log('ℹ️ মেশিনে নতুন কোনো পাঞ্চ রেকর্ড নেই।');",
+    "      await zkInstance.disconnect();",
+    "      return;",
+    "    }",
+    "",
+    "    // Load master state from Supabase",
+    "    const { data: record, error: fetchErr } = await supabase",
+    "      .from('ncd_state')",
+    "      .select('data')",
+    "      .eq('id', 1)",
+    "      .single();",
+    "",
+    "    if (fetchErr) {",
+    "      console.error('❌ Supabase ডাটা লোড ব্যর্থ:', fetchErr.message);",
+    "      await zkInstance.disconnect();",
+    "      return;",
+    "    }",
+    "",
+    "    let stateData = (record && record.data) ? record.data : {};",
+    "    let attendanceLog = stateData.attendanceLog || {};",
+    "    let employees = stateData.employees || [];",
+    "",
+    "    const cleanId = (val) => String(val || '').trim().replace(/^0+/, '');",
+    "",
+    "    // Group logs by employee and date",
+    "    const grouped = {};",
+    "",
+    "    records.forEach(log => {",
+    "      const rawHid = log.deviceUserId || log.userId || log.sn;",
+    "      const hid = cleanId(rawHid);",
+    "      if (!hid) return;",
+    "",
+    "      const dt = new Date(log.recordTime);",
+    "      if (isNaN(dt.getTime())) return;",
+    "",
+    "      const dateKey = dt.toISOString().split('T')[0];",
+    "      const timeStr = dt.toTimeString().substring(0, 5); // HH:mm",
+    "",
+    "      // Find matching employee by machine_id (HID) or emp_id",
+    "      const emp = employees.find(e => {",
+    "        const mId = cleanId(e.machine_id);",
+    "        const eId = cleanId(e.emp_id);",
+    "        return (mId && mId === hid) || (eId && eId === hid);",
+    "      });",
+    "",
+    "      if (emp) {",
+    "        const groupKey = dateKey + '_' + emp.emp_id;",
+    "        if (!grouped[groupKey]) {",
+    "          grouped[groupKey] = { emp, dateKey, times: [] };",
+    "        }",
+    "        if (!grouped[groupKey].times.includes(timeStr)) {",
+    "          grouped[groupKey].times.push(timeStr);",
+    "        }",
+    "      } else {",
+    "        console.log('⚠️ মেশিনের HID: ' + hid + ' (' + timeStr + ') - ডাটাবেজে এই HID যুক্ত কোনো কর্মচারী পাওয়া যায়নি।');",
+    "      }",
+    "    });",
+    "",
+    "    let updatedCount = 0;",
+    "",
+    "    Object.keys(grouped).forEach(groupKey => {",
+    "      const { emp, dateKey, times } = grouped[groupKey];",
+    "      times.sort(); // Chronological order e.g. ['08:30', '12:30', '13:30', '17:30']",
+    "",
+    "      const existing = attendanceLog[groupKey] || { status: 'Present', inTime: '', outTime: '', notes: '' };",
+    "",
+    "      const inTime = times[0] || '';",
+    "      const outTime = times.length > 1 ? times[1] : '';",
+    "      const inTime2 = times.length > 2 ? times[2] : '';",
+    "      const outTime2 = times.length > 3 ? times[3] : '';",
+    "      const inTime3 = times.length > 4 ? times[4] : '';",
+    "      const outTime3 = times.length > 5 ? times[times.length - 1] : '';",
+    "",
+    "      if (",
+    "        existing.inTime !== inTime ||",
+    "        existing.outTime !== outTime ||",
+    "        existing.inTime2 !== inTime2 ||",
+    "        existing.outTime2 !== outTime2",
+    "      ) {",
+    "        attendanceLog[groupKey] = {",
+    "          ...existing,",
+    "          status: 'Present',",
+    "          inTime,",
+    "          outTime,",
+    "          inTime2,",
+    "          outTime2,",
+    "          inTime3,",
+    "          outTime3,",
+    "          isMachineRecord: true,",
+    "          notes: 'ZKTeco K50 (HID: ' + (emp.machine_id || emp.emp_id) + ') [' + times.length + 'টি পাঞ্চ]'",
+    "        };",
+    "        updatedCount++;",
+    "      }",
+    "    });",
+    "",
+    "    if (updatedCount > 0) {",
+    "      stateData.attendanceLog = attendanceLog;",
+    "      const { error: updateErr } = await supabase",
+    "        .from('ncd_state')",
+    "        .upsert({ id: 1, data: stateData, updated_at: new Date().toISOString() });",
+    "",
+    "      if (updateErr) {",
+    "        console.error('❌ Supabase আপডেট ব্যর্থ:', updateErr.message);",
+    "      } else {",
+    "        console.log('🎉 সফলভাবে ' + updatedCount + ' জন কর্মচারীর নতুন পাঞ্চ টাইম সফটওয়্যারে সেভ হয়েছে!');",
+    "      }",
+    "    } else {",
+    "      console.log('ℹ️ সব পাঞ্চ ডাটা ইতিপূর্বে আপ-টু-ডেট আছে।');",
+    "    }",
+    "",
+    "    await zkInstance.disconnect();",
+    "  } catch (error) {",
+    "    console.error('❌ ZKTeco কানেকশন সমস্যা:', error.message);",
+    "  }",
+    "}",
+    "",
+    "console.log('🚀 ZKTeco K50 ব্যাকগ্রাউন্ড অটো-সিঙ্ক সার্ভিস চালু হয়েছে (প্রতি ২ মিনিটে চেক করবে)...');",
+    "syncAttendance();",
+    "setInterval(syncAttendance, 2 * 60 * 1000);",
+  ].join('\n');
 
   const handleCopyCode = () => {
     navigator.clipboard.writeText(bridgeScriptCode);

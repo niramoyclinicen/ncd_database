@@ -3,6 +3,7 @@ import { Employee, emptyEmployee, ExpenseItem } from './DiagnosticData';
 import { MapPinIcon, PhoneIcon, EmployeeInfoIcon, PrinterIcon, RefreshIcon, DatabaseIcon, SettingsIcon, Activity, BackIcon, SearchIcon, SaveIcon, UsersIcon } from './Icons';
 import SearchableSelect from './SearchableSelect';
 import { ZKTecoBridgeModal } from './ZKTecoBridgeModal';
+import { dbService } from '../dbService';
 
 interface EmployeeInfoPageProps {
   employees: Employee[];
@@ -86,9 +87,11 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
   const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth());
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
   const [attendanceDate, setAttendanceDate] = useState<string>(new Date().toISOString().split('T')[0]);
-  const [attendanceSearchMode, setAttendanceSearchMode] = useState<'single' | 'range'>('single');
+  const [attendanceSearchMode, setAttendanceSearchMode] = useState<'single' | 'month' | 'range'>('single');
+  const [attendanceMonth, setAttendanceMonth] = useState<string>(new Date().toISOString().substring(0, 7));
   const [attendanceStartDate, setAttendanceStartDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [attendanceEndDate, setAttendanceEndDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [selectedEmpFilter, setSelectedEmpFilter] = useState<string>('all');
 
   const currentPeriodKey = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}`;
 
@@ -665,42 +668,73 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
     return dates;
   };
 
+  const getDatesForCurrentSearch = (): string[] => {
+    if (attendanceSearchMode === 'single') {
+      return [attendanceDate];
+    } else if (attendanceSearchMode === 'month') {
+      if (!attendanceMonth) return [];
+      const [yearStr, monthStr] = attendanceMonth.split('-');
+      const yr = parseInt(yearStr, 10);
+      const mo = parseInt(monthStr, 10) - 1;
+      const daysCount = new Date(yr, mo + 1, 0).getDate();
+      const dates: string[] = [];
+      for (let d = 1; d <= daysCount; d++) {
+        const dayPadded = String(d).padStart(2, '0');
+        const monthPadded = String(mo + 1).padStart(2, '0');
+        dates.push(`${yr}-${monthPadded}-${dayPadded}`);
+      }
+      return dates;
+    } else {
+      return getDatesInRange(attendanceStartDate, attendanceEndDate);
+    }
+  };
+
   const handleDownloadMachineData = async () => {
     setMachineCfg(prev => ({ ...prev, status: 'Syncing' }));
-    
-    setTimeout(async () => {
-      const datesToProcess = attendanceSearchMode === 'single' ? [attendanceDate] : getDatesInRange(attendanceStartDate, attendanceEndDate);
-      const updatedLog = { ...attendanceLog };
 
-      datesToProcess.forEach(dateKey => {
-        periodEmployees.forEach((emp, idx) => {
+    try {
+      // Load real state synced by zk_bridge.js from Cloud DB
+      const cloudData = await dbService.loadFromCloud();
+      
+      let updatedLog = { ...attendanceLog };
+      if (cloudData && cloudData.attendanceLog) {
+        updatedLog = { ...updatedLog, ...cloudData.attendanceLog };
+        setAttendanceLog(updatedLog);
+      }
+
+      const searchDates = getDatesForCurrentSearch();
+      let machineRecordsFound = 0;
+
+      searchDates.forEach(dateKey => {
+        periodEmployees.forEach(emp => {
           const key = `${dateKey}_${emp.emp_id}`;
-          if (!updatedLog[key] || !updatedLog[key].inTime) {
-            updatedLog[key] = {
-              status: 'Present',
-              inTime: '08:30',
-              outTime: '12:30',
-              inTime2: '13:30',
-              outTime2: '17:30',
-              isMachineRecord: true,
-              notes: `ZKTeco K50 Direct Auto-Sync (${new Date().toLocaleTimeString()})`
-            };
+          const record = updatedLog[key];
+          if (record && record.isMachineRecord) {
+            machineRecordsFound++;
           }
         });
       });
 
-      setAttendanceLog(updatedLog);
       if (performBlockingSync) {
         await performBlockingSync({ attendanceLog: updatedLog });
       }
 
       setMachineCfg(prev => ({ ...prev, status: 'Online', lastSync: new Date().toLocaleString() }));
-      alert(`✅ ZKTeco K50 ডিভাইস থেকে ${datesToProcess.length} দিনের সকল পাঞ্চ ডাটা সফলভাবে ডাউনলোড ও সিঙ্ক করা হয়েছে!`);
-    }, 800);
+
+      if (machineRecordsFound > 0) {
+        alert(`✅ জেকেটেকো কে৫০ ডিভাইস থেকে মোট ${machineRecordsFound} জন কর্মচারীর রিয়েল পাঞ্চ ডাটা রেকর্ড সফলভাবে সিঙ্ক ও রিফ্রেশ হয়েছে!`);
+      } else {
+        alert(`ℹ️ ক্লাউড ডাটাবেজ সফলভাবে রিফ্রেশ করা হয়েছে!\n\nবর্তমানে নির্বাচিত তারিখ (${searchDates.length} দিন)-এর জন্য নতুন কোনো রিয়েল পাঞ্চ রেকর্ড পাওয়া যায়নি।\n\nপিসিতে 'start_zk_agent.bat' ব্যাকগ্রাউন্ড অটো-সিঙ্ক ফাইলটি চালু রাখুন। কর্মচারীরা মেশিনে ফিঙ্গার দিলেই স্বয়ংক্রিয়ভাবে ক্লাউড ও সফটওয়্যারে তাদের রিয়েল সময় যুক্ত হয়ে যাবে।`);
+      }
+    } catch (err: any) {
+      console.error("Machine Sync Error:", err);
+      setMachineCfg(prev => ({ ...prev, status: 'Offline' }));
+      alert(`⚠️ ডাটাবেজ সিঙ্ক করতে সমস্যা হয়েছে: ${err?.message || 'নেটওয়ার্ক চেক করুন'}`);
+    }
   };
 
   const renderAttendanceTab = () => {
-    const datesList = attendanceSearchMode === 'single' ? [attendanceDate] : getDatesInRange(attendanceStartDate, attendanceEndDate);
+    const datesList = getDatesForCurrentSearch();
 
     return (
       <div className="bg-white dark:bg-slate-900 rounded-3xl p-8 border border-slate-200 dark:border-slate-800 shadow-xl animate-fade-in relative overflow-hidden space-y-6">
@@ -736,84 +770,93 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
             </div>
           </div>
 
-          <div className="flex flex-col lg:flex-row justify-between items-stretch lg:items-center border-b border-slate-100 dark:border-slate-800 pb-5 gap-4">
-              <div className="flex items-center gap-3 flex-wrap">
-                  <Activity size={24} className="text-blue-500" />
-                  <div>
-                    <h2 className="text-xl font-bold text-slate-800 dark:text-sky-100 uppercase tracking-tight">
-                      দৈনিক পাঞ্চ লেজার ও মাল্টি-পাঞ্চ সিস্টেম
-                    </h2>
-                    <p className="text-xs text-slate-400">এক দিনে একাধিকবার ইন/আউট (ইন ১, আউট ১, ইন ২, আউট ২) ও সঠিক মোট ডিউটি ঘণ্টা</p>
+                     {/* Date & Employee Filter Controls */}
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-slate-50 dark:bg-slate-950 p-3 rounded-2xl border border-slate-200 dark:border-slate-800">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <div className="flex bg-slate-200 dark:bg-slate-800 p-1 rounded-xl">
+                      <button
+                        onClick={() => setAttendanceSearchMode('single')}
+                        className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${attendanceSearchMode === 'single' ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
+                      >
+                        📅 একদিন
+                      </button>
+                      <button
+                        onClick={() => setAttendanceSearchMode('month')}
+                        className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${attendanceSearchMode === 'month' ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
+                      >
+                        🗓️ পুরো মাস
+                      </button>
+                      <button
+                        onClick={() => setAttendanceSearchMode('range')}
+                        className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${attendanceSearchMode === 'range' ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
+                      >
+                        📆 তারিখ রেঞ্জ
+                      </button>
+                    </div>
+
+                    {attendanceSearchMode === 'single' ? (
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-slate-400">তারিখ:</span>
+                        <input 
+                          type="date" 
+                          value={attendanceDate} 
+                          onChange={(e) => setAttendanceDate(e.target.value)} 
+                          className="bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl p-2 text-slate-800 dark:text-white font-bold outline-none text-xs" 
+                        />
+                      </div>
+                    ) : attendanceSearchMode === 'month' ? (
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs font-bold text-slate-400">মাস:</span>
+                        <input 
+                          type="month" 
+                          value={attendanceMonth} 
+                          onChange={(e) => setAttendanceMonth(e.target.value)} 
+                          className="bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl p-2 text-slate-800 dark:text-white font-bold outline-none text-xs" 
+                        />
+                        <span className="text-[11px] font-bold text-sky-400 bg-sky-950 px-2 py-1 rounded-lg border border-sky-800">
+                          {datesList.length} দিন (পুরো মাস)
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs font-bold text-slate-400">হতে:</span>
+                        <input 
+                          type="date" 
+                          value={attendanceStartDate} 
+                          onChange={(e) => setAttendanceStartDate(e.target.value)} 
+                          className="bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl p-2 text-slate-800 dark:text-white font-bold outline-none text-xs" 
+                        />
+                        <span className="text-xs font-bold text-slate-400">পর্যন্ত:</span>
+                        <input 
+                          type="date" 
+                          value={attendanceEndDate} 
+                          onChange={(e) => setAttendanceEndDate(e.target.value)} 
+                          className="bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl p-2 text-slate-800 dark:text-white font-bold outline-none text-xs" 
+                        />
+                        <span className="text-[11px] font-bold text-sky-400 bg-sky-950 px-2 py-1 rounded-lg border border-sky-800">
+                          {datesList.length} দিন সিলেক্টেড
+                        </span>
+                      </div>
+                    )}
                   </div>
 
-                  <div className="flex items-center gap-2 ml-auto lg:ml-4">
-                    <button 
-                      onClick={handleTestConnection} 
-                      className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold text-xs uppercase shadow-md flex items-center gap-2 transition-all active:scale-95"
+                  {/* Employee Selector Dropdown */}
+                  <div className="flex items-center gap-2 w-full sm:w-auto">
+                    <span className="text-xs font-bold text-slate-400 whitespace-nowrap">👤 কর্মচারী ফিল্টার:</span>
+                    <select
+                      value={selectedEmpFilter}
+                      onChange={(e) => setSelectedEmpFilter(e.target.value)}
+                      className="bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-slate-800 dark:text-white font-bold outline-none text-xs w-full sm:w-auto"
                     >
-                      📡 কানেকশন টেস্ট
-                    </button>
-                    <button 
-                      onClick={handleDownloadMachineData} 
-                      disabled={machineCfg.status === 'Syncing'}
-                      className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl font-black text-xs uppercase shadow-md flex items-center gap-2 transition-all active:scale-95 disabled:opacity-50"
-                    >
-                      <RefreshIcon size={14} className={machineCfg.status === 'Syncing' ? 'animate-spin' : ''}/> 
-                      {machineCfg.status === 'Syncing' ? 'ডাউনলোড হচ্ছে...' : '📥 মেশিন থেকে রিফ্রেশ/ডাউনলোড'}
-                    </button>
+                      <option value="all">👥 সকল কর্মচারী ({periodEmployees.length} জন)</option>
+                      {periodEmployees.map(e => (
+                        <option key={e.emp_id} value={e.emp_id}>
+                          👤 {e.emp_name} ({e.job_position || 'কর্মী'}) - HID: {e.machine_id || e.emp_id}
+                        </option>
+                      ))}
+                    </select>
                   </div>
               </div>
-
-              {/* Date Filter Controls (Single Date vs Date Range Search) */}
-              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 bg-slate-50 dark:bg-slate-950 p-3 rounded-2xl border border-slate-200 dark:border-slate-800">
-                  <div className="flex bg-slate-200 dark:bg-slate-800 p-1 rounded-xl">
-                    <button
-                      onClick={() => setAttendanceSearchMode('single')}
-                      className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${attendanceSearchMode === 'single' ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
-                    >
-                      📅 একদিন
-                    </button>
-                    <button
-                      onClick={() => setAttendanceSearchMode('range')}
-                      className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${attendanceSearchMode === 'range' ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
-                    >
-                      🗓️ তারিখ রেঞ্জ
-                    </button>
-                  </div>
-
-                  {attendanceSearchMode === 'single' ? (
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-slate-400">তারিখ:</span>
-                      <input 
-                        type="date" 
-                        value={attendanceDate} 
-                        onChange={(e) => setAttendanceDate(e.target.value)} 
-                        className="bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl p-2 text-slate-800 dark:text-white font-bold outline-none text-xs" 
-                      />
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-xs font-bold text-slate-400">হতে:</span>
-                      <input 
-                        type="date" 
-                        value={attendanceStartDate} 
-                        onChange={(e) => setAttendanceStartDate(e.target.value)} 
-                        className="bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl p-2 text-slate-800 dark:text-white font-bold outline-none text-xs" 
-                      />
-                      <span className="text-xs font-bold text-slate-400">পর্যন্ত:</span>
-                      <input 
-                        type="date" 
-                        value={attendanceEndDate} 
-                        onChange={(e) => setAttendanceEndDate(e.target.value)} 
-                        className="bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl p-2 text-slate-800 dark:text-white font-bold outline-none text-xs" 
-                      />
-                      <span className="text-[11px] font-bold text-sky-400 bg-sky-950 px-2 py-1 rounded-lg border border-sky-800">
-                        {datesList.length} দিন সিলেক্টেড
-                      </span>
-                    </div>
-                  )}
-              </div>
-          </div>
 
           {/* Excel Centered Grid Table */}
           <div className="overflow-x-auto rounded-xl border border-slate-300 dark:border-slate-700 shadow-sm">
@@ -821,8 +864,8 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
                   <thead className="bg-slate-100 dark:bg-slate-950 text-slate-800 dark:text-sky-300 font-bold border-b border-slate-300 dark:border-slate-700">
                       <tr>
                         <th className="p-3 border-r border-slate-300 dark:border-slate-700 w-12">সিরিয়াল</th>
-                        <th className="p-3 border-r border-slate-300 dark:border-slate-700 text-left">কর্মচারীর নাম</th>
-                        <th className="p-3 border-r border-slate-300 dark:border-slate-700 text-left">পদবী</th>
+                        <th className="p-3 border-r border-slate-300 dark:border-slate-700 text-left">কর্মচারীর নাম / তারিখ</th>
+                        <th className="p-3 border-r border-slate-300 dark:border-slate-700 text-left">পদবী / বার</th>
                         <th className="p-3 border-r border-slate-300 dark:border-slate-700 w-20">মেশিন HID</th>
                         <th className="p-2 border-r border-slate-300 dark:border-slate-700 w-24">ইন ১</th>
                         <th className="p-2 border-r border-slate-300 dark:border-slate-700 w-24">আউট ১</th>
@@ -836,7 +879,111 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
                       </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-300 dark:divide-slate-800 text-slate-800 dark:text-slate-200">
-                      {periodEmployees.map((emp, index) => {
+                      {selectedEmpFilter !== 'all' && (attendanceSearchMode === 'month' || attendanceSearchMode === 'range') ? (
+                        // Individual Employee Day-by-Day Log View
+                        (() => {
+                          const empObj = periodEmployees.find(e => e.emp_id === selectedEmpFilter);
+                          if (!empObj) return null;
+
+                          const daysNames = ['রবিবার', 'সোমবার', 'মঙ্গলবার', 'বুধবার', 'বৃহস্পতিবার', 'শুক্রবার', 'শনিবার'];
+
+                          return datesList.map((d, index) => {
+                            const dt = new Date(d);
+                            const dayName = daysNames[dt.getDay()];
+                            const key = `${d}_${empObj.emp_id}`;
+                            const record = (attendanceLog || {})[key] || { status: '', inTime: '', outTime: '', inTime2: '', outTime2: '', inTime3: '', outTime3: '', notes: '' };
+                            const duty = calculateDutyHours(record.inTime, record.outTime, record.inTime2, record.outTime2, record.inTime3, record.outTime3);
+
+                            return (
+                              <tr key={d} className={`hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-all ${record.isMachineRecord ? 'bg-amber-500/10' : ''}`}>
+                                  <td className="p-3 border-r border-slate-300 dark:border-slate-800 font-bold font-mono">{index + 1}</td>
+                                  <td className="p-3 border-r border-slate-300 dark:border-slate-800 font-bold text-left font-mono text-slate-900 dark:text-white">
+                                    {d}
+                                    {record.isMachineRecord && <span className="text-[9px] bg-amber-600 text-white px-1.5 py-0.5 rounded font-black ml-2 uppercase">ZKTeco</span>}
+                                  </td>
+                                  <td className="p-3 border-r border-slate-300 dark:border-slate-800 text-left text-slate-600 dark:text-slate-400 font-bold">{dayName}</td>
+                                  <td className="p-3 border-r border-slate-300 dark:border-slate-800 font-mono font-bold text-amber-600">{empObj.machine_id || '---'}</td>
+                                  
+                                  {/* Session 1 */}
+                                  <td className="p-1.5 border-r border-slate-300 dark:border-slate-800">
+                                    <input 
+                                      type="time" 
+                                      value={record.inTime || ''} 
+                                      onChange={(e) => setAttendanceLog && setAttendanceLog({...attendanceLog, [key]: {...record, inTime: e.target.value, isMachineRecord: false}})} 
+                                      className="bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded p-1 text-center font-bold text-slate-800 dark:text-white text-xs w-full" 
+                                    />
+                                  </td>
+                                  <td className="p-1.5 border-r border-slate-300 dark:border-slate-800">
+                                    <input 
+                                      type="time" 
+                                      value={record.outTime || ''} 
+                                      onChange={(e) => setAttendanceLog && setAttendanceLog({...attendanceLog, [key]: {...record, outTime: e.target.value, isMachineRecord: false}})} 
+                                      className="bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded p-1 text-center font-bold text-slate-800 dark:text-white text-xs w-full" 
+                                    />
+                                  </td>
+
+                                  {/* Session 2 */}
+                                  <td className="p-1.5 border-r border-slate-300 dark:border-slate-800">
+                                    <input 
+                                      type="time" 
+                                      value={record.inTime2 || ''} 
+                                      onChange={(e) => setAttendanceLog && setAttendanceLog({...attendanceLog, [key]: {...record, inTime2: e.target.value, isMachineRecord: false}})} 
+                                      className="bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded p-1 text-center font-bold text-slate-800 dark:text-white text-xs w-full" 
+                                    />
+                                  </td>
+                                  <td className="p-1.5 border-r border-slate-300 dark:border-slate-800">
+                                    <input 
+                                      type="time" 
+                                      value={record.outTime2 || ''} 
+                                      onChange={(e) => setAttendanceLog && setAttendanceLog({...attendanceLog, [key]: {...record, outTime2: e.target.value, isMachineRecord: false}})} 
+                                      className="bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded p-1 text-center font-bold text-slate-800 dark:text-white text-xs w-full" 
+                                    />
+                                  </td>
+
+                                  {/* Session 3 */}
+                                  <td className="p-1.5 border-r border-slate-300 dark:border-slate-800">
+                                    <input 
+                                      type="time" 
+                                      value={record.inTime3 || ''} 
+                                      onChange={(e) => setAttendanceLog && setAttendanceLog({...attendanceLog, [key]: {...record, inTime3: e.target.value, isMachineRecord: false}})} 
+                                      className="bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded p-1 text-center font-bold text-slate-800 dark:text-white text-xs w-full" 
+                                    />
+                                  </td>
+                                  <td className="p-1.5 border-r border-slate-300 dark:border-slate-800">
+                                    <input 
+                                      type="time" 
+                                      value={record.outTime3 || ''} 
+                                      onChange={(e) => setAttendanceLog && setAttendanceLog({...attendanceLog, [key]: {...record, outTime3: e.target.value, isMachineRecord: false}})} 
+                                      className="bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded p-1 text-center font-bold text-slate-800 dark:text-white text-xs w-full" 
+                                    />
+                                  </td>
+
+                                  <td className="p-3 border-r border-slate-300 dark:border-slate-800 font-black text-indigo-400 bg-indigo-950/20">
+                                    {duty.formatted}
+                                  </td>
+                                  <td className="p-3 border-r border-slate-300 dark:border-slate-800">
+                                    <select 
+                                      value={record.status || ''} 
+                                      onChange={(e) => setAttendanceLog && setAttendanceLog({...attendanceLog, [key]: {...record, status: e.target.value as any, isMachineRecord: false}})} 
+                                      className="bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg px-2 py-1 text-xs font-bold text-slate-800 dark:text-white w-full text-center"
+                                    >
+                                      <option value="">-- সিলেক্ট --</option>
+                                      <option value="Present">Present</option>
+                                      <option value="Absent">Absent</option>
+                                      <option value="Late">Late</option>
+                                      <option value="Leave">Leave</option>
+                                    </select>
+                                  </td>
+                                  <td className="p-3 text-left text-slate-400 text-[11px]">
+                                    {record.notes || 'কোনো পাঞ্চ নোট নেই'}
+                                  </td>
+                              </tr>
+                            );
+                          });
+                        })()
+                      ) : (
+                        // Standard All Employees View or Single Date View
+                        (selectedEmpFilter === 'all' ? periodEmployees : periodEmployees.filter(e => e.emp_id === selectedEmpFilter)).map((emp, index) => {
                           if (attendanceSearchMode === 'single') {
                             const key = `${attendanceDate}_${emp.emp_id}`;
                             const record = (attendanceLog || {})[key] || { status: '', inTime: '', outTime: '', inTime2: '', outTime2: '', inTime3: '', outTime3: '', notes: '' };
@@ -955,7 +1102,7 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
                                   <td className="p-3 border-r border-slate-300 dark:border-slate-800 font-mono font-bold text-amber-600">{emp.machine_id || '---'}</td>
                                   
                                   <td colSpan={6} className="p-3 border-r border-slate-300 dark:border-slate-800 text-slate-400 font-bold italic">
-                                    {attendanceStartDate} হতে {attendanceEndDate} ({datesList.length} দিনে উপস্থিত: <span className="text-emerald-400 font-black">{presentDaysCount} দিন</span>)
+                                    {datesList[0]} হতে {datesList[datesList.length - 1]} ({datesList.length} দিনে উপস্থিত: <span className="text-emerald-400 font-black">{presentDaysCount} দিন</span>)
                                   </td>
 
                                   <td className="p-3 border-r border-slate-300 dark:border-slate-800 font-black text-indigo-400 bg-indigo-950/40 text-sm">
@@ -970,7 +1117,8 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
                               </tr>
                             );
                           }
-                      })}
+                        })
+                      )}
                   </tbody>
               </table>
           </div>
@@ -980,7 +1128,9 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
 
   const renderMonthlyReportTab = () => {
     const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
-    
+    const monthName = monthOptions.find(m => m.value === selectedMonth)?.name || '';
+
+    // Calculate monthly stats for all period employees
     const staffMonthlyStats = periodEmployees.map((emp, index) => {
       let presentDays = 0;
       let absentDays = 0;
@@ -999,8 +1149,8 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
           else if (rec.status === 'Late') lateDays++;
           else if (rec.status === 'Leave') leaveDays++;
 
-          if (rec.inTime && rec.outTime) {
-            const duty = calculateDutyHours(rec.inTime, rec.outTime);
+          if (rec.inTime || rec.outTime || rec.inTime2 || rec.outTime2 || rec.inTime3 || rec.outTime3) {
+            const duty = calculateDutyHours(rec.inTime, rec.outTime, rec.inTime2, rec.outTime2, rec.inTime3, rec.outTime3);
             totalMinutesWorked += duty.totalMinutes;
           }
         }
@@ -1017,32 +1167,61 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
         empName: emp.emp_name,
         position: emp.job_position || '---',
         machineId: emp.machine_id || '---',
+        phone: emp.phone_number || '---',
+        joiningDate: emp.joining_date || '---',
         presentDays,
         absentDays,
         lateDays,
         leaveDays,
         totalDutyStr,
+        totalMinutesWorked,
         avgHoursPerDay
       };
     });
+
+    const singleEmpObj = selectedEmpFilter !== 'all' ? periodEmployees.find(e => e.emp_id === selectedEmpFilter) : null;
+    const singleEmpStats = singleEmpObj ? staffMonthlyStats.find(s => s.empId === singleEmpObj.emp_id) : null;
 
     const handlePrint = () => {
       window.print();
     };
 
     const handleExportCSV = () => {
-      const monthName = monthOptions.find(m => m.value === selectedMonth)?.name || '';
       let csvContent = "data:text/csv;charset=utf-8,";
-      csvContent += `SL,Employee Name,Designation,HID,Present Days,Absent Days,Late Days,Leave Days,Total Duty Hours,Avg Hours/Day\n`;
-      
-      staffMonthlyStats.forEach(s => {
-        csvContent += `"${s.sl}","${s.empName}","${s.position}","${s.machineId}",${s.presentDays},${s.absentDays},${s.lateDays},${s.leaveDays},"${s.totalDutyStr}",${s.avgHoursPerDay}\n`;
-      });
+
+      if (singleEmpObj && singleEmpStats) {
+        // Single Employee Detailed CSV
+        csvContent += `Monthly Attendance Statement for ${singleEmpObj.emp_name}\n`;
+        csvContent += `Employee ID,${singleEmpObj.emp_id},Designation,${singleEmpObj.job_position || '---'},Machine HID,${singleEmpObj.machine_id || '---'}\n`;
+        csvContent += `Month,${monthName} ${selectedYear},Total Duty,${singleEmpStats.totalDutyStr},Present Days,${singleEmpStats.presentDays}\n\n`;
+        csvContent += `Date,Day,HID,In Time 1,Out Time 1,In Time 2,Out Time 2,Duty Hours,Status,Notes\n`;
+
+        const daysNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        for (let d = 1; d <= daysInMonth; d++) {
+          const dateStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+          const dt = new Date(dateStr);
+          const dayName = daysNames[dt.getDay()];
+          const key = `${dateStr}_${singleEmpObj.emp_id}`;
+          const rec = (attendanceLog || {})[key] || { status: '', inTime: '', outTime: '', inTime2: '', outTime2: '', notes: '' };
+          const duty = calculateDutyHours(rec.inTime, rec.outTime, rec.inTime2, rec.outTime2, rec.inTime3, rec.outTime3);
+
+          csvContent += `"${dateStr}","${dayName}","${singleEmpObj.machine_id || '---'}","${rec.inTime || ''}","${rec.outTime || ''}","${rec.inTime2 || ''}","${rec.outTime2 || ''}","${duty.formatted}","${rec.status || ''}","${rec.notes || ''}"\n`;
+        }
+      } else {
+        // All Employees Summary CSV
+        csvContent += `SL,Employee Name,Designation,HID,Present Days,Absent Days,Late Days,Leave Days,Total Duty Hours,Avg Hours/Day\n`;
+        staffMonthlyStats.forEach(s => {
+          csvContent += `"${s.sl}","${s.empName}","${s.position}","${s.machineId}",${s.presentDays},${s.absentDays},${s.lateDays},${s.leaveDays},"${s.totalDutyStr}",${s.avgHoursPerDay}\n`;
+        });
+      }
 
       const encodedUri = encodeURI(csvContent);
       const link = document.createElement("a");
       link.setAttribute("href", encodedUri);
-      link.setAttribute("download", `Monthly_Attendance_Report_${monthName}_${selectedYear}.csv`);
+      const fileName = singleEmpObj 
+        ? `Attendance_Report_${singleEmpObj.emp_name.replace(/\s+/g, '_')}_${monthName}_${selectedYear}.csv`
+        : `Monthly_Attendance_Report_${monthName}_${selectedYear}.csv`;
+      link.setAttribute("download", fileName);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -1051,17 +1230,35 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
     return (
       <div className="bg-white dark:bg-slate-900 rounded-3xl p-8 border border-slate-200 dark:border-slate-800 shadow-xl animate-fade-in relative">
         {/* Header Controls */}
-        <div className="flex flex-col md:flex-row justify-between items-center mb-8 border-b border-slate-200 dark:border-slate-800 pb-5 gap-4 no-print">
+        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-8 border-b border-slate-200 dark:border-slate-800 pb-5 gap-4 no-print">
           <div>
             <h2 className="text-xl font-black text-slate-800 dark:text-sky-100 uppercase tracking-tight flex items-center gap-2">
-              📊 মাসের পূর্ণাঙ্গ কর্মচারী হাজিরা ও ডিউটি আওয়ার রিপোর্ট
+              📊 {singleEmpObj ? `${singleEmpObj.emp_name}-এর মাসিক হাজিরা ও রিপোর্ট` : 'মাসের পূর্ণাঙ্গ কর্মচারী হাজিরা ও ডিউটি আওয়ার রিপোর্ট'}
             </h2>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-              মাসিক রিপোর্ট তৈরি, প্রিন্ট ও এক্সেল ফাইল ডাউনলোড করুন।
+              মাসিক রিপোর্ট তৈরি, নির্দিষ্ট কর্মীর ফিল্টার, প্রিন্ট ও এক্সেল ফাইল ডাউনলোড করুন।
             </p>
           </div>
 
-          <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-3 flex-wrap w-full lg:w-auto justify-end">
+            {/* Employee Filter */}
+            <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700">
+              <span className="text-xs font-bold text-slate-500 dark:text-slate-400 pl-1">কর্মচারী:</span>
+              <select 
+                value={selectedEmpFilter} 
+                onChange={(e) => setSelectedEmpFilter(e.target.value)} 
+                className="bg-transparent font-bold text-xs text-slate-800 dark:text-white px-2 py-1 outline-none max-w-[200px] truncate"
+              >
+                <option value="all" className="bg-slate-900 text-white">👥 সকল কর্মচারী ({periodEmployees.length} জন)</option>
+                {periodEmployees.map(e => (
+                  <option key={e.emp_id} value={e.emp_id} className="bg-slate-900 text-white">
+                    👤 {e.emp_name} ({e.job_position || 'কর্মী'}) - HID: {e.machine_id || e.emp_id}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Month & Year Filter */}
             <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700">
               <select 
                 value={selectedMonth} 
@@ -1083,70 +1280,182 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
               onClick={handlePrint}
               className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-xl shadow transition-all flex items-center gap-2 active:scale-95"
             >
-              🖨️ প্রিন্ট রিপোর্ট
+              🖨️ প্রিন্ট
             </button>
             <button
               onClick={handleExportCSV}
               className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow transition-all flex items-center gap-2 active:scale-95"
             >
-              📥 এক্সেল ফাইল ডাউনলোড
+              📥 এক্সেল ডাউনলোড
             </button>
           </div>
         </div>
 
-        {/* Printable Document Title */}
+        {/* Printable Header Title */}
         <div className="text-center mb-6 pb-4 border-b border-slate-300 dark:border-slate-800">
           <h1 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">
             নিরাময় ক্লিনিক এন্ড ডায়াগনস্টিক
           </h1>
           <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mt-1">
-            কর্মচারীদের মাসিক হাজিরা ও ডিউটি সময় বিবরণী - {(monthOptions.find(m => m.value === selectedMonth) || monthOptions[0]).name} {selectedYear}
+            {singleEmpObj ? `${singleEmpObj.emp_name}-এর ব্যক্তিগত মাসিক হাজিরা ও ডিউটি সময় বিবরণী` : 'কর্মচারীদের সার্বিক মাসিক হাজিরা ও ডিউটি সময় বিবরণী'} - {monthName} {selectedYear}
           </p>
         </div>
 
-        {/* Excel Grid Table */}
-        <div className="overflow-x-auto rounded-xl border border-slate-300 dark:border-slate-700 shadow-sm">
-          <table className="w-full text-center border-collapse text-xs font-sans">
-            <thead className="bg-slate-100 dark:bg-slate-950 text-slate-800 dark:text-sky-300 font-bold border-b border-slate-300 dark:border-slate-700">
-              <tr>
-                <th className="p-3 border-r border-slate-300 dark:border-slate-700 w-12">সিরিয়াল</th>
-                <th className="p-3 border-r border-slate-300 dark:border-slate-700 text-left">কর্মচারীর নাম</th>
-                <th className="p-3 border-r border-slate-300 dark:border-slate-700 text-left">পদবী</th>
-                <th className="p-3 border-r border-slate-300 dark:border-slate-700">মেশিন HID</th>
-                <th className="p-3 border-r border-slate-300 dark:border-slate-700 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">উপস্থিত (দিন)</th>
-                <th className="p-3 border-r border-slate-300 dark:border-slate-700 bg-rose-500/10 text-rose-600 dark:text-rose-400">অনুপস্থিত (দিন)</th>
-                <th className="p-3 border-r border-slate-300 dark:border-slate-700 bg-amber-500/10 text-amber-600 dark:text-amber-400">লেট (দিন)</th>
-                <th className="p-3 border-r border-slate-300 dark:border-slate-700 bg-sky-500/10 text-sky-600 dark:text-sky-400">ছুটি (দিন)</th>
-                <th className="p-3 border-r border-slate-300 dark:border-slate-700 font-black text-indigo-600 dark:text-indigo-300">মোট ডিউটি ঘন্টা</th>
-                <th className="p-3">দৈনিক গড় ঘণ্টা</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-300 dark:divide-slate-800 text-slate-800 dark:text-slate-200">
-              {staffMonthlyStats.length === 0 ? (
-                <tr>
-                  <td colSpan={10} className="p-6 text-slate-400 italic">
-                    এই মাসের জন্য কোনো সক্রিয় কর্মচারী তালিকাভুক্ত নেই।
-                  </td>
-                </tr>
-              ) : (
-                staffMonthlyStats.map((row) => (
-                  <tr key={row.empId} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
-                    <td className="p-3 border-r border-slate-300 dark:border-slate-800 font-bold font-mono">{row.sl}</td>
-                    <td className="p-3 border-r border-slate-300 dark:border-slate-800 font-bold text-left uppercase text-slate-900 dark:text-white">{row.empName}</td>
-                    <td className="p-3 border-r border-slate-300 dark:border-slate-800 text-left text-slate-600 dark:text-slate-400">{row.position}</td>
-                    <td className="p-3 border-r border-slate-300 dark:border-slate-800 font-mono font-bold text-amber-600">{row.machineId}</td>
-                    <td className="p-3 border-r border-slate-300 dark:border-slate-800 font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50/30 dark:bg-emerald-950/20">{row.presentDays}</td>
-                    <td className="p-3 border-r border-slate-300 dark:border-slate-800 font-bold text-rose-600 dark:text-rose-400 bg-rose-50/30 dark:bg-rose-950/20">{row.absentDays}</td>
-                    <td className="p-3 border-r border-slate-300 dark:border-slate-800 font-bold text-amber-600 dark:text-amber-400 bg-amber-50/30 dark:bg-amber-950/20">{row.lateDays}</td>
-                    <td className="p-3 border-r border-slate-300 dark:border-slate-800 font-bold text-sky-600 dark:text-sky-400 bg-sky-50/30 dark:bg-sky-950/20">{row.leaveDays}</td>
-                    <td className="p-3 border-r border-slate-300 dark:border-slate-800 font-black text-indigo-600 dark:text-indigo-300 bg-indigo-50/30 dark:bg-indigo-950/20">{row.totalDutyStr}</td>
-                    <td className="p-3 font-mono font-bold">{row.avgHoursPerDay} hrs</td>
+        {/* VIEW 1: Single Employee Individual Statement Card & Day-by-Day Table */}
+        {singleEmpObj && singleEmpStats ? (
+          <div className="space-y-6">
+            {/* Employee Profile Summary Card */}
+            <div className="bg-slate-50 dark:bg-slate-950 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+              <div className="col-span-2">
+                <span className="text-[10px] font-bold text-slate-400 uppercase block">কর্মচারীর নাম</span>
+                <span className="text-base font-black text-indigo-600 dark:text-indigo-400 uppercase">{singleEmpObj.emp_name}</span>
+                <span className="text-xs text-slate-500 block">{singleEmpObj.job_position || 'কর্মী'}</span>
+              </div>
+              <div>
+                <span className="text-[10px] font-bold text-slate-400 uppercase block">মেশিন HID</span>
+                <span className="text-sm font-black font-mono text-amber-500">{singleEmpObj.machine_id || '---'}</span>
+              </div>
+              <div>
+                <span className="text-[10px] font-bold text-slate-400 uppercase block">ফোন নম্বর</span>
+                <span className="text-xs font-bold text-slate-700 dark:text-slate-300">{singleEmpObj.phone_number || '---'}</span>
+              </div>
+              <div>
+                <span className="text-[10px] font-bold text-slate-400 uppercase block">যোগদানের তারিখ</span>
+                <span className="text-xs font-bold text-slate-700 dark:text-slate-300">{singleEmpObj.joining_date || '---'}</span>
+              </div>
+              <div>
+                <span className="text-[10px] font-bold text-slate-400 uppercase block">মোট ডিউটি ঘন্টা</span>
+                <span className="text-xs font-black text-indigo-400 bg-indigo-950/40 px-2 py-0.5 rounded">{singleEmpStats.totalDutyStr}</span>
+              </div>
+            </div>
+
+            {/* Quick Stat Badges */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-center">
+                <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 block uppercase">উপস্থিত</span>
+                <span className="text-lg font-black text-emerald-600 dark:text-emerald-400">{singleEmpStats.presentDays} দিন</span>
+              </div>
+              <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl text-center">
+                <span className="text-[10px] font-bold text-rose-600 dark:text-rose-400 block uppercase">অনুপস্থিত</span>
+                <span className="text-lg font-black text-rose-600 dark:text-rose-400">{singleEmpStats.absentDays} দিন</span>
+              </div>
+              <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-center">
+                <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 block uppercase">লেট আগমন</span>
+                <span className="text-lg font-black text-amber-600 dark:text-amber-400">{singleEmpStats.lateDays} দিন</span>
+              </div>
+              <div className="p-3 bg-sky-500/10 border border-sky-500/20 rounded-xl text-center">
+                <span className="text-[10px] font-bold text-sky-600 dark:text-sky-400 block uppercase">ছুটি</span>
+                <span className="text-lg font-black text-sky-600 dark:text-sky-400">{singleEmpStats.leaveDays} দিন</span>
+              </div>
+            </div>
+
+            {/* Day by Day Log Table */}
+            <div className="overflow-x-auto rounded-xl border border-slate-300 dark:border-slate-700 shadow-sm">
+              <table className="w-full text-center border-collapse text-xs font-sans">
+                <thead className="bg-slate-100 dark:bg-slate-950 text-slate-800 dark:text-sky-300 font-bold border-b border-slate-300 dark:border-slate-700">
+                  <tr>
+                    <th className="p-3 border-r border-slate-300 dark:border-slate-700 w-12">তারিখ</th>
+                    <th className="p-3 border-r border-slate-300 dark:border-slate-700 w-24">বার</th>
+                    <th className="p-3 border-r border-slate-300 dark:border-slate-700 w-20">ইন ১</th>
+                    <th className="p-3 border-r border-slate-300 dark:border-slate-700 w-20">আউট ১</th>
+                    <th className="p-3 border-r border-slate-300 dark:border-slate-700 w-20">ইন ২</th>
+                    <th className="p-3 border-r border-slate-300 dark:border-slate-700 w-20">আউট ২</th>
+                    <th className="p-3 border-r border-slate-300 dark:border-slate-700 w-28 font-black text-indigo-600 dark:text-indigo-400 bg-indigo-950/20">ডিউটি ঘণ্টা</th>
+                    <th className="p-3 border-r border-slate-300 dark:border-slate-700 w-24">স্ট্যাটাস</th>
+                    <th className="p-3 text-left">পাঞ্চ নোট</th>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                </thead>
+                <tbody className="divide-y divide-slate-300 dark:divide-slate-800 text-slate-800 dark:text-slate-200">
+                  {(() => {
+                    const daysNames = ['রবিবার', 'সোমবার', 'মঙ্গলবার', 'বুধবার', 'বৃহস্পতিবার', 'শুক্রবার', 'শনিবার'];
+                    const rows = [];
+
+                    for (let d = 1; d <= daysInMonth; d++) {
+                      const dateStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                      const dt = new Date(dateStr);
+                      const dayName = daysNames[dt.getDay()];
+                      const key = `${dateStr}_${singleEmpObj.emp_id}`;
+                      const rec = (attendanceLog || {})[key] || { status: '', inTime: '', outTime: '', inTime2: '', outTime2: '', inTime3: '', outTime3: '', notes: '' };
+                      const duty = calculateDutyHours(rec.inTime, rec.outTime, rec.inTime2, rec.outTime2, rec.inTime3, rec.outTime3);
+
+                      rows.push(
+                        <tr key={dateStr} className={`hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors ${rec.isMachineRecord ? 'bg-amber-500/10' : ''}`}>
+                          <td className="p-3 border-r border-slate-300 dark:border-slate-800 font-bold font-mono text-left">{dateStr}</td>
+                          <td className="p-3 border-r border-slate-300 dark:border-slate-800 text-slate-500 font-bold">{dayName}</td>
+                          <td className="p-3 border-r border-slate-300 dark:border-slate-800 font-mono">{rec.inTime || '---'}</td>
+                          <td className="p-3 border-r border-slate-300 dark:border-slate-800 font-mono">{rec.outTime || '---'}</td>
+                          <td className="p-3 border-r border-slate-300 dark:border-slate-800 font-mono">{rec.inTime2 || '---'}</td>
+                          <td className="p-3 border-r border-slate-300 dark:border-slate-800 font-mono">{rec.outTime2 || '---'}</td>
+                          <td className="p-3 border-r border-slate-300 dark:border-slate-800 font-black text-indigo-400 bg-indigo-950/20">{duty.formatted}</td>
+                          <td className="p-3 border-r border-slate-300 dark:border-slate-800">
+                            {rec.status === 'Present' && <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-400 font-bold rounded">Present</span>}
+                            {rec.status === 'Absent' && <span className="px-2 py-0.5 bg-rose-500/20 text-rose-400 font-bold rounded">Absent</span>}
+                            {rec.status === 'Late' && <span className="px-2 py-0.5 bg-amber-500/20 text-amber-400 font-bold rounded">Late</span>}
+                            {rec.status === 'Leave' && <span className="px-2 py-0.5 bg-sky-500/20 text-sky-400 font-bold rounded">Leave</span>}
+                            {!rec.status && <span className="text-slate-500">---</span>}
+                          </td>
+                          <td className="p-3 text-left text-slate-400 text-[11px]">{rec.notes || '---'}</td>
+                        </tr>
+                      );
+                    }
+                    return rows;
+                  })()}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : (
+          /* VIEW 2: All Employees Monthly Overview Grid Table */
+          <div className="overflow-x-auto rounded-xl border border-slate-300 dark:border-slate-700 shadow-sm">
+            <table className="w-full text-center border-collapse text-xs font-sans">
+              <thead className="bg-slate-100 dark:bg-slate-950 text-slate-800 dark:text-sky-300 font-bold border-b border-slate-300 dark:border-slate-700">
+                <tr>
+                  <th className="p-3 border-r border-slate-300 dark:border-slate-700 w-12">সিরিয়াল</th>
+                  <th className="p-3 border-r border-slate-300 dark:border-slate-700 text-left">কর্মচারীর নাম</th>
+                  <th className="p-3 border-r border-slate-300 dark:border-slate-700 text-left">পদবী</th>
+                  <th className="p-3 border-r border-slate-300 dark:border-slate-700">মেশিন HID</th>
+                  <th className="p-3 border-r border-slate-300 dark:border-slate-700 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">উপস্থিত (দিন)</th>
+                  <th className="p-3 border-r border-slate-300 dark:border-slate-700 bg-rose-500/10 text-rose-600 dark:text-rose-400">অনুপস্থিত (দিন)</th>
+                  <th className="p-3 border-r border-slate-300 dark:border-slate-700 bg-amber-500/10 text-amber-600 dark:text-amber-400">লেট (দিন)</th>
+                  <th className="p-3 border-r border-slate-300 dark:border-slate-700 bg-sky-500/10 text-sky-600 dark:text-sky-400">ছুটি (দিন)</th>
+                  <th className="p-3 border-r border-slate-300 dark:border-slate-700 font-black text-indigo-600 dark:text-indigo-300">মোট ডিউটি ঘন্টা</th>
+                  <th className="p-3">দৈনিক গড় ঘণ্টা</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-300 dark:divide-slate-800 text-slate-800 dark:text-slate-200">
+                {staffMonthlyStats.length === 0 ? (
+                  <tr>
+                    <td colSpan={10} className="p-6 text-slate-400 italic">
+                      এই মাসের জন্য কোনো সক্রিয় কর্মচারী তালিকাভুক্ত নেই।
+                    </td>
+                  </tr>
+                ) : (
+                  staffMonthlyStats.map((row) => (
+                    <tr 
+                      key={row.empId} 
+                      onClick={() => setSelectedEmpFilter(row.empId)}
+                      className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors cursor-pointer group"
+                      title="কর্মচারীর ব্যক্তিগত রিপোর্ট দেখতে ক্লিক করুন"
+                    >
+                      <td className="p-3 border-r border-slate-300 dark:border-slate-800 font-bold font-mono">{row.sl}</td>
+                      <td className="p-3 border-r border-slate-300 dark:border-slate-800 font-bold text-left uppercase text-slate-900 dark:text-white group-hover:text-indigo-400 transition-colors">
+                        {row.empName}
+                      </td>
+                      <td className="p-3 border-r border-slate-300 dark:border-slate-800 text-left text-slate-600 dark:text-slate-400">{row.position}</td>
+                      <td className="p-3 border-r border-slate-300 dark:border-slate-800 font-mono font-bold text-amber-600">{row.machineId}</td>
+                      <td className="p-3 border-r border-slate-300 dark:border-slate-800 font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50/30 dark:bg-emerald-950/20">{row.presentDays}</td>
+                      <td className="p-3 border-r border-slate-300 dark:border-slate-800 font-bold text-rose-600 dark:text-rose-400 bg-rose-50/30 dark:bg-rose-950/20">{row.absentDays}</td>
+                      <td className="p-3 border-r border-slate-300 dark:border-slate-800 font-bold text-amber-600 dark:text-amber-400 bg-amber-50/30 dark:bg-amber-950/20">{row.lateDays}</td>
+                      <td className="p-3 border-r border-slate-300 dark:border-slate-800 font-bold text-sky-600 dark:text-sky-400 bg-sky-50/30 dark:bg-sky-950/20">{row.leaveDays}</td>
+                      <td className="p-3 border-r border-slate-300 dark:border-slate-800 font-black text-indigo-600 dark:text-indigo-300 bg-indigo-50/30 dark:bg-indigo-950/20">{row.totalDutyStr}</td>
+                      <td className="p-3 font-mono font-bold">{row.avgHoursPerDay} hrs</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
 
         {/* Signature Box for Print */}
         <div className="hidden print:flex justify-between items-center mt-16 pt-8 border-t border-slate-300 text-xs font-bold text-slate-700">
