@@ -639,7 +639,7 @@ const DailyExpenseForm: React.FC<any> = ({
         const subTotal = batchItems.reduce((acc, r) => acc + (Number(r.qty) * Number(r.unitPrice)), 0);
         const netPayable = subTotal - discount;
 
-        let updatedReagents = [...reagents];
+        const updatedReagents = [...reagents];
         
         // Revert old stock if editing an existing batch purchase
         if (existingItem && existingItem.metadata?.isBatchPurchase && Array.isArray(existingItem.metadata.items)) {
@@ -654,25 +654,39 @@ const DailyExpenseForm: React.FC<any> = ({
             });
         }
         
-        batchItems.forEach(b => {
-            if(b.isNew) {
-                const newId = `rg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-                b.reagentId = newId; 
-                updatedReagents.push({
-                    reagent_id: newId,
-                    reagent_name: b.newReagentName,
-                    quantity: Number(b.qty) || 0,
-                    unit: b.newUnit || 'Bottle',
-                    availability: true,
-                    company: b.newCompany || '',
-                    capacity_per_unit: b.newCapacity || '',
-                    linked_test: b.linkedTest || '',
-                    linked_category: b.linkedCategory || '',
-                    usage_start_date: b.usageStartDate || ''
-                });
+        batchItems.forEach((b, idx) => {
+            if (b.isNew) {
+                const nameToMatch = (b.newReagentName || '').trim();
+                const existingIdx = updatedReagents.findIndex(rg => rg.reagent_name.trim().toLowerCase() === nameToMatch.toLowerCase());
+                if (existingIdx !== -1) {
+                    b.reagentId = updatedReagents[existingIdx].reagent_id;
+                    updatedReagents[existingIdx] = {
+                        ...updatedReagents[existingIdx],
+                        quantity: (updatedReagents[existingIdx].quantity || 0) + (Number(b.qty) || 0),
+                        company: b.newCompany || updatedReagents[existingIdx].company,
+                        linked_test: b.linkedTest || updatedReagents[existingIdx].linked_test,
+                        linked_category: b.linkedCategory || updatedReagents[existingIdx].linked_category,
+                        usage_start_date: b.usageStartDate || updatedReagents[existingIdx].usage_start_date
+                    };
+                } else {
+                    const newId = `rg_${Date.now()}_${idx}_${Math.random().toString(36).substr(2, 9)}`;
+                    b.reagentId = newId; 
+                    updatedReagents.push({
+                        reagent_id: newId,
+                        reagent_name: nameToMatch || 'New Reagent',
+                        quantity: Number(b.qty) || 0,
+                        unit: b.newUnit || 'Bottle',
+                        availability: true,
+                        company: b.newCompany || '',
+                        capacity_per_unit: b.newCapacity || '',
+                        linked_test: b.linkedTest || '',
+                        linked_category: b.linkedCategory || '',
+                        usage_start_date: b.usageStartDate || ''
+                    });
+                }
             } else {
                 const rIdx = updatedReagents.findIndex(rg => rg.reagent_id === b.reagentId);
-                if(rIdx !== -1) {
+                if (rIdx !== -1) {
                     updatedReagents[rIdx] = {
                         ...updatedReagents[rIdx],
                         quantity: (updatedReagents[rIdx].quantity || 0) + (Number(b.qty) || 0),
@@ -1441,12 +1455,30 @@ const DiagnosticAccountsPage: React.FC<any> = ({
             const newState = { ...safePrev, [date]: [...otherDeptItems, ...finalDiagItems] };
             
             // If there are reagent buys or film buys, update the Reagent's linked_test, linked_category, usage_start_date, and stock quantity
-            let updatedReagents = [...reagents];
+            const updatedReagents = [...reagents];
             let reagentsModified = false;
-            incomingItems.forEach(it => {
+            incomingItems.forEach((it, idx) => {
                 if (it.category === 'Reagent buy' || it.category === 'X-ray Film buy') {
-                    const rIdx = updatedReagents.findIndex(rg => rg.reagent_name === it.subCategory);
-                    const qtyToAdd = (it.metadata?.numberOfBoxes || 0) * (it.metadata?.quantityPerBox || 0);
+                    const genericSubCats = ['Local Market', 'Company Delivery', 'Special Order', 'Batch Purchase'];
+                    let reagentName = '';
+                    if (it.subCategory && !genericSubCats.includes(it.subCategory.trim())) {
+                        reagentName = it.subCategory.trim();
+                    } else if (it.description && it.description.trim()) {
+                        reagentName = it.description.trim();
+                    } else if (it.subCategory) {
+                        reagentName = it.subCategory.trim();
+                    }
+
+                    if (!reagentName) return;
+
+                    let qtyToAdd = (Number(it.metadata?.numberOfBoxes) || 0) * (Number(it.metadata?.quantityPerBox) || 0);
+                    if (qtyToAdd <= 0) qtyToAdd = 1;
+
+                    const rIdx = updatedReagents.findIndex(rg => 
+                        rg.reagent_name.trim().toLowerCase() === reagentName.toLowerCase() ||
+                        rg.reagent_id === it.subCategory
+                    );
+
                     if (rIdx !== -1) {
                         updatedReagents[rIdx] = {
                             ...updatedReagents[rIdx],
@@ -1456,11 +1488,11 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                             usage_start_date: it.metadata?.usageStartDate || updatedReagents[rIdx].usage_start_date || date
                         };
                         reagentsModified = true;
-                    } else if (it.subCategory) {
-                        const newId = `rg_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+                    } else {
+                        const newId = `rg_${Date.now()}_${idx}_${Math.random().toString(36).substring(2, 7)}`;
                         updatedReagents.push({
                             reagent_id: newId,
-                            reagent_name: it.subCategory,
+                            reagent_name: reagentName,
                             quantity: qtyToAdd,
                             unit: 'Box/Pcs',
                             availability: true,
@@ -1513,7 +1545,7 @@ const DiagnosticAccountsPage: React.FC<any> = ({
             const safeDetailedExpenses = detailedExpenses || {};
             const existingItems = safeDetailedExpenses[date] || [];
             
-            let updatedReagents = [...reagents];
+            const updatedReagents = [...reagents];
             let reagentsModified = false;
 
             const updatedItems = existingItems.map((it: any) => {

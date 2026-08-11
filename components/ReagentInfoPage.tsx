@@ -70,14 +70,25 @@ const ReagentInfoPage: React.FC<ReagentInfoPageProps> = ({ reagents, setReagents
                                 resultingStock: stock
                             });
                         }
-                    } else if ((exp.category === 'Reagent buy' || exp.category === 'X-ray Film buy') && exp.subCategory === reagent.reagent_name) {
-                        const qtyAdded = (exp.metadata?.numberOfBoxes || 0) * (exp.metadata?.quantityPerBox || 0);
-                        if (qtyAdded > 0) {
+                    } else if (exp.category === 'Reagent buy' || exp.category === 'X-ray Film buy') {
+                        const genericSubCats = ['Local Market', 'Company Delivery', 'Special Order', 'Batch Purchase'];
+                        let nameToMatch = '';
+                        if (exp.subCategory && !genericSubCats.includes(exp.subCategory.trim())) {
+                            nameToMatch = exp.subCategory.trim();
+                        } else if (exp.description && exp.description.trim()) {
+                            nameToMatch = exp.description.trim();
+                        } else if (exp.subCategory) {
+                            nameToMatch = exp.subCategory.trim();
+                        }
+
+                        if (nameToMatch.toLowerCase() === reagent.reagent_name.trim().toLowerCase() || exp.subCategory === reagent.reagent_name) {
+                            let qtyAdded = (Number(exp.metadata?.numberOfBoxes) || 0) * (Number(exp.metadata?.quantityPerBox) || 0);
+                            if (qtyAdded <= 0) qtyAdded = 1;
                             stock += qtyAdded;
                             ledgerItems.push({
                                 date,
                                 type: 'PURCHASE',
-                                description: 'Purchase (' + (exp.description || '') + ')',
+                                description: 'Purchase (' + (exp.description || exp.subCategory || '') + ')',
                                 qtyChange: qtyAdded,
                                 resultingStock: stock
                             });
