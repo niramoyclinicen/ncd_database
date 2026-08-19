@@ -148,6 +148,21 @@ const ReagentInfoPage: React.FC<ReagentInfoPageProps> = ({ reagents, setReagents
                 });
             });
         }
+
+        // 4. Manual Stock Adjustments / Film Wastage
+        if (reagent.manualStockUpdates && Array.isArray(reagent.manualStockUpdates)) {
+            reagent.manualStockUpdates.forEach((upd: any) => {
+                const qtyChange = upd.quantityChange !== undefined ? upd.quantityChange : (upd.type === 'WASTAGE' ? -Math.abs(upd.quantity || 1) : Number(upd.quantity) || 0);
+                stock += qtyChange;
+                ledgerItems.push({
+                    date: upd.date || 'N/A',
+                    type: upd.type || (qtyChange < 0 ? 'WASTAGE' : 'ADJUSTMENT'),
+                    description: upd.note || 'Manual Calibration / Wastage',
+                    qtyChange: qtyChange,
+                    resultingStock: stock
+                });
+            });
+        }
         
         return { items: ledgerItems.sort((a,b) => {
             if(a.date === 'Initial') return -1;
@@ -164,6 +179,14 @@ const ReagentInfoPage: React.FC<ReagentInfoPageProps> = ({ reagents, setReagents
     const [showForm, setShowForm] = useState(false);
     const [manualStockQty, setManualStockQty] = useState('');
     const [manualStockDate, setManualStockDate] = useState(new Date().toISOString().split('T')[0]);
+
+    // Wastage Modal state
+    const [showWastageModal, setShowWastageModal] = useState(false);
+    const [wastageTargetFilmId, setWastageTargetFilmId] = useState('');
+    const [wastagePatientInfo, setWastagePatientInfo] = useState('');
+    const [wastageQty, setWastageQty] = useState('1');
+    const [wastageReason, setWastageReason] = useState('Position Error / Motion Blur');
+    const [wastageDate, setWastageDate] = useState(new Date().toISOString().split('T')[0]);
 
     const handleAddClick = () => {
         setFormData({ ...emptyReagent, reagent_id: 'R-' + Date.now() });
@@ -233,6 +256,60 @@ const ReagentInfoPage: React.FC<ReagentInfoPageProps> = ({ reagents, setReagents
             }
         } else {
             setSuccessMessage('Stock calibrated!');
+            setTimeout(() => setSuccessMessage(''), 3000);
+        }
+    };
+
+    const handleSaveWastage = async () => {
+        if (!wastageTargetFilmId || !wastageQty || Number(wastageQty) <= 0) {
+            alert('দয়া করে ফিল্ম এবং নষ্টের সঠিক সংখ্যা নির্ধারণ করুন।');
+            return;
+        }
+
+        const filmIndex = reagents.findIndex(r => r.reagent_id === wastageTargetFilmId);
+        if (filmIndex === -1) {
+            alert('সিলেক্ট করা ফিল্ম পাওয়া যায়নি।');
+            return;
+        }
+
+        const film = reagents[filmIndex];
+        const qtyNum = Math.abs(Number(wastageQty));
+        const newQty = Math.max(0, (film.quantity || 0) - qtyNum);
+
+        const newWastageRecord = {
+            date: wastageDate,
+            quantityChange: -qtyNum,
+            note: `Wastage (Pt/Inv: ${wastagePatientInfo || 'N/A'}): ${wastageReason}`,
+            type: 'WASTAGE'
+        };
+
+        const updatedFilm = {
+            ...film,
+            quantity: newQty,
+            manualStockUpdates: [...(film.manualStockUpdates || []), newWastageRecord]
+        };
+
+        const newReagents = reagents.map((r, idx) => idx === filmIndex ? updatedFilm : r);
+        setReagents(newReagents);
+
+        if (performBlockingSync) {
+            const success = await performBlockingSync({ reagents: newReagents });
+            if (success) {
+                setShowWastageModal(false);
+                setWastagePatientInfo('');
+                setWastageQty('1');
+                setWastageReason('Position Error / Motion Blur');
+                setSuccessMessage('ওয়েস্টেজ / নষ্ট ফিল্মের এন্ট্রি সংরক্ষিত হয়েছে!');
+                setTimeout(() => setSuccessMessage(''), 3000);
+            } else {
+                alert("ডাটা সেভ করা যায়নি। আবার চেষ্টা করুন।");
+            }
+        } else {
+            setShowWastageModal(false);
+            setWastagePatientInfo('');
+            setWastageQty('1');
+            setWastageReason('Position Error / Motion Blur');
+            setSuccessMessage('ওয়েস্টেজ / নষ্ট ফিল্মের এন্ট্রি সংরক্ষিত হয়েছে!');
             setTimeout(() => setSuccessMessage(''), 3000);
         }
     };
@@ -387,7 +464,16 @@ const ReagentInfoPage: React.FC<ReagentInfoPageProps> = ({ reagents, setReagents
                         </div>
                         
                         {viewMode === 'inventory' && (
-                            <button onClick={handleAddClick} className="bg-blue-600 hover:bg-blue-500 text-white px-8 py-3 rounded-2xl font-black uppercase text-xs shadow-xl active:scale-95 transition-all flex items-center gap-2"><PlusIcon size={16}/> Add Reagent</button>
+                            <div className="flex items-center gap-3">
+                                <button onClick={() => {
+                                    const defaultFilm = reagents.find(r => r.linked_category === 'X-Ray' || r.reagent_name.toLowerCase().includes('film') || r.reagent_name.toLowerCase().includes('x-ray'));
+                                    setWastageTargetFilmId(defaultFilm?.reagent_id || (reagents[0]?.reagent_id || ''));
+                                    setShowWastageModal(true);
+                                }} className="bg-rose-600 hover:bg-rose-500 text-white px-6 py-3 rounded-2xl font-black uppercase text-xs shadow-xl active:scale-95 transition-all flex items-center gap-2 border border-rose-400/30">
+                                    <XIcon size={16}/> নষ্ট হওয়া ফিল্ম এন্ট্রি (Wastage Entry)
+                                </button>
+                                <button onClick={handleAddClick} className="bg-blue-600 hover:bg-blue-500 text-white px-8 py-3 rounded-2xl font-black uppercase text-xs shadow-xl active:scale-95 transition-all flex items-center gap-2"><PlusIcon size={16}/> Add Reagent</button>
+                            </div>
                         )}
 
                         {viewMode === 'requisition' && (
@@ -738,6 +824,72 @@ const ReagentInfoPage: React.FC<ReagentInfoPageProps> = ({ reagents, setReagents
                                 </div>
                             )}
 
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {showWastageModal && (
+                <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/75 backdrop-blur-md p-4">
+                    <div className="bg-slate-900 w-full max-w-lg rounded-3xl border border-rose-900/50 shadow-2xl overflow-hidden flex flex-col">
+                        <div className="p-6 bg-rose-950/40 border-b border-rose-900/30 flex justify-between items-center">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-rose-600/20 text-rose-400 rounded-xl border border-rose-500/30">
+                                    <XIcon size={20} />
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-black text-white uppercase tracking-tight">নষ্ট হওয়া এক্সরে ফিল্ম এন্ট্রি</h3>
+                                    <p className="text-[10px] text-rose-400 font-bold uppercase">Record Damaged / Wasted X-Ray Film</p>
+                                </div>
+                            </div>
+                            <button onClick={() => setShowWastageModal(false)} className="text-slate-400 hover:text-white bg-slate-800 p-2 rounded-full transition-all">
+                                <XIcon size={18} />
+                            </button>
+                        </div>
+
+                        <div className="p-6 space-y-4">
+                            <div>
+                                <label className="block text-xs font-black text-slate-400 uppercase mb-1">১. সিলেক্ট এক্সরে ফিল্ম (Film Size)</label>
+                                <select value={wastageTargetFilmId} onChange={e => setWastageTargetFilmId(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white font-bold text-sm outline-none focus:border-rose-500">
+                                    {reagents.map(r => (
+                                        <option key={r.reagent_id} value={r.reagent_id}>
+                                            {r.reagent_name} (বর্তমান স্টক: {r.quantity} {r.unit || 'Pcs'})
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-black text-slate-400 uppercase mb-1">২. রোগীর নাম / ইনভয়েস নম্বর (Patient / Inv Info)</label>
+                                <input value={wastagePatientInfo} onChange={e => setWastagePatientInfo(e.target.value)} placeholder="যেমন: Rahim (Invoice #1002)" className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white font-bold text-sm outline-none focus:border-rose-500" />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs font-black text-slate-400 uppercase mb-1">৩. নষ্টের সংখ্যা (Quantity)</label>
+                                    <input type="number" min="1" value={wastageQty} onChange={e => setWastageQty(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white font-bold text-sm outline-none focus:border-rose-500" />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-black text-slate-400 uppercase mb-1">৪. তারিখ (Date)</label>
+                                    <input type="date" value={wastageDate} onChange={e => setWastageDate(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white font-bold text-sm outline-none focus:border-rose-500" />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-black text-slate-400 uppercase mb-1">৫. নষ্ট হওয়ার কারণ (Reason / Notes)</label>
+                                <select value={wastageReason} onChange={e => setWastageReason(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white font-bold text-sm outline-none focus:border-rose-500 mb-2">
+                                    <option value="Position Error / Motion Blur">পজিশন ভুল / রোগী নড়ে যাওয়ায় (Motion Blur)</option>
+                                    <option value="Exposure Fault (Over/Under Exposed)">এক্সপোজার সমস্যা (কম/বেশি আলো)</option>
+                                    <option value="Darkroom Light Leak / Processing Error">ডার্করুমের আলো লাগা / প্রসেসিং ত্রুটি</option>
+                                    <option value="Damaged / Scratched Film">ফিল্ম স্ক্র্যাচ বা পূর্ব থেকেই নষ্ট</option>
+                                    <option value="Other / Manual Wastage">অন্যান্য কারণ (Manual Wastage)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div className="p-6 bg-slate-950 border-t border-slate-800 flex justify-end gap-3">
+                            <button onClick={() => setShowWastageModal(false)} className="px-6 py-2.5 rounded-xl text-xs font-black uppercase text-slate-400 hover:bg-slate-800 transition-all">Cancel</button>
+                            <button onClick={handleSaveWastage} className="px-8 py-2.5 rounded-xl text-xs font-black uppercase text-white bg-rose-600 hover:bg-rose-500 shadow-xl transition-all border border-rose-400/30">Save Wastage Entry</button>
                         </div>
                     </div>
                 </div>

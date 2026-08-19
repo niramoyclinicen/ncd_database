@@ -27,7 +27,9 @@ const TemplateManagementPage: React.FC<any> = ({ onBack, tests = [], templates: 
     useEffect(() => {
         try {
             localStorage.setItem('ncd_rt_templates_v1', JSON.stringify(templates));
-        } catch(e) {}
+        } catch (e) {
+            console.error('Failed to save templates to localStorage:', e);
+        }
     }, [templates]);
 
     const handleSave = () => {

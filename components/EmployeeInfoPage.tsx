@@ -50,6 +50,8 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<EmployeeTab>('attendance');
   const [searchTerm, setSearchTerm] = useState('');
+  const [payrollSearchTerm, setPayrollSearchTerm] = useState('');
+  const [salarySheetSearchTerm, setSalarySheetSearchTerm] = useState('');
   const [formData, setFormData] = useState<Employee>(emptyEmployee);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState('');
@@ -520,12 +522,158 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
     }, 1000);
   };
 
+  const handlePrintPayrollAdjustments = () => {
+    const monthName = (monthOptions[selectedMonth] || monthOptions[0]).name;
+    const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
+
+    const filteredList = periodEmployees.filter(emp => {
+      if (!emp) return false;
+      const term = (payrollSearchTerm || '').trim().toLowerCase();
+      if (!term) return true;
+      const name = (emp.emp_name || '').toLowerCase();
+      const id = (emp.emp_id || '').toLowerCase();
+      const machine = (emp.machine_id || '').toLowerCase();
+      const pos = (emp.job_position || emp.designation || '').toLowerCase();
+      const dept = (emp.department || '').toLowerCase();
+      const addr = (emp.address || '').toLowerCase();
+      const mob = (emp.mobile || '').toLowerCase();
+      return name.includes(term) || id.includes(term) || machine.includes(term) || pos.includes(term) || dept.includes(term) || addr.includes(term) || mob.includes(term);
+    });
+
+    const finalData = filteredList.map(emp => {
+      let autoAbsent = 0;
+      for (let d = 1; d <= daysInMonth; d++) {
+        const dateStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        if ((attendanceLog || {})[`${dateStr}_${emp.emp_id}`]?.status === 'Absent') autoAbsent++;
+      }
+      const key = `${selectedMonth}_${selectedYear}_${emp.emp_id}`;
+      const record = (leaveLog || {})[key] || { leaveDays: 0, deductionAmount: 0, bonus: 0, overtime: 0 };
+      const currentSalary = record.agreedSalary !== undefined ? record.agreedSalary : (emp.salary || 0);
+      const perDaySal = currentSalary / 30;
+      const leaveDeduction = (autoAbsent + (record.leaveDays || 0)) * perDaySal;
+      const totalDeduction = leaveDeduction + (record.deductionAmount || 0);
+      const bonus = record.bonus || 0;
+      const overtime = record.overtime || 0;
+      const netEarnings = currentSalary + bonus + overtime;
+      const finalNet = netEarnings - totalDeduction;
+      return {
+        ...emp,
+        currentSalary,
+        autoAbsent,
+        leaveDays: record.leaveDays || 0,
+        bonus,
+        overtime,
+        totalDeduction,
+        finalNet
+      };
+    });
+
+    const win = window.open('', '_blank');
+    if (!win) return;
+
+    const html = `
+      <html>
+        <head>
+          <title>Payroll Adjustments - ${monthName} ${selectedYear}</title>
+          <style>
+            @page { size: A4 landscape; margin: 8mm; }
+            body { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; background: white; color: black; -webkit-print-color-adjust: exact; margin: 0; padding: 10px; }
+            table { width: 100%; border-collapse: collapse; font-size: 10px; margin-top: 10px; }
+            th, td { border: 1px solid #333; padding: 5px 6px; text-align: center; }
+            th { background-color: #f1f5f9 !important; font-weight: bold; text-transform: uppercase; font-size: 9px; }
+            .name-cell { text-align: left; }
+            .header-text { text-align: center; border-bottom: 2px solid #1e3a8a; padding-bottom: 6px; margin-bottom: 10px; }
+            .totals-row { background-color: #f8fafc !important; font-weight: bold; }
+            .footer-sign { margin-top: 40px; display: flex; justify-content: space-between; padding: 0 40px; }
+          </style>
+        </head>
+        <body>
+          <div class="header-text">
+            <h1 style="font-size: 20px; margin: 0; text-transform: uppercase; color: #1e3a8a; font-weight: 900;">Niramoy Clinic & Diagnostic</h1>
+            <p style="font-size: 10px; margin: 2px 0 0 0; font-weight: bold; color: #475569;">Enayetpur, Sirajgonj | Mobile: 01730 923007</p>
+            <h2 style="font-size: 13px; margin: 6px 0 0 0; text-transform: uppercase; letter-spacing: 1px; color: #0f172a; text-decoration: underline;">Monthly Staff Payroll Adjustments Sheet: ${monthName} ${selectedYear}</h2>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th style="width: 30px;">SL</th>
+                <th class="name-cell" style="width: 250px;">Staff Member & Address</th>
+                <th style="text-align: right;">Basic Salary</th>
+                <th>Absent Days</th>
+                <th>Leave Days</th>
+                <th>Eid Bonus</th>
+                <th>Overtime</th>
+                <th style="text-align: right;">Total Deduction</th>
+                <th style="text-align: right;">Net Payable</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${finalData.map((e, idx) => `
+                <tr>
+                  <td>${idx + 1}</td>
+                  <td class="name-cell">
+                    <strong>${e.emp_name}</strong> (ID: #${e.emp_id}${e.machine_id ? ' | HID: ' + e.machine_id : ''})
+                    <div style="font-size: 8.5px; color: #475569; margin-top: 1px;">
+                      <strong>${e.job_position || e.designation || 'Staff'}</strong> ${e.department ? '(' + e.department + ')' : ''}
+                      ${e.address ? ' | ' + e.address : ''} ${e.mobile ? ' | ' + e.mobile : ''}
+                    </div>
+                  </td>
+                  <td style="text-align: right; font-weight: bold;">৳${(e.currentSalary || 0).toLocaleString()}</td>
+                  <td style="font-weight: bold; color: #e11d48;">${e.autoAbsent}</td>
+                  <td>${e.leaveDays}</td>
+                  <td style="font-weight: bold; color: #2563eb;">${e.bonus > 0 ? '৳' + e.bonus.toLocaleString() : '-'}</td>
+                  <td style="font-weight: bold; color: #059669;">${e.overtime > 0 ? '৳' + e.overtime.toLocaleString() : '-'}</td>
+                  <td style="text-align: right; color: #dc2626; font-weight: bold;">৳${Math.round(e.totalDeduction || 0).toLocaleString()}</td>
+                  <td style="text-align: right; font-weight: 900; font-size: 11px; color: #1e3a8a;">৳${Math.round(e.finalNet || 0).toLocaleString()}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+            <tfoot class="totals-row">
+              <tr>
+                <td colspan="2" style="text-align: right; font-weight: 900; padding: 6px;">TOTAL GRAND SUMMARY:</td>
+                <td style="text-align: right; font-weight: 900;">৳${finalData.reduce((s, e) => s + (e.currentSalary || 0), 0).toLocaleString()}</td>
+                <td style="font-weight: 900;">${finalData.reduce((s, e) => s + (e.autoAbsent || 0), 0)}</td>
+                <td style="font-weight: 900;">${finalData.reduce((s, e) => s + (e.leaveDays || 0), 0)}</td>
+                <td style="font-weight: 900; color: #2563eb;">৳${finalData.reduce((s, e) => s + (e.bonus || 0), 0).toLocaleString()}</td>
+                <td style="font-weight: 900; color: #059669;">৳${finalData.reduce((s, e) => s + (e.overtime || 0), 0).toLocaleString()}</td>
+                <td style="text-align: right; font-weight: 900; color: #dc2626;">৳${Math.round(finalData.reduce((s, e) => s + (e.totalDeduction || 0), 0)).toLocaleString()}</td>
+                <td style="text-align: right; font-weight: 900; font-size: 12px; color: #1e3a8a;">৳${Math.round(finalData.reduce((s, e) => s + (e.finalNet || 0), 0)).toLocaleString()}</td>
+              </tr>
+            </tfoot>
+          </table>
+          <div class="footer-sign">
+            <div style="text-align: center; width: 140px; border-top: 1px solid black; padding-top: 4px; font-weight: bold; font-size: 10px; text-transform: uppercase;">Accountant</div>
+            <div style="text-align: center; width: 140px; border-top: 1px solid black; padding-top: 4px; font-weight: bold; font-size: 10px; text-transform: uppercase;">HR Manager</div>
+            <div style="text-align: center; width: 140px; border-top: 1px solid black; padding-top: 4px; font-weight: bold; font-size: 10px; text-transform: uppercase;">Managing Director</div>
+          </div>
+        </body>
+      </html>
+    `;
+    win.document.write(html);
+    win.document.close();
+    setTimeout(() => { win.print(); win.close(); }, 750);
+  };
+
   const handlePrintSalarySheet = () => {
     const monthName = (monthOptions[selectedMonth] || monthOptions[0]).name;
     const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
     const daysArray = Array.from({ length: daysInMonth }, (_, i) => i + 1);
 
-    const finalData = periodEmployees.map(emp => {
+    const filteredList = periodEmployees.filter(emp => {
+      if (!emp) return false;
+      const term = (salarySheetSearchTerm || '').trim().toLowerCase();
+      if (!term) return true;
+      const name = (emp.emp_name || '').toLowerCase();
+      const id = (emp.emp_id || '').toLowerCase();
+      const machine = (emp.machine_id || '').toLowerCase();
+      const pos = (emp.job_position || emp.designation || '').toLowerCase();
+      const dept = (emp.department || '').toLowerCase();
+      const addr = (emp.address || '').toLowerCase();
+      const mob = (emp.mobile || '').toLowerCase();
+      return name.includes(term) || id.includes(term) || machine.includes(term) || pos.includes(term) || dept.includes(term) || addr.includes(term) || mob.includes(term);
+    });
+
+    const finalData = filteredList.map(emp => {
         let advanceTakenTotal = 0;
         const dailyAdvancePayments: Record<number, number> = {};
         for (let day = 1; day <= daysInMonth; day++) {
@@ -545,9 +693,20 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
         }
         const perDaySal = currentSalary / 30;
         const leaveDeduction = (absentCount + (leaveRecord.leaveDays || 0)) * perDaySal;
+        const totalDeduction = leaveDeduction + (leaveRecord.deductionAmount || 0);
         const totalEarnings = currentSalary + (leaveRecord.bonus || 0) + (leaveRecord.overtime || 0);
-        const netPayable = totalEarnings - leaveDeduction - (leaveRecord.deductionAmount || 0);
-        return { ...emp, currentSalary, netPayable, dailyAdvancePayments, advanceTakenTotal, dueAmount: netPayable - advanceTakenTotal, bonus: leaveRecord.bonus || 0, overtime: leaveRecord.overtime || 0 };
+        const netPayable = Math.max(0, totalEarnings - totalDeduction);
+        return { 
+          ...emp, 
+          currentSalary, 
+          totalDeduction,
+          netPayable, 
+          dailyAdvancePayments, 
+          advanceTakenTotal, 
+          dueAmount: netPayable - advanceTakenTotal, 
+          bonus: leaveRecord.bonus || 0, 
+          overtime: leaveRecord.overtime || 0 
+        };
     });
 
     const win = window.open('', '_blank');
@@ -557,54 +716,60 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
       <html>
         <head>
           <title>Salary Sheet - ${monthName} ${selectedYear}</title>
-          <script src="https://cdn.tailwindcss.com"></script>
           <style>
-            @page { size: A4 landscape; margin: 8mm; }
+            @page { size: A4 landscape; margin: 6mm; }
             body { font-family: 'Segoe UI', Tahoma, sans-serif; background: white; color: black; -webkit-print-color-adjust: exact; }
-            table { width: 100%; border-collapse: collapse; font-size: 8px; }
-            th, td { border: 1px solid black; padding: 4px; text-align: center; }
-            th { background-color: #f3f4f6 !important; font-weight: bold; text-transform: uppercase; }
-            .name-cell { text-align: left; font-weight: bold; width: 120px; text-transform: uppercase; }
-            .header-text { text-align: center; border-bottom: 2px solid black; padding-bottom: 5px; margin-bottom: 10px; }
+            table { width: 100%; border-collapse: collapse; font-size: 7.5px; }
+            th, td { border: 1px solid black; padding: 3px 4px; text-align: center; }
+            th { background-color: #f3f4f6 !important; font-weight: bold; text-transform: uppercase; font-size: 7px; }
+            .name-cell { text-align: left; font-weight: bold; width: 140px; }
+            .header-text { text-align: center; border-bottom: 2px solid black; padding-bottom: 5px; margin-bottom: 8px; }
             .totals-row { background-color: #f9fafb !important; font-weight: 900; }
-            .footer-sign { margin-top: 30px; display: flex; justify-content: space-between; padding: 0 40px; }
+            .footer-sign { margin-top: 25px; display: flex; justify-content: space-between; padding: 0 40px; }
           </style>
         </head>
         <body>
           <div class="header-text">
-            <h1 class="text-2xl font-black uppercase text-blue-900 leading-none">Niramoy Clinic & Diagnostic</h1>
-            <p class="text-xs font-bold mt-1">Enayetpur, Sirajgonj | Mobile: 01730 923007</p>
-            <h2 class="text-md font-black uppercase mt-2 underline tracking-widest">Employee Monthly Net Settlement: ${monthName} ${selectedYear}</h2>
+            <h1 style="font-size: 18px; margin: 0; font-weight: 900; text-transform: uppercase; color: #1e3a8a;">Niramoy Clinic & Diagnostic</h1>
+            <p style="font-size: 10px; margin: 2px 0 0 0; font-weight: bold;">Enayetpur, Sirajgonj | Mobile: 01730 923007</p>
+            <h2 style="font-size: 12px; margin: 5px 0 0 0; font-weight: bold; text-transform: uppercase; text-decoration: underline;">Employee Monthly Net Settlement: ${monthName} ${selectedYear}</h2>
           </div>
           <table>
             <thead>
               <tr>
                 <th rowspan="2">SL</th>
-                <th rowspan="2" class="name-cell">Staff Member</th>
+                <th rowspan="2" class="name-cell">Staff Member & Address</th>
                 <th rowspan="2">Basic</th>
                 <th rowspan="2" style="background:#e0f2fe">Bonus</th>
                 <th rowspan="2" style="background:#e0f2fe">O.T</th>
+                <th rowspan="2" style="background:#fee2e2">Deduct</th>
                 <th colspan="${daysInMonth}">Daily Advance Details ( অগ্রিম গ্রহণ )</th>
                 <th rowspan="2" style="background:#dcfce7">Total Adv.</th>
-                <th rowspan="2" style="background:#fee2e2">Net Payable</th>
+                <th rowspan="2" style="background:#e0e7ff">Net Payable</th>
                 <th rowspan="2" style="background:#fef3c7; color: black">Final Due</th>
               </tr>
               <tr>
-                ${daysArray.map(d => `<th style="font-size: 6.5px; width: 15px;">${d}</th>`).join('')}
+                ${daysArray.map(d => `<th style="font-size: 6px; width: 13px;">${d}</th>`).join('')}
               </tr>
             </thead>
             <tbody>
               ${finalData.map((emp, idx) => `
                 <tr>
                   <td>${idx + 1}</td>
-                  <td class="name-cell">${emp.emp_name}</td>
+                  <td class="name-cell">
+                    <span style="font-size: 8.5px;">${emp.emp_name}</span>
+                    <div style="font-size: 6.5px; color: #475569; font-weight: normal; margin-top: 1px;">
+                      ${emp.job_position || emp.designation || 'Staff'} ${emp.address ? ' | ' + emp.address : ''}
+                    </div>
+                  </td>
                   <td>${(emp.currentSalary || 0).toLocaleString()}</td>
-                  <td class="font-bold">${emp.bonus > 0 ? (emp.bonus || 0).toLocaleString() : ''}</td>
-                  <td class="font-bold">${emp.overtime > 0 ? (emp.overtime || 0).toLocaleString() : ''}</td>
+                  <td style="font-weight: bold;">${emp.bonus > 0 ? (emp.bonus || 0).toLocaleString() : ''}</td>
+                  <td style="font-weight: bold;">${emp.overtime > 0 ? (emp.overtime || 0).toLocaleString() : ''}</td>
+                  <td style="color: #dc2626;">${emp.totalDeduction > 0 ? Math.round(emp.totalDeduction).toLocaleString() : ''}</td>
                   ${daysArray.map(d => `<td>${emp.dailyAdvancePayments[d] || ''}</td>`).join('')}
-                  <td style="font-weight:bold">৳${(emp.advanceTakenTotal || 0).toLocaleString()}</td>
-                  <td style="font-weight:bold">৳${(emp.netPayable || 0).toLocaleString(undefined, {maximumFractionDigits:0})}</td>
-                  <td style="font-weight:black; font-size:9px; color: #1e40af">৳${(emp.dueAmount || 0).toLocaleString(undefined, {maximumFractionDigits:0})}</td>
+                  <td style="font-weight:bold; color: #059669;">৳${(emp.advanceTakenTotal || 0).toLocaleString()}</td>
+                  <td style="font-weight:bold; color: #1e3a8a;">৳${Math.round(emp.netPayable || 0).toLocaleString()}</td>
+                  <td style="font-weight:black; font-size:8.5px; color: #b45309;">৳${Math.round(emp.dueAmount || 0).toLocaleString()}</td>
                 </tr>
               `).join('')}
             </tbody>
@@ -614,17 +779,18 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
                 <td>৳${finalData.reduce((s,e)=>s+(e.currentSalary||0), 0).toLocaleString()}</td>
                 <td>৳${finalData.reduce((s,e)=>s+(e.bonus||0), 0).toLocaleString()}</td>
                 <td>৳${finalData.reduce((s,e)=>s+(e.overtime||0), 0).toLocaleString()}</td>
+                <td>৳${Math.round(finalData.reduce((s,e)=>s+(e.totalDeduction||0), 0)).toLocaleString()}</td>
                 ${daysArray.map(() => `<td></td>`).join('')}
                 <td>৳${finalData.reduce((s,e)=>s+(e.advanceTakenTotal||0), 0).toLocaleString()}</td>
-                <td>৳${finalData.reduce((s,e)=>s+(e.netPayable||0), 0).toLocaleString(undefined, {maximumFractionDigits:0})}</td>
-                <td style="font-size: 10px;">৳${finalData.reduce((s,e)=>s+(e.dueAmount||0), 0).toLocaleString(undefined, {maximumFractionDigits:0})}</td>
+                <td>৳${Math.round(finalData.reduce((s,e)=>s+(e.netPayable||0), 0)).toLocaleString()}</td>
+                <td style="font-size: 9px; color: #1e3a8a;">৳${Math.round(finalData.reduce((s,e)=>s+(e.dueAmount||0), 0)).toLocaleString()}</td>
               </tr>
             </tfoot>
           </table>
           <div class="footer-sign">
-            <div class="text-center w-40 border-t border-black pt-1 font-bold text-[10px] uppercase">Accountant</div>
-            <div class="text-center w-40 border-t border-black pt-1 font-bold text-[10px] uppercase">Staff Signature</div>
-            <div class="text-center w-40 border-t border-black pt-1 font-bold text-[10px] uppercase">Authorized MD</div>
+            <div style="text-align: center; width: 130px; border-top: 1px solid black; padding-top: 2px; font-weight: bold; font-size: 9px; text-transform: uppercase;">Accountant</div>
+            <div style="text-align: center; width: 130px; border-top: 1px solid black; padding-top: 2px; font-weight: bold; font-size: 9px; text-transform: uppercase;">Staff Signature</div>
+            <div style="text-align: center; width: 130px; border-top: 1px solid black; padding-top: 2px; font-weight: bold; font-size: 9px; text-transform: uppercase;">Authorized MD</div>
           </div>
         </body>
       </html>
@@ -633,10 +799,27 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
     setTimeout(() => { win.print(); win.close(); }, 750);
   };
 
-  const renderDataEntryTab = () => (
+  const renderDataEntryTab = () => {
+    const filteredStaffList = (Array.isArray(employees) ? employees : []).filter(e => {
+      if (!e) return false;
+      const term = (searchTerm || '').trim().toLowerCase();
+      if (!term) return true;
+      const name = (e.emp_name || '').toLowerCase();
+      const id = (e.emp_id || '').toLowerCase();
+      const machine = (e.machine_id || '').toLowerCase();
+      const pos = (e.job_position || e.designation || '').toLowerCase();
+      const dept = (e.department || '').toLowerCase();
+      const addr = (e.address || '').toLowerCase();
+      const mob = (e.mobile || '').toLowerCase();
+      return name.includes(term) || id.includes(term) || machine.includes(term) || pos.includes(term) || dept.includes(term) || addr.includes(term) || mob.includes(term);
+    });
+
+    const totalStaffBasicSalary = filteredStaffList.reduce((sum, e) => sum + (Number(e.salary) || 0), 0);
+
+    return (
     <div className="space-y-8 animate-fade-in">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-            <div className={`lg:col-span-8 bg-white dark:bg-slate-900 rounded-3xl p-8 border ${selectedEmployeeId ? 'border-blue-500 shadow-[0_0_25px_rgba(59,130,246,0.2)]' : 'border-slate-200 dark:border-slate-800 shadow-xl'} relative overflow-hidden transition-all duration-500`}>
+            <div className={`lg:col-span-8 bg-white dark:bg-slate-900 rounded-3xl p-8 border ${selectedEmployeeId ? 'border-blue-500 shadow-[0_0_25px_rgba(59,130,246,0.2)]' : 'border-slate-200 dark:border-slate-800 shadow-xl'} relative transition-all duration-500`}>
                 <div className="flex justify-between items-center mb-8 border-b border-slate-100 dark:border-slate-800 pb-4">
                     <div>
                         <h2 className="text-xl font-bold text-slate-800 dark:text-sky-100 uppercase tracking-tight">Personnel Profile Master</h2>
@@ -658,7 +841,7 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
                     <div className="md:col-span-2"><label className="text-[10px] font-bold text-blue-600 uppercase mb-1 block ml-1">Full Name</label><input ref={nameInputRef} type="text" name="emp_name" value={formData.emp_name} onChange={handleInputChange} required className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-slate-800 dark:text-white font-semibold text-lg focus:border-blue-500 outline-none" placeholder="Employee Name" /></div>
                     <div><label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block ml-1">Gender</label><select name="gender" value={formData.gender} onChange={handleInputChange} className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-slate-800 dark:text-white font-bold"><option value="">Select</option><option value="Male">Male</option><option value="Female">Female</option></select></div>
                     
-                    <div>
+                    <div className="relative z-20">
                         <SearchableSelect 
                             theme="dark" 
                             label="Job Position" 
@@ -711,29 +894,138 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
         </div>
 
         <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-3xl shadow-xl bg-white dark:bg-slate-900/50">
-            <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-800/30">
-                <h3 className="text-lg font-bold text-slate-800 dark:text-white uppercase tracking-tight">Staff Directory</h3>
-                <div className="relative w-80"><SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16}/><input type="text" placeholder="Search staff..." value={searchTerm} onChange={e=>setSearchTerm(e.target.value)} className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-full pl-12 pr-4 py-2.5 text-xs text-slate-800 dark:text-white outline-none focus:border-blue-500 transition-all shadow-inner"/></div>
+            <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex flex-col md:flex-row items-center justify-between gap-4 bg-slate-50 dark:bg-slate-800/40">
+                {/* Left: Staff Directory Title & Count */}
+                <div className="flex items-center gap-3">
+                    <div className="p-2.5 bg-blue-600/10 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 rounded-xl">
+                        <UsersIcon size={22} />
+                    </div>
+                    <div>
+                        <div className="flex items-center gap-2">
+                            <h3 className="text-lg font-bold text-slate-800 dark:text-white uppercase tracking-tight font-bengali">স্টাফ ডাইরেক্টরি</h3>
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                                {filteredStaffList.length} জন
+                            </span>
+                        </div>
+                        <p className="text-[10px] font-medium text-slate-400">Staff Directory & Payroll</p>
+                    </div>
+                </div>
+
+                {/* Center: Search Box (একই রো এর মাঝখানে) */}
+                <div className="relative w-full md:w-80 lg:w-96">
+                    <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16}/>
+                    <input 
+                        type="text" 
+                        placeholder="নাম, আইডি, পদবি বা ঠিকানা দিয়ে খুঁজুন..." 
+                        value={searchTerm} 
+                        onChange={e => setSearchTerm(e.target.value)} 
+                        className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-full pl-11 pr-8 py-2.5 text-xs text-slate-800 dark:text-white outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all shadow-inner font-bengali"
+                    />
+                    {searchTerm && (
+                        <button 
+                            type="button" 
+                            onClick={() => setSearchTerm('')} 
+                            className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xs font-bold"
+                        >
+                            ✕
+                        </button>
+                    )}
+                </div>
+
+                {/* Right: Total Basic Salary (বেসিক স্যালারি কলামের উপরে) */}
+                <div className="flex items-center gap-3 bg-white dark:bg-slate-950 px-4 py-2 rounded-2xl border border-emerald-200 dark:border-emerald-900/50 shadow-sm">
+                    <div className="text-right">
+                        <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest font-bengali">মোট বেসিক স্যালারি</div>
+                        <div className="text-base sm:text-lg font-black text-emerald-600 dark:text-emerald-400 font-mono leading-none mt-0.5">
+                            ৳{totalStaffBasicSalary.toLocaleString()}
+                        </div>
+                    </div>
+                    <div className="p-2 bg-emerald-50 dark:bg-emerald-950/60 rounded-xl text-emerald-600 dark:text-emerald-400 font-black text-base">
+                        ৳
+                    </div>
+                </div>
             </div>
+
             <table className="min-w-full divide-y divide-slate-100 dark:divide-slate-800">
-                <thead className="bg-slate-50 dark:bg-slate-800/50 text-slate-400 uppercase font-bold text-[10px] tracking-widest">
-                    <tr><th className="p-5 text-left">ID & Machine</th><th className="p-5 text-left">Full Name</th><th className="p-5 text-left">Dept & Position</th><th className="p-5 text-right">Basic Salary</th><th className="p-5 text-center">Status</th></tr>
+                <thead className="bg-slate-50 dark:bg-slate-800/50 text-slate-400 uppercase font-bold text-[10px] tracking-widest font-bengali">
+                    <tr>
+                        <th className="p-4 text-center w-16">সিরিয়াল নং</th>
+                        <th className="p-4 text-left">আইডি ও মেশিন</th>
+                        <th className="p-4 text-left">ফুল নেম</th>
+                        <th className="p-4 text-left">প্রফেশন / পদবি</th>
+                        <th className="p-4 text-left">এড্রেস (ঠিকানা)</th>
+                        <th className="p-4 text-right">বেসিক স্যালারি</th>
+                        <th className="p-4 text-center">স্ট্যাটাস</th>
+                    </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {Array.isArray(employees) && employees.filter(e => e && (e.emp_name || '').toLowerCase().includes(searchTerm.toLowerCase())).map((e) => (
-                    <tr key={e.emp_id} onClick={() => handleRowClick(e)} className={`cursor-pointer hover:bg-slate-50 dark:hover:bg-blue-900/10 transition-all ${selectedEmployeeId === e.emp_id ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}>
-                        <td className="p-5 font-mono text-xs text-blue-600">#{e.emp_id}<div className="text-[10px] text-amber-600 font-bold mt-1">HID: {e.machine_id || '---'}</div></td>
-                        <td className="p-5 font-bold text-slate-700 dark:text-slate-200 text-base">{e.emp_name}<div className="text-[10px] text-slate-400 font-medium uppercase mt-1">{e.mobile} | {e.gender}</div></td>
-                        <td className="p-5 text-xs text-slate-600 dark:text-slate-400 font-bold uppercase tracking-tight">{e.job_position}<div className="text-[10px] text-slate-400 mt-1">{e.department} | {e.degree || 'General'}</div></td>
-                        <td className="p-5 text-right font-bold text-slate-700 dark:text-slate-100 text-base">৳{(e.salary || 0).toLocaleString()}</td>
-                        <td className="p-5 text-center"><span className={`px-4 py-1 rounded-full text-[9px] font-bold uppercase border ${e.status === 'Active' ? 'bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-900' : 'bg-rose-50 dark:bg-rose-950 text-rose-600 dark:text-rose-400 border-rose-100 dark:border-rose-900'}`}>{e.status}</span></td>
-                    </tr>
-                    ))}
+                    {filteredStaffList.length === 0 ? (
+                        <tr>
+                            <td colSpan={7} className="p-8 text-center text-slate-400 text-sm font-bengali">
+                                কোন কর্মচারীর তথ্য পাওয়া যায়নি
+                            </td>
+                        </tr>
+                    ) : (
+                        filteredStaffList.map((e, index) => (
+                        <tr 
+                            key={e.emp_id} 
+                            onClick={() => handleRowClick(e)} 
+                            className={`cursor-pointer hover:bg-slate-50 dark:hover:bg-blue-900/10 transition-all ${selectedEmployeeId === e.emp_id ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}
+                        >
+                            <td className="p-4 text-center font-mono text-xs font-bold text-slate-400">
+                                {index + 1}
+                            </td>
+                            <td className="p-4 font-mono text-xs text-blue-600 dark:text-blue-400 font-bold whitespace-nowrap">
+                                #{e.emp_id}
+                                <div className="text-[10px] text-amber-600 dark:text-amber-400 font-bold mt-0.5">
+                                    HID: {e.machine_id || '---'}
+                                </div>
+                            </td>
+                            <td className="p-4 font-bold text-slate-700 dark:text-slate-200 text-sm">
+                                {e.emp_name}
+                                <div className="text-[10px] text-slate-400 font-medium uppercase mt-0.5">
+                                    {e.mobile || 'No Mobile'} {e.gender ? `| ${e.gender}` : ''}
+                                </div>
+                            </td>
+                            <td className="p-4 text-xs text-slate-700 dark:text-slate-300 font-bold tracking-tight">
+                                {e.job_position || e.designation || 'Staff'}
+                                <div className="text-[10px] text-slate-400 font-medium mt-0.5">
+                                    {e.department || 'General'} {e.degree ? `| ${e.degree}` : ''}
+                                </div>
+                            </td>
+                            <td className="p-4 text-xs text-slate-600 dark:text-slate-400 font-medium max-w-xs truncate" title={e.address || ''}>
+                                {e.address || '---'}
+                            </td>
+                            <td className="p-4 text-right font-bold text-slate-800 dark:text-slate-100 text-base font-mono whitespace-nowrap">
+                                ৳{(e.salary || 0).toLocaleString()}
+                            </td>
+                            <td className="p-4 text-center whitespace-nowrap">
+                                <span className={`px-3 py-1 rounded-full text-[9px] font-bold uppercase border ${e.status === 'Active' ? 'bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-900' : 'bg-rose-50 dark:bg-rose-950 text-rose-600 dark:text-rose-400 border-rose-100 dark:border-rose-900'}`}>
+                                    {e.status === 'Active' ? 'Active' : 'Released'}
+                                </span>
+                            </td>
+                        </tr>
+                        ))
+                    )}
                 </tbody>
+                {filteredStaffList.length > 0 && (
+                    <tfoot className="bg-slate-50 dark:bg-slate-800/60 font-bold border-t-2 border-slate-200 dark:border-slate-700 font-bengali">
+                        <tr>
+                            <td colSpan={5} className="p-4 text-right text-xs uppercase text-slate-600 dark:text-slate-300 tracking-wider">
+                                সর্বমোট বেসিক স্যালারি ({filteredStaffList.length} জন স্টাফ):
+                            </td>
+                            <td className="p-4 text-right text-base text-emerald-600 dark:text-emerald-400 font-mono font-black">
+                                ৳{totalStaffBasicSalary.toLocaleString()}
+                            </td>
+                            <td></td>
+                        </tr>
+                    </tfoot>
+                )}
             </table>
         </div>
     </div>
-  );
+    );
+  };
 
   const renderMonthlyRosterTab = () => {
     const roster = monthlyRoster || {};
@@ -1899,8 +2191,9 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
   };
 
   const renderLeaveManagementTab = () => {
+    const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
+
     const getAutoAbsentCount = (empId: string) => {
-        const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
         let absentCount = 0;
         for(let d=1; d<=daysInMonth; d++) {
             const dateStr = `${selectedYear}-${String(selectedMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
@@ -1909,116 +2202,640 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
         return absentCount;
     };
 
+    const filteredList = periodEmployees.filter(emp => {
+      if (!emp) return false;
+      const term = (payrollSearchTerm || '').trim().toLowerCase();
+      if (!term) return true;
+      const name = (emp.emp_name || '').toLowerCase();
+      const id = (emp.emp_id || '').toLowerCase();
+      const machine = (emp.machine_id || '').toLowerCase();
+      const pos = (emp.job_position || emp.designation || '').toLowerCase();
+      const dept = (emp.department || '').toLowerCase();
+      const addr = (emp.address || '').toLowerCase();
+      const mob = (emp.mobile || '').toLowerCase();
+      return name.includes(term) || id.includes(term) || machine.includes(term) || pos.includes(term) || dept.includes(term) || addr.includes(term) || mob.includes(term);
+    });
+
+    const payrollData = filteredList.map((emp, index) => {
+      const autoAbsent = getAutoAbsentCount(emp.emp_id);
+      const key = `${selectedMonth}_${selectedYear}_${emp.emp_id}`;
+      const record = (leaveLog || {})[key] || { leaveDays: 0, deductionAmount: 0, bonus: 0, overtime: 0 };
+      const currentSalary = record.agreedSalary !== undefined ? record.agreedSalary : (emp.salary || 0);
+      const perDaySal = currentSalary / 30;
+      const leaveDeduction = (autoAbsent + (record.leaveDays || 0)) * perDaySal;
+      const totalDeduction = leaveDeduction + (record.deductionAmount || 0);
+      const bonus = record.bonus || 0;
+      const overtime = record.overtime || 0;
+      const netEarnings = currentSalary + bonus + overtime;
+      const finalNet = Math.max(0, netEarnings - totalDeduction);
+      return {
+        emp,
+        index,
+        key,
+        record,
+        currentSalary,
+        autoAbsent,
+        leaveDays: record.leaveDays || 0,
+        bonus,
+        overtime,
+        leaveDeduction,
+        manualDeduction: record.deductionAmount || 0,
+        totalDeduction,
+        finalNet
+      };
+    });
+
+    const totalBasicSalary = payrollData.reduce((s, e) => s + e.currentSalary, 0);
+    const totalEidBonus = payrollData.reduce((s, e) => s + e.bonus, 0);
+    const totalOvertime = payrollData.reduce((s, e) => s + e.overtime, 0);
+    const totalAbsentDays = payrollData.reduce((s, e) => s + e.autoAbsent, 0);
+    const totalLeaveDays = payrollData.reduce((s, e) => s + e.leaveDays, 0);
+    const totalDeductions = payrollData.reduce((s, e) => s + e.totalDeduction, 0);
+    const totalNetPayable = payrollData.reduce((s, e) => s + e.finalNet, 0);
+
     return (
-      <div className="bg-white dark:bg-slate-900 rounded-3xl p-8 border border-slate-200 dark:border-slate-800 shadow-xl animate-fade-in">
-          <div className="flex justify-between items-center mb-10 border-b border-slate-100 dark:border-slate-800 pb-5">
-              <h2 className="text-xl font-bold text-slate-800 dark:text-sky-100 uppercase tracking-tight">Monthly Payroll Adjustments</h2>
-              <div className="flex gap-4">
-                  <select value={selectedMonth} onChange={(e) => setSelectedMonth(parseInt(e.target.value))} className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2 text-slate-700 dark:text-white font-bold">{monthOptions.map(m => <option key={m.value} value={m.value}>{m.name}</option>)}</select>
-                  <select value={selectedYear} onChange={(e) => setSelectedYear(parseInt(e.target.value))} className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2 text-slate-700 dark:text-white font-bold">{[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}</select>
+      <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 md:p-8 border border-slate-200 dark:border-slate-800 shadow-xl space-y-6 animate-fade-in">
+          {/* Top Controls Header */}
+          <div className="flex flex-col lg:flex-row justify-between items-stretch lg:items-center gap-4 pb-6 border-b border-slate-100 dark:border-slate-800">
+              <div>
+                <h2 className="text-xl font-black text-slate-800 dark:text-sky-100 uppercase tracking-tight flex items-center gap-3">
+                  Monthly Payroll Adjustments
+                  <span className="text-xs font-bold px-3 py-1 bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300 rounded-full">
+                    {payrollData.length} জন স্টাফ
+                  </span>
+                </h2>
+                <p className="text-xs text-slate-400 font-bold uppercase tracking-wider mt-1">
+                  মাসিক বেতন সমন্বয় ও কর্তন তালিকা • {(monthOptions[selectedMonth] || monthOptions[0]).name} {selectedYear}
+                </p>
+              </div>
+
+              {/* Search Bar */}
+              <div className="flex-1 max-w-md relative">
+                <SearchIcon className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="নাম, আইডি, পদবি, ঠিকানা দিয়ে খুঁজুন..."
+                  value={payrollSearchTerm}
+                  onChange={(e) => setPayrollSearchTerm(e.target.value)}
+                  className="w-full pl-10 pr-10 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-slate-400"
+                />
+                {payrollSearchTerm && (
+                  <button 
+                    onClick={() => setPayrollSearchTerm('')} 
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 font-bold text-xs"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+
+              {/* Month/Year & Buttons */}
+              <div className="flex flex-wrap items-center gap-3">
+                  <select value={selectedMonth} onChange={(e) => setSelectedMonth(parseInt(e.target.value))} className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-700 dark:text-white font-bold">{monthOptions.map(m => <option key={m.value} value={m.value}>{m.name}</option>)}</select>
+                  <select value={selectedYear} onChange={(e) => setSelectedYear(parseInt(e.target.value))} className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-700 dark:text-white font-bold">{[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}</select>
+                  <button onClick={handlePrintPayrollAdjustments} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl font-bold text-xs shadow-md transition-all flex items-center gap-2">
+                    <PrinterIcon size={15}/> প্রিন্ট শিট
+                  </button>
+                  <button onClick={handleFinalizePayroll} className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2 rounded-xl font-bold text-xs shadow-md transition-all flex items-center gap-2">
+                    <SaveIcon className="w-4 h-4"/> সংরক্ষণ করুন
+                  </button>
               </div>
           </div>
-          <div className="overflow-x-auto rounded-2xl border border-slate-100 dark:border-slate-800">
-              <table className="w-full text-sm text-left border-collapse">
-                  <thead className="bg-slate-50 dark:bg-slate-950 text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 dark:border-slate-800">
-                      <tr><th className="p-5">Staff Member</th><th className="p-5 text-right">Basic Salary</th><th className="p-5 text-center">Absent Days</th><th className="p-5 text-center">Manual Leave</th><th className="p-5 text-center">Eid Bonus</th><th className="p-5 text-center">Overtime</th><th className="p-5 text-right">Deduction</th><th className="p-5 text-right">Net Payable</th></tr>
+
+          {/* Table with Compact Column Totals Above Column Names */}
+          <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+              <table className="w-full text-xs text-left border-collapse">
+                  <thead className="bg-slate-100 dark:bg-slate-950 text-slate-700 dark:text-slate-300 font-bold border-b border-slate-200 dark:border-slate-800">
+                      <tr>
+                          <th className="p-3 text-center w-12 border-r border-slate-200 dark:border-slate-800">
+                            <div className="text-[10px] text-slate-400 font-bold">#</div>
+                            <div className="uppercase tracking-wider text-[11px]">SL</div>
+                          </th>
+                          <th className="p-3 border-r border-slate-200 dark:border-slate-800 min-w-[240px]">
+                            <div className="text-[10.5px] font-bold text-blue-600 dark:text-blue-400">মোট কর্মী: {payrollData.length} জন</div>
+                            <div className="uppercase tracking-wider text-[11px]">স্টাফ মেম্বার ও পদবি / ঠিকানা</div>
+                          </th>
+                          <th className="p-3 text-right border-r border-slate-200 dark:border-slate-800 min-w-[120px]">
+                            <div className="text-[11px] text-blue-600 dark:text-blue-400 font-black">৳{totalBasicSalary.toLocaleString()}</div>
+                            <div className="uppercase tracking-wider text-[10.5px] text-slate-600 dark:text-slate-300">Basic Salary</div>
+                          </th>
+                          <th className="p-3 text-center border-r border-slate-200 dark:border-slate-800 w-24">
+                            <div className="text-[11px] text-rose-500 font-black">{totalAbsentDays} দিন</div>
+                            <div className="uppercase tracking-wider text-[10.5px] text-slate-600 dark:text-slate-300">অনুপস্থিত</div>
+                          </th>
+                          <th className="p-3 text-center border-r border-slate-200 dark:border-slate-800 w-24">
+                            <div className="text-[11px] text-amber-500 font-black">{totalLeaveDays} দিন</div>
+                            <div className="uppercase tracking-wider text-[10.5px] text-slate-600 dark:text-slate-300">ছুটি (দিন)</div>
+                          </th>
+                          <th className="p-3 text-center border-r border-slate-200 dark:border-slate-800 min-w-[100px]">
+                            <div className="text-[11px] text-blue-500 font-black">৳{totalEidBonus.toLocaleString()}</div>
+                            <div className="uppercase tracking-wider text-[10.5px] text-slate-600 dark:text-slate-300">Eid Bonus</div>
+                          </th>
+                          <th className="p-3 text-center border-r border-slate-200 dark:border-slate-800 min-w-[100px]">
+                            <div className="text-[11px] text-emerald-500 font-black">৳{totalOvertime.toLocaleString()}</div>
+                            <div className="uppercase tracking-wider text-[10.5px] text-slate-600 dark:text-slate-300">Overtime</div>
+                          </th>
+                          <th className="p-3 text-right border-r border-slate-200 dark:border-slate-800 min-w-[130px]">
+                            <div className="text-[11px] text-rose-600 font-black">৳{Math.round(totalDeductions).toLocaleString()}</div>
+                            <div className="uppercase tracking-wider text-[10.5px] text-slate-600 dark:text-slate-300">মোট কর্তন</div>
+                          </th>
+                          <th className="p-3 text-right min-w-[140px] bg-blue-50/60 dark:bg-blue-950/30">
+                            <div className="text-[12px] text-blue-700 dark:text-blue-300 font-black">৳{Math.round(totalNetPayable).toLocaleString()}</div>
+                            <div className="uppercase tracking-wider text-[10.5px] text-blue-900 dark:text-blue-200">Net Payable</div>
+                          </th>
+                      </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                      {periodEmployees.map((emp) => {
-                          const autoAbsent = getAutoAbsentCount(emp.emp_id);
-                          const key = `${selectedMonth}_${selectedYear}_${emp.emp_id}`;
-                          const record = (leaveLog || {})[key] || { leaveDays: 0, deductionAmount: 0, bonus: 0, overtime: 0 };
-                          const currentSalary = record.agreedSalary !== undefined ? record.agreedSalary : emp.salary;
-                          const perDaySal = currentSalary / 30;
-                          const leaveDeduction = (autoAbsent + record.leaveDays) * perDaySal;
-                          const totalDeduction = leaveDeduction + record.deductionAmount;
-                          const netEarnings = currentSalary + (record.bonus || 0) + (record.overtime || 0);
-                          const finalNet = netEarnings - totalDeduction;
+                      {payrollData.length === 0 ? (
+                        <tr>
+                          <td colSpan={9} className="p-8 text-center text-slate-400 font-bold">
+                            কোনো কর্মচারীর তথ্য পাওয়া যায়নি
+                          </td>
+                        </tr>
+                      ) : (
+                        payrollData.map((item) => {
+                          const { emp, index, key, record, currentSalary, autoAbsent, bonus, overtime, leaveDeduction, totalDeduction, finalNet } = item;
                           return (
-                              <tr key={emp.emp_id} className="hover:bg-slate-50 dark:hover:bg-blue-900/10 transition-all">
-                                  <td className="p-5 font-bold text-slate-700 dark:text-slate-200 uppercase">{emp.emp_name}<div className="text-[10px] text-slate-400 font-medium">{emp.job_position}</div></td>
-                                  <td className="p-5 text-right font-bold text-slate-500">
-                                      <input type="number" 
-                                             value={record.agreedSalary !== undefined ? record.agreedSalary : emp.salary} 
-                                             onChange={(e) => setLeaveLog({...leaveLog, [key]: {...record, agreedSalary: parseInt(e.target.value) || 0}})} 
-                                             className="w-24 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg p-2 text-right text-slate-700 dark:text-slate-300 font-bold" />
+                              <tr key={emp.emp_id} className="hover:bg-slate-50 dark:hover:bg-blue-950/20 transition-all">
+                                  {/* Serial Number */}
+                                  <td className="p-3 text-center font-mono font-bold text-slate-500 border-r border-slate-100 dark:border-slate-800">
+                                    {index + 1}
                                   </td>
-                                  <td className="p-5 text-center font-bold text-rose-500 text-lg">{autoAbsent}</td>
-                                  <td className="p-5 text-center"><input type="number" value={record.leaveDays} onChange={(e) => setLeaveLog({...leaveLog, [key]: {...record, leaveDays: parseInt(e.target.value) || 0}})} className="w-16 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg p-2 text-center text-slate-800 dark:text-white font-bold" /></td>
-                                  <td className="p-5 text-center"><input type="number" value={record.bonus} onChange={(e) => setLeaveLog({...leaveLog, [key]: {...record, bonus: parseInt(e.target.value) || 0}})} className="w-20 bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800 rounded-lg p-2 text-center text-blue-600 font-bold" placeholder="Bonus" /></td>
-                                  <td className="p-5 text-center"><input type="number" value={record.overtime} onChange={(e) => setLeaveLog({...leaveLog, [key]: {...record, overtime: parseInt(e.target.value) || 0}})} className="w-20 bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-200 dark:border-emerald-800 rounded-lg p-2 text-center text-emerald-600 font-bold" placeholder="O.T" /></td>
-                                  <td className="p-5 text-right"><input type="number" value={record.deductionAmount} onChange={(e) => setLeaveLog({...leaveLog, [key]: {...record, deductionAmount: parseInt(e.target.value) || 0}})} className="w-24 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg p-2 text-right text-rose-600 font-bold" /></td>
-                                  <td className="p-5 text-right text-blue-600 font-bold text-xl">৳{(finalNet).toLocaleString(undefined, {maximumFractionDigits:0})}</td>
+
+                                  {/* Staff Member Details */}
+                                  <td className="p-3 border-r border-slate-100 dark:border-slate-800">
+                                      <div className="font-bold text-slate-800 dark:text-slate-100 uppercase text-xs flex items-center gap-2">
+                                        {emp.emp_name}
+                                        <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded">
+                                          #{emp.emp_id}
+                                        </span>
+                                        {emp.machine_id && (
+                                          <span className="font-mono text-[9px] font-bold px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded">
+                                            HID: {emp.machine_id}
+                                          </span>
+                                        )}
+                                      </div>
+                                      <div className="text-[10px] text-blue-600 dark:text-blue-400 font-bold mt-0.5">
+                                        {emp.job_position || emp.designation || 'Staff'} {emp.department ? `(${emp.department})` : ''}
+                                      </div>
+                                      {(emp.address || emp.mobile) && (
+                                        <div className="text-[9.5px] text-slate-400 font-medium mt-1 flex flex-wrap items-center gap-2">
+                                          {emp.address && (
+                                            <span className="flex items-center gap-1">
+                                              <MapPinIcon className="w-2.5 h-2.5 text-slate-400" />
+                                              {emp.address}
+                                            </span>
+                                          )}
+                                          {emp.mobile && (
+                                            <span className="flex items-center gap-1 font-mono">
+                                              <PhoneIcon className="w-2.5 h-2.5 text-slate-400" />
+                                              {emp.mobile}
+                                            </span>
+                                          )}
+                                        </div>
+                                      )}
+                                  </td>
+
+                                  {/* Basic Salary */}
+                                  <td className="p-3 text-right font-bold border-r border-slate-100 dark:border-slate-800">
+                                      <div className="flex items-center justify-end gap-1">
+                                        <span className="text-slate-400 text-xs">৳</span>
+                                        <input 
+                                          type="number" 
+                                          value={record.agreedSalary !== undefined ? record.agreedSalary : (emp.salary || 0)} 
+                                          onChange={(e) => setLeaveLog({...leaveLog, [key]: {...record, agreedSalary: parseInt(e.target.value) || 0}})} 
+                                          className="w-24 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg p-1.5 text-right text-slate-800 dark:text-slate-200 font-bold text-xs focus:ring-1 focus:ring-blue-500" 
+                                        />
+                                      </div>
+                                  </td>
+
+                                  {/* Absent Days */}
+                                  <td className="p-3 text-center border-r border-slate-100 dark:border-slate-800">
+                                    <span className="inline-block px-2.5 py-1 rounded-md bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 font-black text-xs">
+                                      {autoAbsent}
+                                    </span>
+                                  </td>
+
+                                  {/* Manual Leave Days */}
+                                  <td className="p-3 text-center border-r border-slate-100 dark:border-slate-800">
+                                    <input 
+                                      type="number" 
+                                      value={record.leaveDays || 0} 
+                                      onChange={(e) => setLeaveLog({...leaveLog, [key]: {...record, leaveDays: parseInt(e.target.value) || 0}})} 
+                                      className="w-14 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg p-1.5 text-center text-slate-800 dark:text-white font-bold text-xs focus:ring-1 focus:ring-blue-500" 
+                                    />
+                                  </td>
+
+                                  {/* Eid Bonus */}
+                                  <td className="p-3 text-center border-r border-slate-100 dark:border-slate-800">
+                                    <input 
+                                      type="number" 
+                                      value={record.bonus || 0} 
+                                      onChange={(e) => setLeaveLog({...leaveLog, [key]: {...record, bonus: parseInt(e.target.value) || 0}})} 
+                                      className="w-20 bg-blue-50/60 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg p-1.5 text-center text-blue-600 dark:text-blue-400 font-bold text-xs focus:ring-1 focus:ring-blue-500" 
+                                      placeholder="0" 
+                                    />
+                                  </td>
+
+                                  {/* Overtime */}
+                                  <td className="p-3 text-center border-r border-slate-100 dark:border-slate-800">
+                                    <input 
+                                      type="number" 
+                                      value={record.overtime || 0} 
+                                      onChange={(e) => setLeaveLog({...leaveLog, [key]: {...record, overtime: parseInt(e.target.value) || 0}})} 
+                                      className="w-20 bg-emerald-50/60 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-lg p-1.5 text-center text-emerald-600 dark:text-emerald-400 font-bold text-xs focus:ring-1 focus:ring-emerald-500" 
+                                      placeholder="0" 
+                                    />
+                                  </td>
+
+                                  {/* Deductions (Manual input + auto leave breakdown) */}
+                                  <td className="p-3 text-right border-r border-slate-100 dark:border-slate-800">
+                                    <div className="flex items-center justify-end gap-1">
+                                      <span className="text-slate-400 text-xs">৳</span>
+                                      <input 
+                                        type="number" 
+                                        value={record.deductionAmount || 0} 
+                                        onChange={(e) => setLeaveLog({...leaveLog, [key]: {...record, deductionAmount: parseInt(e.target.value) || 0}})} 
+                                        className="w-20 bg-rose-50/40 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-800 rounded-lg p-1.5 text-right text-rose-600 font-bold text-xs focus:ring-1 focus:ring-rose-500" 
+                                        placeholder="0"
+                                      />
+                                    </div>
+                                    <div className="text-[9px] text-slate-400 font-medium mt-1">
+                                      ছুটি কর্তন: ৳{Math.round(leaveDeduction).toLocaleString()}
+                                    </div>
+                                    <div className="text-[10px] text-rose-600 font-bold">
+                                      মোট: ৳{Math.round(totalDeduction).toLocaleString()}
+                                    </div>
+                                  </td>
+
+                                  {/* Net Payable */}
+                                  <td className="p-3 text-right font-black text-blue-600 dark:text-sky-300 text-sm bg-blue-50/30 dark:bg-blue-950/10">
+                                    ৳{Math.round(finalNet).toLocaleString()}
+                                  </td>
                               </tr>
                           );
-                      })}
+                        })
+                      )}
                   </tbody>
+                  {payrollData.length > 0 && (
+                    <tfoot className="bg-slate-100 dark:bg-slate-950 text-slate-800 dark:text-slate-100 font-black border-t-2 border-slate-300 dark:border-slate-700">
+                      <tr>
+                        <td colSpan={2} className="p-3.5 text-right uppercase text-xs tracking-wider">
+                          সর্বমোট (Grand Total):
+                        </td>
+                        <td className="p-3.5 text-right text-xs">
+                          ৳{totalBasicSalary.toLocaleString()}
+                        </td>
+                        <td className="p-3.5 text-center text-xs text-rose-600">
+                          {totalAbsentDays} দিন
+                        </td>
+                        <td className="p-3.5 text-center text-xs text-amber-600">
+                          {totalLeaveDays} দিন
+                        </td>
+                        <td className="p-3.5 text-center text-xs text-blue-600">
+                          ৳{totalEidBonus.toLocaleString()}
+                        </td>
+                        <td className="p-3.5 text-center text-xs text-emerald-600">
+                          ৳{totalOvertime.toLocaleString()}
+                        </td>
+                        <td className="p-3.5 text-right text-xs text-rose-600">
+                          ৳{Math.round(totalDeductions).toLocaleString()}
+                        </td>
+                        <td className="p-3.5 text-right text-sm text-blue-700 dark:text-blue-300 bg-blue-100/50 dark:bg-blue-900/30">
+                          ৳{Math.round(totalNetPayable).toLocaleString()}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  )}
               </table>
           </div>
-          <div className="mt-12 flex justify-end"><button onClick={handleFinalizePayroll} className="bg-emerald-600 text-white px-16 py-4 rounded-3xl font-bold uppercase text-xs shadow-xl hover:bg-emerald-700 transition-all">Update Calculations</button></div>
+
+          <div className="flex justify-between items-center pt-2">
+            <span className="text-xs text-slate-400 font-bold">
+              * অনুপস্থিতি এবং ছুটির দিনের জন্য (বেসিক / ৩০) হারে স্বয়ংক্রিয়ভাবে বেতন কর্তন হিসাব করা হয়।
+            </span>
+            <button onClick={handleFinalizePayroll} className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-3 rounded-2xl font-bold uppercase text-xs shadow-lg transition-all flex items-center gap-2">
+              <SaveIcon className="w-4 h-4"/> আপডেট ও সংরক্ষণ
+            </button>
+          </div>
       </div>
     );
   };
 
   const renderSalarySheetTab = () => {
+    const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
+
+    const filteredList = periodEmployees.filter(emp => {
+      if (!emp) return false;
+      const term = (salarySheetSearchTerm || '').trim().toLowerCase();
+      if (!term) return true;
+      const name = (emp.emp_name || '').toLowerCase();
+      const id = (emp.emp_id || '').toLowerCase();
+      const machine = (emp.machine_id || '').toLowerCase();
+      const pos = (emp.job_position || emp.designation || '').toLowerCase();
+      const dept = (emp.department || '').toLowerCase();
+      const addr = (emp.address || '').toLowerCase();
+      const mob = (emp.mobile || '').toLowerCase();
+      return name.includes(term) || id.includes(term) || machine.includes(term) || pos.includes(term) || dept.includes(term) || addr.includes(term) || mob.includes(term);
+    });
+
+    const salarySheetData = filteredList.map((emp, index) => {
+        let advanceTakenTotal = 0;
+        for (let day = 1; day <= daysInMonth; day++) {
+            const dateStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            const dayExpenses = (detailedExpenses || {})[dateStr] || [];
+            const payments = dayExpenses.filter(ex => ex.category === 'Stuff salary' && (ex.subCategory === emp.emp_name || (ex.description && ex.description.includes(emp.emp_name))));
+            advanceTakenTotal += payments.reduce((sum, ex) => sum + (ex.paidAmount || 0), 0);
+        }
+        const leaveKey = `${selectedMonth}_${selectedYear}_${emp.emp_id}`;
+        const leaveRecord = (leaveLog || {})[leaveKey] || { leaveDays: 0, deductionAmount: 0, bonus: 0, overtime: 0 };
+        let absentCount = 0;
+        for(let d=1; d<=daysInMonth; d++) {
+            const dateStr = `${selectedYear}-${String(selectedMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+            if((attendanceLog || {})[`${dateStr}_${emp.emp_id}`]?.status === 'Absent') absentCount++;
+        }
+        const currentEmpSalary = leaveRecord.agreedSalary !== undefined ? leaveRecord.agreedSalary : (emp.salary || 0);
+        const perDaySal = currentEmpSalary / 30;
+        const leaveDeduction = (absentCount + (leaveRecord.leaveDays || 0)) * perDaySal;
+        const totalDeduction = leaveDeduction + (leaveRecord.deductionAmount || 0);
+        const bonus = leaveRecord.bonus || 0;
+        const overtime = leaveRecord.overtime || 0;
+        const bonusOt = bonus + overtime;
+        const netPayable = Math.max(0, currentEmpSalary + bonusOt - totalDeduction);
+        const paidAmount = advanceTakenTotal;
+        const dueAmount = netPayable - paidAmount;
+
+        return {
+          emp,
+          index,
+          currentEmpSalary,
+          bonus,
+          overtime,
+          bonusOt,
+          leaveDeduction,
+          manualDeduction: leaveRecord.deductionAmount || 0,
+          totalDeduction,
+          netPayable,
+          paidAmount,
+          dueAmount,
+          absentCount,
+          leaveDays: leaveRecord.leaveDays || 0
+        };
+    });
+
+    const totalSheetBasic = salarySheetData.reduce((s, e) => s + e.currentEmpSalary, 0);
+    const totalSheetBonusOt = salarySheetData.reduce((s, e) => s + e.bonusOt, 0);
+    const totalSheetDeductions = salarySheetData.reduce((s, e) => s + e.totalDeduction, 0);
+    const totalSheetNetPayable = salarySheetData.reduce((s, e) => s + e.netPayable, 0);
+    const totalSheetPaid = salarySheetData.reduce((s, e) => s + e.paidAmount, 0);
+    const totalSheetDue = salarySheetData.reduce((s, e) => s + e.dueAmount, 0);
+
     return (
-        <div className="space-y-12 animate-fade-in no-print">
-            <div className="flex justify-between items-center bg-white dark:bg-slate-900 p-8 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xl">
-                <div><h3 className="text-xl font-bold text-slate-800 dark:text-white uppercase tracking-tight leading-none">Net Settlement Sheet</h3><p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-2">Cycle: {(monthOptions[selectedMonth] || monthOptions[0]).name} {selectedYear}</p></div>
-                <div className="flex gap-4">
-                  <select value={selectedMonth} onChange={e => setSelectedMonth(parseInt(e.target.value))} className="bg-slate-100 dark:bg-slate-800 border-none rounded-xl px-4 py-2 text-white font-black text-xs">{monthOptions.map(m => <option key={m.value} value={m.value}>{m.name}</option>)}</select>
-                  <select value={selectedYear} onChange={(e) => setSelectedYear(parseInt(e.target.value))} className="bg-slate-100 dark:bg-slate-800 border-none rounded-xl px-4 py-2 text-white font-black text-xs">{[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}</select>
-                  <button onClick={handlePrintSalarySheet} className="bg-blue-600 text-white px-8 py-3 rounded-xl font-bold text-xs uppercase shadow-lg hover:bg-blue-700 transition-all flex items-center gap-3"><PrinterIcon size={16}/> Print Official Sheet</button>
+        <div className="space-y-6 animate-fade-in no-print">
+            {/* Top Bar */}
+            <div className="flex flex-col lg:flex-row justify-between items-stretch lg:items-center gap-4 bg-white dark:bg-slate-900 p-6 md:p-8 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xl">
+                <div>
+                  <h3 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tight leading-none flex items-center gap-3">
+                    Employee Net Settlement Sheet
+                    <span className="text-xs font-bold px-3 py-1 bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 rounded-full">
+                      {salarySheetData.length} জন কর্মী
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-2">
+                    মাসিক নিট স্যালারি ও বকেয়া নিষ্পত্তি • {(monthOptions[selectedMonth] || monthOptions[0]).name} {selectedYear}
+                  </p>
+                </div>
+
+                {/* Search Bar */}
+                <div className="flex-1 max-w-md relative">
+                  <SearchIcon className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    placeholder="নাম, আইডি, পদবি, ঠিকানা দিয়ে সার্চ করুন..."
+                    value={salarySheetSearchTerm}
+                    onChange={(e) => setSalarySheetSearchTerm(e.target.value)}
+                    className="w-full pl-10 pr-10 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-slate-400"
+                  />
+                  {salarySheetSearchTerm && (
+                    <button 
+                      onClick={() => setSalarySheetSearchTerm('')} 
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 font-bold text-xs"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+
+                {/* Month/Year and Print Button */}
+                <div className="flex flex-wrap items-center gap-3">
+                  <select value={selectedMonth} onChange={e => setSelectedMonth(parseInt(e.target.value))} className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-700 dark:text-white font-bold">{monthOptions.map(m => <option key={m.value} value={m.value}>{m.name}</option>)}</select>
+                  <select value={selectedYear} onChange={(e) => setSelectedYear(parseInt(e.target.value))} className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-700 dark:text-white font-bold">{[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}</select>
+                  <button onClick={handlePrintSalarySheet} className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-bold text-xs uppercase shadow-md transition-all flex items-center gap-2.5">
+                    <PrinterIcon size={16}/> Print Official Sheet
+                  </button>
                 </div>
             </div>
-            
-            <div className="bg-white dark:bg-slate-900/60 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xl overflow-hidden">
-                <div className="overflow-x-auto rounded-2xl border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/40">
-                    <table className="w-full text-[10px] text-left border-collapse">
-                        <thead className="bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-slate-100 uppercase font-bold border-b border-slate-200 dark:border-slate-800">
+
+            {/* Table with Compact Column Totals on Top */}
+            <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xl overflow-hidden">
+                <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800">
+                    <table className="w-full text-xs text-left border-collapse">
+                        <thead className="bg-slate-100 dark:bg-slate-950 text-slate-700 dark:text-slate-200 font-bold border-b border-slate-200 dark:border-slate-800">
                             <tr>
-                                <th className="p-3">SL</th>
-                                <th className="p-3">Staff Name</th>
-                                <th className="p-3 text-right">Basic Salary</th>
-                                <th className="p-3 text-right text-blue-600 dark:text-blue-400">Bonus/OT</th>
-                                <th className="p-3 text-right text-emerald-600 dark:text-emerald-400 font-bold bg-slate-200 dark:bg-slate-800">Advance Taken</th>
-                                <th className="p-3 text-right bg-slate-300 dark:bg-slate-700 text-slate-900 dark:text-white font-black">Final Balance Due</th>
+                                <th className="p-3 text-center w-12 border-r border-slate-200 dark:border-slate-800">
+                                  <div className="text-[10px] text-slate-400 font-bold">#</div>
+                                  <div className="uppercase tracking-wider text-[11px]">SL</div>
+                                </th>
+                                <th className="p-3 border-r border-slate-200 dark:border-slate-800 min-w-[240px]">
+                                  <div className="text-[10.5px] font-bold text-emerald-600 dark:text-emerald-400">মোট কর্মী: {salarySheetData.length} জন</div>
+                                  <div className="uppercase tracking-wider text-[11px]">স্টাফ মেম্বার (নাম, পদবি, ঠিকানা)</div>
+                                </th>
+                                <th className="p-3 text-right border-r border-slate-200 dark:border-slate-800 min-w-[110px]">
+                                  <div className="text-[11px] text-slate-800 dark:text-slate-100 font-black">৳{totalSheetBasic.toLocaleString()}</div>
+                                  <div className="uppercase tracking-wider text-[10.5px] text-slate-600 dark:text-slate-300">মূল বেতন (Basic)</div>
+                                </th>
+                                <th className="p-3 text-right border-r border-slate-200 dark:border-slate-800 min-w-[100px]">
+                                  <div className="text-[11px] text-blue-600 dark:text-blue-400 font-black">৳{totalSheetBonusOt.toLocaleString()}</div>
+                                  <div className="uppercase tracking-wider text-[10.5px] text-slate-600 dark:text-slate-300">বোনাস ও ও.টি</div>
+                                </th>
+                                <th className="p-3 text-right border-r border-slate-200 dark:border-slate-800 min-w-[110px]">
+                                  <div className="text-[11px] text-rose-600 font-black">৳{Math.round(totalSheetDeductions).toLocaleString()}</div>
+                                  <div className="uppercase tracking-wider text-[10.5px] text-slate-600 dark:text-slate-300">মোট কর্তন</div>
+                                </th>
+                                <th className="p-3 text-right border-r border-slate-200 dark:border-slate-800 min-w-[120px] bg-slate-200/50 dark:bg-slate-800/40">
+                                  <div className="text-[11px] text-indigo-700 dark:text-indigo-300 font-black">৳{Math.round(totalSheetNetPayable).toLocaleString()}</div>
+                                  <div className="uppercase tracking-wider text-[10.5px] text-indigo-900 dark:text-indigo-200">নেট স্যালারি</div>
+                                </th>
+                                <th className="p-3 text-right border-r border-slate-200 dark:border-slate-800 min-w-[110px] bg-emerald-50/50 dark:bg-emerald-950/20">
+                                  <div className="text-[11px] text-emerald-600 font-black">৳{totalSheetPaid.toLocaleString()}</div>
+                                  <div className="uppercase tracking-wider text-[10.5px] text-emerald-800 dark:text-emerald-300">পেইড / অগ্রিম</div>
+                                </th>
+                                <th className="p-3 text-right border-r border-slate-200 dark:border-slate-800 min-w-[120px] bg-amber-50/50 dark:bg-amber-950/20">
+                                  <div className="text-[11px] text-amber-600 font-black">৳{Math.round(totalSheetDue).toLocaleString()}</div>
+                                  <div className="uppercase tracking-wider text-[10.5px] text-amber-800 dark:text-amber-300">অবশিষ্ট ডিউ</div>
+                                </th>
+                                <th className="p-3 text-center min-w-[100px]">
+                                  <div className="text-[10px] text-slate-400 font-bold">পরিস্থিতি</div>
+                                  <div className="uppercase tracking-wider text-[11px]">স্ট্যাটাস</div>
+                                </th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                            {periodEmployees.map((emp, index) => {
-                                let advanceTakenTotal = 0;
-                                const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
-                                for (let day = 1; day <= daysInMonth; day++) {
-                                    const dateStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                                    const dayExpenses = (detailedExpenses || {})[dateStr] || [];
-                                    const payments = dayExpenses.filter(ex => ex.category === 'Stuff salary' && (ex.subCategory === emp.emp_name || (ex.description && ex.description.includes(emp.emp_name))));
-                                    advanceTakenTotal += payments.reduce((sum, ex) => sum + (ex.paidAmount || 0), 0);
-                                }
-                                const leaveKey = `${selectedMonth}_${selectedYear}_${emp.emp_id}`;
-                                const leaveRecord = (leaveLog || {})[leaveKey] || { leaveDays: 0, deductionAmount: 0, bonus: 0, overtime: 0 };
-                                let absentCount = 0;
-                                for(let d=1; d<=daysInMonth; d++) {
-                                    const dateStr = `${selectedYear}-${String(selectedMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-                                    if((attendanceLog || {})[`${dateStr}_${emp.emp_id}`]?.status === 'Absent') absentCount++;
-                                }
-                                const currentEmpSalary = emp.salary || 0;
-                                const perDaySal = currentEmpSalary / 30;
-                                const leaveDeduction = (absentCount + (leaveRecord.leaveDays || 0)) * perDaySal;
-                                const earnings = (leaveRecord.bonus || 0) + (leaveRecord.overtime || 0);
-                                const netPayable = currentEmpSalary + earnings - leaveDeduction - (leaveRecord.deductionAmount || 0);
+                            {salarySheetData.length === 0 ? (
+                              <tr>
+                                <td colSpan={9} className="p-8 text-center text-slate-400 font-bold">
+                                  কোনো কর্মচারীর তথ্য পাওয়া যায়নি
+                                </td>
+                              </tr>
+                            ) : (
+                              salarySheetData.map((item) => {
+                                const { emp, index, currentEmpSalary, bonus, overtime, bonusOt, leaveDeduction, manualDeduction, totalDeduction, netPayable, paidAmount, dueAmount } = item;
+                                const isFullyPaid = dueAmount <= 0 && netPayable > 0;
+                                const isPartiallyPaid = paidAmount > 0 && dueAmount > 0;
+                                const isUnpaid = paidAmount === 0 && netPayable > 0;
+
                                 return (
-                                    <tr key={emp.emp_id} className="hover:bg-blue-50 dark:hover:bg-slate-800/50 transition-colors">
-                                        <td className="p-3 text-slate-500 font-mono">{index + 1}</td>
-                                        <td className="p-3 font-bold text-slate-800 dark:text-white uppercase">{emp.emp_name}</td>
-                                        <td className="p-3 text-right font-bold text-slate-500">৳{(emp.salary || 0).toLocaleString()}</td>
-                                        <td className="p-3 text-right font-bold text-blue-500">৳{(earnings || 0).toLocaleString()}</td>
-                                        <td className="p-3 text-right font-bold text-emerald-500">৳{(advanceTakenTotal || 0).toLocaleString()}</td>
-                                        <td className="p-3 text-right font-black text-slate-900 dark:text-white text-base">৳{((netPayable || 0) - (advanceTakenTotal || 0)).toLocaleString(undefined, {maximumFractionDigits:0})}</td>
+                                    <tr key={emp.emp_id} className="hover:bg-blue-50/40 dark:hover:bg-slate-800/50 transition-colors">
+                                        {/* SL */}
+                                        <td className="p-3 text-center text-slate-500 font-mono font-bold border-r border-slate-100 dark:border-slate-800">
+                                          {index + 1}
+                                        </td>
+
+                                        {/* Staff Details */}
+                                        <td className="p-3 border-r border-slate-100 dark:border-slate-800">
+                                          <div className="font-bold text-slate-800 dark:text-white uppercase text-xs flex items-center gap-2">
+                                            {emp.emp_name}
+                                            <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded">
+                                              #{emp.emp_id}
+                                            </span>
+                                            {emp.machine_id && (
+                                              <span className="font-mono text-[9px] font-bold px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded">
+                                                HID: {emp.machine_id}
+                                              </span>
+                                            )}
+                                          </div>
+                                          <div className="text-[10px] text-blue-600 dark:text-blue-400 font-bold mt-0.5">
+                                            {emp.job_position || emp.designation || 'Staff'} {emp.department ? `(${emp.department})` : ''}
+                                          </div>
+                                          {(emp.address || emp.mobile) && (
+                                            <div className="text-[9.5px] text-slate-400 font-medium mt-1 flex flex-wrap items-center gap-2">
+                                              {emp.address && (
+                                                <span className="flex items-center gap-1">
+                                                  <MapPinIcon className="w-2.5 h-2.5 text-slate-400" />
+                                                  {emp.address}
+                                                </span>
+                                              )}
+                                              {emp.mobile && (
+                                                <span className="flex items-center gap-1 font-mono">
+                                                  <PhoneIcon className="w-2.5 h-2.5 text-slate-400" />
+                                                  {emp.mobile}
+                                                </span>
+                                              )}
+                                            </div>
+                                          )}
+                                        </td>
+
+                                        {/* Basic Salary */}
+                                        <td className="p-3 text-right font-bold text-slate-700 dark:text-slate-300 border-r border-slate-100 dark:border-slate-800">
+                                          ৳{(currentEmpSalary || 0).toLocaleString()}
+                                        </td>
+
+                                        {/* Bonus & OT */}
+                                        <td className="p-3 text-right font-bold text-blue-600 dark:text-blue-400 border-r border-slate-100 dark:border-slate-800">
+                                          ৳{(bonusOt || 0).toLocaleString()}
+                                          {bonusOt > 0 && (
+                                            <div className="text-[8.5px] text-slate-400 font-normal">
+                                              {bonus > 0 && `বোনাস: ৳${bonus.toLocaleString()}`}
+                                              {bonus > 0 && overtime > 0 && ' | '}
+                                              {overtime > 0 && `OT: ৳${overtime.toLocaleString()}`}
+                                            </div>
+                                          )}
+                                        </td>
+
+                                        {/* Deductions */}
+                                        <td className="p-3 text-right font-bold text-rose-600 border-r border-slate-100 dark:border-slate-800">
+                                          ৳{Math.round(totalDeduction).toLocaleString()}
+                                          {totalDeduction > 0 && (
+                                            <div className="text-[8.5px] text-slate-400 font-normal">
+                                              {leaveDeduction > 0 && `ছুটি: ৳${Math.round(leaveDeduction).toLocaleString()}`}
+                                              {leaveDeduction > 0 && manualDeduction > 0 && ' | '}
+                                              {manualDeduction > 0 && `অন্যান্য: ৳${manualDeduction.toLocaleString()}`}
+                                            </div>
+                                          )}
+                                        </td>
+
+                                        {/* Net Salary */}
+                                        <td className="p-3 text-right font-black text-indigo-700 dark:text-indigo-300 text-sm border-r border-slate-100 dark:border-slate-800 bg-slate-100/40 dark:bg-slate-800/30">
+                                          ৳{Math.round(netPayable).toLocaleString()}
+                                        </td>
+
+                                        {/* Paid / Advance */}
+                                        <td className="p-3 text-right font-black text-emerald-600 dark:text-emerald-400 text-sm border-r border-slate-100 dark:border-slate-800 bg-emerald-50/20 dark:bg-emerald-950/10">
+                                          ৳{(paidAmount || 0).toLocaleString()}
+                                        </td>
+
+                                        {/* Due Balance */}
+                                        <td className="p-3 text-right font-black text-sm border-r border-slate-100 dark:border-slate-800 bg-amber-50/20 dark:bg-amber-950/10">
+                                          <span className={dueAmount > 0 ? 'text-amber-600 dark:text-amber-400' : dueAmount < 0 ? 'text-blue-600' : 'text-emerald-600'}>
+                                            ৳{Math.round(dueAmount).toLocaleString()}
+                                          </span>
+                                        </td>
+
+                                        {/* Status Badge */}
+                                        <td className="p-3 text-center">
+                                          {isFullyPaid ? (
+                                            <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300">
+                                              পরিশোধিত
+                                            </span>
+                                          ) : isPartiallyPaid ? (
+                                            <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
+                                              আংশিক পেইড
+                                            </span>
+                                          ) : isUnpaid ? (
+                                            <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-300">
+                                              বকেয়া
+                                            </span>
+                                          ) : (
+                                            <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400">
+                                              ০ ব্যালেন্স
+                                            </span>
+                                          )}
+                                        </td>
                                     </tr>
                                 );
-                            })}
+                              })
+                            )}
                         </tbody>
+                        {salarySheetData.length > 0 && (
+                          <tfoot className="bg-slate-100 dark:bg-slate-950 text-slate-800 dark:text-slate-100 font-black border-t-2 border-slate-300 dark:border-slate-700">
+                            <tr>
+                              <td colSpan={2} className="p-3.5 text-right uppercase text-xs tracking-wider">
+                                মোট নিষ্পত্তিকৃত যোগফল (Grand Total):
+                              </td>
+                              <td className="p-3.5 text-right text-xs">
+                                ৳{totalSheetBasic.toLocaleString()}
+                              </td>
+                              <td className="p-3.5 text-right text-xs text-blue-600">
+                                ৳{totalSheetBonusOt.toLocaleString()}
+                              </td>
+                              <td className="p-3.5 text-right text-xs text-rose-600">
+                                ৳{Math.round(totalSheetDeductions).toLocaleString()}
+                              </td>
+                              <td className="p-3.5 text-right text-sm text-indigo-700 dark:text-indigo-300 bg-slate-200/50 dark:bg-slate-800/50">
+                                ৳{Math.round(totalSheetNetPayable).toLocaleString()}
+                              </td>
+                              <td className="p-3.5 text-right text-sm text-emerald-600 bg-emerald-100/50 dark:bg-emerald-900/30">
+                                ৳{totalSheetPaid.toLocaleString()}
+                              </td>
+                              <td className="p-3.5 text-right text-sm text-amber-700 dark:text-amber-300 bg-amber-100/50 dark:bg-amber-900/30">
+                                ৳{Math.round(totalSheetDue).toLocaleString()}
+                              </td>
+                              <td className="p-3.5 text-center text-xs text-slate-400">
+                                —
+                              </td>
+                            </tr>
+                          </tfoot>
+                        )}
                     </table>
                 </div>
             </div>

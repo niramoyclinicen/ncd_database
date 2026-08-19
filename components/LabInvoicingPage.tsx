@@ -655,6 +655,7 @@ pdate the local state and reset form
                           selectedFilmId = xrayFilmsAvailable[0].reagent_id;
                       }
                       if (selectedFilmId) {
+                          item.deducted_film_id = selectedFilmId;
                           const rIdx = updatedReagents.findIndex(r => r.reagent_id === selectedFilmId);
                           if (rIdx !== -1) {
                               updatedReagents[rIdx] = { ...updatedReagents[rIdx], quantity: (updatedReagents[rIdx].quantity || 0) - (item.quantity || 1) };
@@ -724,11 +725,62 @@ pdate the local state and reset form
       setConfirmModal({
         isOpen: true,
         title: 'Confirm Cancel',
-        message: `আপনি কি পেশেন্ট "${invoiceToCancel.patient_name}" এর ইনভয়েসটি (${invoiceToCancel.invoice_id}) বাতিল করতে চান?`,
-        onConfirm: () => {
-          setInvoices(prevInvoices => prevInvoices.map(inv => inv.invoice_id === selectedInvoiceId ? { ...inv, status: 'Cancelled' } : inv));
-          resetForm();
-          setSuccessMessage('Invoice cancelled successfully.');
+        message: `আপনি কি পেশেন্ট "${invoiceToCancel.patient_name}" এর ইনভয়েসটি (${invoiceToCancel.invoice_id}) বাতিল করতে চান? বাতিল করলে বিয়োগকৃত এক্সরে ফিল্মের স্টক স্বয়ংক্রিয়ভাবে ইনভেন্টরিতে ব্যাক হয়ে যাবে।`,
+        onConfirm: async () => {
+          let updatedReagents = [...reagents];
+          let reagentsChanged = false;
+
+          if (invoiceToCancel.items && Array.isArray(invoiceToCancel.items)) {
+            const xrayFilmsAvailable = reagents.filter(r => r.linked_category === 'X-Ray' || r.reagent_name.toLowerCase().includes('film') || r.reagent_name.toLowerCase().includes('x-ray'));
+            invoiceToCancel.items.forEach((item: any) => {
+              const testObj = tests.find(t => t.test_id === item.test_id);
+              if (testObj) {
+                if (testObj.test_category === 'X-Ray') {
+                  const targetFilm = xrayFilmsAvailable.find(r => r.reagent_id === item.deducted_film_id) || (xrayFilmsAvailable.length === 1 ? xrayFilmsAvailable[0] : null) || xrayFilmsAvailable[0];
+                  if (targetFilm) {
+                    const rIdx = updatedReagents.findIndex(r => r.reagent_id === targetFilm.reagent_id);
+                    if (rIdx !== -1) {
+                      updatedReagents[rIdx] = {
+                        ...updatedReagents[rIdx],
+                        quantity: (updatedReagents[rIdx].quantity || 0) + (item.quantity || 1)
+                      };
+                      reagentsChanged = true;
+                    }
+                  }
+                } else {
+                  const rIdx = updatedReagents.findIndex(r => r.linked_test === testObj.test_name);
+                  if (rIdx !== -1) {
+                    updatedReagents[rIdx] = {
+                      ...updatedReagents[rIdx],
+                      quantity: (updatedReagents[rIdx].quantity || 0) + (item.quantity || 1)
+                    };
+                    reagentsChanged = true;
+                  }
+                }
+              }
+            });
+          }
+
+          const newInvoices = safeInvoices.map(inv => inv.invoice_id === selectedInvoiceId ? { ...inv, status: 'Cancelled' } : inv);
+          
+          if (performBlockingSync) {
+            const syncPayload: any = { labInvoices: newInvoices };
+            if (reagentsChanged) syncPayload.reagents = updatedReagents;
+            const success = await performBlockingSync(syncPayload);
+            if (success) {
+              setInvoices(newInvoices);
+              if (reagentsChanged && setReagents) setReagents(updatedReagents);
+              resetForm();
+              setSuccessMessage('ইনভয়েস বাতিল হয়েছে এবং ফিল্ম স্টক ব্যাক হয়েছে!');
+            } else {
+              alert("ক্যান্সেল অপারেশন সম্পূর্ণ করা যায়নি। আবার চেষ্টা করুন।");
+            }
+          } else {
+            setInvoices(newInvoices);
+            if (reagentsChanged && setReagents) setReagents(updatedReagents);
+            resetForm();
+            setSuccessMessage('ইনভয়েস বাতিল হয়েছে এবং ফিল্ম স্টক ব্যাক হয়েছে!');
+          }
         }
       });
     }

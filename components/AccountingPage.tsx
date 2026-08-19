@@ -144,6 +144,8 @@ const AccountingPage: React.FC<AccountingPageProps> = ({
             diagnosticSettings={diagnosticSettings}
             setDiagnosticSettings={setDiagnosticSettings}
             performBlockingSync={performBlockingSync}
+            attendanceLog={attendanceLog}
+            leaveLog={leaveLog}
         />
     );
   }
@@ -153,11 +155,15 @@ const AccountingPage: React.FC<AccountingPageProps> = ({
         <ClinicAccountsPage 
             onBack={() => setActiveView('main')} 
             invoices={indoorInvoices} 
+            dueCollections={dueCollections} 
             dueCollections={dueCollections}
             employees={employees} 
             detailedExpenses={detailedExpenses} 
             setDetailedExpenses={setDetailedExpenses} 
             performBlockingSync={performBlockingSync}
+            attendanceLog={attendanceLog}
+            leaveLog={leaveLog}
+            monthlyRoster={monthlyRoster}
         />
     );
   }

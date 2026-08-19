@@ -82,6 +82,239 @@ const HistoryModal: React.FC<{ item: ExpenseItem, onClose: () => void }> = ({ it
     </div>
 );
 
+const StaffSalaryHelperCard: React.FC<{
+    employeeName: string;
+    employees: any[];
+    selectedDate: string;
+    allDetailedExpenses: Record<string, any[]>;
+    attendanceLog?: Record<string, any>;
+    leaveLog?: Record<string, any>;
+    currentInputPaid: number;
+    currentExpenseId?: any;
+}> = ({
+    employeeName,
+    employees,
+    selectedDate,
+    allDetailedExpenses,
+    attendanceLog = {},
+    leaveLog = {},
+    currentInputPaid,
+    currentExpenseId
+}) => {
+    const selectedEmp = useMemo(() => {
+        if (!employeeName) return null;
+        return (employees || []).find((e: any) => 
+            (e.emp_name && e.emp_name.trim().toLowerCase() === employeeName.trim().toLowerCase()) ||
+            (e.name && e.name.trim().toLowerCase() === employeeName.trim().toLowerCase()) ||
+            (e.emp_id && String(e.emp_id).trim() === employeeName.trim())
+        );
+    }, [employeeName, employees]);
+
+    const { entryYear, entryMonthIndex, monthName, daysInMonth } = useMemo(() => {
+        const d = selectedDate || new Date().toISOString().split('T')[0];
+        const [y, m] = d.split('-').map(Number);
+        const yVal = y || new Date().getFullYear();
+        const mIdx = (m !== undefined && !isNaN(m)) ? (m - 1) : new Date().getMonth();
+        return {
+            entryYear: yVal,
+            entryMonthIndex: mIdx,
+            monthName: monthOptions[mIdx]?.name || 'Current Month',
+            daysInMonth: new Date(yVal, mIdx + 1, 0).getDate()
+        };
+    }, [selectedDate]);
+
+    // Attendance calculation
+    const absentCount = useMemo(() => {
+        if (!selectedEmp) return 0;
+        let count = 0;
+        for (let d = 1; d <= daysInMonth; d++) {
+            const dStr = `${entryYear}-${String(entryMonthIndex + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+            if (attendanceLog[`${dStr}_${selectedEmp.emp_id}`]?.status === 'Absent') {
+                count++;
+            }
+        }
+        return count;
+    }, [daysInMonth, entryYear, entryMonthIndex, attendanceLog, selectedEmp]);
+
+    // Leave & agreed salary
+    const { agreedSalary, bonus, overtime, totalDeduction, netPayable } = useMemo(() => {
+        if (!selectedEmp) {
+            return { agreedSalary: 0, bonus: 0, overtime: 0, totalDeduction: 0, netPayable: 0 };
+        }
+        const leaveKey = `${entryMonthIndex}_${entryYear}_${selectedEmp.emp_id}`;
+        const leaveRecord = leaveLog[leaveKey] || { leaveDays: 0, deductionAmount: 0, bonus: 0, overtime: 0 };
+        const baseSal = leaveRecord.agreedSalary !== undefined ? leaveRecord.agreedSalary : (selectedEmp.salary || 0);
+        const perDaySal = baseSal / 30;
+        const totalAbsentDays = absentCount + (leaveRecord.leaveDays || 0);
+        const lDeduct = totalAbsentDays * perDaySal;
+        const mDeduct = leaveRecord.deductionAmount || 0;
+        const totDeduct = lDeduct + mDeduct;
+        const b = leaveRecord.bonus || 0;
+        const ot = leaveRecord.overtime || 0;
+        const net = Math.max(0, baseSal + b + ot - totDeduct);
+        return {
+            agreedSalary: baseSal,
+            bonus: b,
+            overtime: ot,
+            totalDeduction: totDeduct,
+            netPayable: net
+        };
+    }, [entryMonthIndex, entryYear, selectedEmp, leaveLog, absentCount]);
+
+    // Payment history for this month
+    const { paymentsHistory, previousPaidTotal } = useMemo(() => {
+        if (!selectedEmp) {
+            return { paymentsHistory: [], previousPaidTotal: 0 };
+        }
+        const list: Array<{ date: string; amount: number; dept?: string; description?: string; id?: any }> = [];
+        let total = 0;
+
+        for (let d = 1; d <= daysInMonth; d++) {
+            const dStr = `${entryYear}-${String(entryMonthIndex + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+            const dayExpenses = allDetailedExpenses[dStr] || [];
+            dayExpenses.forEach((ex: any) => {
+                if (ex.isDeleted) return;
+                const isMatch = ex.category === 'Stuff salary' && (
+                    (ex.subCategory && ex.subCategory.trim().toLowerCase() === selectedEmp.emp_name.trim().toLowerCase()) ||
+                    (ex.description && ex.description.includes(selectedEmp.emp_name))
+                );
+                if (isMatch) {
+                    if (currentExpenseId && String(ex.id) === String(currentExpenseId)) {
+                        return;
+                    }
+                    const amt = Number(ex.paidAmount) || 0;
+                    if (amt > 0) {
+                        list.push({
+                            date: dStr,
+                            amount: amt,
+                            dept: ex.dept || 'Clinic',
+                            description: ex.description || '',
+                            id: ex.id
+                        });
+                        total += amt;
+                    }
+                }
+            });
+        }
+        return { paymentsHistory: list, previousPaidTotal: total };
+    }, [daysInMonth, entryYear, entryMonthIndex, allDetailedExpenses, selectedEmp, currentExpenseId]);
+
+    if (!selectedEmp) {
+        return null;
+    }
+
+    const numInputPaid = Number(currentInputPaid) || 0;
+    const dueBeforeThisEntry = netPayable - previousPaidTotal;
+    const totalPaidWithCurrent = previousPaidTotal + numInputPaid;
+    const remainingDueAfterCurrent = netPayable - totalPaidWithCurrent;
+    const isOverpaid = totalPaidWithCurrent > netPayable;
+    const overpaidAmount = isOverpaid ? (totalPaidWithCurrent - netPayable) : 0;
+
+    return (
+        <div className="rounded-2xl bg-slate-950/95 border-2 border-emerald-500/50 p-4 space-y-3.5 shadow-2xl text-left my-2">
+            {/* Header info */}
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-2.5">
+                <div className="flex items-center gap-2 flex-wrap">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                    <span className="font-black text-white text-sm uppercase tracking-wide">
+                        {selectedEmp.emp_name}
+                    </span>
+                    <span className="text-[10.5px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-bold border border-slate-700">
+                        ID: #{selectedEmp.emp_id} {selectedEmp.machine_id ? `| HID: ${selectedEmp.machine_id}` : ''}
+                    </span>
+                    <span className="text-xs text-emerald-400 font-bold">
+                        {selectedEmp.job_position || selectedEmp.designation || 'Staff'} {selectedEmp.department ? `(${selectedEmp.department})` : ''}
+                    </span>
+                </div>
+                <div className="text-xs font-black text-emerald-300 bg-emerald-950/70 border border-emerald-600/50 px-3 py-1 rounded-xl">
+                    বেতন বিবরণী: {monthName} {entryYear}
+                </div>
+            </div>
+
+            {/* 3 Metric Summary Boxes */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="bg-slate-900/90 border border-slate-800 p-3 rounded-xl">
+                    <div className="text-[10px] font-black uppercase text-slate-400 tracking-wider">চলতি মাসের নিট বেতন</div>
+                    <div className="text-base font-black text-indigo-300 mt-0.5">৳{Math.round(netPayable).toLocaleString()}</div>
+                    <div className="text-[9.5px] text-slate-400 mt-1">
+                        মূল বেতন: ৳{agreedSalary.toLocaleString()}
+                        {(bonus + overtime) > 0 && ` | বোনাস/OT: +৳${(bonus + overtime).toLocaleString()}`}
+                        {totalDeduction > 0 && ` | কর্তন: -৳${Math.round(totalDeduction).toLocaleString()}`}
+                    </div>
+                </div>
+
+                <div className="bg-slate-900/90 border border-slate-800 p-3 rounded-xl">
+                    <div className="text-[10px] font-black uppercase text-slate-400 tracking-wider">পূর্বে মোট পরিশোধিত</div>
+                    <div className="text-base font-black text-emerald-400 mt-0.5">৳{previousPaidTotal.toLocaleString()}</div>
+                    <div className="text-[9.5px] text-slate-400 mt-1">
+                        {paymentsHistory.length > 0 ? `${paymentsHistory.length} টি ভাউচারে পরিশোধ করা হয়েছে` : 'এখনও কোনো পেমেন্ট নেওয়া হয়নি'}
+                    </div>
+                </div>
+
+                <div className="bg-slate-900/90 border border-slate-800 p-3 rounded-xl">
+                    <div className="text-[10px] font-black uppercase text-slate-400 tracking-wider">বর্তমান অবশিষ্ট পাওনা</div>
+                    <div className={`text-base font-black mt-0.5 ${dueBeforeThisEntry > 0 ? 'text-amber-400' : dueBeforeThisEntry === 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        ৳{Math.round(dueBeforeThisEntry).toLocaleString()}
+                    </div>
+                    <div className="text-[9.5px] text-slate-400 mt-1">
+                        {dueBeforeThisEntry > 0 ? 'বকেয়া পাওনা রয়েছে' : dueBeforeThisEntry === 0 ? 'সম্পূর্ণ পরিশোধিত' : 'অতিরিক্ত পরিশোধিত'}
+                    </div>
+                </div>
+            </div>
+
+            {/* Payment history list */}
+            <div className="bg-slate-900/70 border border-slate-800/80 p-3 rounded-xl">
+                <div className="text-[10px] font-black uppercase text-slate-400 mb-1.5 flex items-center justify-between">
+                    <span>চলতি মাসের পেমেন্ট ইতিহাস (Payment History):</span>
+                    <span className="font-mono text-emerald-400 text-xs font-black">মোট: ৳{previousPaidTotal.toLocaleString()}</span>
+                </div>
+                {paymentsHistory.length === 0 ? (
+                    <div className="text-xs text-slate-500 italic py-1">
+                        এই মাসে এ পর্যন্ত কোনো টাকা প্রদান করা হয়নি।
+                    </div>
+                ) : (
+                    <div className="flex flex-wrap gap-2 pt-1">
+                        {paymentsHistory.map((p, pIdx) => (
+                            <span key={pIdx} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-800 border border-slate-700 text-xs text-slate-200 font-mono shadow-sm">
+                                <span className="text-amber-400 font-bold">📅 {p.date}</span>: 
+                                <span className="text-emerald-400 font-black">৳{p.amount.toLocaleString()}</span>
+                                <span className="text-[10px] text-slate-400 font-sans">({p.dept || 'Clinic'}{p.description ? ` - ${p.description}` : ''})</span>
+                            </span>
+                        ))}
+                    </div>
+                )}
+            </div>
+
+            {/* Real-time Dynamic Feedback & Red Warning Alert */}
+            {isOverpaid ? (
+                <div className="bg-rose-950/90 border-2 border-rose-500 text-rose-100 p-3.5 rounded-xl text-xs font-bold flex items-start gap-3 shadow-lg animate-pulse">
+                    <span className="text-2xl leading-none">⚠️</span>
+                    <div className="space-y-1">
+                        <div className="font-black text-rose-300 uppercase text-xs tracking-wider">
+                            সতর্কবার্তা: নির্ধারিত পাওনা বেতনের চেয়ে অতিরিক্ত টাকা প্রদান করা হচ্ছে!
+                        </div>
+                        <div className="text-xs text-rose-100 leading-relaxed">
+                            চলতি মাসে কর্মচারীর নির্ধারিত মোট পাওনা বেতন <span className="font-mono font-black text-white">৳{Math.round(netPayable).toLocaleString()}</span> টাকা। 
+                            পূর্বে পরিশোধিত ৳{previousPaidTotal.toLocaleString()} + বর্তমান এন্ট্রি ৳{numInputPaid.toLocaleString()} = মোট ৳{totalPaidWithCurrent.toLocaleString()} টাকা প্রদান করা হচ্ছে। 
+                            ফলস্বরূপ, কর্মচারীকে <span className="underline font-black text-white bg-rose-900/60 px-1.5 py-0.5 rounded">৳{overpaidAmount.toLocaleString()} টাকা অতিরিক্ত (Overpayment)</span> দেওয়া হচ্ছে, যা আগামী মাসের বেতন থেকে অগ্রিম (Advance) হিসেবে সমন্বয় করা হবে।
+                        </div>
+                    </div>
+                </div>
+            ) : numInputPaid > 0 ? (
+                <div className="bg-emerald-950/70 border border-emerald-500/50 text-emerald-300 p-3 rounded-xl text-xs font-bold flex flex-wrap items-center justify-between gap-2 shadow-md">
+                    <span className="flex items-center gap-2">
+                        <span className="text-base text-emerald-400">✓</span> 
+                        <span>এই ভাউচারে ৳{numInputPaid.toLocaleString()} টাকা পরিশোধের পর অবশিষ্ট পাওনা থাকবে:</span>
+                    </span>
+                    <span className="font-black text-sm text-emerald-400 font-mono bg-emerald-900/40 px-2.5 py-1 rounded-lg border border-emerald-500/30">
+                        ৳{Math.round(remainingDueAfterCurrent).toLocaleString()}
+                    </span>
+                </div>
+            ) : null}
+        </div>
+    );
+};
+
 const DailyExpenseForm: React.FC<any> = ({ 
     selectedDate, 
     onDateChange, 
@@ -89,7 +322,10 @@ const DailyExpenseForm: React.FC<any> = ({
     onPrint, 
     employees, 
     editingItem, 
-    setEditingItem 
+    setEditingItem,
+    allDetailedExpenses = {},
+    attendanceLog = {},
+    leaveLog = {}
 }) => {
     const [items, setItems] = useState<ExpenseItem[]>([]);
     const [historyItem, setHistoryItem] = useState<ExpenseItem | null>(null);
@@ -180,7 +416,7 @@ const DailyExpenseForm: React.FC<any> = ({
                 map[cat] = customSubCategories[cat];
             }
         });
-        map['Stuff salary'] = (Array.isArray(employees) ? employees : []).map((e: any) => e?.name || e?.emp_name || 'Unknown');
+        map['Stuff salary'] = (Array.isArray(employees) ? employees : []).map((e: any) => e?.emp_name || e?.name || 'Unknown');
         return map;
     }, [employees, customSubCategories]);
 
@@ -244,109 +480,127 @@ const DailyExpenseForm: React.FC<any> = ({
                     </thead>
                     <tbody>
                         {items.map(item => (
-                            <tr key={item.id} className="border-t border-emerald-900/30">
-                                <td className="py-2 pr-2">
-                                    <select 
-                                        value={item.category} 
-                                        onChange={e => { 
-                                            handleItemChange(item.id, 'category', e.target.value); 
-                                            handleItemChange(item.id, 'subCategory', ''); 
-                                        }} 
-                                        className={inputClass}
-                                    >
-                                        {clinicExpenseCategories.map(c => (
-                                            <option key={c} value={c}>{expenseCategoryBanglaMap[c] || c}</option>
-                                        ))}
-                                    </select>
-                                </td>
-                                <td className="py-2 pr-2">
-                                    <div className="relative w-full flex items-center">
-                                        {(subCategories[item.category] && subCategories[item.category].length > 0) ? (
-                                            <div className="relative flex-1 w-full">
-                                                <select 
-                                                    value={item.subCategory} 
-                                                    onChange={e => handleItemChange(item.id, 'subCategory', e.target.value)} 
-                                                    className={`${inputClass} pr-12`}
-                                                >
-                                                    <option value="">Select...</option>
-                                                    {subCategories[item.category].map(sc => (
-                                                        <option key={sc} value={sc}>{sc}</option>
-                                                    ))}
-                                                </select>
-                                                {item.subCategory && customSubCategories[item.category]?.includes(item.subCategory) && (
-                                                    <button 
-                                                        type="button"
-                                                        onClick={() => deleteSubCategory(item.category, item.subCategory)}
-                                                        className="absolute right-8 top-1/2 -translate-y-1/2 bg-red-600 hover:bg-red-500 text-white rounded-full w-4 h-4 text-[10px] flex items-center justify-center transition-opacity z-10 shadow-lg"
-                                                        title="Delete this sub-category"
+                            <React.Fragment key={item.id}>
+                                <tr className="border-t border-emerald-900/30">
+                                    <td className="py-2 pr-2">
+                                        <select 
+                                            value={item.category} 
+                                            onChange={e => { 
+                                                handleItemChange(item.id, 'category', e.target.value); 
+                                                handleItemChange(item.id, 'subCategory', ''); 
+                                            }} 
+                                            className={inputClass}
+                                        >
+                                            {clinicExpenseCategories.map(c => (
+                                                <option key={c} value={c}>{expenseCategoryBanglaMap[c] || c}</option>
+                                            ))}
+                                        </select>
+                                    </td>
+                                    <td className="py-2 pr-2">
+                                        <div className="relative w-full flex items-center">
+                                            {(subCategories[item.category] && subCategories[item.category].length > 0) ? (
+                                                <div className="relative flex-1 w-full">
+                                                    <select 
+                                                        value={item.subCategory} 
+                                                        onChange={e => handleItemChange(item.id, 'subCategory', e.target.value)} 
+                                                        className={`${inputClass} pr-12`}
                                                     >
-                                                        ×
-                                                    </button>
-                                                )}
-                                            </div>
-                                        ) : (
-                                            <div className="relative flex-1 w-full">
-                                                <input 
-                                                    value={item.subCategory} 
-                                                    onChange={e => handleItemChange(item.id, 'subCategory', e.target.value)} 
-                                                    className={`${inputClass} pr-10`} 
-                                                    placeholder="Sub-category..."
-                                                />
-                                            </div>
-                                        )}
+                                                        <option value="">Select...</option>
+                                                        {subCategories[item.category].map(sc => (
+                                                            <option key={sc} value={sc}>{sc}</option>
+                                                        ))}
+                                                    </select>
+                                                    {item.subCategory && customSubCategories[item.category]?.includes(item.subCategory) && (
+                                                        <button 
+                                                            type="button"
+                                                            onClick={() => deleteSubCategory(item.category, item.subCategory)}
+                                                            className="absolute right-8 top-1/2 -translate-y-1/2 bg-red-600 hover:bg-red-500 text-white rounded-full w-4 h-4 text-[10px] flex items-center justify-center transition-opacity z-10 shadow-lg"
+                                                            title="Delete this sub-category"
+                                                        >
+                                                            ×
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            ) : (
+                                                <div className="relative flex-1 w-full">
+                                                    <input 
+                                                        value={item.subCategory} 
+                                                        onChange={e => handleItemChange(item.id, 'subCategory', e.target.value)} 
+                                                        className={`${inputClass} pr-10`} 
+                                                        placeholder="Sub-category..." 
+                                                    />
+                                                </div>
+                                            )}
+                                            <button 
+                                                type="button"
+                                                onClick={() => addSubCategory(item.category)} 
+                                                className="absolute right-1 text-emerald-400 hover:text-white bg-slate-800 hover:bg-slate-700 w-6 h-6 rounded flex items-center justify-center font-bold text-sm transition-all border border-slate-600 focus:outline-none"
+                                                title="Add New Sub-category"
+                                            >
+                                                +
+                                            </button>
+                                        </div>
+                                    </td>
+                                    <td className="py-2 pr-2">
+                                        <input 
+                                            value={item.description} 
+                                            onChange={e => handleItemChange(item.id, 'description', e.target.value)} 
+                                            className={inputClass} 
+                                            placeholder="Details..."
+                                        />
+                                    </td>
+                                    <td className="py-2 pr-2">
+                                        <input 
+                                            type="number" 
+                                            value={item.billAmount || ''} 
+                                            onChange={e => handleItemChange(item.id, 'billAmount', parseFloat(e.target.value) || 0)} 
+                                            className={`${inputClass} text-right`} 
+                                        />
+                                    </td>
+                                    <td className="py-2 pr-2">
+                                        <input 
+                                            type="number" 
+                                            value={item.paidAmount || ''} 
+                                            onChange={e => handleItemChange(item.id, 'paidAmount', parseFloat(e.target.value) || 0)} 
+                                            className={`${inputClass} text-right`} 
+                                        />
+                                    </td>
+                                    <td className="py-2 text-center">
                                         <button 
                                             type="button"
-                                            onClick={() => addSubCategory(item.category)} 
-                                            className="absolute right-1 text-emerald-400 hover:text-white bg-slate-800 hover:bg-slate-700 w-6 h-6 rounded flex items-center justify-center font-bold text-sm transition-all border border-slate-600 focus:outline-none"
-                                            title="Add New Sub-category"
+                                            onClick={() => setHistoryItem(item)} 
+                                            className={`text-[10px] font-black uppercase px-2 py-1 rounded ${item.isEdited ? 'bg-amber-600 text-white' : 'bg-slate-700 text-slate-400'}`}
                                         >
-                                            +
+                                            History
                                         </button>
-                                    </div>
-                                </td>
-                                <td className="py-2 pr-2">
-                                    <input 
-                                        value={item.description} 
-                                        onChange={e => handleItemChange(item.id, 'description', e.target.value)} 
-                                        className={inputClass} 
-                                        placeholder="Details..."
-                                    />
-                                </td>
-                                <td className="py-2 pr-2">
-                                    <input 
-                                        type="number" 
-                                        value={item.billAmount || ''} 
-                                        onChange={e => handleItemChange(item.id, 'billAmount', parseFloat(e.target.value) || 0)} 
-                                        className={`${inputClass} text-right`} 
-                                    />
-                                </td>
-                                <td className="py-2 pr-2">
-                                    <input 
-                                        type="number" 
-                                        value={item.paidAmount || ''} 
-                                        onChange={e => handleItemChange(item.id, 'paidAmount', parseFloat(e.target.value) || 0)} 
-                                        className={`${inputClass} text-right`} 
-                                    />
-                                </td>
-                                <td className="py-2 text-center">
-                                    <button 
-                                        type="button"
-                                        onClick={() => setHistoryItem(item)} 
-                                        className={`text-[10px] font-black uppercase px-2 py-1 rounded ${item.isEdited ? 'bg-amber-600 text-white' : 'bg-slate-700 text-slate-400'}`}
-                                    >
-                                        History
-                                    </button>
-                                </td>
-                                <td className="py-2 text-center">
-                                    <button 
-                                        type="button"
-                                        onClick={() => removeItem(item.id)} 
-                                        className="text-red-400 font-bold text-lg hover:text-red-300 transition-colors"
-                                    >
-                                        ×
-                                    </button>
-                                </td>
-                            </tr>
+                                    </td>
+                                    <td className="py-2 text-center">
+                                        <button 
+                                            type="button"
+                                            onClick={() => removeItem(item.id)} 
+                                            className="text-red-400 font-bold text-lg hover:text-red-300 transition-colors"
+                                        >
+                                            ×
+                                        </button>
+                                    </td>
+                                </tr>
+                                {item.category === 'Stuff salary' && item.subCategory && (
+                                    <tr className="bg-slate-950/80">
+                                        <td colSpan={7} className="px-2 py-1">
+                                            <StaffSalaryHelperCard 
+                                                employeeName={item.subCategory}
+                                                employees={employees}
+                                                selectedDate={selectedDate}
+                                                allDetailedExpenses={allDetailedExpenses}
+                                                attendanceLog={attendanceLog}
+                                                leaveLog={leaveLog}
+                                                currentInputPaid={item.paidAmount || 0}
+                                                currentExpenseId={item.id}
+                                            />
+                                        </td>
+                                    </tr>
+                                )}
+                            </React.Fragment>
                         ))}
                     </tbody>
                 </table>
@@ -388,7 +642,8 @@ const DailyExpenseForm: React.FC<any> = ({
 };
 
 const ClinicAccountsPage: React.FC<any> = ({ 
-  onBack, invoices, dueCollections, employees, detailedExpenses, setDetailedExpenses, performBlockingSync
+  onBack, invoices, dueCollections, employees, detailedExpenses, setDetailedExpenses, performBlockingSync,
+  attendanceLog = {}, leaveLog = {}
 }) => {
     const todayStr = new Date().toISOString().split('T')[0];
     const [selectedDate, setSelectedDate] = useState(todayStr);
@@ -1374,6 +1629,9 @@ const ClinicAccountsPage: React.FC<any> = ({
                             employees={employees} 
                             editingItem={editingItem}
                             setEditingItem={setEditingItem}
+                            allDetailedExpenses={detailedExpenses}
+                            attendanceLog={attendanceLog}
+                            leaveLog={leaveLog}
                         />
                         <div className="bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-2xl">
                             <h3 className="text-lg font-black text-sky-400 uppercase mb-6 flex flex-wrap justify-between items-center gap-4">

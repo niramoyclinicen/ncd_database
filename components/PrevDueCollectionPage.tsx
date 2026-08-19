@@ -61,7 +61,7 @@ const PrevDueCollectionPage: React.FC<Props> = ({ patients = [], invoices, setIn
             
             let totalBillSum = 0;
             let totalDueSum = 0;
-            let paymentsSum = new Array(detailedPendingData.maxPayments).fill(0);
+            const paymentsSum = new Array(detailedPendingData.maxPayments).fill(0);
             
             let paymentHeaders = '';
             for(let i=0; i<detailedPendingData.maxPayments; i++) {
@@ -241,26 +241,21 @@ const PrevDueCollectionPage: React.FC<Props> = ({ patients = [], invoices, setIn
         });
     })();
 
-        const detailedPendingData = React.useMemo(() => {
-        let maxPayments = 0; // @ts-ignore
+    const detailedPendingData = React.useMemo(() => {
         const items = filteredInvoices.map(inv => {
             const dcs = dueCollections.filter(dc => dc.invoice_id === inv.invoice_id).sort((a, b) => new Date(a.collection_date).getTime() - new Date(b.collection_date).getTime());
             const sumDcs = dcs.reduce((sum, dc) => sum + (dc.amount_collected || 0), 0);
             
-            let payments = [];
+            const payments: { date: string; amount: number }[] = [];
             const initialPaid = (inv.paid_amount || 0) - sumDcs;
             if (initialPaid > 0) {
                 payments.push({ date: inv.invoice_date?.split(' ')[0] || '', amount: initialPaid });
             }
             dcs.forEach(dc => {
-                if(dc.amount_collected > 0) {
+                if (dc.amount_collected > 0) {
                     payments.push({ date: dc.collection_date?.split(' ')[0] || '', amount: dc.amount_collected });
                 }
             });
-            
-            if (payments.length > maxPayments) {
-                return; // maxPayments is now derived
-            }
 
             const patientObj = patients?.find(p => p.pt_id === inv.patient_id);
             const addressParts = patientObj ? [patientObj.address, patientObj.thana, patientObj.district].filter(Boolean).join(', ') : '';
@@ -271,6 +266,7 @@ const PrevDueCollectionPage: React.FC<Props> = ({ patients = [], invoices, setIn
                 addressStr: addressParts
             };
         });
+        const maxPayments = items.reduce((max, it) => Math.max(max, it.payments.length), 0);
         return { items, maxPayments };
     }, [filteredInvoices, dueCollections, patients]);
 
@@ -495,7 +491,7 @@ const filteredHistory = (() => {
                     {(() => {
                         let totalBillSum = 0;
                         let totalDueSum = 0;
-                        let paymentsSum = new Array(detailedPendingData.maxPayments).fill(0);
+                        const paymentsSum = new Array(detailedPendingData.maxPayments).fill(0);
                         
                         return (
                             <>

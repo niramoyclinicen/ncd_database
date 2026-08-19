@@ -1,14 +1,14 @@
 import { createClient } from '@supabase/supabase-js';
 
 let fallbackUrl = '';
-try { fallbackUrl = process.env.SUPABASE_URL || ''; } catch (e) {}
+try { fallbackUrl = process.env.SUPABASE_URL || ''; } catch (e) { console.error(e); }
 
 let fallbackKey = '';
-try { fallbackKey = process.env.SUPABASE_ANON_KEY || ''; } catch (e) {}
+try { fallbackKey = process.env.SUPABASE_ANON_KEY || ''; } catch (e) { console.error(e); }
 
-// @ts-ignore
+// @ts-expect-error import.meta is available in Vite environment
 const envSupabaseUrl = (typeof import.meta !== 'undefined' && import.meta.env) ? import.meta.env.VITE_SUPABASE_URL : '';
-// @ts-ignore
+// @ts-expect-error import.meta is available in Vite environment
 const envSupabaseKey = (typeof import.meta !== 'undefined' && import.meta.env) ? import.meta.env.VITE_SUPABASE_ANON_KEY : '';
 
 const SUPABASE_URL = envSupabaseUrl || fallbackUrl || '';
@@ -100,7 +100,7 @@ export const dbService = {
         .eq('id', 1)
         .single();
         
-      let mergedData = (cloudRecord?.data && typeof cloudRecord.data === 'object' && !Array.isArray(cloudRecord.data)) 
+      const mergedData = (cloudRecord?.data && typeof cloudRecord.data === 'object' && !Array.isArray(cloudRecord.data)) 
         ? { ...cloudRecord.data } 
         : {};
 

@@ -711,7 +711,7 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
                             onChange={(id) => {
                                 setSelectedTechnologistId(id);
                                 localStorage.setItem('last_tech_id', id);
-                                let person = employees.find((e: any) => e.emp_id === id) || doctors.find((d: any) => d.doctor_id === id);
+                                const person = employees.find((e: any) => e.emp_id === id) || doctors.find((d: any) => d.doctor_id === id);
                                 if (person) {
                                     setCustomTechName(person.emp_name || person.doctor_name);
                                     setCustomTechDegree(person.degree || (isUSG ? 'Sonographer' : 'Medical Technologist'));

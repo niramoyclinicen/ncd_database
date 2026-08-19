@@ -549,10 +549,243 @@ const HistoryModal: React.FC<{ item: ExpenseItem, onClose: () => void }> = ({ it
     </div>
 );
 
+const StaffSalaryHelperCard: React.FC<{
+    employeeName: string;
+    employees: any[];
+    selectedDate: string;
+    allDetailedExpenses: Record<string, any[]>;
+    attendanceLog?: Record<string, any>;
+    leaveLog?: Record<string, any>;
+    currentInputPaid: number;
+    currentExpenseId?: any;
+}> = ({
+    employeeName,
+    employees,
+    selectedDate,
+    allDetailedExpenses,
+    attendanceLog = {},
+    leaveLog = {},
+    currentInputPaid,
+    currentExpenseId
+}) => {
+    const selectedEmp = useMemo(() => {
+        if (!employeeName) return null;
+        return (employees || []).find((e: any) => 
+            (e.emp_name && e.emp_name.trim().toLowerCase() === employeeName.trim().toLowerCase()) ||
+            (e.name && e.name.trim().toLowerCase() === employeeName.trim().toLowerCase()) ||
+            (e.emp_id && String(e.emp_id).trim() === employeeName.trim())
+        );
+    }, [employeeName, employees]);
+
+    const { entryYear, entryMonthIndex, monthName, daysInMonth } = useMemo(() => {
+        const d = selectedDate || new Date().toISOString().split('T')[0];
+        const [y, m] = d.split('-').map(Number);
+        const yVal = y || new Date().getFullYear();
+        const mIdx = (m !== undefined && !isNaN(m)) ? (m - 1) : new Date().getMonth();
+        return {
+            entryYear: yVal,
+            entryMonthIndex: mIdx,
+            monthName: monthOptions[mIdx]?.name || 'Current Month',
+            daysInMonth: new Date(yVal, mIdx + 1, 0).getDate()
+        };
+    }, [selectedDate]);
+
+    // Attendance calculation
+    const absentCount = useMemo(() => {
+        if (!selectedEmp) return 0;
+        let count = 0;
+        for (let d = 1; d <= daysInMonth; d++) {
+            const dStr = `${entryYear}-${String(entryMonthIndex + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+            if (attendanceLog[`${dStr}_${selectedEmp.emp_id}`]?.status === 'Absent') {
+                count++;
+            }
+        }
+        return count;
+    }, [daysInMonth, entryYear, entryMonthIndex, attendanceLog, selectedEmp]);
+
+    // Leave & agreed salary
+    const { agreedSalary, bonus, overtime, totalDeduction, netPayable } = useMemo(() => {
+        if (!selectedEmp) {
+            return { agreedSalary: 0, bonus: 0, overtime: 0, totalDeduction: 0, netPayable: 0 };
+        }
+        const leaveKey = `${entryMonthIndex}_${entryYear}_${selectedEmp.emp_id}`;
+        const leaveRecord = leaveLog[leaveKey] || { leaveDays: 0, deductionAmount: 0, bonus: 0, overtime: 0 };
+        const baseSal = leaveRecord.agreedSalary !== undefined ? leaveRecord.agreedSalary : (selectedEmp.salary || 0);
+        const perDaySal = baseSal / 30;
+        const totalAbsentDays = absentCount + (leaveRecord.leaveDays || 0);
+        const lDeduct = totalAbsentDays * perDaySal;
+        const mDeduct = leaveRecord.deductionAmount || 0;
+        const totDeduct = lDeduct + mDeduct;
+        const b = leaveRecord.bonus || 0;
+        const ot = leaveRecord.overtime || 0;
+        const net = Math.max(0, baseSal + b + ot - totDeduct);
+        return {
+            agreedSalary: baseSal,
+            bonus: b,
+            overtime: ot,
+            totalDeduction: totDeduct,
+            netPayable: net
+        };
+    }, [entryMonthIndex, entryYear, selectedEmp, leaveLog, absentCount]);
+
+    // Payment history for this month
+    const { paymentsHistory, previousPaidTotal } = useMemo(() => {
+        if (!selectedEmp) {
+            return { paymentsHistory: [], previousPaidTotal: 0 };
+        }
+        const list: Array<{ date: string; amount: number; dept?: string; description?: string; id?: any }> = [];
+        let total = 0;
+
+        for (let d = 1; d <= daysInMonth; d++) {
+            const dStr = `${entryYear}-${String(entryMonthIndex + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+            const dayExpenses = allDetailedExpenses[dStr] || [];
+            dayExpenses.forEach((ex: any) => {
+                if (ex.isDeleted) return;
+                const isMatch = ex.category === 'Stuff salary' && (
+                    (ex.subCategory && ex.subCategory.trim().toLowerCase() === selectedEmp.emp_name.trim().toLowerCase()) ||
+                    (ex.description && ex.description.includes(selectedEmp.emp_name))
+                );
+                if (isMatch) {
+                    if (currentExpenseId && String(ex.id) === String(currentExpenseId)) {
+                        return;
+                    }
+                    const amt = Number(ex.paidAmount) || 0;
+                    if (amt > 0) {
+                        list.push({
+                            date: dStr,
+                            amount: amt,
+                            dept: ex.dept || 'Accounts',
+                            description: ex.description || '',
+                            id: ex.id
+                        });
+                        total += amt;
+                    }
+                }
+            });
+        }
+        return { paymentsHistory: list, previousPaidTotal: total };
+    }, [daysInMonth, entryYear, entryMonthIndex, allDetailedExpenses, selectedEmp, currentExpenseId]);
+
+    if (!selectedEmp) {
+        return null;
+    }
+
+    const numInputPaid = Number(currentInputPaid) || 0;
+    const dueBeforeThisEntry = netPayable - previousPaidTotal;
+    const totalPaidWithCurrent = previousPaidTotal + numInputPaid;
+    const remainingDueAfterCurrent = netPayable - totalPaidWithCurrent;
+    const isOverpaid = totalPaidWithCurrent > netPayable;
+    const overpaidAmount = isOverpaid ? (totalPaidWithCurrent - netPayable) : 0;
+
+    return (
+        <div className="rounded-2xl bg-slate-950/95 border-2 border-amber-500/50 p-4 space-y-3.5 shadow-2xl text-left my-2">
+            {/* Header info */}
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-2.5">
+                <div className="flex items-center gap-2 flex-wrap">
+                    <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse"></span>
+                    <span className="font-black text-white text-sm uppercase tracking-wide">
+                        {selectedEmp.emp_name}
+                    </span>
+                    <span className="text-[10.5px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-bold border border-slate-700">
+                        ID: #{selectedEmp.emp_id} {selectedEmp.machine_id ? `| HID: ${selectedEmp.machine_id}` : ''}
+                    </span>
+                    <span className="text-xs text-sky-400 font-bold">
+                        {selectedEmp.job_position || selectedEmp.designation || 'Staff'} {selectedEmp.department ? `(${selectedEmp.department})` : ''}
+                    </span>
+                </div>
+                <div className="text-xs font-black text-amber-300 bg-amber-950/70 border border-amber-600/50 px-3 py-1 rounded-xl">
+                    বেতন বিবরণী: {monthName} {entryYear}
+                </div>
+            </div>
+
+            {/* 3 Metric Summary Boxes */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="bg-slate-900/90 border border-slate-800 p-3 rounded-xl">
+                    <div className="text-[10px] font-black uppercase text-slate-400 tracking-wider">চলতি মাসের নিট বেতন</div>
+                    <div className="text-base font-black text-indigo-300 mt-0.5">৳{Math.round(netPayable).toLocaleString()}</div>
+                    <div className="text-[9.5px] text-slate-400 mt-1">
+                        মূল বেতন: ৳{agreedSalary.toLocaleString()}
+                        {(bonus + overtime) > 0 && ` | বোনাস/OT: +৳${(bonus + overtime).toLocaleString()}`}
+                        {totalDeduction > 0 && ` | কর্তন: -৳${Math.round(totalDeduction).toLocaleString()}`}
+                    </div>
+                </div>
+
+                <div className="bg-slate-900/90 border border-slate-800 p-3 rounded-xl">
+                    <div className="text-[10px] font-black uppercase text-slate-400 tracking-wider">পূর্বে মোট পরিশোধিত</div>
+                    <div className="text-base font-black text-emerald-400 mt-0.5">৳{previousPaidTotal.toLocaleString()}</div>
+                    <div className="text-[9.5px] text-slate-400 mt-1">
+                        {paymentsHistory.length > 0 ? `${paymentsHistory.length} টি ভাউচারে পরিশোধ করা হয়েছে` : 'এখনও কোনো পেমেন্ট নেওয়া হয়নি'}
+                    </div>
+                </div>
+
+                <div className="bg-slate-900/90 border border-slate-800 p-3 rounded-xl">
+                    <div className="text-[10px] font-black uppercase text-slate-400 tracking-wider">বর্তমান অবশিষ্ট পাওনা</div>
+                    <div className={`text-base font-black mt-0.5 ${dueBeforeThisEntry > 0 ? 'text-amber-400' : dueBeforeThisEntry === 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        ৳{Math.round(dueBeforeThisEntry).toLocaleString()}
+                    </div>
+                    <div className="text-[9.5px] text-slate-400 mt-1">
+                        {dueBeforeThisEntry > 0 ? 'বকেয়া পাওনা রয়েছে' : dueBeforeThisEntry === 0 ? 'সম্পূর্ণ পরিশোধিত' : 'অতিরিক্ত পরিশোধিত'}
+                    </div>
+                </div>
+            </div>
+
+            {/* Payment history list */}
+            <div className="bg-slate-900/70 border border-slate-800/80 p-3 rounded-xl">
+                <div className="text-[10px] font-black uppercase text-slate-400 mb-1.5 flex items-center justify-between">
+                    <span>চলতি মাসের পেমেন্ট ইতিহাস (Payment History):</span>
+                    <span className="font-mono text-emerald-400 text-xs font-black">মোট: ৳{previousPaidTotal.toLocaleString()}</span>
+                </div>
+                {paymentsHistory.length === 0 ? (
+                    <div className="text-xs text-slate-500 italic py-1">
+                        এই মাসে এ পর্যন্ত কোনো টাকা প্রদান করা হয়নি।
+                    </div>
+                ) : (
+                    <div className="flex flex-wrap gap-2 pt-1">
+                        {paymentsHistory.map((p, pIdx) => (
+                            <span key={pIdx} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-800 border border-slate-700 text-xs text-slate-200 font-mono shadow-sm">
+                                <span className="text-amber-400 font-bold">📅 {p.date}</span>: 
+                                <span className="text-emerald-400 font-black">৳{p.amount.toLocaleString()}</span>
+                                <span className="text-[10px] text-slate-400 font-sans">({p.dept || 'Accounts'}{p.description ? ` - ${p.description}` : ''})</span>
+                            </span>
+                        ))}
+                    </div>
+                )}
+            </div>
+
+            {/* Real-time Dynamic Feedback & Red Warning Alert */}
+            {isOverpaid ? (
+                <div className="bg-rose-950/90 border-2 border-rose-500 text-rose-100 p-3.5 rounded-xl text-xs font-bold flex items-start gap-3 shadow-lg animate-pulse">
+                    <span className="text-2xl leading-none">⚠️</span>
+                    <div className="space-y-1">
+                        <div className="font-black text-rose-300 uppercase text-xs tracking-wider">
+                            সতর্কবার্তা: নির্ধারিত পাওনা বেতনের চেয়ে অতিরিক্ত টাকা প্রদান করা হচ্ছে!
+                        </div>
+                        <div className="text-xs text-rose-100 leading-relaxed">
+                            চলতি মাসে কর্মচারীর নির্ধারিত মোট পাওনা বেতন <span className="font-mono font-black text-white">৳{Math.round(netPayable).toLocaleString()}</span> টাকা। 
+                            পূর্বে পরিশোধিত ৳{previousPaidTotal.toLocaleString()} + বর্তমান এন্ট্রি ৳{numInputPaid.toLocaleString()} = মোট ৳{totalPaidWithCurrent.toLocaleString()} টাকা প্রদান করা হচ্ছে। 
+                            ফলস্বরূপ, কর্মচারীকে <span className="underline font-black text-white bg-rose-900/60 px-1.5 py-0.5 rounded">৳{overpaidAmount.toLocaleString()} টাকা অতিরিক্ত (Overpayment)</span> দেওয়া হচ্ছে, যা আগামী মাসের বেতন থেকে অগ্রিম (Advance) হিসেবে সমন্বয় করা হবে।
+                        </div>
+                    </div>
+                </div>
+            ) : numInputPaid > 0 ? (
+                <div className="bg-emerald-950/70 border border-emerald-500/50 text-emerald-300 p-3 rounded-xl text-xs font-bold flex flex-wrap items-center justify-between gap-2 shadow-md">
+                    <span className="flex items-center gap-2">
+                        <span className="text-base text-emerald-400">✓</span> 
+                        <span>এই ভাউচারে ৳{numInputPaid.toLocaleString()} টাকা পরিশোধের পর অবশিষ্ট পাওনা থাকবে:</span>
+                    </span>
+                    <span className="font-black text-sm text-emerald-400 font-mono bg-emerald-900/40 px-2.5 py-1 rounded-lg border border-emerald-500/30">
+                        ৳{Math.round(remainingDueAfterCurrent).toLocaleString()}
+                    </span>
+                </div>
+            ) : null}
+        </div>
+    );
+};
+
 const DailyExpenseForm: React.FC<any> = ({ 
     selectedDate, onDateChange, allDetailedExpenses, setDetailedExpenses, onSave, onDelete, onEdit, 
     employees, monthlyRoster, editingItem, diagnosticSettings, setDiagnosticSettings, performBlockingSync, reagents, setReagents,
-    setSuccessMessage, availableTests
+    setSuccessMessage, availableTests, attendanceLog = {}, leaveLog = {}
 }) => {
     const [items, setItems] = useState<ExpenseItem[]>([]);
     const [isSaving, setIsSaving] = useState(false);
@@ -1060,130 +1293,148 @@ const DailyExpenseForm: React.FC<any> = ({
                         </thead>
                         <tbody className="divide-y divide-slate-800">
                             {items.map(item => (
-                                <tr key={item.id}>
-                                    <td className="py-3 pr-2">
-                                        <select value={item.category} onChange={e => handleItemChange(item.id, 'category', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white text-sm font-black outline-none focus:border-blue-500">
-                                            {expenseCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-                                        </select>
-                                    </td>
-                                    <td className="py-3 pr-2">
-                                        {item.category === 'Stuff salary' ? (
-                                            <select 
-                                                value={item.subCategory} 
-                                                onChange={e => handleItemChange(item.id, 'subCategory', e.target.value)} 
-                                                className="w-full bg-slate-800 border-2 border-amber-600/50 rounded-xl p-2.5 text-white text-sm font-black outline-none focus:border-amber-500"
-                                            >
-                                                <option value="">-- Select Employee --</option>
-                                                {filteredEmployees.map((e:any) => <option key={e.emp_id} value={e.emp_name}>{e.emp_name}</option>)}
+                                <React.Fragment key={item.id}>
+                                    <tr>
+                                        <td className="py-3 pr-2">
+                                            <select value={item.category} onChange={e => handleItemChange(item.id, 'category', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white text-sm font-black outline-none focus:border-blue-500">
+                                                {expenseCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
                                             </select>
-                                        ) : (
-                                            <div className="relative group">
-                                                <input 
-                                                    list={`list-${item.id}`} 
+                                        </td>
+                                        <td className="py-3 pr-2">
+                                            {item.category === 'Stuff salary' ? (
+                                                <select 
                                                     value={item.subCategory} 
                                                     onChange={e => handleItemChange(item.id, 'subCategory', e.target.value)} 
-                                                    className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 pr-10 text-white text-sm font-black outline-none focus:border-blue-500" 
-                                                    placeholder="Sub-category..." 
-                                                />
-                                                <datalist id={`list-${item.id}`}>
-                                                    {getSubCategories(item.category).map((sub, i) => <option key={i} value={sub} />)}
-                                                </datalist>
-                                                <button 
-                                                    type="button"
-                                                    onClick={() => { setEditingCategory(item.category); setShowSubCatSettings(true); }}
-                                                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-sky-400 transition-colors bg-slate-900/50 p-1 rounded" 
-                                                    title="Manage sub-categories"
+                                                    className="w-full bg-slate-800 border-2 border-amber-600/50 rounded-xl p-2.5 text-white text-sm font-black outline-none focus:border-amber-500"
                                                 >
-                                                    <Settings size={14} />
-                                                </button>
-                                            </div>
-                                        )}
-                                    </td>
-                                    <td className="py-3 pr-2">
-                                        <input 
-                                            list={`desc-list-${item.id}`}
-                                            value={item.description} 
-                                            onChange={e => handleItemChange(item.id, 'description', e.target.value)} 
-                                            className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white text-sm font-bold" 
-                                            placeholder="Additional details..." 
-                                        />
-                                        <datalist id={`desc-list-${item.id}`}>
-                                            {Array.from(descriptionSuggestions[`${item.category}|${item.subCategory}`] || []).map((desc, i) => (
-                                                <option key={i} value={desc} />
-                                            ))}
-                                        </datalist>
-                                        {(item.category === 'Reagent buy' || item.category === 'X-ray Film buy') && (
-                                            <div className="flex flex-col gap-1.5 mt-2 bg-slate-900 p-2 rounded-lg border border-slate-800">
-                                                <div className="flex items-center gap-2">
-                                                    <input
-                                                        type="number"
-                                                        placeholder="Box/Pcs"
-                                                        value={item.metadata?.numberOfBoxes || ''}
-                                                        onChange={e => handleItemChange(item.id, 'metadata', { ...item.metadata, numberOfBoxes: parseFloat(e.target.value) || 0 })}
-                                                        className="w-16 bg-slate-950 border border-slate-700 rounded p-1.5 text-xs font-black text-white text-center focus:border-blue-500 outline-none"
-                                                        title="Number of Boxes/Pieces"
+                                                    <option value="">-- Select Employee --</option>
+                                                    {filteredEmployees.map((e:any) => <option key={e.emp_id} value={e.emp_name}>{e.emp_name}</option>)}
+                                                </select>
+                                            ) : (
+                                                <div className="relative group">
+                                                    <input 
+                                                        list={`list-${item.id}`} 
+                                                        value={item.subCategory} 
+                                                        onChange={e => handleItemChange(item.id, 'subCategory', e.target.value)} 
+                                                        className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 pr-10 text-white text-sm font-black outline-none focus:border-blue-500" 
+                                                        placeholder="Sub-category..." 
                                                     />
-                                                    <span className="text-slate-500 font-bold text-xs">×</span>
-                                                    <input
-                                                        type="number"
-                                                        placeholder="Qty/Box"
-                                                        value={item.metadata?.quantityPerBox || ''}
-                                                        onChange={e => handleItemChange(item.id, 'metadata', { ...item.metadata, quantityPerBox: parseFloat(e.target.value) || 0 })}
-                                                        className="w-16 bg-slate-950 border border-slate-700 rounded p-1.5 text-xs font-black text-white text-center focus:border-blue-500 outline-none"
-                                                        title="Quantity per Box"
-                                                    />
-                                                    <div className="ml-auto text-right">
-                                                        <div className="text-[9px] text-slate-500 font-black uppercase">Total Add</div>
-                                                        <div className="text-emerald-400 font-black text-sm">
-                                                            +{(item.metadata?.numberOfBoxes || 0) * (item.metadata?.quantityPerBox || 0)}
+                                                    <datalist id={`list-${item.id}`}>
+                                                        {getSubCategories(item.category).map((sub, i) => <option key={i} value={sub} />)}
+                                                    </datalist>
+                                                    <button 
+                                                        type="button"
+                                                        onClick={() => { setEditingCategory(item.category); setShowSubCatSettings(true); }}
+                                                        className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-sky-400 transition-colors bg-slate-900/50 p-1 rounded" 
+                                                        title="Manage sub-categories"
+                                                    >
+                                                        <Settings size={14} />
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </td>
+                                        <td className="py-3 pr-2">
+                                            <input 
+                                                list={`desc-list-${item.id}`}
+                                                value={item.description} 
+                                                onChange={e => handleItemChange(item.id, 'description', e.target.value)} 
+                                                className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white text-sm font-bold" 
+                                                placeholder="Additional details..." 
+                                            />
+                                            <datalist id={`desc-list-${item.id}`}>
+                                                {Array.from(descriptionSuggestions[`${item.category}|${item.subCategory}`] || []).map((desc, i) => (
+                                                    <option key={i} value={desc} />
+                                                ))}
+                                            </datalist>
+                                            {(item.category === 'Reagent buy' || item.category === 'X-ray Film buy') && (
+                                                <div className="flex flex-col gap-1.5 mt-2 bg-slate-900 p-2 rounded-lg border border-slate-800">
+                                                    <div className="flex items-center gap-2">
+                                                        <input
+                                                            type="number"
+                                                            placeholder="Box/Pcs"
+                                                            value={item.metadata?.numberOfBoxes || ''}
+                                                            onChange={e => handleItemChange(item.id, 'metadata', { ...item.metadata, numberOfBoxes: parseFloat(e.target.value) || 0 })}
+                                                            className="w-16 bg-slate-950 border border-slate-700 rounded p-1.5 text-xs font-black text-white text-center focus:border-blue-500 outline-none"
+                                                            title="Number of Boxes/Pieces"
+                                                        />
+                                                        <span className="text-slate-500 font-bold text-xs">×</span>
+                                                        <input
+                                                            type="number"
+                                                            placeholder="Qty/Box"
+                                                            value={item.metadata?.quantityPerBox || ''}
+                                                            onChange={e => handleItemChange(item.id, 'metadata', { ...item.metadata, quantityPerBox: parseFloat(e.target.value) || 0 })}
+                                                            className="w-16 bg-slate-950 border border-slate-700 rounded p-1.5 text-xs font-black text-white text-center focus:border-blue-500 outline-none"
+                                                            title="Quantity per Box"
+                                                        />
+                                                        <div className="ml-auto text-right">
+                                                            <div className="text-[9px] text-slate-500 font-black uppercase">Total Add</div>
+                                                            <div className="text-emerald-400 font-black text-sm">
+                                                                +{(item.metadata?.numberOfBoxes || 0) * (item.metadata?.quantityPerBox || 0)}
+                                                            </div>
                                                         </div>
                                                     </div>
+                                                    <div className="flex items-center gap-2 pt-1.5 border-t border-slate-800">
+                                                        <label className="text-[10px] font-black text-amber-400 uppercase whitespace-nowrap">
+                                                            Count Start Date (কাউন্ট শুরুর তারিখ):
+                                                        </label>
+                                                        <input
+                                                            type="date"
+                                                            value={item.metadata?.usageStartDate || selectedDate}
+                                                            onChange={e => handleItemChange(item.id, 'metadata', { ...item.metadata, usageStartDate: e.target.value })}
+                                                            className="bg-slate-950 border border-slate-700 rounded px-2 py-1 text-xs text-emerald-400 font-bold outline-none focus:border-emerald-500 w-full"
+                                                        />
+                                                    </div>
                                                 </div>
-                                                <div className="flex items-center gap-2 pt-1.5 border-t border-slate-800">
-                                                    <label className="text-[10px] font-black text-amber-400 uppercase whitespace-nowrap">
-                                                        Count Start Date (কাউন্ট শুরুর তারিখ):
-                                                    </label>
-                                                    <input
-                                                        type="date"
-                                                        value={item.metadata?.usageStartDate || selectedDate}
-                                                        onChange={e => handleItemChange(item.id, 'metadata', { ...item.metadata, usageStartDate: e.target.value })}
-                                                        className="bg-slate-950 border border-slate-700 rounded px-2 py-1 text-xs text-emerald-400 font-bold outline-none focus:border-emerald-500 w-full"
-                                                    />
+                                            )}
+                                            {item.category === 'Reagent buy' && (
+                                                <div className="mt-2">
+                                                    <select 
+                                                        value={item.metadata?.linkedTest || ''} 
+                                                        onChange={e => handleItemChange(item.id, 'metadata', { ...item.metadata, linkedTest: e.target.value })}
+                                                        className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-sky-400 font-bold outline-none focus:border-sky-500"
+                                                    >
+                                                        <option value="">-- Link to Test Name --</option>
+                                                        {(availableTests || []).map((t: any) => (
+                                                            <option key={t.test_id} value={t.test_name}>{t.test_name}</option>
+                                                        ))}
+                                                    </select>
                                                 </div>
-                                            </div>
-                                        )}
-                                        {item.category === 'Reagent buy' && (
-                                            <div className="mt-2">
-                                                <select 
-                                                    value={item.metadata?.linkedTest || ''} 
-                                                    onChange={e => handleItemChange(item.id, 'metadata', { ...item.metadata, linkedTest: e.target.value })}
-                                                    className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-sky-400 font-bold outline-none focus:border-sky-500"
-                                                >
-                                                    <option value="">-- Link to Test Name --</option>
-                                                    {(availableTests || []).map((t: any) => (
-                                                        <option key={t.test_id} value={t.test_name}>{t.test_name}</option>
-                                                    ))}
-                                                </select>
-                                            </div>
-                                        )}
-                                        {item.category === 'X-ray Film buy' && (
-                                            <div className="mt-2">
-                                                <select 
-                                                    value={item.metadata?.linkedCategory || 'X-Ray'} 
-                                                    onChange={e => handleItemChange(item.id, 'metadata', { ...item.metadata, linkedCategory: e.target.value })}
-                                                    className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-sky-400 font-bold outline-none focus:border-sky-500"
-                                                >
-                                                    <option value="">-- Link to Test Category --</option>
-                                                    {testCategories.map((c: string) => (
-                                                        <option key={c} value={c}>{c}</option>
-                                                    ))}
-                                                </select>
-                                            </div>
-                                        )}
-                                    </td>
-                                    <td className="py-3 pr-2"><input type="number" value={item.paidAmount} onChange={e => handleItemChange(item.id, 'paidAmount', parseFloat(e.target.value) || 0)} className="w-28 bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white text-base font-black text-right outline-none focus:border-emerald-500" onFocus={e => e.target.select()} /></td>
-                                    <td className="py-3 text-center"><button onClick={() => removeItem(item.id)} className="text-red-500 font-bold text-2xl hover:text-red-400">×</button></td>
-                                </tr>
+                                            )}
+                                            {item.category === 'X-ray Film buy' && (
+                                                <div className="mt-2">
+                                                    <select 
+                                                        value={item.metadata?.linkedCategory || 'X-Ray'} 
+                                                        onChange={e => handleItemChange(item.id, 'metadata', { ...item.metadata, linkedCategory: e.target.value })}
+                                                        className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-sky-400 font-bold outline-none focus:border-sky-500"
+                                                    >
+                                                        <option value="">-- Link to Test Category --</option>
+                                                        {testCategories.map((c: string) => (
+                                                            <option key={c} value={c}>{c}</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+                                            )}
+                                        </td>
+                                        <td className="py-3 pr-2"><input type="number" value={item.paidAmount} onChange={e => handleItemChange(item.id, 'paidAmount', parseFloat(e.target.value) || 0)} className="w-28 bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white text-base font-black text-right outline-none focus:border-emerald-500" onFocus={e => e.target.select()} /></td>
+                                        <td className="py-3 text-center"><button onClick={() => removeItem(item.id)} className="text-red-500 font-bold text-2xl hover:text-red-400">×</button></td>
+                                    </tr>
+                                    {item.category === 'Stuff salary' && item.subCategory && (
+                                        <tr className="bg-slate-950/80">
+                                            <td colSpan={5} className="px-2 py-1">
+                                                <StaffSalaryHelperCard 
+                                                    employeeName={item.subCategory}
+                                                    employees={employees}
+                                                    selectedDate={localDate || selectedDate}
+                                                    allDetailedExpenses={allDetailedExpenses}
+                                                    attendanceLog={attendanceLog}
+                                                    leaveLog={leaveLog}
+                                                    currentInputPaid={item.paidAmount || 0}
+                                                    currentExpenseId={item.id}
+                                                />
+                                            </td>
+                                        </tr>
+                                    )}
+                                </React.Fragment>
                             ))}
                         </tbody>
                     </table>
@@ -1343,7 +1594,8 @@ const DailyExpenseForm: React.FC<any> = ({
 
 const DiagnosticAccountsPage: React.FC<any> = ({ 
     onBack, invoices, dueCollections, employees, detailedExpenses, setDetailedExpenses, monthlyRoster,
-    patients, doctors, diagnosticSettings, setDiagnosticSettings, performBlockingSync, availableTests = [], reagents = [], setReagents
+    patients, doctors, diagnosticSettings, setDiagnosticSettings, performBlockingSync, availableTests = [], reagents = [], setReagents,
+    attendanceLog = {}, leaveLog = {}
 }) => {
     const todayStr = new Date().toISOString().split('T')[0];
     const [selectedDate, setSelectedDate] = useState(todayStr);
@@ -1460,13 +1712,58 @@ const DiagnosticAccountsPage: React.FC<any> = ({
             incomingItems.forEach((it, idx) => {
                 if (it.category === 'Reagent buy' || it.category === 'X-ray Film buy') {
                     const genericSubCats = ['Local Market', 'Company Delivery', 'Special Order', 'Batch Purchase'];
+                    
                     let reagentName = '';
-                    if (it.subCategory && !genericSubCats.includes(it.subCategory.trim())) {
-                        reagentName = it.subCategory.trim();
-                    } else if (it.description && it.description.trim()) {
-                        reagentName = it.description.trim();
-                    } else if (it.subCategory) {
-                        reagentName = it.subCategory.trim();
+                    let companyName = it.metadata?.company || '';
+
+                    // 1. Explicitly provided reagentName in metadata
+                    if (it.metadata?.reagentName && it.metadata.reagentName.trim()) {
+                        reagentName = it.metadata.reagentName.trim();
+                    }
+
+                    // 2. Check if subCategory matches an existing reagent name
+                    if (!reagentName && it.subCategory && it.subCategory.trim()) {
+                        const subCatTrim = it.subCategory.trim();
+                        const matchBySubCat = updatedReagents.find(rg => rg.reagent_name.trim().toLowerCase() === subCatTrim.toLowerCase() || rg.reagent_id === subCatTrim);
+                        if (matchBySubCat) {
+                            reagentName = matchBySubCat.reagent_name;
+                            if (!companyName && it.description && it.description.trim()) {
+                                companyName = it.description.trim();
+                            }
+                        }
+                    }
+
+                    // 3. Check if description matches an existing reagent name
+                    if (!reagentName && it.description && it.description.trim()) {
+                        const descTrim = it.description.trim();
+                        const matchByDesc = updatedReagents.find(rg => rg.reagent_name.trim().toLowerCase() === descTrim.toLowerCase());
+                        if (matchByDesc) {
+                            reagentName = matchByDesc.reagent_name;
+                            if (!companyName && it.subCategory && !genericSubCats.includes(it.subCategory.trim())) {
+                                companyName = it.subCategory.trim();
+                            }
+                        }
+                    }
+
+                    // 4. If neither matched an existing reagent:
+                    if (!reagentName) {
+                        const subCatTrim = (it.subCategory || '').trim();
+                        const descTrim = (it.description || '').trim();
+
+                        if (descTrim && subCatTrim && !genericSubCats.includes(subCatTrim) && descTrim !== subCatTrim) {
+                            // e.g. subCategory = Company ("Incepta"), description = Reagent Name ("Urea Kit")
+                            reagentName = descTrim;
+                            if (!companyName) companyName = subCatTrim;
+                        } else if (subCatTrim && !genericSubCats.includes(subCatTrim)) {
+                            // subCategory is provided e.g. "Urea Kit"
+                            reagentName = subCatTrim;
+                            if (!companyName && descTrim) companyName = descTrim;
+                        } else if (descTrim) {
+                            // subCategory is generic e.g. "Local Market", description = "Urea Kit"
+                            reagentName = descTrim;
+                        } else if (subCatTrim) {
+                            reagentName = subCatTrim;
+                        }
                     }
 
                     if (!reagentName) return;
@@ -1474,15 +1771,17 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                     let qtyToAdd = (Number(it.metadata?.numberOfBoxes) || 0) * (Number(it.metadata?.quantityPerBox) || 0);
                     if (qtyToAdd <= 0) qtyToAdd = 1;
 
+                    // Search for existing reagent by exact name match or id
                     const rIdx = updatedReagents.findIndex(rg => 
                         rg.reagent_name.trim().toLowerCase() === reagentName.toLowerCase() ||
-                        rg.reagent_id === it.subCategory
+                        (it.subCategory && rg.reagent_id === it.subCategory.trim())
                     );
 
                     if (rIdx !== -1) {
                         updatedReagents[rIdx] = {
                             ...updatedReagents[rIdx],
                             quantity: (updatedReagents[rIdx].quantity || 0) + qtyToAdd,
+                            company: companyName || updatedReagents[rIdx].company || '',
                             linked_test: it.metadata?.linkedTest || updatedReagents[rIdx].linked_test,
                             linked_category: it.metadata?.linkedCategory || updatedReagents[rIdx].linked_category,
                             usage_start_date: it.metadata?.usageStartDate || updatedReagents[rIdx].usage_start_date || date
@@ -1496,7 +1795,7 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                             quantity: qtyToAdd,
                             unit: 'Box/Pcs',
                             availability: true,
-                            company: '',
+                            company: companyName || '',
                             linked_test: it.metadata?.linkedTest || '',
                             linked_category: it.metadata?.linkedCategory || '',
                             usage_start_date: it.metadata?.usageStartDate || date
@@ -2312,6 +2611,8 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                             reagents={reagents}
                             setReagents={setReagents}
                             availableTests={availableTests}
+                            attendanceLog={attendanceLog}
+                            leaveLog={leaveLog}
                         />
                     </div>
                 )}

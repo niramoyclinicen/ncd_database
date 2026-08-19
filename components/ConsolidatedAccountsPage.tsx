@@ -172,21 +172,61 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
     const [showSaveConfirm, setShowSaveConfirm] = useState(false);
     const [saveSuccess, setSaveSuccess] = useState(false);
 
-    const [monthlyAdjustments, setMonthlyAdjustments] = useState<Record<string, { profitDist: number; houseRent: number; loanInstallment: number }>>(() => 
-        JSON.parse(localStorage.getItem('ncd_monthly_adjustments') || '{}')
-    );
+    const getSafeAdj = (item: any): { profitDist: number; houseRent: number; loanInstallment: number } => {
+        if (typeof item === 'number') {
+            return { profitDist: isNaN(item) ? 0 : item, houseRent: 0, loanInstallment: 0 };
+        }
+        if (item && typeof item === 'object') {
+            const pd = typeof item.profitDist === 'number' ? item.profitDist : parseFloat(item.profitDist) || 0;
+            const hr = typeof item.houseRent === 'number' ? item.houseRent : parseFloat(item.houseRent) || 0;
+            const li = typeof item.loanInstallment === 'number' ? item.loanInstallment : parseFloat(item.loanInstallment) || 0;
+            return {
+                profitDist: isNaN(pd) ? 0 : pd,
+                houseRent: isNaN(hr) ? 0 : hr,
+                loanInstallment: isNaN(li) ? 0 : li,
+            };
+        }
+        return { profitDist: 0, houseRent: 0, loanInstallment: 0 };
+    };
+
+    const [monthlyAdjustments, setMonthlyAdjustments] = useState<Record<string, { profitDist: number; houseRent: number; loanInstallment: number }>>(() => {
+        try {
+            const saved = localStorage.getItem('ncd_monthly_adjustments');
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                if (parsed && typeof parsed === 'object') {
+                    const cleaned: Record<string, { profitDist: number; houseRent: number; loanInstallment: number }> = {};
+                    Object.entries(parsed).forEach(([k, v]) => {
+                        cleaned[k] = getSafeAdj(v);
+                    });
+                    return cleaned;
+                }
+            }
+        } catch (e) {
+            console.error('Failed to parse ncd_monthly_adjustments', e);
+        }
+        return {};
+    });
 
     const currentMonthKey = `${selectedYear}-${selectedMonth}`;
-    const adj = monthlyAdjustments[currentMonthKey] || { profitDist: 0, houseRent: 0, loanInstallment: 0 };
+    const adj = getSafeAdj(monthlyAdjustments[currentMonthKey]);
 
     const updateAdjustment = (field: 'profitDist' | 'houseRent' | 'loanInstallment', val: number) => {
-        setMonthlyAdjustments(prev => ({
-            ...prev,
-            [currentMonthKey]: {
-                ...(prev[currentMonthKey] || { profitDist: 0, houseRent: 0, loanInstallment: 0 }),
-                [field]: val
-            }
-        }));
+        const safeVal = isNaN(val) ? 0 : Math.max(0, val);
+        setMonthlyAdjustments(prev => {
+            const current = getSafeAdj(prev[currentMonthKey]);
+            const updated = {
+                ...prev,
+                [currentMonthKey]: {
+                    ...current,
+                    [field]: safeVal
+                }
+            };
+            try {
+                localStorage.setItem('ncd_monthly_adjustments', JSON.stringify(updated));
+            } catch (e) {}
+            return updated;
+        });
     };
 
     const [profitShareReportType, setProfitShareReportType] = useState<'monthly' | 'yearly' | 'custom'>('monthly');
@@ -206,12 +246,12 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
 
     const profitShareAdj = useMemo(() => {
         if (profitShareReportType === 'monthly') {
-            return monthlyAdjustments[currentMonthKey] || { profitDist: 0, houseRent: 0, loanInstallment: 0 };
+            return getSafeAdj(monthlyAdjustments[currentMonthKey]);
         } else if (profitShareReportType === 'yearly') {
             let total = 0;
             for (let i = 0; i < 12; i++) {
                 const k = `${profitShareYearStr}-${i}`;
-                if (monthlyAdjustments[k]) total += (monthlyAdjustments[k].profitDist || 0);
+                if (monthlyAdjustments[k]) total += (getSafeAdj(monthlyAdjustments[k]).profitDist || 0);
             }
             return { profitDist: total, houseRent: 0, loanInstallment: 0 };
         } else if (profitShareReportType === 'custom') {
@@ -226,7 +266,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                         const m = parseInt(match[2]);
                         const mDate = new Date(y, m, 15);
                         if (mDate >= s && mDate <= e) {
-                            total += (monthlyAdjustments[k].profitDist || 0);
+                            total += (getSafeAdj(monthlyAdjustments[k]).profitDist || 0);
                         }
                     }
                 });
@@ -235,14 +275,23 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
         }
         return { profitDist: 0, houseRent: 0, loanInstallment: 0 };
     }, [profitShareReportType, currentMonthKey, profitShareYearStr, profitShareStartDate, profitShareEndDate, monthlyAdjustments]);
+
     const updateProfitShareAdjustment = (field: 'profitDist', val: number) => {
-        setMonthlyAdjustments(prev => ({
-            ...prev,
-            [profitShareKey]: {
-                ...(prev[profitShareKey] || { profitDist: 0, houseRent: 0, loanInstallment: 0 }),
-                [field]: val
-            }
-        }));
+        const safeVal = isNaN(val) ? 0 : Math.max(0, val);
+        setMonthlyAdjustments(prev => {
+            const current = getSafeAdj(prev[profitShareKey]);
+            const updated = {
+                ...prev,
+                [profitShareKey]: {
+                    ...current,
+                    [field]: safeVal
+                }
+            };
+            try {
+                localStorage.setItem('ncd_monthly_adjustments', JSON.stringify(updated));
+            } catch (e) {}
+            return updated;
+        });
     };
 
     const profitShareTotalShares = dynamicShareholders.reduce((sum, s) => sum + s.shares, 0);
@@ -650,9 +699,14 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
             // Subtract all previous manual adjustments (profit distributions and house rent)
             let prevAdjustments = 0;
             Object.entries(monthlyAdjustments).forEach(([key, val]) => {
-                const [y, m] = key.split('-').map(Number);
-                if (y < selectedYear || (y === selectedYear && m < selectedMonth)) {
-                    prevAdjustments += (val.profitDist || 0) + (val.houseRent || 0);
+                const match = key.match(/^(\d{4})-(\d{1,2})$/);
+                if (match) {
+                    const y = parseInt(match[1], 10);
+                    const m = parseInt(match[2], 10);
+                    if (y < selectedYear || (y === selectedYear && m < selectedMonth)) {
+                        const valObj = getSafeAdj(val);
+                        prevAdjustments += valObj.profitDist + valObj.houseRent;
+                    }
                 }
             });
 
@@ -717,7 +771,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
         const totalClinic = clinicCurrent + clinicDue;
         const totalMedNet = medSalesCurrent - medPurchCurrent;
         
-        const grandTotalCollection = totalDiag + totalClinic + totalMedNet + companyCurrent + prevJer - adj.houseRent;
+        const grandTotalCollection = totalDiag + totalClinic + totalMedNet + companyCurrent + prevJer - (safeNum(adj.houseRent));
         
         const groupedExp: Record<string, number> = {};
         expenseMapSequence.forEach(e => groupedExp[e.key] = 0);
@@ -755,11 +809,11 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
             });
         });
         const monthlyLoanRepayments = repayments.filter(r => isSelectedMonth(r.date)).reduce((s, r) => s + r.amount, 0);
-        const totalExpenseTableOnly = Object.values(groupedExp).reduce((s, v) => s + (v as number), 0) + monthlyLoanRepayments + adj.loanInstallment;
+        const totalExpenseTableOnly = Object.values(groupedExp).reduce((s, v) => s + (v as number), 0) + monthlyLoanRepayments + (safeNum(adj.loanInstallment));
         const netProfit = grandTotalCollection - totalExpenseTableOnly;
-        const finalClosingJer = netProfit - adj.profitDist;
+        const finalClosingJer = netProfit - (safeNum(adj.profitDist));
         const totalShares = dynamicShareholders.reduce((s, h) => s + h.shares, 0);
-        const profitPerShare = totalShares > 0 ? adj.profitDist / totalShares : 0;
+        const profitPerShare = totalShares > 0 ? (safeNum(adj.profitDist)) / totalShares : 0;
         
         return { prevJer: safeNum(prevJer), diagCurrent: safeNum(diagCurrent), diagDue: safeNum(diagDue), totalDiag: safeNum(totalDiag), clinicCurrent: safeNum(clinicCurrent), clinicDue: safeNum(clinicDue), totalClinic: safeNum(totalClinic), medSalesCurrent: safeNum(medSalesCurrent), medPurchCurrent: safeNum(medPurchCurrent), totalMedNet: safeNum(totalMedNet), companyCurrent: safeNum(companyCurrent), grandTotalCollection: safeNum(grandTotalCollection), groupedExp, totalExpense: safeNum(totalExpenseTableOnly), netProfit: safeNum(netProfit), finalClosingJer: safeNum(finalClosingJer), profitPerShare: safeNum(profitPerShare), totalShares: safeNum(totalShares) }; } catch(e) { console.error('summary error:', e); return { prevJer: 0, diagCurrent: 0, diagDue: 0, totalDiag: 0, clinicCurrent: 0, clinicDue: 0, totalClinic: 0, medSalesCurrent: 0, medPurchCurrent: 0, totalMedNet: 0, companyCurrent: 0, grandTotalCollection: 0, groupedExp: {}, totalExpense: 0, netProfit: 0, finalClosingJer: 0, profitPerShare: 0, totalShares: 0 }; } }, [labInvoices, dueCollections, indoorInvoices, salesInvoices, purchaseInvoices, companyCollections, detailedExpenses, selectedMonth, selectedYear, monthlyAdjustments, dynamicShareholders, repayments, adj.houseRent, adj.loanInstallment, adj.profitDist]);
 
@@ -1040,13 +1094,30 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                     <div className="mt-2 border-t-2 border-black pt-1">
                                         <table className="w-full border-2 border-black">
                                             <tbody>
-                                                <tr className="bg-gray-50 h-9">
+                                                <tr className="bg-gray-50 h-10">
                                                     <td colSpan={2} className={`${collectionTableCellClass} !text-left`}>
-                                                        <div className="flex justify-between items-center w-full">
-                                                            <span className="whitespace-nowrap">বাড়ী ভাড়া কর্তন</span>
-                                                            <div className="no-print flex items-center gap-1 justify-end ml-1">
-                                                                <input type="number" value={adj.houseRent || ''} onChange={e=>updateAdjustment('houseRent', parseFloat(e.target.value)||0)} className="w-14 text-right border border-gray-400 rounded text-xs font-normal" />
-                                                                <button onClick={() => setShowSaveConfirm(true)} className="p-1 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors shadow-sm" title="Save"><SaveIcon className="w-3.5 h-3.5" /></button>
+                                                        <div className="flex justify-between items-center w-full px-1">
+                                                            <span className="whitespace-nowrap font-bold text-slate-800">বাড়ী ভাড়া কর্তন</span>
+                                                            <div className="no-print flex items-center gap-1.5 justify-end ml-1">
+                                                                <input 
+                                                                    type="number" 
+                                                                    min="0"
+                                                                    placeholder="0"
+                                                                    value={adj.houseRent === 0 ? '' : adj.houseRent} 
+                                                                    onChange={e => {
+                                                                        const v = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                                                                        updateAdjustment('houseRent', isNaN(v) ? 0 : v);
+                                                                    }} 
+                                                                    className="w-28 sm:w-32 px-2.5 py-1 text-right border border-gray-400 bg-white rounded-lg text-xs font-bold font-['JetBrains_Mono'] focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm" 
+                                                                />
+                                                                <button 
+                                                                    type="button"
+                                                                    onClick={() => setShowSaveConfirm(true)} 
+                                                                    className="p-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors shadow-sm active:scale-95 flex items-center gap-1" 
+                                                                    title="Save"
+                                                                >
+                                                                    <SaveIcon className="w-3.5 h-3.5" />
+                                                                </button>
                                                             </div>
                                                         </div>
                                                     </td>
@@ -1068,13 +1139,30 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                                 </tr>
                                                 
                                                 <tr className="bg-rose-50/30 h-9"><td colSpan={2} className={`${collectionTableCellClass} text-rose-900`}>মোট খরচ (B)</td><td className={`${collectionAmtCellClass} text-rose-900`}>({safeNum(summary.totalExpense).toLocaleString()})</td></tr>
-                                                <tr className="bg-amber-50/30 h-9">
+                                                <tr className="bg-amber-50/40 h-10">
                                                     <td colSpan={2} className={`${collectionTableCellClass} !text-left text-amber-900`}>
-                                                        <div className="flex justify-between items-center w-full">
-                                                            <span className="whitespace-nowrap">লভ্যাংশ বন্টন</span>
-                                                            <div className="no-print flex items-center gap-1 justify-end ml-1">
-                                                                <input type="number" value={adj.profitDist || ''} onChange={e=>updateAdjustment('profitDist', parseFloat(e.target.value)||0)} className="w-14 text-right border border-amber-400 rounded font-bold text-xs" />
-                                                                <button onClick={() => setShowSaveConfirm(true)} className="p-1 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors shadow-sm" title="Save"><SaveIcon className="w-3.5 h-3.5" /></button>
+                                                        <div className="flex justify-between items-center w-full px-1">
+                                                            <span className="whitespace-nowrap font-bold text-amber-950">লভ্যাংশ বন্টন</span>
+                                                            <div className="no-print flex items-center gap-1.5 justify-end ml-1">
+                                                                <input 
+                                                                    type="number" 
+                                                                    min="0"
+                                                                    placeholder="0"
+                                                                    value={adj.profitDist === 0 ? '' : adj.profitDist} 
+                                                                    onChange={e => {
+                                                                        const v = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                                                                        updateAdjustment('profitDist', isNaN(v) ? 0 : v);
+                                                                    }} 
+                                                                    className="w-28 sm:w-32 px-2.5 py-1 text-right border border-amber-400 bg-white rounded-lg text-xs font-bold text-amber-950 font-['JetBrains_Mono'] focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-sm" 
+                                                                />
+                                                                <button 
+                                                                    type="button"
+                                                                    onClick={() => setShowSaveConfirm(true)} 
+                                                                    className="p-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors shadow-sm active:scale-95 flex items-center gap-1" 
+                                                                    title="Save"
+                                                                >
+                                                                    <SaveIcon className="w-3.5 h-3.5" />
+                                                                </button>
                                                             </div>
                                                         </div>
                                                     </td>
@@ -1605,11 +1693,22 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                     <div className="flex items-center justify-center gap-2">
                                         {profitShareReportType === 'monthly' ? (
                                             <>
-                                                <span className="text-lg font-black text-blue-900 no-print invisible">৳</span>
-                                                <input type="number" value={profitShareAdj.profitDist || ''} onChange={e=>updateProfitShareAdjustment('profitDist', parseFloat(e.target.value)||0)} className="w-24 bg-transparent border-b-2 border-blue-300 text-center text-2xl font-black text-blue-900 outline-none no-print" />
+                                                <span className="text-lg font-black text-blue-900 no-print">৳</span>
+                                                <input 
+                                                    type="number" 
+                                                    min="0"
+                                                    placeholder="0"
+                                                    value={profitShareAdj.profitDist === 0 ? '' : profitShareAdj.profitDist} 
+                                                    onChange={e => {
+                                                        const v = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                                                        updateProfitShareAdjustment('profitDist', isNaN(v) ? 0 : v);
+                                                    }} 
+                                                    className="w-36 sm:w-44 bg-white/90 border-2 border-blue-400 rounded-xl px-3 py-1 text-center text-xl sm:text-2xl font-black text-blue-900 outline-none focus:ring-2 focus:ring-blue-500 no-print shadow-sm font-['JetBrains_Mono']" 
+                                                />
                                                 <button 
+                                                    type="button"
                                                     onClick={() => setShowSaveConfirm(true)}
-                                                    className="no-print p-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors shadow-md"
+                                                    className="no-print p-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-colors shadow-md active:scale-95 flex items-center gap-1"
                                                     title="Save"
                                                 >
                                                     <SaveIcon className="w-4 h-4" />

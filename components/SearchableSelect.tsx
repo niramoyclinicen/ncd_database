@@ -131,10 +131,17 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
             if (!wrapperRef.current) return;
             const rect = wrapperRef.current.getBoundingClientRect();
             const spaceBelow = window.innerHeight - rect.bottom;
-            setDropdownDirection(spaceBelow < 280 ? 'up' : 'down');
+            const spaceAbove = rect.top;
+            setDropdownDirection(spaceBelow < 280 && spaceAbove > spaceBelow ? 'up' : 'down');
         };
         
-        requestAnimationFrame(handlePosition);
+        handlePosition();
+        window.addEventListener('scroll', handlePosition, true);
+        window.addEventListener('resize', handlePosition);
+        return () => {
+            window.removeEventListener('scroll', handlePosition, true);
+            window.removeEventListener('resize', handlePosition);
+        };
     }
   }, [isOpen]);
 
@@ -142,9 +149,9 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
   const inputBg = theme === 'dark' ? 'bg-sky-900/50' : 'bg-white';
   const inputBorder = theme === 'dark' ? 'border-sky-800' : 'border-gray-300';
   const inputText = theme === 'dark' ? 'text-sky-200' : 'text-gray-900';
-  const dropdownBg = theme === 'dark' ? 'bg-slate-800' : 'bg-white';
+  const dropdownBg = theme === 'dark' ? 'bg-slate-900' : 'bg-white';
   const dropdownText = theme === 'dark' ? 'text-slate-200' : 'text-gray-900';
-  const hoverColor = theme === 'dark' ? 'hover:bg-slate-700' : 'hover:bg-gray-100';
+  const hoverColor = theme === 'dark' ? 'hover:bg-slate-800' : 'hover:bg-gray-100';
 
   return (
     <div className="relative" ref={wrapperRef}>
@@ -162,7 +169,10 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
             onClick={() => setIsOpen(true)}
-            onFocus={(e) => e.target.select()} 
+            onFocus={(e) => {
+              setIsOpen(true);
+              e.target.select();
+            }} 
             required={required}
           />
           
@@ -186,11 +196,11 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
       </div>
 
       {isOpen && filteredOptions.length > 0 && (
-        <ul className={`absolute z-50 w-full rounded-md shadow-lg border ${inputBorder} ${dropdownBg} max-h-60 overflow-y-auto ${dropdownDirection === 'up' ? 'bottom-full mb-1' : 'mt-1'}`}>
+        <ul className={`absolute z-[9999] w-full rounded-xl shadow-2xl border ${inputBorder} ${dropdownBg} max-h-72 overflow-y-auto ${dropdownDirection === 'up' ? 'bottom-full mb-1.5' : 'mt-1.5'} ring-1 ring-black/10`}>
             {filteredOptions.map((option) => (
             <li
                 key={option.id}
-                className={`cursor-pointer select-none relative py-2 pl-3 pr-9 ${dropdownText} ${hoverColor}`}
+                className={`cursor-pointer select-none relative py-2.5 px-3.5 ${dropdownText} ${hoverColor} transition-colors border-b border-slate-100 dark:border-slate-800/40 last:border-b-0`}
                 onMouseDown={(e) => {
                     // Prevent input blur to keep focus and allow selection to happen
                     e.preventDefault(); 
@@ -198,9 +208,9 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
                 }}
             >
                 <div className="flex flex-col overflow-hidden leading-tight">
-                  <span className="font-bold truncate">{option.name}</span>
+                  <span className="font-bold truncate text-xs sm:text-sm">{option.name}</span>
                   {option.details && (
-                    <span className="text-[11px] opacity-70 font-medium truncate italic">
+                    <span className="text-[10px] opacity-70 font-medium truncate italic mt-0.5">
                       {option.details}
                     </span>
                   )}
@@ -210,8 +220,8 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
         </ul>
       )}
       {isOpen && filteredOptions.length === 0 && searchTerm !== '' && !allowCustom && (
-           <ul className={`absolute z-50 w-full rounded-md shadow-lg border ${inputBorder} ${dropdownBg} ${dropdownDirection === 'up' ? 'bottom-full mb-1' : 'mt-1'}`}>
-                <li className={`py-2 pl-3 pr-9 ${dropdownText} opacity-50`}>No results found</li>
+           <ul className={`absolute z-[9999] w-full rounded-xl shadow-2xl border ${inputBorder} ${dropdownBg} ${dropdownDirection === 'up' ? 'bottom-full mb-1.5' : 'mt-1.5'}`}>
+                <li className={`py-3 px-4 ${dropdownText} opacity-60 text-xs italic text-center`}>কোন তথ্য পাওয়া যায়নি (No results found)</li>
            </ul>
       )}
     </div>
