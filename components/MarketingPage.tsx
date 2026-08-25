@@ -520,7 +520,7 @@ const MarketingPage: React.FC<MarketingPageProps> = ({
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
       {successMessage && <div className="fixed top-24 right-8 z-[150] bg-emerald-600 border-2 border-emerald-400 text-white px-10 py-4 rounded-2xl shadow-2xl font-black text-lg animate-fade-in-down">✅ {successMessage}</div>}
       
-      <header className="bg-slate-900 border-b border-slate-800 p-6 sticky top-0 z-50 shadow-2xl">
+      <header className="bg-slate-900 border-b border-slate-800 p-6 sticky top-0 pt-16 md:pt-0 z-50 shadow-2xl">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
           <div className="flex items-center gap-4">
             <button onClick={onBack} className="p-2.5 bg-slate-800 rounded-2xl hover:bg-slate-700 transition-all border border-slate-700">

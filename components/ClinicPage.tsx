@@ -3857,7 +3857,7 @@ const ClinicPage: React.FC<ClinicPageProps> = ({
     return (
         <div className="bg-slate-950 min-h-screen text-slate-200 flex flex-col font-sans selection:bg-cyan-500/30">
             <div className="bg-slate-900/80 backdrop-blur-md border-b border-slate-800 shadow-2xl z-10 sticky top-0">
-                <div className="max-w-[1600px] mx-auto px-6 py-4 w-full"> 
+                <div className="max-w-[1600px] mx-auto px-6 py-4 pt-16 md:pt-4 w-full"> 
                     <div className="flex flex-col gap-4">
                         <div className="flex justify-between items-center">
                             <div className="flex items-center gap-4">

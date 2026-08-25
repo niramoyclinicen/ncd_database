@@ -7,12 +7,15 @@ interface ReagentInfoPageProps {
     reagents: Reagent[];
     setReagents: React.Dispatch<React.SetStateAction<Reagent[]>>;
     detailedExpenses?: any;
+    setDetailedExpenses?: React.Dispatch<React.SetStateAction<any>>;
+    inventoryLogs?: any[];
+    setInventoryLogs?: React.Dispatch<React.SetStateAction<any[]>>;
     labInvoices?: any;
     tests?: any[];
     performBlockingSync?: (overrides?: any) => Promise<boolean>;
 }
 
-const ReagentInfoPage: React.FC<ReagentInfoPageProps> = ({ reagents, setReagents, detailedExpenses, labInvoices, tests = [], performBlockingSync }) => {
+const ReagentInfoPage: React.FC<ReagentInfoPageProps> = ({ reagents, setReagents, detailedExpenses, setDetailedExpenses, labInvoices, tests = [], performBlockingSync, inventoryLogs = [], setInventoryLogs }) => {
     const [viewMode, setViewMode] = useState<'inventory' | 'requisition' | 'ledger' | 'summary'>('summary');
     const [summaryStartDate, setSummaryStartDate] = useState(() => {
         const d = new Date(); d.setDate(1); return d.toISOString().split('T')[0];
@@ -21,8 +24,89 @@ const ReagentInfoPage: React.FC<ReagentInfoPageProps> = ({ reagents, setReagents
     const [ledgerReagentId, setLedgerReagentId] = useState<string | null>(null);
     const [ledgerStartDate, setLedgerStartDate] = useState<string>('');
     const [ledgerEndDate, setLedgerEndDate] = useState<string>('');
+        
+    // Restock Modal State
+    const [showRestockModal, setShowRestockModal] = useState(false);
+    const [restockReagentId, setRestockReagentId] = useState('');
+    const [restockData, setRestockData] = useState({
+        date: new Date().toISOString().split('T')[0],
+        boxes: 1,
+        pcsPerBox: 1,
+        totalCost: 0,
+        supplier: '',
+        voucher: ''
+    });
     
     // Ledger Calculation
+    
+    const handleRestockSave = () => {
+        if (!restockReagentId || restockData.boxes <= 0 || restockData.pcsPerBox <= 0 || restockData.totalCost <= 0) {
+            alert("Please fill all fields correctly.");
+            return;
+        }
+
+        const qtyToAdd = restockData.boxes * restockData.pcsPerBox;
+        const targetReagent = reagents.find(r => r.reagent_id === restockReagentId);
+        
+        if (!targetReagent) return;
+
+        // 1. Update Reagent Stock
+        const updatedReagents = reagents.map(r => 
+            r.reagent_id === restockReagentId ? { ...r, quantity: r.quantity + qtyToAdd } : r
+        );
+        setReagents(updatedReagents);
+
+        // 2. Add to Inventory Logs
+        if (setInventoryLogs) {
+            const newLog = {
+                id: `LOG-${Date.now()}`,
+                date: new Date().toISOString(),
+                reagentId: restockReagentId,
+                type: 'IN',
+                amount: qtyToAdd,
+                reason: `Purchase: ${restockData.supplier} (Voucher: ${restockData.voucher})`
+            };
+            setInventoryLogs([...inventoryLogs, newLog]);
+        }
+
+        // 3. Add to Detailed Expenses (Accounting)
+        if (setDetailedExpenses) {
+            setDetailedExpenses(prev => {
+                const updated = { ...prev };
+                const today = restockData.date;
+                if (!updated[today]) updated[today] = [];
+                updated[today].push({
+                    id: Date.now().toString(),
+                    category: 'Reagent buy',
+                    subCategory: targetReagent.reagent_name,
+                    amount: restockData.totalCost,
+                    description: `Supplier: ${restockData.supplier}, Voucher: ${restockData.voucher}, Qty: ${qtyToAdd} ${targetReagent.unit}`,
+                    metadata: {
+                        isBatchPurchase: false,
+                        numberOfBoxes: restockData.boxes,
+                        quantityPerBox: restockData.pcsPerBox,
+                        items: [{ reagentId: restockReagentId, qty: qtyToAdd }]
+                    }
+                });
+                return updated;
+            });
+        }
+
+        setShowRestockModal(false);
+        setRestockData({
+            date: new Date().toISOString().split('T')[0],
+            boxes: 1,
+            pcsPerBox: 1,
+            totalCost: 0,
+            supplier: '',
+            voucher: ''
+        });
+        
+        if (performBlockingSync) {
+             performBlockingSync();
+        }
+    };
+    
     const getReagentLedger = (reagentId: string) => {
         const reagent = reagents.find(r => r.reagent_id === reagentId);
         if (!reagent) return { items: [], currentStock: 0 };
@@ -187,9 +271,15 @@ const ReagentInfoPage: React.FC<ReagentInfoPageProps> = ({ reagents, setReagents
     const [wastageQty, setWastageQty] = useState('1');
     const [wastageReason, setWastageReason] = useState('Position Error / Motion Blur');
     const [wastageDate, setWastageDate] = useState(new Date().toISOString().split('T')[0]);
+    
+    // Add Stock Calculator State
+    const [boxQty, setBoxQty] = useState('');
+    const [pcsPerBox, setPcsPerBox] = useState('');
 
     const handleAddClick = () => {
         setFormData({ ...emptyReagent, reagent_id: 'R-' + Date.now() });
+        setBoxQty('');
+        setPcsPerBox('');
         setIsEditing(false);
         setShowForm(true);
     };
@@ -414,7 +504,7 @@ const ReagentInfoPage: React.FC<ReagentInfoPageProps> = ({ reagents, setReagents
 
     return (
         <div className="bg-slate-950 text-slate-200 min-h-screen flex flex-col font-sans">
-            <header className="bg-slate-900 p-6 border-b border-slate-800 flex justify-between items-center shadow-2xl sticky top-0 z-50">
+            <header className="bg-slate-900 p-6 border-b border-slate-800 flex justify-between items-center shadow-2xl sticky top-0 pt-16 md:pt-0 z-50">
                 <div className="flex items-center gap-4">
                     <div className="p-3 bg-blue-600/20 rounded-2xl border border-blue-500/30 text-blue-400"><BeakerIcon size={24}/></div>
                     <div>
@@ -472,6 +562,7 @@ const ReagentInfoPage: React.FC<ReagentInfoPageProps> = ({ reagents, setReagents
                                 }} className="bg-rose-600 hover:bg-rose-500 text-white px-6 py-3 rounded-2xl font-black uppercase text-xs shadow-xl active:scale-95 transition-all flex items-center gap-2 border border-rose-400/30">
                                     <XIcon size={16}/> নষ্ট হওয়া ফিল্ম এন্ট্রি (Wastage Entry)
                                 </button>
+                                <button onClick={() => setShowRestockModal(true)} className="bg-emerald-600 hover:bg-emerald-500 text-white px-8 py-3 rounded-2xl font-black uppercase text-xs shadow-xl active:scale-95 transition-all flex items-center gap-2"><PlusIcon size={16}/> New Purchase (Restock)</button>
                                 <button onClick={handleAddClick} className="bg-blue-600 hover:bg-blue-500 text-white px-8 py-3 rounded-2xl font-black uppercase text-xs shadow-xl active:scale-95 transition-all flex items-center gap-2"><PlusIcon size={16}/> Add Reagent</button>
                             </div>
                         )}
@@ -481,6 +572,9 @@ const ReagentInfoPage: React.FC<ReagentInfoPageProps> = ({ reagents, setReagents
                         )}
                     </div>
 
+                    <div className="bg-sky-500/10 border border-sky-500/20 text-sky-400 p-4 rounded-xl text-sm font-medium mb-6">
+                        <strong>💡 প্রফেশনাল ইনভেন্টরি টিপস:</strong> এখান থেকে শুধু ল্যাবের নতুন কেমিক্যাল প্রথমবার এন্ট্রি (Opening Balance) করবেন। পরবর্তীতে বাজার থেকে নতুন কেমিক্যাল কিনলে <strong>Accounts &rarr; Expenses</strong> এ গিয়ে "Reagent buy" বা "X-ray Film buy" ক্যাটাগরিতে খরচ এন্ট্রি করলেই, স্টক অটোমেটিক এখানে যোগ হয়ে যাবে।
+                    </div>
                     <div className="overflow-x-auto min-h-[400px]">
                         <table className="w-full text-left border-collapse text-xs">
                             <thead className="bg-slate-950 text-[10px] uppercase font-black text-slate-500 tracking-widest border-b border-slate-800">
@@ -782,10 +876,36 @@ const ReagentInfoPage: React.FC<ReagentInfoPageProps> = ({ reagents, setReagents
                                     <label className="block text-[10px] font-black text-slate-500 uppercase mb-2">Unit</label>
                                     <input value={formData.unit} onChange={e => setFormData({...formData, unit: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white font-bold outline-none focus:border-blue-500" placeholder="e.g. Box, Pcs, ml" />
                                 </div>
-                                <div>
-                                    <label className="block text-[10px] font-black text-slate-500 uppercase mb-2">Initial Quantity (only for new)</label>
-                                    <input type="number" value={formData.quantity} onChange={e => setFormData({...formData, quantity: parseFloat(e.target.value) || 0})} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white font-bold outline-none focus:border-blue-500" disabled={isEditing} />
-                                </div>
+                                {!isEditing && (
+                                    <div className="col-span-full bg-slate-950/50 p-4 rounded-xl border border-slate-800">
+                                        <label className="block text-[10px] font-black text-slate-500 uppercase mb-3">Initial Stock Calculation (স্টক হিসাব)</label>
+                                        <div className="grid grid-cols-3 gap-4 items-end">
+                                            <div>
+                                                <label className="block text-[10px] font-bold text-slate-400 mb-1">Total Boxes (কয় বক্স?)</label>
+                                                <input type="number" value={boxQty} onChange={e => {
+                                                    setBoxQty(e.target.value);
+                                                    const boxes = parseFloat(e.target.value) || 0;
+                                                    const pcs = parseFloat(pcsPerBox) || 0;
+                                                    setFormData({...formData, quantity: boxes * pcs});
+                                                }} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white font-bold outline-none focus:border-blue-500" placeholder="e.g. 3" />
+                                            </div>
+                                            <div>
+                                                <label className="block text-[10px] font-bold text-slate-400 mb-1">Pcs per Box (প্রতি বক্সে কয়টি?)</label>
+                                                <input type="number" value={pcsPerBox} onChange={e => {
+                                                    setPcsPerBox(e.target.value);
+                                                    const boxes = parseFloat(boxQty) || 0;
+                                                    const pcs = parseFloat(e.target.value) || 0;
+                                                    setFormData({...formData, quantity: boxes * pcs});
+                                                }} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white font-bold outline-none focus:border-blue-500" placeholder="e.g. 100" />
+                                            </div>
+                                            <div>
+                                                <label className="block text-[10px] font-bold text-slate-400 mb-1">Total Quantity (মোট স্টক)</label>
+                                                <input type="number" value={formData.quantity} onChange={e => setFormData({...formData, quantity: parseFloat(e.target.value) || 0})} className="w-full bg-slate-950 border border-emerald-500/50 rounded-lg p-2 text-emerald-400 font-black outline-none" />
+                                            </div>
+                                        </div>
+                                        <p className="text-[10px] text-slate-500 mt-2">Note: Unit should be the smallest unit (e.g. Pcs, ml, Film) since tests consume single pieces.</p>
+                                    </div>
+                                )}
                                 <div>
                                     <label className="block text-[10px] font-black text-slate-500 uppercase mb-2">Expiry Date</label>
                                     <input type="date" value={formData.expiry_date || ''} onChange={e => setFormData({...formData, expiry_date: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white font-bold outline-none focus:border-blue-500" />

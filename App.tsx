@@ -1,6 +1,6 @@
-
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Activity } from 'lucide-react';
+import React, { useState } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
+import { Activity, LayoutDashboard, Stethoscope, Building2, Pill, Calculator, TrendingUp, Settings, LogOut, Menu, X } from 'lucide-react';
 import { ViewState, UserRole, DepartmentPasswords } from './types';
 import Dashboard from './components/Dashboard';
 import DiagnosticPage from './components/DiagnosticPage';
@@ -13,322 +13,156 @@ import DoctorPortal from './components/DoctorPortal';
 import DepartmentLogin from './components/DepartmentLogin';
 import AdminSettings from './components/AdminSettings';
 import AIAssistant from './components/AIAssistant';
-import { dbService } from './dbService';
-import { 
-  mockPatients, mockDoctors, mockReferrars, mockTests, mockReagents, 
-  mockInvoices, mockDueCollections, mockEmployees, mockMedicines,
-  mockPurchaseInvoices, mockSalesInvoices, mockAdmissions, mockIndoorInvoices,
-  initialAppointments, initialClinicalDrugs, PrescriptionRecord, LabReport, ExpenseItem
-} from './components/DiagnosticData';
+import { useAppData } from './useAppData';
 
-const App: React.FC = () => {
-  // --- GLOBAL STATE ---
-  const [viewState, setViewState] = useState<ViewState>(ViewState.DASHBOARD);
-  const [userRole, setUserRole] = useState<UserRole>('NONE');
-  const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(false);
-  const [isDataLoaded, setIsDataLoaded] = useState(false);
-  const [connectionError, setConnectionError] = useState(false);
-  const [connectionErrorMessage, setConnectionErrorMessage] = useState('');
-  const [lastSavedAt, setLastSavedAt] = useState<string>(''); // For UI feedback
-  const lastSavedAtRef = React.useRef<string>(''); // For logic checks to avoid loops
+const SidebarLayout = ({ children, onLogout }: { children: React.ReactNode, onLogout: () => void }) => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  const [currentUserEmail] = useState(() => {
-    const existing = localStorage.getItem('ncd_user_email');
-    if (existing) return existing;
-    const newId = `User-${Date.now().toString(36)}-${Math.floor(Math.random() * 1000)}`;
-    localStorage.setItem('ncd_user_email', newId);
-    return newId;
-  });
+  const menuItems = [
+    { path: '/', icon: <LayoutDashboard size={20} />, label: 'Dashboard' },
+    { path: '/diagnostic', icon: <Stethoscope size={20} />, label: 'Diagnostic' },
+    { path: '/clinic', icon: <Building2 size={20} />, label: 'Clinic' },
+    { path: '/medicine', icon: <Pill size={20} />, label: 'Pharmacy' },
+    { path: '/accounting', icon: <Calculator size={20} />, label: 'Accounts' },
+    { path: '/marketing', icon: <TrendingUp size={20} />, label: 'Marketing' },
+    { path: '/settings', icon: <Settings size={20} />, label: 'Settings' },
+  ];
 
-  // Authentication & Passwords
-  const [passwords, setPasswords] = useState<DepartmentPasswords>(() => {
-    const saved = localStorage.getItem('ncd_passwords');
-    const defaultPasswords = {
-      DIAGNOSTIC: 'diag123',
-      LAB_REPORTING: 'lab123',
-      CLINIC: 'clinic123',
-      ACCOUNTING: 'acc123',
-      MEDICINE: 'med123',
-      ADMIN: 'niramoy123'
-    };
-    return saved ? { ...defaultPasswords, ...JSON.parse(saved) } : defaultPasswords;
-  });
+  const handleNavigate = (path: string) => {
+    navigate(path);
+    setIsMobileMenuOpen(false);
+  };
 
-  // Data States
-  const [patients, setPatients] = useState(mockPatients);
-  const [doctors, setDoctors] = useState(mockDoctors);
-  const [referrars, setReferrars] = useState(mockReferrars);
-  const [tests, setTests] = useState(mockTests);
-  const [reagents, setReagents] = useState(mockReagents);
-  const [labInvoices, setLabInvoices] = useState(mockInvoices);
-  const [dueCollections, setDueCollections] = useState(mockDueCollections);
-  const [reports, setReports] = useState<LabReport[]>([]);
-  const [rtTemplates, setRtTemplates] = useState<any[]>(() => { try { return JSON.parse(localStorage.getItem('ncd_rt_templates_v1') || '[]'); } catch { return []; } });
-  const [employees, setEmployees] = useState(mockEmployees);
-  const [medicines, setMedicines] = useState(mockMedicines);
-  const [clinicalDrugs, setClinicalDrugs] = useState(initialClinicalDrugs);
-  const [purchaseInvoices, setPurchaseInvoices] = useState(mockPurchaseInvoices);
-  const [salesInvoices, setSalesInvoices] = useState(mockSalesInvoices);
-  const [admissions, setAdmissions] = useState(mockAdmissions);
-  const [indoorInvoices, setIndoorInvoices] = useState(mockIndoorInvoices);
-  const [detailedExpenses, setDetailedExpenses] = useState<Record<string, ExpenseItem[]>>({});
-  const [prescriptions, setPrescriptions] = useState<PrescriptionRecord[]>([]);
-  const [appointments, setAppointments] = useState(initialAppointments);
+  return (
+    <div className="flex flex-col md:flex-row h-screen bg-slate-950 overflow-hidden">
+      {/* Mobile Menu Button */}
+      {/* Mobile Top Bar */}
+      <div className="md:hidden flex items-center justify-between bg-slate-900 border-b border-slate-800 px-4 py-3 shrink-0 z-50">
+        <div className="flex items-center gap-3">
+          <button 
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            className="p-2 bg-slate-800 rounded-lg text-slate-200"
+          >
+            {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+          </button>
+          <h1 className="text-lg font-bold bg-clip-text text-transparent bg-gradient-to-r from-sky-400 to-cyan-300">
+            Niramoy Clinic
+          </h1>
+        </div>
+      </div>
+
+      {/* Mobile Menu Backdrop */}
+      {isMobileMenuOpen && (
+        <div 
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-30 md:hidden"
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
+      )}
+      {/* Sidebar */}
+      <div className={`fixed inset-y-0 left-0 z-40 w-64 bg-slate-900 border-r border-slate-800 transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+        <div className="flex flex-col h-full">
+          <div className="p-6 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-500 to-cyan-400 flex items-center justify-center shadow-lg shadow-sky-500/20">
+              <Activity className="text-white" size={24} />
+            </div>
+            <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-sky-400 to-cyan-300">
+              Niramoy Clinic
+            </h1>
+          </div>
+
+          <nav className="flex-1 px-4 space-y-2 overflow-y-auto">
+            {menuItems.map((item) => (
+              <button
+                key={item.path}
+                onClick={() => handleNavigate(item.path)}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
+                  location.pathname === item.path 
+                  ? 'bg-sky-500/10 text-sky-400 border border-sky-500/20' 
+                  : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
+                }`}
+              >
+                {item.icon}
+                <span className="font-medium">{item.label}</span>
+              </button>
+            ))}
+          </nav>
+
+          <div className="p-4 border-t border-slate-800">
+            <button
+              onClick={() => {
+                onLogout();
+                handleNavigate('/');
+              }}
+              className="w-full flex items-center gap-3 px-4 py-3 text-red-400 hover:bg-red-500/10 rounded-xl transition-all"
+            >
+              <LogOut size={20} />
+              <span className="font-medium">Logout</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col overflow-hidden bg-slate-950 relative">
+        <div className="flex-1 overflow-y-auto p-4 md:p-8 animate-fade-in-up">
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const AppContent = () => {
+  const data = useAppData();
   
-  // Marketing States
-  const [employeeReferrerMap, setEmployeeReferrerMap] = useState<Record<string, string[]>>({});
+  // Pending Dept Login State inside the layout so we don't reload the entire app
+    const navigate = useNavigate();
 
-  // HR/Payroll States
-  const [attendanceLog, setAttendanceLog] = useState<Record<string, any>>({});
-  const [leaveLog, setLeaveLog] = useState<Record<string, any>>({});
-  const [monthlyRoster, setMonthlyRoster] = useState<Record<string, string[]>>({});
-  const [diagnosticSettings, setDiagnosticSettings] = useState<any>(() => {
-    const saved = localStorage.getItem('diag_settings');
-    return saved ? JSON.parse(saved) : { customSubCategories: {}, trackedTests: [] };
-  });
-
-  // --- DATA LOADING & REAL-TIME SYNC ---
-  useEffect(() => {
-    const loadData = async () => {
-      const loadedData = await dbService.loadFromCloud();
-      const localData = dbService.getLocalBackup();
-      
-      let finalDataToLoad = loadedData;
-      
-      if (loadedData && !loadedData._error) {
-        if (localData && localData.last_updated_at && loadedData.last_updated_at) {
-            const localTime = new Date(localData.last_updated_at).getTime();
-            const cloudTime = new Date(loadedData.last_updated_at).getTime();
-            if (localTime > cloudTime) {
-                console.log("Local backup is newer than cloud. Using local backup to prevent data loss.");
-                finalDataToLoad = localData;
-                // Trigger a sync so the newer local data is pushed to the cloud
-                setTimeout(() => dbService.saveToCloud(localData), 2000);
-            }
-        }
-        
-        if (Object.keys(finalDataToLoad).length > 0) {
-          updateLocalState(finalDataToLoad);
-        }
-        setIsDataLoaded(true);
-        setConnectionError(false);
-      } else {
-        if (localData) {
-            console.log("Cloud load failed, but found local data. Using local backup.");
-            updateLocalState(localData);
-            setIsDataLoaded(true);
-            setConnectionError(false);
-        } else {
-            // Hard block if cloud load fails, to prevent overwriting cloud with empty data
-            setConnectionErrorMessage(loadedData ? loadedData._error : 'Unknown load error');
-            setIsDataLoaded(false);
-            setConnectionError(true);
-        }
-      }
-    };
-
-    const updateLocalState = (data: any) => {
-      if (!data) return;
-      
-      // If the data from cloud is same or older than our last local save, ignore to prevent echo loops
-      if (lastSavedAtRef.current && data.last_updated_at && data.last_updated_at <= lastSavedAtRef.current) {
-        return;
-      }
-
-      // Important: Update sync markers immediately to acknowledge this remote state
-      if (data.last_updated_at) {
-        lastSavedAtRef.current = data.last_updated_at;
-        setLastSavedAt(data.last_updated_at);
-      }
-
-      // Batching updates without expensive JSON.stringify
-      if (Array.isArray(data.patients)) setPatients(data.patients);
-      if (Array.isArray(data.doctors)) setDoctors(data.doctors);
-      if (Array.isArray(data.referrars)) setReferrars(data.referrars);
-      if (Array.isArray(data.tests)) setTests(data.tests);
-      if (Array.isArray(data.reagents)) setReagents(data.reagents);
-      if (Array.isArray(data.labInvoices)) setLabInvoices(data.labInvoices);
-      if (Array.isArray(data.dueCollections)) setDueCollections(data.dueCollections);
-      if (Array.isArray(data.reports)) setReports(data.reports);
-      if (Array.isArray(data.rtTemplates)) {
-          setRtTemplates(data.rtTemplates);
-          try {
-              localStorage.setItem('ncd_rt_templates_v1', JSON.stringify(data.rtTemplates));
-          } catch(e){}
-      }
-      if (Array.isArray(data.employees)) setEmployees(data.employees);
-      if (Array.isArray(data.medicines)) setMedicines(data.medicines);
-      if (Array.isArray(data.clinicalDrugs)) setClinicalDrugs(data.clinicalDrugs);
-      if (Array.isArray(data.purchaseInvoices)) setPurchaseInvoices(data.purchaseInvoices);
-      if (Array.isArray(data.salesInvoices)) setSalesInvoices(data.salesInvoices);
-      if (Array.isArray(data.admissions)) setAdmissions(data.admissions);
-      if (Array.isArray(data.indoorInvoices)) setIndoorInvoices(data.indoorInvoices);
-      if (data.detailedExpenses !== undefined) setDetailedExpenses(data.detailedExpenses || {});
-      if (Array.isArray(data.prescriptions)) setPrescriptions(data.prescriptions);
-      if (Array.isArray(data.appointments)) setAppointments(data.appointments);
-      if (data.attendanceLog !== undefined) setAttendanceLog(data.attendanceLog || {});
-      if (data.leaveLog !== undefined) setLeaveLog(data.leaveLog || {});
-      if (data.monthlyRoster !== undefined) setMonthlyRoster(data.monthlyRoster || {});
-      if (data.diagnosticSettings !== undefined) setDiagnosticSettings(data.diagnosticSettings || {});
-      if (data.employeeReferrerMap !== undefined) setEmployeeReferrerMap(data.employeeReferrerMap || {});
-      if (data.passwords !== undefined) setPasswords(data.passwords || {});
-    };
-
-    loadData();
-
-    // REAL-TIME LISTENER: Listen for changes from other users
-    const subscription = dbService.subscribeToChanges((newData) => {
-      if (newData && Object.keys(newData).length > 0) {
-        // Only update if the cloud is newer (simple timestamp check or always update)
-        // Here we always update to ensure all tabs see the same data
-        updateLocalState(newData);
-      }
-    });
-
-    return () => {
-      if (subscription) subscription.unsubscribe();
-    };
-  }, []);
-
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [isManualSyncing, setIsManualSyncing] = useState(false);
-  const [manualSyncError, setManualSyncError] = useState<string | null>(null);
-  const [syncError, setSyncError] = useState(false);
-  const [lastManualSyncTime, setLastManualSyncTime] = useState(0);
-
-  const showSyncNotification = useMemo(() => {
-    return (isSyncing || syncError);
-  }, [isSyncing, syncError]);
-
-  // Helper to get current state for syncing
-  const getCurrentState = useCallback((overrides: any = {}) => {
-    return {
-      patients, doctors, referrars, tests, reagents, labInvoices, 
-      dueCollections, reports, rtTemplates, employees, medicines, clinicalDrugs,
-      purchaseInvoices, salesInvoices, admissions, indoorInvoices,
-      detailedExpenses, prescriptions, appointments, attendanceLog, leaveLog, monthlyRoster,
-      diagnosticSettings, employeeReferrerMap,
-      passwords,
-      last_updated_at: new Date().toISOString(),
-      ...overrides
-    };
-  }, [patients, doctors, referrars, tests, reagents, labInvoices, dueCollections, reports, rtTemplates, employees, medicines, clinicalDrugs, purchaseInvoices, salesInvoices, admissions, indoorInvoices, detailedExpenses, prescriptions, appointments, attendanceLog, leaveLog, monthlyRoster, diagnosticSettings, employeeReferrerMap, passwords]);
-
-  // Blocking Manual Sync Handler
-  const performBlockingSync = useCallback(async (overrides?: any) => {
-    setIsManualSyncing(true);
-    setManualSyncError(null);
-    
-    // Merge overrides with current state if any, otherwise use current state
-    const now = new Date().toISOString();
-    setLastSavedAt(now);
-    lastSavedAtRef.current = now;
-    const stateToSync = getCurrentState({ ...overrides, last_updated_at: now });
-    
-    try {
-      console.log(`[Sync] Starting blocking sync. Overrides:`, overrides ? Object.keys(overrides) : 'None');
-      const result = await dbService.saveToCloud(stateToSync);
-      if (result.success) {
-        console.log(`[Sync] Success!`);
-        
-        // Backup to local storage ONLY after successful cloud save
-        try {
-          localStorage.setItem('ncd_offline_cache_v1', JSON.stringify(stateToSync));
-        } catch (e) {
-          console.warn("Local backup failed after successful sync:", e);
-        }
-        
-        setIsManualSyncing(false);
-        setSyncError(false);
-        setLastManualSyncTime(Date.now());
-        return true;
-      } else {
-        console.error(`[Sync] Failure:`, result.error);
-        setManualSyncError("ইন্টারনেট কানেকশন নেই বা সার্ভার সমস্যা। দয়া করে ইন্টারনেট চেক করুন।");
-        setIsManualSyncing(false);
-        return false;
-      }
-    } catch (e) {
-      console.error(`[Sync] Catch Error:`, e);
-      setManualSyncError("Sync failed due to an unexpected error.");
-      setIsManualSyncing(false);
-      return false;
+  const RequireAuth = ({ children, requiredRole, dept, targetPath }: { children: React.ReactNode, requiredRole: UserRole, dept: keyof DepartmentPasswords, targetPath: string }) => {
+    if (data.userRole !== requiredRole && data.userRole !== 'ADMIN') {
+      return (
+        <div className="h-full flex flex-col items-center justify-center bg-slate-950 rounded-3xl overflow-hidden shadow-2xl border border-slate-800">
+           <DepartmentLogin 
+             department={dept} 
+             onLogin={(pwd) => handleDepartmentLogin(pwd, dept, requiredRole, targetPath)} 
+             onBack={() => navigate('/')} 
+           />
+        </div>
+      );
     }
-  }, [getCurrentState]);
+    return <>{children}</>;
+  };
 
-  // --- DATA SYNCING ---
-  useEffect(() => {
-    // Auto-sync is completely disabled as per user request.
-    // The application relies entirely on manual explicit saves via performBlockingSync.
-  }, []);
-
-  // --- HANDLERS ---
-  const handleDepartmentLogin = (password: string, dept: keyof DepartmentPasswords, role: UserRole, targetView: ViewState) => {
+  const handleDepartmentLogin = (password: string, dept: keyof DepartmentPasswords, role: UserRole, targetPath: string) => {
     const enteredPwd = password.trim();
-    let storedPwd = (passwords[dept] || '').trim();
+    let storedPwd = (data.passwords[dept] || '').trim();
     if (dept === 'ADMIN' && !storedPwd) storedPwd = 'niramoy123';
     
-    if (enteredPwd === storedPwd || (dept === 'ADMIN' && enteredPwd === 'niramoy123')) {
-      if (dept === 'ADMIN') {
-        setIsAdminLoggedIn(true);
-      }
-      setUserRole(role);
-      setViewState(targetView);
-      setPendingDeptLogin(null);
+    if (enteredPwd === storedPwd) {
+      data.setUserRole(role);
+      if (role === 'ADMIN') data.setIsAdminLoggedIn(true);
+      navigate(targetPath);
     } else {
-      alert(`ভুল পাসওয়ার্ড! অনুগ্রহ করে আবার চেষ্টা করুন।`);
+      alert("ভুল পাসওয়ার্ড!");
     }
   };
 
-  const [pendingDeptLogin, setPendingDeptLogin] = useState<{dept: keyof DepartmentPasswords, role: UserRole, view: ViewState} | null>(null);
-
-  const navigateToDepartment = (view: ViewState) => {
-    if (isAdminLoggedIn) {
-      setViewState(view);
-      return;
-    }
-    
-    switch (view) {
-      case ViewState.DIAGNOSTIC:
-        setPendingDeptLogin({ dept: 'DIAGNOSTIC', role: 'DIAGNOSTIC_ADMIN', view });
-        break;
-      case ViewState.CLINIC:
-        setPendingDeptLogin({ dept: 'CLINIC', role: 'CLINIC_ADMIN', view });
-        break;
-      case ViewState.MEDICINE:
-        setPendingDeptLogin({ dept: 'MEDICINE', role: 'MEDICINE_ADMIN', view });
-        break;
-      case ViewState.ACCOUNTING:
-        setPendingDeptLogin({ dept: 'ACCOUNTING', role: 'ACCOUNTING_ADMIN', view });
-        break;
-      case ViewState.MARKETING:
-        setPendingDeptLogin({ dept: 'DIAGNOSTIC', role: 'DIAGNOSTIC_ADMIN', view });
-        break;
-      case ViewState.ADMIN_SETTINGS:
-        setPendingDeptLogin({ dept: 'ADMIN', role: 'ADMIN', view });
-        break;
-      default:
-        setViewState(view);
-    }
-  };
-
-  if (connectionError && !isDataLoaded) {
-    // Hard block if initial load fails
+  if (data.connectionError && !data.isDataLoaded) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
         <div className="bg-slate-800 border-2 border-red-500 p-8 rounded-3xl max-w-md w-full text-center shadow-2xl">
           <div className="w-20 h-20 bg-red-500/20 rounded-full flex items-center justify-center mx-auto text-red-500 text-4xl mb-6">⚠️</div>
           <h2 className="text-2xl font-black text-white mb-4 font-['Hind_Siliguri']">সার্ভার কানেকশন সমস্যা</h2>
           <p className="text-slate-300 mb-4 font-medium">ইন্টারনেট কানেকশন চেক করুন। অনলাইনে ডাটা লোড না হওয়া পর্যন্ত সফটওয়্যারটি ব্যবহার করা যাবে না।</p>
-          {connectionErrorMessage && <p className="text-red-400 mb-8 text-sm font-mono bg-slate-900 p-3 rounded-lg break-words">{connectionErrorMessage}</p>}
           <button onClick={() => window.location.reload()} className="w-full bg-red-600 hover:bg-red-700 transition-all py-4 rounded-2xl text-white font-bold text-xl shadow-lg mb-4">পুনরায় চেষ্টা করুন (RETRY)</button>
-          <button onClick={() => { setIsDataLoaded(true); setConnectionError(true); }} className="w-full bg-transparent border-2 border-slate-600 hover:border-slate-400 text-slate-300 transition-all py-3 rounded-2xl font-bold">প্রিভিউ মোডে ওপেন করুন (Test without Saving)</button>
         </div>
       </div>
     );
   }
 
-  if (!isDataLoaded) {
+  if (!data.isDataLoaded) {
     return (
       <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center">
         <div className="relative">
@@ -342,214 +176,192 @@ const App: React.FC = () => {
     );
   }
 
-  if (pendingDeptLogin) {
-    return (
-      <DepartmentLogin 
-        department={pendingDeptLogin.dept} 
-        onLogin={(pwd) => handleDepartmentLogin(pwd, pendingDeptLogin.dept, pendingDeptLogin.role, pendingDeptLogin.view)} 
-        onBack={() => setPendingDeptLogin(null)} 
-      />
-    );
-  }
-
-  const renderContent = () => {
-    switch (viewState) {
-      case ViewState.DASHBOARD:
-        return <Dashboard onLogout={() => {setIsAdminLoggedIn(false); setUserRole('NONE');}} onNavigate={navigateToDepartment} />;
-      
-      case ViewState.DIAGNOSTIC:
-        return (
-          <DiagnosticPage 
-            onBack={() => setViewState(ViewState.DASHBOARD)} 
-            userRole={userRole}
-            patients={patients} setPatients={setPatients}
-            doctors={doctors} setDoctors={setDoctors}
-            referrars={referrars} setReferrars={setReferrars}
-            tests={tests} setTests={setTests}
-            reagents={reagents} setReagents={setReagents}
-            labInvoices={labInvoices} setLabInvoices={setLabInvoices}
-            dueCollections={dueCollections} setDueCollections={setDueCollections}
-            reports={reports} setReports={setReports} rtTemplates={rtTemplates} setRtTemplates={setRtTemplates}
-            employees={employees} setEmployees={setEmployees}
-            detailedExpenses={detailedExpenses}
-            attendanceLog={attendanceLog} setAttendanceLog={setAttendanceLog}
-            leaveLog={leaveLog} setLeaveLog={setLeaveLog}
-            appointments={appointments} setAppointments={setAppointments}
-            diagnosticSettings={diagnosticSettings} setDiagnosticSettings={setDiagnosticSettings}
-            monthlyRoster={monthlyRoster} setMonthlyRoster={setMonthlyRoster}
-            employeeReferrerMap={employeeReferrerMap} setEmployeeReferrerMap={setEmployeeReferrerMap}
-            performBlockingSync={performBlockingSync}
-            currentUserEmail={currentUserEmail}
-          />
-        );
-
-      case ViewState.CLINIC:
-        return (
-          <ClinicPage 
-            onBack={() => setViewState(ViewState.DASHBOARD)}
-            patients={patients} setPatients={setPatients}
-            doctors={doctors} setDoctors={setDoctors}
-            referrars={referrars} setReferrars={setReferrars}
-            employees={employees}
-            medicines={medicines} setMedicines={setMedicines}
-            admissions={admissions} setAdmissions={setAdmissions}
-            indoorInvoices={indoorInvoices} setIndoorInvoices={setIndoorInvoices}
-            detailedExpenses={detailedExpenses}
-            performBlockingSync={performBlockingSync}
-          />
-        );
-
-      case ViewState.MEDICINE:
-        return (
-          <MedicinePage 
-            onBack={() => setViewState(ViewState.DASHBOARD)}
-            medicines={medicines} setMedicines={setMedicines}
-            clinicalDrugs={clinicalDrugs} setClinicalDrugs={setClinicalDrugs}
-            employees={employees}
-            doctors={doctors}
-            invoices={purchaseInvoices} setInvoices={setPurchaseInvoices}
-            salesInvoices={salesInvoices} setSalesInvoices={setSalesInvoices}
-            indoorInvoices={indoorInvoices}
-            performBlockingSync={performBlockingSync}
-          />
-        );
-
-      case ViewState.ACCOUNTING:
-        return (
-          <AccountingPage 
-            onBack={() => setViewState(ViewState.DASHBOARD)}
-            invoices={labInvoices}
-            dueCollections={dueCollections}
-            detailedExpenses={detailedExpenses} setDetailedExpenses={setDetailedExpenses}
-            employees={employees} setEmployees={setEmployees}
-            purchaseInvoices={purchaseInvoices}
-            salesInvoices={salesInvoices}
-            indoorInvoices={indoorInvoices}
-            medicines={medicines}
-            tests={tests}
-            reagents={reagents}
-            setReagents={setReagents}
-            attendanceLog={attendanceLog} setAttendanceLog={setAttendanceLog}
-            leaveLog={leaveLog} setLeaveLog={setLeaveLog}
-            monthlyRoster={monthlyRoster} setMonthlyRoster={setMonthlyRoster}
-            patients={patients}
-            doctors={doctors}
-            diagnosticSettings={diagnosticSettings}
-            setDiagnosticSettings={setDiagnosticSettings}
-            performBlockingSync={performBlockingSync}
-            currentUserEmail={currentUserEmail}
-          />
-        );
-
-      case ViewState.MARKETING:
-        return (
-          <MarketingPage 
-            onBack={() => setViewState(ViewState.DASHBOARD)}
-            referrars={referrars}
-            labInvoices={labInvoices}
-            indoorInvoices={indoorInvoices}
-            patients={patients}
-            employees={employees}
-            employeeReferrerMap={employeeReferrerMap}
-            setEmployeeReferrerMap={setEmployeeReferrerMap}
-            performBlockingSync={performBlockingSync}
-          />
-        );
-
-      case ViewState.ADMIN_SETTINGS:
-        return (
-          <AdminSettings 
-            passwords={passwords} 
-            onSave={(newPwds) => {setPasswords(newPwds); localStorage.setItem('ncd_passwords', JSON.stringify(newPwds));}} 
-            onBack={() => setViewState(ViewState.DASHBOARD)}
-            performBlockingSync={performBlockingSync}
-          />
-        );
-
-      case ViewState.DOCTOR_LOGIN:
-        return <DoctorLogin doctors={doctors} onLogin={(doc) => {setUserRole('DOCTOR'); setViewState(ViewState.DOCTOR_PORTAL);}} onBack={() => setViewState(ViewState.DASHBOARD)} />;
-
-      case ViewState.DOCTOR_PORTAL:
-        return (
-          <DoctorPortal 
-            doctor={doctors[0]} 
-            appointments={appointments}
-            patients={patients}
-            prescriptions={prescriptions}
-            setPrescriptions={setPrescriptions}
-            onLogout={() => setViewState(ViewState.DASHBOARD)}
-            drugDatabase={clinicalDrugs}
-            availableTests={tests}
-            performBlockingSync={performBlockingSync}
-          />
-        );
-
-      case ViewState.LAB_LOGIN:
-        return (
-          <DepartmentLogin 
-            department="LAB_REPORTING" 
-            onLogin={(pwd) => handleDepartmentLogin(pwd, 'LAB_REPORTING', 'LAB_REPORTER', ViewState.DIAGNOSTIC)} 
-            onBack={() => setViewState(ViewState.DASHBOARD)} 
-          />
-        );
-
-      default:
-        return <Dashboard onLogout={() => setIsAdminLoggedIn(false)} onNavigate={navigateToDepartment} />;
-    }
-  };
 
   return (
-    <div className="min-h-screen bg-slate-950">
-      {renderContent()}
+    <SidebarLayout onLogout={() => { data.setIsAdminLoggedIn(false); data.setUserRole('NONE'); }}>
+      <Routes>
+        <Route path="/" element={
+          <Dashboard 
+            onLogout={() => { data.setIsAdminLoggedIn(false); data.setUserRole('NONE'); }} 
+            onNavigate={(view) => {
+              // Map old view states to routes
+              const routes: any = {
+                'DIAGNOSTIC': '/diagnostic',
+                'CLINIC': '/clinic',
+                'MEDICINE': '/medicine',
+                'ACCOUNTING': '/accounting',
+                'MARKETING': '/marketing',
+                'ADMIN_SETTINGS': '/settings',
+                'DOCTOR_PORTAL': '/doctor-login'
+              };
+              navigate(routes[view] || '/');
+            }} 
+          />
+        } />
+        
+        <Route path="/diagnostic" element={
+          <RequireAuth requiredRole="DIAGNOSTIC_ADMIN" dept="DIAGNOSTIC" targetPath="/diagnostic">
+            <DiagnosticPage 
+              onBack={() => navigate('/')} 
+              userRole={data.userRole}
+              patients={data.patients} setPatients={data.setPatients}
+              doctors={data.doctors} setDoctors={data.setDoctors}
+              referrars={data.referrars} setReferrars={data.setReferrars}
+              tests={data.tests} setTests={data.setTests}
+              reagents={data.reagents} setReagents={data.setReagents}
+              labInvoices={data.labInvoices} setLabInvoices={data.setLabInvoices}
+              dueCollections={data.dueCollections} setDueCollections={data.setDueCollections}
+              reports={data.reports} setReports={data.setReports} rtTemplates={data.rtTemplates} setRtTemplates={data.setRtTemplates}
+              employees={data.employees} setEmployees={data.setEmployees}
+              detailedExpenses={data.detailedExpenses}
+              attendanceLog={data.attendanceLog} setAttendanceLog={data.setAttendanceLog}
+              leaveLog={data.leaveLog} setLeaveLog={data.setLeaveLog}
+              appointments={data.appointments} setAppointments={data.setAppointments}
+              diagnosticSettings={data.diagnosticSettings} setDiagnosticSettings={data.setDiagnosticSettings}
+              monthlyRoster={data.monthlyRoster} setMonthlyRoster={data.setMonthlyRoster}
+              employeeReferrerMap={data.employeeReferrerMap} setEmployeeReferrerMap={data.setEmployeeReferrerMap}
+              performBlockingSync={data.performBlockingSync}
+              currentUserEmail={data.currentUserEmail}
+            />
+          </RequireAuth>
+        } />
+
+        <Route path="/clinic" element={
+          <RequireAuth requiredRole="CLINIC_ADMIN" dept="CLINIC" targetPath="/clinic">
+            <ClinicPage 
+              onBack={() => navigate('/')}
+              patients={data.patients} setPatients={data.setPatients}
+              doctors={data.doctors} setDoctors={data.setDoctors}
+              referrars={data.referrars} setReferrars={data.setReferrars}
+              employees={data.employees}
+              medicines={data.medicines} setMedicines={data.setMedicines}
+              admissions={data.admissions} setAdmissions={data.setAdmissions}
+              indoorInvoices={data.indoorInvoices} setIndoorInvoices={data.setIndoorInvoices}
+              detailedExpenses={data.detailedExpenses}
+              performBlockingSync={data.performBlockingSync}
+            />
+          </RequireAuth>
+        } />
+
+        <Route path="/medicine" element={
+          <RequireAuth requiredRole="MEDICINE_ADMIN" dept="MEDICINE" targetPath="/medicine">
+            <MedicinePage 
+              onBack={() => navigate('/')}
+              medicines={data.medicines} setMedicines={data.setMedicines}
+              patients={data.patients} setPatients={data.setPatients}
+              doctors={data.doctors} setDoctors={data.setDoctors}
+              clinicalDrugs={data.clinicalDrugs} setClinicalDrugs={data.setClinicalDrugs}
+              purchaseInvoices={data.purchaseInvoices} setPurchaseInvoices={data.setPurchaseInvoices}
+              salesInvoices={data.salesInvoices} setSalesInvoices={data.setSalesInvoices}
+              detailedExpenses={data.detailedExpenses} setDetailedExpenses={data.setDetailedExpenses}
+              performBlockingSync={data.performBlockingSync}
+            />
+          </RequireAuth>
+        } />
+
+        <Route path="/accounting" element={
+          <RequireAuth requiredRole="ACCOUNTING_ADMIN" dept="ACCOUNTING" targetPath="/accounting">
+            <AccountingPage 
+              onBack={() => navigate('/')}
+              labInvoices={data.labInvoices}
+              indoorInvoices={data.indoorInvoices}
+              salesInvoices={data.salesInvoices}
+              purchaseInvoices={data.purchaseInvoices}
+              dueCollections={data.dueCollections}
+              detailedExpenses={data.detailedExpenses}
+              reagents={data.reagents}
+              medicines={data.medicines}
+              employees={data.employees}
+              attendanceLog={data.attendanceLog}
+            />
+          </RequireAuth>
+        } />
+
+        <Route path="/marketing" element={
+          <RequireAuth requiredRole="DIAGNOSTIC_ADMIN" dept="DIAGNOSTIC" targetPath="/marketing">
+            <MarketingPage 
+              onBack={() => navigate('/')}
+              employees={data.employees}
+              referrars={data.referrars}
+              labInvoices={data.labInvoices}
+              indoorInvoices={data.indoorInvoices}
+              patients={data.patients}
+              employeeReferrerMap={data.employeeReferrerMap}
+              setEmployeeReferrerMap={data.setEmployeeReferrerMap}
+              performBlockingSync={data.performBlockingSync}
+            />
+          </RequireAuth>
+        } />
+
+        <Route path="/settings" element={
+          <RequireAuth requiredRole="ADMIN" dept="ADMIN" targetPath="/settings">
+            <AdminSettings 
+              onBack={() => navigate('/')}
+              passwords={data.passwords}
+              setPasswords={data.setPasswords}
+              performBlockingSync={data.performBlockingSync}
+              isManualSyncing={data.isManualSyncing}
+              manualSyncError={data.manualSyncError}
+            />
+          </RequireAuth>
+        } />
+
+        <Route path="/doctor-login" element={
+          <DoctorLogin 
+            doctors={data.doctors} 
+            onLogin={(doc) => navigate(`/doctor-portal/${doc.id}`)} 
+            onBack={() => navigate('/')} 
+          />
+        } />
+
+        <Route path="/doctor-portal/:doctorId" element={
+          <DoctorPortal 
+            doctors={data.doctors} 
+            patients={data.patients} 
+            prescriptions={data.prescriptions} 
+            setPrescriptions={data.setPrescriptions} 
+            clinicalDrugs={data.clinicalDrugs} 
+            tests={data.tests} 
+            appointments={data.appointments} 
+            setAppointments={data.setAppointments}
+            onBack={() => navigate('/')} 
+            performBlockingSync={data.performBlockingSync} 
+          />
+        } />
+
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+            {!['/', '/doctor-login', '/lab-login', '/settings'].includes(location.pathname) && <AIAssistant />}
+    </SidebarLayout>
+  );
+};
+
+const App = () => {
+  const [isMobilePreview, setIsMobilePreview] = useState(false);
+  const isIframe = new URLSearchParams(window.location.search).has('mobile_preview');
+
+  return (
+    <Router>
+      <div className={isMobilePreview && !isIframe ? "fixed inset-0 bg-slate-900 flex items-center justify-center p-4 z-[100000]" : "h-screen w-full"}>
+         <div className={isMobilePreview && !isIframe ? "w-[375px] h-[812px] bg-slate-950 rounded-[3rem] border-[14px] border-black overflow-hidden relative shadow-[0_20px_50px_rgba(0,0,0,0.5)] ring-1 ring-white/20 after:content-[''] after:absolute after:top-0 after:left-1/2 after:-translate-x-1/2 after:w-32 after:h-6 after:bg-black after:rounded-b-3xl" : "h-full w-full"}>
+           {isMobilePreview && !isIframe ? (
+             <iframe src={`${window.location.pathname}?mobile_preview=1`} className="w-full h-full border-0 bg-slate-950" title="Mobile Preview" />
+           ) : (
+             <AppContent />
+           )}
+         </div>
+      </div>
       
-      {(isAdminLoggedIn || userRole !== 'NONE') && (
-        <AIAssistant 
-          detailedExpenses={detailedExpenses}
-          setDetailedExpenses={setDetailedExpenses}
-          employees={employees}
-          medicines={medicines}
-          purchaseInvoices={purchaseInvoices}
-          salesInvoices={salesInvoices}
-          labInvoices={labInvoices}
-          indoorInvoices={indoorInvoices}
-        />
+      {/* Floating Toggle Button - hidden inside iframe */}
+      {!isIframe && (
+        <button
+          onClick={() => setIsMobilePreview(!isMobilePreview)}
+          className="fixed top-4 right-4 z-[999999] bg-indigo-600 text-white px-5 py-2.5 rounded-full font-bold text-sm shadow-[0_0_20px_rgba(79,70,229,0.5)] hover:bg-indigo-500 hover:scale-105 transition-all border-2 border-indigo-400 flex items-center gap-2 uppercase tracking-widest"
+        >
+          {isMobilePreview ? "📱 Exit Mobile View" : "📱 Test Mobile View"}
+        </button>
       )}
-
-      {/* CLOUD SAVE SUCCESS MESSAGE - Temporary Toast */}
-      {/* (Sub-pages show their own persistent success messages often, but we could add a central toast here if needed) */}
-
-      {/* BLOCKING MANUAL SYNC OVERLAY */}
-      {isManualSyncing && (
-        <div className="fixed inset-0 z-[110000] bg-slate-900/90 backdrop-blur-sm text-white px-6 py-4 flex flex-col items-center justify-center gap-6 animate-fade-in border border-slate-700">
-           <div className="w-16 h-16 border-4 border-blue-500/20 border-t-blue-500 rounded-full animate-spin"></div>
-           <div className="text-center">
-             <h3 className="font-bold text-2xl font-['Hind_Siliguri'] text-blue-300 mb-2">ডাটা অনলাইনে সেভ হচ্ছে...</h3>
-             <p className="text-sm text-slate-300">দয়া করে অপেক্ষা করুন, সেভ সম্পন্ন না হওয়া পর্যন্ত অন্য কাজ করা যাবে না।</p>
-           </div>
-        </div>
-      )}
-
-      {/* MANUAL SYNC ERROR MODAL */}
-      {manualSyncError && (
-        <div className="fixed inset-0 z-[110001] bg-black/90 backdrop-blur-lg flex items-center justify-center p-4">
-           <div className="bg-slate-800 border-2 border-red-500 p-8 rounded-[2.5rem] shadow-2xl max-w-md w-full flex flex-col items-center text-center">
-             <div className="w-20 h-20 bg-red-500/20 rounded-full flex items-center justify-center text-red-500 text-4xl mb-6 shadow-[0_0_30px_rgba(239,68,68,0.3)]">⚠️</div>
-             <h3 className="text-2xl font-black text-white uppercase mb-2 font-['Hind_Siliguri']">সেভ ব্যর্থ হয়েছে!</h3>
-             <p className="text-slate-300 mb-8 leading-relaxed font-medium">
-               আপনার ইন্টারনেট কানেকশন চেক করুন। ক্লাউড সার্ভারে ডাটা পাঠাতে ব্যর্থ হয়েছে। 
-               <br/>
-               <span className="text-red-400 text-sm mt-3 block italic bg-red-900/20 py-2 px-4 rounded-xl border border-red-500/20">{manualSyncError}</span>
-             </p>
-             <button 
-               onClick={() => setManualSyncError(null)}
-               className="w-full bg-red-600 hover:bg-red-700 text-white font-black py-5 rounded-2xl transition-all shadow-xl active:scale-95 text-lg"
-             >
-               আবার চেষ্টা করুন (Retry)
-             </button>
-           </div>
-        </div>
-      )}
-    </div>
+    </Router>
   );
 };
 

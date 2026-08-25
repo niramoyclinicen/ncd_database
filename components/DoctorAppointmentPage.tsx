@@ -101,7 +101,7 @@ const DoctorAppointmentPage: React.FC<DoctorAppointmentPageProps> = ({
   const [allDoctorsDailyFeeTotal, setAllDoctorsDailyFeeTotal] = useState<number>(0);
   const [allDoctorsMonthlyFeeTotal, setAllDoctorsMonthlyFeeTotal] = useState<number>(0);
 
-  const commonInputClasses = "py-2 px-3 mt-1 block w-full border border-sky-800 rounded-md shadow-sm sm:text-sm bg-sky-900/50 text-sky-200 placeholder-sky-400 transition-colors duration-200 ease-in-out focus:bg-sky-800 focus:ring-2 focus:ring-blue-500 focus:border-blue-500";
+  const commonInputClasses = "py-3 md:py-2 px-3 mt-1 block w-full border border-sky-800 rounded-md shadow-sm sm:text-sm bg-sky-900/50 text-sky-200 placeholder-sky-400 transition-colors duration-200 ease-in-out focus:bg-sky-800 focus:ring-2 focus:ring-blue-500 focus:border-blue-500";
   const commonLabelClasses = "block text-sm font-semibold text-sky-300";
 
   useEffect(() => {
@@ -482,27 +482,29 @@ const DoctorAppointmentPage: React.FC<DoctorAppointmentPageProps> = ({
       {/* FORM AND CONTROLS SECTION */}
       <div className="bg-sky-950 rounded-xl p-4 sm:p-6 border border-sky-800">
         <h2 className="text-2xl font-bold text-sky-100 mb-6 border-b border-sky-800 pb-4">Doctor Appointment</h2>
-        <div className="flex flex-wrap items-center justify-start gap-4 border-b border-sky-800 pb-4 mb-4">
-            <div className="flex items-center gap-2 flex-wrap">
-                <label htmlFor="appointment_id" className="font-semibold text-sky-300 whitespace-nowrap">Appt. Id:</label>
-                <input type="text" id="appointment_id" name="appointment_id" disabled value={formData.appointment_id} className="w-48 border border-sky-800 rounded-md shadow-sm sm:text-sm px-3 py-2 bg-sky-900 text-sky-400 cursor-not-allowed" />
-                <button type="button" onClick={handleGetNewId} className="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700">Get New Appt. ID</button>
+        <div className="flex flex-col md:flex-row md:items-center md:justify-start gap-4 border-b border-sky-800 pb-4 mb-4">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                <label htmlFor="appointment_id" className="font-semibold text-sky-300 whitespace-nowrap mb-1 sm:mb-0">Appt. Id:</label>
+                <div className="flex gap-2 w-full sm:w-auto">
+                    <input type="text" id="appointment_id" name="appointment_id" disabled value={formData.appointment_id} className="w-full min-w-0 sm:w-48 border border-sky-800 rounded-md shadow-sm text-sm px-3 py-3 sm:py-2 bg-sky-900 text-sky-400 cursor-not-allowed" />
+                    <button type="button" onClick={handleGetNewId} className="px-3 py-3 sm:py-1.5 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 whitespace-nowrap">Get New</button>
+                </div>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-                <button type="submit" form="appointment-form" className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md">Save Appointment</button>
-                <button type="button" onClick={resetForm} className="px-4 py-2 text-sm font-medium text-sky-200 bg-slate-600 rounded-md">Clear Form</button>
-                <button type="button" onClick={handleEditAppointment} disabled={!isAppointmentSelected} className="px-4 py-2 text-sm font-medium text-white bg-yellow-500 rounded-md disabled:opacity-50">Edit</button>
-                <button type="button" onClick={handleCancelAppointment} disabled={!canCancel} className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md disabled:opacity-50">Appointment Cancel</button>
-                <button type="button" onClick={handleReturnAppointment} disabled={!canReturn} className="px-4 py-2 text-sm font-medium text-white bg-rose-600 rounded-md disabled:opacity-50">Return / Refund</button>
-                <button type="button" onClick={handlePrintAppointment} disabled={!isAppointmentSelected} className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md disabled:opacity-50">Print Slip</button>
+            <div className="grid grid-cols-2 md:flex md:flex-wrap items-stretch md:items-center gap-2 w-full mt-4 md:mt-0">
+                <button type="submit" form="appointment-form" className="w-full md:w-auto px-4 py-3 md:py-2 text-sm font-medium text-white bg-green-600 rounded-md">Save Appointment</button>
+                <button type="button" onClick={resetForm} className="w-full md:w-auto px-4 py-3 md:py-2 text-sm font-medium text-sky-200 bg-slate-600 rounded-md">Clear Form</button>
+                <button type="button" onClick={handleEditAppointment} disabled={!isAppointmentSelected} className="w-full md:w-auto px-4 py-3 md:py-2 text-sm font-medium text-white bg-yellow-500 rounded-md disabled:opacity-50">Edit</button>
+                <button type="button" onClick={handlePrintAppointment} disabled={!isAppointmentSelected} className="w-full md:w-auto px-4 py-3 md:py-2 text-sm font-medium text-white bg-indigo-600 rounded-md disabled:opacity-50">Print Slip</button>
+                <button type="button" onClick={handleCancelAppointment} disabled={!canCancel} className="w-full md:w-auto px-4 py-3 md:py-2 text-sm font-medium text-white bg-red-600 rounded-md disabled:opacity-50">Appt Cancel</button>
+                <button type="button" onClick={handleReturnAppointment} disabled={!canReturn} className="w-full md:w-auto px-4 py-3 md:py-2 text-sm font-medium text-white bg-rose-600 rounded-md disabled:opacity-50">Refund</button>
             </div>
         </div>
         <div className="mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="flex items-center gap-2"><label className="font-semibold text-sky-300 whitespace-nowrap">Search Appt:</label><input type="text" placeholder="Search Patient/Doctor Name or ID" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="flex-1 py-2 px-3 border border-sky-800 bg-sky-900 text-sky-200 rounded-md sm:text-sm" /></div>
-            <div className="flex items-center gap-2 bg-slate-800 p-2 rounded-lg border border-sky-500/30 shadow-inner">
-                <div className="bg-sky-600 p-1.5 rounded-md text-white shadow-lg animate-pulse"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M7 12h10"/></svg></div>
-                <label className="font-black text-xs text-sky-400 uppercase tracking-tighter whitespace-nowrap">Scanner Mode:</label>
-                <input type="text" placeholder="Scan Patient ID or Previous Invoice..." value={barcodeInput} onChange={(e) => setBarcodeInput(e.target.value)} onKeyDown={handleBarcodeScan} className="flex-1 py-2 px-3 border-2 border-sky-500/50 bg-slate-950 text-white rounded-md sm:text-sm font-mono" autoComplete="off" />
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2"><label className="font-semibold text-sky-300 whitespace-nowrap mb-1 sm:mb-0">Search Appt:</label><input type="text" placeholder="Search Patient/Doctor Name or ID" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full flex-1 py-3 sm:py-2 px-3 border border-sky-800 bg-sky-900 text-sky-200 rounded-md sm:text-sm" /></div>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 bg-slate-800 p-3 sm:p-2 rounded-lg border border-sky-500/30 shadow-inner">
+                <div className="hidden sm:flex bg-sky-600 p-1.5 rounded-md text-white shadow-lg animate-pulse"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M7 12h10"/></svg></div>
+                <label className="font-black text-xs text-sky-400 uppercase tracking-tighter whitespace-nowrap mb-1 sm:mb-0">Scanner Mode:</label>
+                <input type="text" placeholder="Scan Patient ID or Previous Invoice..." value={barcodeInput} onChange={(e) => setBarcodeInput(e.target.value)} onKeyDown={handleBarcodeScan} className="w-full flex-1 py-3 sm:py-2 px-3 border-2 border-sky-500/50 bg-slate-950 text-white rounded-md sm:text-sm font-mono" autoComplete="off" />
             </div>
         </div>
         <form id="appointment-form" onSubmit={handleSaveAppointment} className="mb-4">
@@ -723,7 +725,11 @@ const DoctorAppointmentPage: React.FC<DoctorAppointmentPageProps> = ({
               </div>
               <div className="flex items-center gap-4">
                  <button 
-                  onClick={() => setShowNewPatientForm(true)}
+                  onClick={() => {
+                    setShowNewPatientForm(true);
+                    setShowPatientSearchModal(false);
+                    setPatientSearchFilters({ name: '', mobile: '', address: '', thana: '', age: '' });
+                  }}
                   className="flex items-center gap-3 px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-sm font-black uppercase tracking-widest transition-all active:scale-95 shadow-xl shadow-emerald-900/20"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>

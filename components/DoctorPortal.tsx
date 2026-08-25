@@ -87,7 +87,7 @@ const DoctorPortal: React.FC<DoctorPortalProps> = ({
         </div>
       )}
 
-      <header className="bg-slate-900 border-b border-slate-800 sticky top-0 z-20 shadow-2xl shrink-0">
+      <header className="bg-slate-900 border-b border-slate-800 sticky top-0 pt-16 md:pt-0 z-20 shadow-2xl shrink-0">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-20 flex justify-between items-center">
           <div className="flex items-center gap-5">
             <div className="w-14 h-14 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-2xl flex items-center justify-center text-white border-2 border-blue-400 overflow-hidden shadow-xl transform hover:rotate-3 transition-transform">

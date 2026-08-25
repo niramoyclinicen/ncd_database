@@ -2846,7 +2846,7 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
   return (
     <div className="bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200 min-h-screen flex flex-col font-sans relative overflow-hidden">
       {successMessage && <div className="fixed bottom-12 right-12 z-[500] bg-emerald-600 border border-white text-white px-10 py-4 rounded-2xl shadow-2xl font-black animate-fade-in-up flex items-center gap-4 text-base">✅ {successMessage}</div>}
-      <header className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 p-8 shrink-0 shadow-sm z-20 relative no-print">
+      <header className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 p-8 pt-16 md:pt-8 shrink-0 shadow-sm z-20 relative no-print">
         <div className="container mx-auto flex flex-col md:flex-row items-center justify-between">
             <div className="flex items-center gap-6">
                 {onBack && <button onClick={onBack} className="p-3 bg-slate-100 dark:bg-slate-800 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-all border border-slate-200 dark:border-slate-700"><BackIcon className="w-6 h-6 text-slate-600 dark:text-slate-300" /></button>}

@@ -156,7 +156,6 @@ const AccountingPage: React.FC<AccountingPageProps> = ({
             onBack={() => setActiveView('main')} 
             invoices={indoorInvoices} 
             dueCollections={dueCollections} 
-            dueCollections={dueCollections}
             employees={employees} 
             detailedExpenses={detailedExpenses} 
             setDetailedExpenses={setDetailedExpenses} 
@@ -216,7 +215,7 @@ const AccountingPage: React.FC<AccountingPageProps> = ({
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col relative overflow-hidden">
         <BackgroundGraphic />
-        <header className="bg-slate-800 shadow-xl border-b border-slate-700 z-20 relative">
+        <header className="bg-slate-800 shadow-xl border-b border-slate-700 z-20 relative pt-14 md:pt-0">
           <div className="max-w-7xl mx-auto py-6 px-6">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 md:gap-4">
                <div className="flex flex-col items-start">
@@ -257,7 +256,7 @@ const AccountingPage: React.FC<AccountingPageProps> = ({
        <div className="flex justify-center items-center z-10 relative mt-4 mb-4">
            <div className="flex items-center bg-slate-800 px-10 py-3 rounded-full border border-amber-500/30 shadow-[0_4px_20px_rgba(0,0,0,0.3)]">
               <AccountingIcon className="w-6 h-6 md:w-8 md:h-8 text-amber-400 mr-3 drop-shadow-[0_0_5px_rgba(251,191,36,0.5)]" />
-              <h2 className="text-xl md:text-2xl font-bold text-amber-400 font-bengali drop-shadow-[0_0_8px_rgba(251,191,36,0.3)]">
+              <h2 className="text-lg md:text-2xl font-bold text-amber-400 font-bengali whitespace-nowrap drop-shadow-[0_0_8px_rgba(251,191,36,0.3)]">
                 একাউন্টিং / Accounting
               </h2>
            </div>
@@ -265,7 +264,7 @@ const AccountingPage: React.FC<AccountingPageProps> = ({
 
        <div className="flex-1 flex items-center justify-center relative w-full px-4 sm:px-8 pb-16 z-10">
           <div className="relative w-full max-w-5xl flex items-center justify-center">
-              <div className="hidden md:flex absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-30">
+              <div className="flex absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-30">
                  <AccountingButton 
                     label={
                         <>

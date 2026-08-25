@@ -1,4 +1,80 @@
-import React from 'react';
+const fs = require('fs');
+
+// 1. Rewrite DashboardButton.tsx for clean responsive behavior
+const buttonCode = `import React from 'react';
+
+interface DashboardButtonProps {
+  label: React.ReactNode;
+  icon: React.ReactNode;
+  onClick: () => void;
+  colorFrom: string;
+  colorTo: string;
+  borderColor: string;
+  delay: string;
+}
+
+const DashboardButton: React.FC<DashboardButtonProps> = ({
+  label,
+  icon,
+  onClick,
+  colorFrom,
+  colorTo,
+  borderColor,
+  delay,
+}) => {
+  return (
+    <button
+      onClick={onClick}
+      className={\`
+        relative group flex flex-col items-center justify-center
+        p-4 md:p-6 w-full min-h-[7.5rem] sm:min-h-[10rem] lg:h-52 active:scale-95 
+        rounded-[1.5rem] md:rounded-[2rem] border border-white/10 dark:border-slate-700/50 
+        bg-gradient-to-br from-white/5 to-transparent dark:from-slate-800/60 dark:to-slate-900/40 
+        backdrop-blur-md shadow-lg transition-all duration-300 ease-out
+        hover:scale-[1.02] md:hover:scale-105 hover:-translate-y-1 md:hover:-translate-y-2 
+        hover:shadow-[0_15px_40px_rgba(0,120,255,0.15)] dark:hover:shadow-[0_20px_50px_rgba(8,112,184,0.4)] hover:z-40
+        animate-fade-in-up \${borderColor}
+      \`}
+      style={{ animationDelay: delay }}
+    >
+      <div className={\`
+        absolute inset-0 rounded-[1.5rem] md:rounded-[2rem] opacity-0 group-hover:opacity-10 dark:group-hover:opacity-20
+        bg-gradient-to-br \${colorFrom} \${colorTo} transition-opacity duration-300
+      \`} />
+      
+      <div className={\`
+        mb-2 md:mb-3 lg:mb-4 p-2 md:p-3 rounded-full bg-slate-100 dark:bg-slate-700/50 text-slate-500 dark:text-slate-300
+        group-hover:scale-110 group-hover:text-blue-600 dark:group-hover:text-white transition-all duration-300 shadow-inner
+      \`}>
+        {React.isValidElement(icon) ? (
+          <div className="scale-75 md:scale-90 lg:scale-100">
+            {React.cloneElement(icon as React.ReactElement<any>, { size: 40 })}
+          </div>
+        ) : (
+          icon
+        )}
+      </div>
+      
+      <div className="text-center z-10 w-full px-2">
+        {typeof label === 'string' ? (
+           <span className="text-lg md:text-xl font-bold text-slate-700 dark:text-slate-200 group-hover:text-slate-900 dark:group-hover:text-white tracking-wide transition-colors">
+             {label}
+           </span>
+        ) : (
+           label
+        )}
+      </div>
+    </button>
+  );
+};
+
+export default DashboardButton;
+`;
+fs.writeFileSync('components/DashboardButton.tsx', buttonCode);
+
+
+// 2. Rewrite Dashboard.tsx with standard responsive Tailwind (No JS scaling hacks)
+const dashboardCode = `import React from 'react';
 import DashboardButton from './DashboardButton';
 import { 
   DiagnosticIcon, ClinicIcon, MedicineIcon, AccountingIcon, MapPinIcon, 
@@ -13,13 +89,13 @@ interface DashboardProps {
 
 const HexCell = ({ content, isCenter = false, hexStyle }: { content: React.ReactNode, isCenter?: boolean, hexStyle: React.CSSProperties }) => (
   <div 
-    className={`
+    className={\`
       relative flex justify-center items-center
-      ${isCenter 
+      \${isCenter 
         ? 'bg-gradient-to-br from-blue-600 to-cyan-600 shadow-[0_0_25px_rgba(34,211,238,0.6)] z-20 border border-white/20' 
         : 'bg-cyan-900/30 border border-cyan-400/50 backdrop-blur-md hover:bg-cyan-500/20 hover:scale-110 hover:shadow-[0_0_15px_rgba(0,200,255,0.4)] hover:z-20'
       }
-    `}
+    \`}
     style={{
       ...hexStyle,
       width: isCenter ? '70px' : '60px',
@@ -124,7 +200,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onNavigate }) => {
                  <MedicalHexLogo />
               </div>
               <div className="flex flex-col items-center lg:items-end justify-center text-center lg:text-right w-full">
-                  <h1 className="text-[1.2rem] sm:text-3xl md:text-4xl lg:text-[2.5rem] font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-sky-400 via-cyan-200 to-blue-500 mb-2 md:mb-3 lg:mb-2 drop-shadow-[0_0_15px_rgba(56,189,248,0.6)] font-sans tracking-tight">
+                  <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-[2.5rem] font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-sky-400 via-cyan-200 to-blue-500 mb-2 md:mb-3 lg:mb-2 drop-shadow-[0_0_15px_rgba(56,189,248,0.6)] font-sans tracking-tight">
                       Niramoy Clinic & Diagnostic
                   </h1>
                   <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-end gap-1.5 sm:gap-3 lg:gap-4 text-teal-100 text-sm md:text-base lg:text-lg font-medium tracking-wider mb-1 lg:mb-0">
@@ -167,8 +243,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onNavigate }) => {
                 <DashboardButton 
                   label={
                       <>
-                          <span className="block text-xl sm:text-2xl lg:text-3xl font-extrabold text-white mb-1 drop-shadow-sm tracking-normal">ডায়াগনস্টিক ম্যানেজমেন্ট</span>
-                          <span className="block text-[10px] sm:text-xs lg:text-sm font-semibold text-cyan-200 mt-1.5 lg:mt-2 tracking-widest uppercase">Diagnostic Management</span>
+                          <span className="block text-2xl lg:text-3xl font-extrabold text-white mb-1 drop-shadow-sm tracking-normal">ডায়াগনস্টিক ডিপার্টমেন্ট</span>
+                          <span className="block text-xs lg:text-sm font-semibold text-cyan-200 mt-1.5 lg:mt-2 tracking-widest uppercase">Diagnostic Department</span>
                       </>
                   } 
                   icon={<DiagnosticIcon />} 
@@ -181,8 +257,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onNavigate }) => {
                 <DashboardButton 
                   label={
                       <>
-                          <span className="block text-xl sm:text-2xl lg:text-3xl font-extrabold text-white mb-1 drop-shadow-sm tracking-normal">ক্লিনিক ম্যানেজমেন্ট</span>
-                          <span className="block text-[10px] sm:text-xs lg:text-sm font-semibold text-emerald-200 mt-1.5 lg:mt-2 tracking-widest uppercase">Clinic Management</span>
+                          <span className="block text-2xl lg:text-3xl font-extrabold text-white mb-1 drop-shadow-sm tracking-normal">ক্লিনিক ডিপার্টমেন্ট</span>
+                          <span className="block text-xs lg:text-sm font-semibold text-emerald-200 mt-1.5 lg:mt-2 tracking-widest uppercase">Clinic Department</span>
                       </>
                   } 
                   icon={<ClinicIcon />} 
@@ -195,8 +271,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onNavigate }) => {
                 <DashboardButton 
                   label={
                       <>
-                          <span className="block text-xl sm:text-2xl lg:text-3xl font-extrabold text-white mb-1 drop-shadow-sm tracking-normal">মেডিসিন ম্যানেজমেন্ট</span>
-                          <span className="block text-[10px] sm:text-xs lg:text-sm font-semibold text-rose-200 mt-1.5 lg:mt-2 tracking-widest uppercase">Medicine Management</span>
+                          <span className="block text-2xl lg:text-3xl font-extrabold text-white mb-1 drop-shadow-sm tracking-normal">মেডিসিন ডিপার্টমেন্ট</span>
+                          <span className="block text-xs lg:text-sm font-semibold text-rose-200 mt-1.5 lg:mt-2 tracking-widest uppercase">Medicine Department</span>
                       </>
                   }
                   icon={<MedicineIcon />} 
@@ -209,8 +285,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onNavigate }) => {
                 <DashboardButton 
                   label={
                       <>
-                          <span className="block text-xl sm:text-2xl lg:text-3xl font-extrabold text-white mb-1 drop-shadow-sm tracking-normal">অ্যাকাউন্টিং ম্যানেজমেন্ট</span>
-                          <span className="block text-[10px] sm:text-xs lg:text-sm font-semibold text-amber-200 mt-1.5 lg:mt-2 tracking-widest uppercase">Accounting Management</span>
+                          <span className="block text-2xl lg:text-3xl font-extrabold text-white mb-1 drop-shadow-sm tracking-normal">একাউন্টিং</span>
+                          <span className="block text-xs lg:text-sm font-semibold text-amber-200 mt-1.5 lg:mt-2 tracking-widest uppercase">Accounting</span>
                       </>
                   }
                   icon={<AccountingIcon />} 
@@ -255,13 +331,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onNavigate }) => {
                   <span className="relative z-10 flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm lg:text-base whitespace-nowrap"><FileTextIcon className="h-4 w-4 sm:h-5 sm:w-5" />Lab Reporting</span>
                 </button>
 
-                <button onClick={() => onNavigate(ViewState.ADMIN_SETTINGS)} className="group relative px-4 py-2.5 sm:px-6 sm:py-3 lg:px-8 rounded-full bg-slate-900/80 border border-slate-700 text-slate-300 font-bold transition-all duration-300 hover:border-indigo-500/50 hover:bg-indigo-500/20 hover:text-indigo-400 shadow-md active:scale-95 backdrop-blur-md">
-        <span className="relative z-10 flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm lg:text-base whitespace-nowrap">
-            <SettingsIcon className="h-4 w-4 sm:h-5 sm:w-5" />
-            Settings
-        </span>
-    </button>
-    <button onClick={onLogout} className="group relative px-4 py-2.5 sm:px-6 sm:py-3 lg:px-8 rounded-full bg-slate-900/80 border border-slate-700 text-slate-300 font-bold transition-all duration-300 hover:border-rose-500/50 hover:bg-rose-500/20 hover:text-rose-400 shadow-md active:scale-95 backdrop-blur-md">
+                <button onClick={onLogout} className="group relative px-4 py-2.5 sm:px-6 sm:py-3 lg:px-8 rounded-full bg-slate-900/80 border border-slate-700 text-slate-300 font-bold transition-all duration-300 hover:border-rose-500/50 hover:bg-rose-500/20 hover:text-rose-400 shadow-md active:scale-95 backdrop-blur-md">
                   <span className="relative z-10 flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm lg:text-base whitespace-nowrap">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 sm:h-5 sm:w-5 transition-transform group-hover:-translate-x-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
                     Admin Logout
@@ -271,7 +341,15 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onNavigate }) => {
 
               {/* Setting button is now part of the natural flow, pinned to bottom right of screen using fixed, 
                   but we give bottom padding so it never overlaps text */}
-
+              <div className="fixed bottom-4 right-4 md:bottom-6 md:right-8 z-[100] animate-fade-in-up" style={{ animationDelay: '700ms' }}>
+                  <button 
+                      onClick={() => onNavigate(ViewState.ADMIN_SETTINGS)}
+                      className="w-12 h-12 sm:w-14 sm:h-14 bg-slate-800/90 rounded-full border border-slate-700 flex items-center justify-center text-slate-400 hover:text-blue-400 hover:border-blue-500 hover:scale-110 hover:rotate-90 transition-all duration-500 shadow-[0_0_20px_rgba(0,0,0,0.8)] backdrop-blur-xl"
+                      title="System Password Control"
+                  >
+                      <SettingsIcon size={24} />
+                  </button>
+              </div>
 
               <div className="mt-6 md:mt-8 text-center text-slate-500/60 text-[10px] md:text-xs font-medium tracking-wide">
                  &copy; 2024 NiramoyClinic. All rights reserved.
@@ -283,3 +361,5 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onNavigate }) => {
 };
 
 export default Dashboard;
+`;
+fs.writeFileSync('components/Dashboard.tsx', dashboardCode);

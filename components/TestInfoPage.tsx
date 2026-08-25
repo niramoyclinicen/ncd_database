@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Reagent, Test, emptyTest, testCategories, SubTest } from './DiagnosticData';
 import { PlusIcon, SaveIcon, SearchIcon } from './Icons';
+import SearchableSelect from './SearchableSelect';
 
 interface Props {
     reagents: Reagent[];
@@ -78,6 +79,12 @@ const TestInfoPage: React.FC<Props> = ({ reagents, tests, setTests, isEmbedded =
   const removeSubTest = (id: string) => {
     setTempSubTests(tempSubTests.filter(s => s.id !== id));
   };
+
+  const reagentOptions = reagents.map(r => ({
+    id: r.reagent_name,
+    name: r.reagent_name,
+    details: r.unit
+  }));
 
   const resetForm = () => {
     setFormData(emptyTest);
@@ -214,18 +221,20 @@ const TestInfoPage: React.FC<Props> = ({ reagents, tests, setTests, isEmbedded =
                         <div className="space-y-3">
                             {(formData.reagents_required || []).map((req, idx) => (
                                 <div key={idx} className="flex gap-3 items-center">
-                                    <select 
-                                        value={req.reagent_id} 
-                                        onChange={e => {
-                                            const newReq = [...(formData.reagents_required || [])];
-                                            newReq[idx].reagent_id = e.target.value;
-                                            setFormData({ ...formData, reagents_required: newReq });
-                                        }}
-                                        className="flex-1 bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white text-sm outline-none focus:border-emerald-500"
-                                    >
-                                        <option value="">-- Select Reagent / Film --</option>
-                                        {reagents.map(r => <option key={r.reagent_id} value={r.reagent_name}>{r.reagent_name} ({r.unit})</option>)}
-                                    </select>
+                                    <div className="flex-1">
+                                        <SearchableSelect 
+                                            label=""
+                                            options={reagentOptions}
+                                            value={req.reagent_id} 
+                                            onChange={id => {
+                                                const newReq = [...(formData.reagents_required || [])];
+                                                newReq[idx].reagent_id = id;
+                                                setFormData({ ...formData, reagents_required: newReq });
+                                            }}
+                                            placeholder="-- Select Reagent / Film --"
+                                            theme="dark"
+                                        />
+                                    </div>
                                     <input 
                                         type="number" 
                                         placeholder="Qty" 

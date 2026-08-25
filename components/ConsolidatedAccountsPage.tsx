@@ -851,7 +851,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
 
     return (
         <div className="min-h-screen bg-slate-100 flex flex-col font-['Inter']">
-            <header className="bg-slate-800 p-4 border-b border-slate-700 sticky top-0 z-[100] no-print flex flex-col md:flex-row justify-between items-center text-white gap-4 shadow-xl">
+            <header className="bg-slate-800 p-4 border-b border-slate-700 sticky top-0 z-[100] no-print flex flex-col md:flex-row justify-between items-center text-white gap-4 pt-16 md:pt-4 shadow-xl">
                 <div className="flex items-center gap-4">
                     <button onClick={onBack} className="p-2 bg-slate-700 rounded-full hover:bg-slate-600 transition-all"><BackIcon className="w-5 h-5" /></button>
                     <h1 className="font-bold uppercase tracking-tight text-sm">Accounts Console</h1>

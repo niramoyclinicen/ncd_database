@@ -1146,7 +1146,7 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
       )}
 
       {/* HEADER WITH ADDRESS */}
-      <header className="bg-slate-800 shadow-2xl border-b border-slate-700 z-20 relative">
+      <header className="bg-slate-800 shadow-2xl border-b border-slate-700 z-20 relative pt-14 md:pt-0">
         <div className="max-w-7xl mx-auto py-6 px-6">
             <div className="flex flex-col md:flex-row justify-between items-center gap-6">
                 <div className="flex flex-col">

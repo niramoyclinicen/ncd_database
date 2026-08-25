@@ -95,7 +95,7 @@ const TopBarButton: React.FC<{ label: string; icon?: React.ReactNode; isActive: 
     disabled={disabled}
     className={`
       relative group overflow-hidden
-      flex flex-col md:flex-row items-center justify-center w-full px-3 py-2 
+      flex flex-col md:flex-row items-center justify-center w-full px-3 py-2 shrink-0 min-w-[120px] md:min-w-0 md:shrink 
       rounded-xl font-bold text-xs md:text-sm tracking-wide
       transition-all duration-300 ease-out
       border
@@ -120,8 +120,9 @@ const TopBarButton: React.FC<{ label: string; icon?: React.ReactNode; isActive: 
   </button>
 );
 
-const SidebarItem: React.FC<{ label: string; icon: React.ReactNode; id: DiagnosticSubPage; activeTab: string; onClick: (id: DiagnosticSubPage) => void; disabled?: boolean }> = ({ label, icon, id, activeTab, onClick, disabled = false }) => (
+const SidebarItem: React.FC<{ label: string; icon: React.ReactNode; id: DiagnosticSubPage; activeTab: string; onClick: (id: DiagnosticSubPage) => void; disabled?: boolean; isSidebarOpen?: boolean }> = ({ label, icon, id, activeTab, onClick, disabled = false, isSidebarOpen = true }) => (
   <button
+    title={label}
     onClick={() => !disabled && onClick(id)}
     disabled={disabled}
     className={`
@@ -133,8 +134,8 @@ const SidebarItem: React.FC<{ label: string; icon: React.ReactNode; id: Diagnost
           : 'text-slate-400 border-transparent hover:bg-slate-800/50 hover:text-slate-200 hover:border-slate-600'}
     `}
   >
-    <span className={`mr-3 ${activeTab === id ? 'text-cyan-400' : 'text-slate-500'}`}>{icon}</span>
-    {label}
+    <span className={`mr-3 shrink-0 ${activeTab === id ? 'text-cyan-400' : 'text-slate-500'}`}>{icon}</span>
+    {isSidebarOpen && <span className="whitespace-nowrap">{label}</span>}
   </button>
 );
 
@@ -150,7 +151,7 @@ const DiagnosticPage: React.FC<DiagnosticPageProps> = ({
   setEmployees,
   patients, 
   setPatients,
-  detailedExpenses,
+  detailedExpenses, setDetailedExpenses,
   attendanceLog, setAttendanceLog, leaveLog, setLeaveLog,
   appointments, setAppointments,
   monthlyRoster, setMonthlyRoster,
@@ -176,6 +177,9 @@ const DiagnosticPage: React.FC<DiagnosticPageProps> = ({
   const handleTabChange = useCallback((tab: DiagnosticSubPage) => {
     const previousTab = activeTabRef.current;
     setActiveTab(tab);
+    if (window.innerWidth < 768) {
+        setIsSidebarOpen(false);
+    }
     
     const syncLocks = async () => {
       try {
@@ -341,7 +345,7 @@ const DiagnosticPage: React.FC<DiagnosticPageProps> = ({
       case 'test_info':
         return <div className="animate-fade-in h-full flex flex-col"><TestInfoPage tests={tests} setTests={setTests} reagents={reagents} performBlockingSync={performBlockingSync} /></div>;
       case 'reagent_info':
-        return <div className="animate-fade-in h-full flex flex-col"><ReagentInfoPage reagents={reagents} setReagents={setReagents} detailedExpenses={detailedExpenses} labInvoices={labInvoices} tests={tests} performBlockingSync={performBlockingSync} /></div>;
+        return <div className="animate-fade-in h-full flex flex-col"><ReagentInfoPage reagents={reagents} setReagents={setReagents} detailedExpenses={detailedExpenses} setDetailedExpenses={setDetailedExpenses} labInvoices={labInvoices} tests={tests} performBlockingSync={performBlockingSync} /></div>;
       case 'employee_info':
         return (
             <div className="animate-fade-in h-full flex flex-col">
@@ -380,37 +384,39 @@ const DiagnosticPage: React.FC<DiagnosticPageProps> = ({
 
   return (
     <div className="flex h-screen bg-slate-900 text-slate-100 overflow-hidden">
-      {/* Sidebar Toggle Button for Mobile/Collapsed */}
-      <button 
-        onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-        className={`fixed bottom-6 left-6 z-50 p-3 rounded-full bg-cyan-600 text-white shadow-2xl transition-all duration-300 md:hidden ${isSidebarOpen ? 'rotate-180' : ''}`}
-      >
-        <SettingsIcon className="w-6 h-6" />
-      </button>
 
+
+      {/* Mobile Menu Backdrop */}
+      {isSidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-30 md:hidden"
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
       <aside className={`
-        ${isSidebarOpen ? 'w-64' : 'w-0 md:w-16'} 
-        bg-slate-950 border-r border-slate-800 flex flex-col z-20 shadow-2xl transition-all duration-300 ease-in-out overflow-hidden pt-4
+        absolute md:relative inset-y-0 left-0 z-40
+        ${isSidebarOpen ? 'translate-x-0 w-64' : '-translate-x-full w-64 md:translate-x-0 md:w-16'} 
+        bg-slate-950 border-r border-slate-800 flex flex-col shadow-2xl transition-all duration-300 ease-in-out overflow-hidden pt-4
       `}>
         <div className="flex-1 overflow-y-auto py-4">
             <div className={`px-4 mb-2 text-xs font-semibold text-slate-500 uppercase tracking-wider transition-opacity duration-300 ${!isSidebarOpen ? 'md:opacity-0' : 'opacity-100'}`}>
               Data Entry / Setup
             </div>
             <div className="space-y-1">
-              <SidebarItem id="patient_info" label={isSidebarOpen ? "Patient Information" : ""} icon={<UsersIcon className="w-5 h-5" />} activeTab={activeTab} onClick={handleTabChange} disabled={isLabReporter} />
-              <SidebarItem id="doctor_info" label={isSidebarOpen ? "Doctor Information" : ""} icon={<StethoscopeIcon className="w-5 h-5" />} activeTab={activeTab} onClick={handleTabChange} disabled={isLabReporter} />
-              <SidebarItem id="referrer_info" label={isSidebarOpen ? "Referrer Information" : ""} icon={<UserPlusIcon className="w-5 h-5" />} activeTab={activeTab} onClick={handleTabChange} disabled={isLabReporter} />
-              <SidebarItem id="test_info" label={isSidebarOpen ? "Test Information" : ""} icon={<DnaIcon className="w-5 h-5" />} activeTab={activeTab} onClick={handleTabChange} disabled={isLabReporter} />
-              <SidebarItem id="reagent_info" label={isSidebarOpen ? "Reagent Information" : ""} icon={<TestTubeIcon className="w-5 h-5" />} activeTab={activeTab} onClick={handleTabChange} disabled={isLabReporter} />
+              <SidebarItem id="patient_info" label="Patient Information" isSidebarOpen={isSidebarOpen} icon={<UsersIcon className="w-5 h-5" />} activeTab={activeTab} onClick={handleTabChange} disabled={isLabReporter} />
+              <SidebarItem id="doctor_info" label="Doctor Information" isSidebarOpen={isSidebarOpen} icon={<StethoscopeIcon className="w-5 h-5" />} activeTab={activeTab} onClick={handleTabChange} disabled={isLabReporter} />
+              <SidebarItem id="referrer_info" label="Referrer Information" isSidebarOpen={isSidebarOpen} icon={<UserPlusIcon className="w-5 h-5" />} activeTab={activeTab} onClick={handleTabChange} disabled={isLabReporter} />
+              <SidebarItem id="test_info" label="Test Information" isSidebarOpen={isSidebarOpen} icon={<DnaIcon className="w-5 h-5" />} activeTab={activeTab} onClick={handleTabChange} disabled={isLabReporter} />
+              <SidebarItem id="reagent_info" label="Reagent Information" isSidebarOpen={isSidebarOpen} icon={<TestTubeIcon className="w-5 h-5" />} activeTab={activeTab} onClick={handleTabChange} disabled={isLabReporter} />
             </div>
 
             <div className={`mt-8 px-4 mb-2 text-xs font-semibold text-slate-500 uppercase tracking-wider transition-opacity duration-300 ${!isSidebarOpen ? 'md:opacity-0' : 'opacity-100'}`}>
               System
             </div>
             <div className="space-y-1">
-               <button onClick={onBack} className="w-full flex items-center px-4 py-3 text-sm font-medium text-red-400 hover:bg-red-900/20 border-l-4 border-transparent transition-colors">
-                  <BackIcon className="w-5 h-5 mr-3" />
-                  {isSidebarOpen && "Logout / Exit"}
+               <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} title={isSidebarOpen ? "Collapse Menu" : "Expand Menu"} className="w-full flex items-center px-4 py-3 text-sm font-medium text-slate-400 hover:text-white hover:bg-slate-800/50 border-l-4 border-transparent transition-colors">
+                  <BackIcon className={`w-5 h-5 shrink-0 mr-3 transition-transform ${!isSidebarOpen ? 'rotate-180' : ''}`} />
+                  {isSidebarOpen && <span className="whitespace-nowrap">Collapse Menu</span>}
                </button>
             </div>
         </div>
@@ -435,9 +441,28 @@ const DiagnosticPage: React.FC<DiagnosticPageProps> = ({
            <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-blue-900/10 rounded-full blur-[100px] -translate-y-1/2 translate-x-1/2"></div>
         </div>
 
-        <header className="bg-slate-900/90 backdrop-blur-md border-b border-slate-800 p-4 shrink-0 shadow-sm z-20 relative">
-          <div className="flex flex-col md:flex-row items-center justify-between relative w-full px-4">
-             <div className="flex items-center gap-4 z-10">
+        <header className="bg-slate-900/90 backdrop-blur-md border-b border-slate-800 p-3 sm:p-4 shrink-0 shadow-sm z-20 relative">
+          <div className="flex flex-col md:flex-row items-center justify-between relative w-full px-2 sm:px-4">
+             
+             {/* Top Row for Mobile (Hamburger + Diagnostic Title) */}
+             <div className="w-full flex items-center justify-between md:hidden mb-2">
+                <button 
+                  onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                  className="p-2.5 rounded-lg bg-cyan-900/50 text-cyan-400 hover:text-cyan-300 hover:bg-cyan-800 transition-all border border-cyan-800/50 flex items-center gap-2"
+                  title="Menu"
+                >
+                  <span className="text-xl leading-none">☰</span>
+                  <span className="text-xs font-bold uppercase tracking-wider">Menu</span>
+                </button>
+                <div className="flex items-center">
+                    <DiagnosticIcon className="w-6 h-6 text-cyan-400 mr-1.5 drop-shadow-[0_0_5px_rgba(34,211,238,0.5)]" />
+                    <h2 className="text-lg font-bold text-cyan-400 font-bengali drop-shadow-[0_0_8px_rgba(34,211,238,0.3)] leading-none whitespace-nowrap">
+                        ডায়াগনস্টিক ডিপার্টমেন্ট
+                    </h2>
+                </div>
+             </div>
+
+             <div className="flex items-center gap-4 z-10 w-full md:w-auto justify-center md:justify-start">
                 <button 
                   onClick={() => setIsSidebarOpen(!isSidebarOpen)}
                   className="p-2 rounded-lg bg-slate-800 text-slate-400 hover:text-cyan-400 hover:bg-slate-700 transition-all hidden md:block"
@@ -445,17 +470,19 @@ const DiagnosticPage: React.FC<DiagnosticPageProps> = ({
                 >
                   <SettingsIcon className={`w-5 h-5 transition-transform duration-500 ${isSidebarOpen ? 'rotate-90' : ''}`} />
                 </button>
-                <div className="flex flex-col items-center md:items-start">
-                  <h1 className="text-2xl md:text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-white to-cyan-100 leading-tight tracking-tight mb-1">
+                <div className="flex flex-col items-center md:items-start text-center md:text-left w-full md:w-auto">
+                  <h1 className="text-[1.1rem] sm:text-2xl md:text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-white to-cyan-100 leading-tight tracking-tight mb-1 whitespace-nowrap overflow-hidden text-ellipsis">
                     Niramoy Clinic and Diagnostic
                   </h1>
-                  <p className="text-sm md:text-base text-slate-400 font-medium">Enayetpur, Sirajgonj | Phone: 01730 923007</p>
+                  <p className="text-xs sm:text-sm md:text-base text-slate-400 font-medium">Enayetpur, Sirajgonj | Ph: 01730 923007</p>
                 </div>
              </div>
-             <div className="flex items-center mt-3 md:mt-0 z-10">
+             
+             {/* Desktop Diagnostic Title */}
+             <div className="hidden md:flex items-center mt-3 md:mt-0 z-10">
                 <DiagnosticIcon className="w-8 h-8 text-cyan-400 mr-2 drop-shadow-[0_0_5px_rgba(34,211,238,0.5)]" />
                 <div className="flex flex-col items-end">
-                   <h2 className="text-2xl md:text-3xl font-bold text-cyan-400 font-bengali drop-shadow-[0_0_8px_rgba(34,211,238,0.3)] leading-none">
+                   <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-cyan-400 font-bengali drop-shadow-[0_0_8px_rgba(34,211,238,0.3)] leading-none text-right">
                      ডায়াগনস্টিক ডিপার্টমেন্ট
                    </h2>
                    <p className="text-[10px] md:text-xs font-bold text-slate-500 font-bengali tracking-tight mt-1">
@@ -467,7 +494,7 @@ const DiagnosticPage: React.FC<DiagnosticPageProps> = ({
         </header>
 
         <div className="bg-slate-900/50 backdrop-blur-sm border-b border-slate-800 z-20 p-2">
-           <div className="grid grid-cols-4 gap-2 md:gap-4 w-full px-2">
+           <div className="flex overflow-x-auto md:grid md:grid-cols-4 gap-2 md:gap-4 w-full px-2 pb-2 scrollbar-hide">
               <TopBarButton 
                 label="Doctor Appointment" 
                 icon={<CalendarIcon className="w-5 h-5" />} 
