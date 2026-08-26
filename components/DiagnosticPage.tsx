@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { 
   BackIcon, UsersIcon, ClipboardIcon, BeakerIcon, StethoscopeIcon, UserPlusIcon,
   CalendarIcon, MoneyIcon, FileTextIcon, ChartIcon, SettingsIcon, Activity, DiagnosticIcon,
@@ -21,39 +21,41 @@ import { dbService } from '../dbService';
 interface DiagnosticPageProps {
   onBack: () => void;
   userRole?: UserRole;
-  doctors: Doctor[];
-  setDoctors: React.Dispatch<React.SetStateAction<Doctor[]>>;
-  referrars: Referrar[];
-  setReferrars: React.Dispatch<React.SetStateAction<Referrar[]>>;
-  reagents: Reagent[];
-  setReagents: React.Dispatch<React.SetStateAction<Reagent[]>>;
-  tests: Test[];
-  setTests: React.Dispatch<React.SetStateAction<Test[]>>;
-  labInvoices: LabInvoice[];
-  setLabInvoices: React.Dispatch<React.SetStateAction<LabInvoice[]>>;
-  dueCollections: DueCollection[];
-  setDueCollections: React.Dispatch<React.SetStateAction<DueCollection[]>>;
-  reports: LabReport[];
-  setReports: React.Dispatch<React.SetStateAction<LabReport[]>>;
-  rtTemplates: any[];
-  setRtTemplates: React.Dispatch<React.SetStateAction<any[]>>;
+  doctors?: Doctor[];
+  setDoctors?: React.Dispatch<React.SetStateAction<Doctor[]>>;
+  referrars?: Referrar[];
+  setReferrars?: React.Dispatch<React.SetStateAction<Referrar[]>>;
+  reagents?: Reagent[];
+  setReagents?: React.Dispatch<React.SetStateAction<Reagent[]>>;
+  tests?: Test[];
+  setTests?: React.Dispatch<React.SetStateAction<Test[]>>;
+  labInvoices?: LabInvoice[];
+  invoices?: LabInvoice[];
+  setLabInvoices?: React.Dispatch<React.SetStateAction<LabInvoice[]>>;
+  dueCollections?: DueCollection[];
+  setDueCollections?: React.Dispatch<React.SetStateAction<DueCollection[]>>;
+  reports?: LabReport[];
+  setReports?: React.Dispatch<React.SetStateAction<LabReport[]>>;
+  rtTemplates?: any[];
+  setRtTemplates?: React.Dispatch<React.SetStateAction<any[]>>;
   diagnosticSettings?: any;
   setDiagnosticSettings?: React.Dispatch<React.SetStateAction<any>>;
-  employees: Employee[];
+  employees?: Employee[];
   setEmployees?: React.Dispatch<React.SetStateAction<Employee[]>>;
-  patients: Patient[];
-  setPatients: React.Dispatch<React.SetStateAction<Patient[]>>;
+  patients?: Patient[];
+  setPatients?: React.Dispatch<React.SetStateAction<Patient[]>>;
   detailedExpenses?: Record<string, ExpenseItem[]>;
-  attendanceLog: Record<string, any>;
-  setAttendanceLog: React.Dispatch<React.SetStateAction<Record<string, any>>>;
-  leaveLog: Record<string, any>;
-  setLeaveLog: React.Dispatch<React.SetStateAction<Record<string, any>>>;
-  appointments: Appointment[];
-  setAppointments: React.Dispatch<React.SetStateAction<Appointment[]>>;
-  monthlyRoster: Record<string, string[]>;
-  setMonthlyRoster: React.Dispatch<React.SetStateAction<Record<string, string[]>>>;
-  employeeReferrerMap: Record<string, string[]>;
-  setEmployeeReferrerMap: React.Dispatch<React.SetStateAction<Record<string, string[]>>>;
+  setDetailedExpenses?: React.Dispatch<React.SetStateAction<Record<string, ExpenseItem[]>>>;
+  attendanceLog?: Record<string, any>;
+  setAttendanceLog?: React.Dispatch<React.SetStateAction<Record<string, any>>>;
+  leaveLog?: Record<string, any>;
+  setLeaveLog?: React.Dispatch<React.SetStateAction<Record<string, any>>>;
+  appointments?: Appointment[];
+  setAppointments?: React.Dispatch<React.SetStateAction<Appointment[]>>;
+  monthlyRoster?: Record<string, string[]>;
+  setMonthlyRoster?: React.Dispatch<React.SetStateAction<Record<string, string[]>>>;
+  employeeReferrerMap?: Record<string, string[]>;
+  setEmployeeReferrerMap?: React.Dispatch<React.SetStateAction<Record<string, string[]>>>;
   performBlockingSync?: (stateOverride?: any) => Promise<boolean>;
   currentUserEmail?: string;
 }
@@ -140,25 +142,33 @@ const SidebarItem: React.FC<{ label: string; icon: React.ReactNode; id: Diagnost
 );
 
 const DiagnosticPage: React.FC<DiagnosticPageProps> = ({ 
-  onBack, userRole = 'ADMIN', doctors, setDoctors, 
-  referrars, setReferrars,
-  reagents, setReagents,
-  tests, setTests,
-  labInvoices, setLabInvoices,
-  dueCollections, setDueCollections,
-  reports, setReports, rtTemplates, setRtTemplates, diagnosticSettings, setDiagnosticSettings,
-  employees,
-  setEmployees,
-  patients, 
-  setPatients,
-  detailedExpenses, setDetailedExpenses,
-  attendanceLog, setAttendanceLog, leaveLog, setLeaveLog,
-  appointments, setAppointments,
-  monthlyRoster, setMonthlyRoster,
-  employeeReferrerMap, setEmployeeReferrerMap,
+  onBack, userRole = 'ADMIN', 
+  doctors = [], setDoctors = () => {}, 
+  referrars = [], setReferrars = () => {},
+  reagents = [], setReagents = () => {},
+  tests = [], setTests = () => {},
+  labInvoices, invoices, setLabInvoices = () => {},
+  dueCollections = [], setDueCollections = () => {},
+  reports = [], setReports = () => {}, 
+  rtTemplates = [], setRtTemplates = () => {}, 
+  diagnosticSettings = {}, setDiagnosticSettings = () => {},
+  employees = [],
+  setEmployees = () => {},
+  patients = [], 
+  setPatients = () => {},
+  detailedExpenses = {}, setDetailedExpenses = () => {},
+  attendanceLog = {}, setAttendanceLog = () => {}, 
+  leaveLog = {}, setLeaveLog = () => {},
+  appointments = [], setAppointments = () => {},
+  monthlyRoster = {}, setMonthlyRoster = () => {},
+  employeeReferrerMap = {}, setEmployeeReferrerMap = () => {},
   performBlockingSync,
   currentUserEmail = 'Anonymous'
 }) => {
+  const currentInvoices = useMemo(() => {
+    return Array.isArray(labInvoices) ? labInvoices : (Array.isArray(invoices) ? invoices : []);
+  }, [labInvoices, invoices]);
+
   const isLabReporter = userRole === 'LAB_REPORTER';
   const isDiagAdmin = userRole === 'DIAGNOSTIC_ADMIN';
   
@@ -233,7 +243,7 @@ const DiagnosticPage: React.FC<DiagnosticPageProps> = ({
                 setDoctors={setDoctors}
                 referrars={referrars}
                 setReferrars={setReferrars}
-                invoices={labInvoices}
+                invoices={currentInvoices}
                 appointments={appointments}
                 setAppointments={setAppointments}
                 performBlockingSync={performBlockingSync}
@@ -271,7 +281,7 @@ const DiagnosticPage: React.FC<DiagnosticPageProps> = ({
                 setReagents={setReagents}
                 employees={employees}
                 onNavigateSubPage={handleTabChange}
-                invoices={labInvoices}
+                invoices={currentInvoices}
                 setInvoices={setLabInvoices}
                 monthlyRoster={monthlyRoster}
                 initialInvoiceId={preSelectedInvoiceId}
@@ -293,7 +303,7 @@ const DiagnosticPage: React.FC<DiagnosticPageProps> = ({
              )}
             <PrevDueCollectionPage 
                 patients={patients}
-                invoices={labInvoices}
+                invoices={currentInvoices}
                 setInvoices={setLabInvoices}
                 dueCollections={dueCollections}
                 setDueCollections={setDueCollections}
@@ -319,7 +329,7 @@ const DiagnosticPage: React.FC<DiagnosticPageProps> = ({
                </div>
              )}
              <LabReportingPage 
-                invoices={labInvoices}
+                invoices={currentInvoices}
                 setInvoices={setLabInvoices}
                 reports={reports}
                 setReports={setReports}
@@ -345,7 +355,7 @@ const DiagnosticPage: React.FC<DiagnosticPageProps> = ({
       case 'test_info':
         return <div className="animate-fade-in h-full flex flex-col"><TestInfoPage tests={tests} setTests={setTests} reagents={reagents} performBlockingSync={performBlockingSync} /></div>;
       case 'reagent_info':
-        return <div className="animate-fade-in h-full flex flex-col"><ReagentInfoPage reagents={reagents} setReagents={setReagents} detailedExpenses={detailedExpenses} setDetailedExpenses={setDetailedExpenses} labInvoices={labInvoices} tests={tests} performBlockingSync={performBlockingSync} /></div>;
+        return <div className="animate-fade-in h-full flex flex-col"><ReagentInfoPage reagents={reagents} setReagents={setReagents} detailedExpenses={detailedExpenses} setDetailedExpenses={setDetailedExpenses} labInvoices={currentInvoices} tests={tests} performBlockingSync={performBlockingSync} /></div>;
       case 'employee_info':
         return (
             <div className="animate-fade-in h-full flex flex-col">

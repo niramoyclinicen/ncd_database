@@ -4,14 +4,14 @@ import { Search, X, MessageSquare, Send, Sparkles, Loader2 } from 'lucide-react'
 import { ExpenseItem, Employee, Medicine, PurchaseInvoice, SalesInvoice, LabInvoice, IndoorInvoice } from './DiagnosticData';
 
 interface AIAssistantProps {
-    detailedExpenses: Record<string, ExpenseItem[]>;
-    setDetailedExpenses: React.Dispatch<React.SetStateAction<Record<string, ExpenseItem[]>>>;
-    employees: Employee[];
-    medicines: Medicine[];
-    purchaseInvoices: PurchaseInvoice[];
-    salesInvoices: SalesInvoice[];
-    labInvoices: LabInvoice[];
-    indoorInvoices: IndoorInvoice[];
+    detailedExpenses?: Record<string, ExpenseItem[]>;
+    setDetailedExpenses?: React.Dispatch<React.SetStateAction<Record<string, ExpenseItem[]>>>;
+    employees?: Employee[];
+    medicines?: Medicine[];
+    purchaseInvoices?: PurchaseInvoice[];
+    salesInvoices?: SalesInvoice[];
+    labInvoices?: LabInvoice[];
+    indoorInvoices?: IndoorInvoice[];
 }
 
 interface Message {
@@ -20,8 +20,8 @@ interface Message {
 }
 
 const AIAssistant: React.FC<AIAssistantProps> = ({ 
-    detailedExpenses, setDetailedExpenses, employees, 
-    medicines, purchaseInvoices, salesInvoices, labInvoices, indoorInvoices 
+    detailedExpenses = {}, setDetailedExpenses = () => {}, employees = [], 
+    medicines = [], purchaseInvoices = [], salesInvoices = [], labInvoices = [], indoorInvoices = [] 
 }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [input, setInput] = useState('');

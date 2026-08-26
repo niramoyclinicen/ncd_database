@@ -844,10 +844,10 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
     };
 
     const commonTableCellClass = "p-1.5 border border-black font-bold text-[10.5pt] font-['Hind_Siliguri'] h-10 text-center";
-    const commonAmtCellClass = "p-1.5 border border-black text-right font-black text-[10.5pt] w-[100px] h-10 font-['JetBrains_Mono']";
+    const commonAmtCellClass = "px-2 py-1 border border-black text-right font-black text-[10.5pt] w-[115px] min-w-[110px] h-10 font-['JetBrains_Mono'] whitespace-nowrap";
 
-    const collectionTableCellClass = "p-1 border border-black font-bold text-[10pt] font-['Hind_Siliguri'] h-13 text-center";
-    const collectionAmtCellClass = "p-1 border border-black text-right font-black text-[10pt] w-[110px] h-13 font-['JetBrains_Mono']";
+    const collectionTableCellClass = "p-1 border border-black font-bold text-[10pt] font-['Hind_Siliguri'] h-11 text-center";
+    const collectionAmtCellClass = "px-2.5 py-1 border border-black text-right font-black text-[10pt] w-[135px] min-w-[130px] h-11 font-['JetBrains_Mono'] whitespace-nowrap";
 
     return (
         <div className="min-h-screen bg-slate-100 flex flex-col font-['Inter']">
@@ -1046,13 +1046,13 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                 </div>
                                 <h3 className="text-sm font-bold underline uppercase tracking-widest bg-gray-50 px-3 py-1 border border-black font-['Hind_Siliguri']">অ্যাকাউন্টস শিট : {monthOptions[selectedMonth].name}, {selectedYear}</h3>
                             </div>
-                            <div className="grid grid-cols-2 gap-8 flex-1">
-                                <div className="space-y-4 pl-4">
+                            <div className="grid grid-cols-2 gap-6 flex-1">
+                                <div className="space-y-4 pl-1 pr-1">
                                     <div className="bg-gray-100 text-slate-900 border-2 border-black p-1 text-center font-black text-xs font-['Hind_Siliguri'] uppercase shadow-sm relative overflow-hidden">
                                         <div className="absolute inset-0 opacity-10 pointer-events-none bg-[radial-gradient(#000_1px,transparent_1px)] [background-size:10px_10px]"></div>
                                         কালেকশন এর হিসাব
                                     </div>
-                                    <div className="pl-6 pr-1 space-y-4">
+                                    <div className="space-y-3.5">
                                     <div className="space-y-1">
                                         <div className="text-[14px] font-black font-['Hind_Siliguri'] underline mb-0.5">ক) ডায়াগনস্টিক হইতে :</div>
                                         <table className="w-full border border-black">
@@ -1108,12 +1108,12 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                                                         const v = e.target.value === '' ? 0 : parseFloat(e.target.value);
                                                                         updateAdjustment('houseRent', isNaN(v) ? 0 : v);
                                                                     }} 
-                                                                    className="w-28 sm:w-32 px-2.5 py-1 text-right border border-gray-400 bg-white rounded-lg text-xs font-bold font-['JetBrains_Mono'] focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm" 
+                                                                    className="w-24 sm:w-32 px-2 py-1 text-right border border-gray-400 bg-white rounded-lg text-xs font-bold font-['JetBrains_Mono'] focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm shrink-0" 
                                                                 />
                                                                 <button 
                                                                     type="button"
                                                                     onClick={() => setShowSaveConfirm(true)} 
-                                                                    className="p-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors shadow-sm active:scale-95 flex items-center gap-1" 
+                                                                    className="p-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors shadow-sm active:scale-95 flex items-center gap-1 shrink-0" 
                                                                     title="Save"
                                                                 >
                                                                     <SaveIcon className="w-3.5 h-3.5" />
@@ -1121,13 +1121,13 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                                             </div>
                                                         </div>
                                                     </td>
-                                                    <td className={collectionAmtCellClass}>({safeNum(adj.houseRent).toLocaleString()})</td>
+                                                    <td className={`${collectionAmtCellClass} text-slate-900`}>({safeNum(adj.houseRent).toLocaleString()})</td>
                                                 </tr>
                                                 <tr className="bg-slate-100 text-slate-900 font-black h-8 border-y-2 border-black">
                                                     <td colSpan={2} className="p-1 text-right text-[11.5px] uppercase tracking-tighter">
                                                         এই মাসের কালেকশন =
                                                     </td>
-                                                    <td className="p-1 text-right text-sm font-black font-['JetBrains_Mono'] border-l-2 border-black">{safeNum(summary.grandTotalCollection - summary.prevJer).toLocaleString()}</td>
+                                                    <td className={`${collectionAmtCellClass} text-sm font-black border-l-2 border-black`}>{safeNum(summary.grandTotalCollection - summary.prevJer).toLocaleString()}</td>
                                                 </tr>
                                                 <tr className="bg-blue-50/30 h-9"><td colSpan={2} className={`${collectionTableCellClass} text-blue-900 italic`}>পূর্বের জের (CF)</td><td className={`${collectionAmtCellClass} ${summary.prevJer < 0 ? 'text-rose-600' : 'text-blue-900'} underline decoration-double`}>{safeNum(summary.prevJer).toLocaleString()}</td></tr>
                                                 <tr className="bg-gray-100 text-slate-900 font-black h-10 border-y-[3px] border-black shadow-inner relative">
@@ -1135,7 +1135,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                                         <span className="absolute left-1 top-1 text-[8px] opacity-20">TOTAL A</span>
                                                         সর্বমোট কালেকশন (A) =
                                                     </td>
-                                                    <td className="p-1 text-right text-base font-black font-['JetBrains_Mono'] border-l-2 border-black relative z-10">{safeNum(summary.grandTotalCollection).toLocaleString()}</td>
+                                                    <td className={`${collectionAmtCellClass} text-base font-black border-l-2 border-black relative z-10`}>{safeNum(summary.grandTotalCollection).toLocaleString()}</td>
                                                 </tr>
                                                 
                                                 <tr className="bg-rose-50/30 h-9"><td colSpan={2} className={`${collectionTableCellClass} text-rose-900`}>মোট খরচ (B)</td><td className={`${collectionAmtCellClass} text-rose-900`}>({safeNum(summary.totalExpense).toLocaleString()})</td></tr>
@@ -1153,12 +1153,12 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                                                         const v = e.target.value === '' ? 0 : parseFloat(e.target.value);
                                                                         updateAdjustment('profitDist', isNaN(v) ? 0 : v);
                                                                     }} 
-                                                                    className="w-28 sm:w-32 px-2.5 py-1 text-right border border-amber-400 bg-white rounded-lg text-xs font-bold text-amber-950 font-['JetBrains_Mono'] focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-sm" 
+                                                                    className="w-24 sm:w-32 px-2 py-1 text-right border border-amber-400 bg-white rounded-lg text-xs font-bold text-amber-950 font-['JetBrains_Mono'] focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-sm shrink-0" 
                                                                 />
                                                                 <button 
                                                                     type="button"
                                                                     onClick={() => setShowSaveConfirm(true)} 
-                                                                    className="p-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors shadow-sm active:scale-95 flex items-center gap-1" 
+                                                                    className="p-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors shadow-sm active:scale-95 flex items-center gap-1 shrink-0" 
                                                                     title="Save"
                                                                 >
                                                                     <SaveIcon className="w-3.5 h-3.5" />
@@ -1173,7 +1173,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                                         <span className="absolute left-1 top-1 text-[8px] opacity-20 uppercase">Balance</span>
                                                         অবশিষ্ট বা জের =
                                                     </td>
-                                                    <td className="p-1 text-right text-base font-black font-['JetBrains_Mono'] border-l-2 border-emerald-900 relative z-10">{safeNum(summary.finalClosingJer).toLocaleString()}</td>
+                                                    <td className={`${collectionAmtCellClass} text-base font-black border-l-2 border-emerald-900 relative z-10`}>{safeNum(summary.finalClosingJer).toLocaleString()}</td>
                                                 </tr>
                                             </tbody>
                                         </table>

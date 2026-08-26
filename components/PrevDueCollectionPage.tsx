@@ -5,11 +5,11 @@ import { formatDateTime } from '../utils/dateUtils';
 
 interface Props {
     patients?: Patient[];
-    invoices: LabInvoice[];
-    setInvoices: React.Dispatch<React.SetStateAction<LabInvoice[]>>;
-    dueCollections: DueCollection[];
-    setDueCollections: React.Dispatch<React.SetStateAction<DueCollection[]>>;
-    employees: Employee[];
+    invoices?: LabInvoice[];
+    setInvoices?: React.Dispatch<React.SetStateAction<LabInvoice[]>>;
+    dueCollections?: DueCollection[];
+    setDueCollections?: React.Dispatch<React.SetStateAction<DueCollection[]>>;
+    employees?: Employee[];
     onViewInvoice?: (invoiceId: string) => void;
     performBlockingSync?: (overrides?: any) => Promise<boolean>;
 }
@@ -21,7 +21,16 @@ const monthOptions = [
     { value: "10", name: 'October' }, { value: "11", name: 'November' }, { value: "12", name: 'December' }
 ];
 
-const PrevDueCollectionPage: React.FC<Props> = ({ patients = [], invoices, setInvoices, dueCollections, setDueCollections, employees, onViewInvoice, performBlockingSync }) => {
+const PrevDueCollectionPage: React.FC<Props> = ({ 
+    patients = [], 
+    invoices = [], 
+    setInvoices = () => {}, 
+    dueCollections = [], 
+    setDueCollections = () => {}, 
+    employees = [], 
+    onViewInvoice, 
+    performBlockingSync 
+}) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [filterDay, setFilterDay] = useState('');
     const [filterMonth, setFilterMonth] = useState('');
@@ -242,8 +251,10 @@ const PrevDueCollectionPage: React.FC<Props> = ({ patients = [], invoices, setIn
     })();
 
     const detailedPendingData = React.useMemo(() => {
+        const safeDcs = Array.isArray(dueCollections) ? dueCollections : [];
+        const safePatients = Array.isArray(patients) ? patients : [];
         const items = filteredInvoices.map(inv => {
-            const dcs = dueCollections.filter(dc => dc.invoice_id === inv.invoice_id).sort((a, b) => new Date(a.collection_date).getTime() - new Date(b.collection_date).getTime());
+            const dcs = safeDcs.filter(dc => dc && dc.invoice_id === inv.invoice_id).sort((a, b) => new Date(a.collection_date).getTime() - new Date(b.collection_date).getTime());
             const sumDcs = dcs.reduce((sum, dc) => sum + (dc.amount_collected || 0), 0);
             
             const payments: { date: string; amount: number }[] = [];
@@ -252,12 +263,12 @@ const PrevDueCollectionPage: React.FC<Props> = ({ patients = [], invoices, setIn
                 payments.push({ date: inv.invoice_date?.split(' ')[0] || '', amount: initialPaid });
             }
             dcs.forEach(dc => {
-                if (dc.amount_collected > 0) {
+                if (dc && dc.amount_collected > 0) {
                     payments.push({ date: dc.collection_date?.split(' ')[0] || '', amount: dc.amount_collected });
                 }
             });
 
-            const patientObj = patients?.find(p => p.pt_id === inv.patient_id);
+            const patientObj = safePatients.find(p => p && p.pt_id === inv.patient_id);
             const addressParts = patientObj ? [patientObj.address, patientObj.thana, patientObj.district].filter(Boolean).join(', ') : '';
 
             return {
@@ -271,14 +282,15 @@ const PrevDueCollectionPage: React.FC<Props> = ({ patients = [], invoices, setIn
     }, [filteredInvoices, dueCollections, patients]);
 
 const filteredHistory = (() => {
-        if (!Array.isArray(dueCollections)) return [];
-        return dueCollections
-            .filter(dc => dc.invoice_id && dc.invoice_id.startsWith('INV'))
+        const safeDcs = Array.isArray(dueCollections) ? dueCollections : [];
+        const safeInvs = Array.isArray(invoices) ? invoices : [];
+        return safeDcs
+            .filter(dc => dc && dc.invoice_id && dc.invoice_id.startsWith('INV'))
             .sort((a, b) => new Date(b.collection_date).getTime() - new Date(a.collection_date).getTime())
             .filter(dc => {
-                const inv = invoices.find(i => i.invoice_id === dc.invoice_id);
-                const matchName = filterPatientName ? (inv?.patient_name || '').toLowerCase().includes(filterPatientName.toLowerCase()) : true;
-                const matchId = searchTerm ? dc.invoice_id.toLowerCase().includes(searchTerm.toLowerCase()) : true;
+                const inv = safeInvs.find(i => i && i.invoice_id === dc.invoice_id);
+                const matchName = filterPatientName ? ((inv?.patient_name || '').toLowerCase().includes(filterPatientName.toLowerCase())) : true;
+                const matchId = searchTerm ? (dc.invoice_id || '').toLowerCase().includes(searchTerm.toLowerCase()) : true;
                 const [y, m, d] = (dc.collection_date || '').split(' ')[0].split('-');
                 const matchY = filterYear ? y === filterYear : true;
                 const matchM = filterMonth ? parseInt(m) === parseInt(filterMonth) : true;

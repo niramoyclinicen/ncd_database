@@ -10,21 +10,21 @@ import TestInfoPage from './TestInfoPage';
 import { TrashIcon, DnaIcon, Activity } from './Icons';
 
 interface LabInvoicingPageProps {
-  patients: Patient[];
-  setPatients: React.Dispatch<React.SetStateAction<Patient[]>>;
-  doctors: Doctor[];
-  setDoctors: React.Dispatch<React.SetStateAction<Doctor[]>>;
-  referrars: Referrar[];
-  setReferrars: React.Dispatch<React.SetStateAction<Referrar[]>>;
-  tests: Test[];
-  reagents: Reagent[];
-  setReagents: React.Dispatch<React.SetStateAction<Reagent[]>>;
-  setTests: React.Dispatch<React.SetStateAction<Test[]>>; // To update test availability
-  employees: Employee[];
-  onNavigateSubPage: (page: DiagnosticSubPage) => void;
-  invoices: LabInvoice[];
-  setInvoices: React.Dispatch<React.SetStateAction<LabInvoice[]>>;
-  monthlyRoster: Record<string, string[]>;
+  patients?: Patient[];
+  setPatients?: React.Dispatch<React.SetStateAction<Patient[]>>;
+  doctors?: Doctor[];
+  setDoctors?: React.Dispatch<React.SetStateAction<Doctor[]>>;
+  referrars?: Referrar[];
+  setReferrars?: React.Dispatch<React.SetStateAction<Referrar[]>>;
+  tests?: Test[];
+  reagents?: Reagent[];
+  setReagents?: React.Dispatch<React.SetStateAction<Reagent[]>>;
+  setTests?: React.Dispatch<React.SetStateAction<Test[]>>; // To update test availability
+  employees?: Employee[];
+  onNavigateSubPage?: (page: DiagnosticSubPage) => void;
+  invoices?: LabInvoice[];
+  setInvoices?: React.Dispatch<React.SetStateAction<LabInvoice[]>>;
+  monthlyRoster?: Record<string, string[]>;
   initialInvoiceId?: string | null;
   onClearInitialInvoice?: () => void;
   performBlockingSync?: (stateOverride?: any) => Promise<boolean>;
@@ -39,20 +39,21 @@ const monthOptions = [
 ];
 
 const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
-  patients,
-  setPatients,
-  doctors,
-  setDoctors,
-  referrars,
-  setReferrars,
-  tests,
-  reagents,
-  setTests,
-  employees,
-  onNavigateSubPage,
-  invoices,
-  setInvoices,
-  monthlyRoster,
+  patients = [],
+  setPatients = () => {},
+  doctors = [],
+  setDoctors = () => {},
+  referrars = [],
+  setReferrars = () => {},
+  tests = [],
+  reagents = [],
+  setReagents = () => {},
+  setTests = () => {},
+  employees = [],
+  onNavigateSubPage = () => {},
+  invoices = [],
+  setInvoices = () => {},
+  monthlyRoster = {},
   initialInvoiceId,
   onClearInitialInvoice,
   performBlockingSync,
@@ -65,7 +66,8 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
 
   useEffect(() => {
     if (initialInvoiceId && handledInitialId.current !== initialInvoiceId) {
-      const inv = invoices.find(i => i.invoice_id === initialInvoiceId);
+      const safeInvs = Array.isArray(invoices) ? invoices : [];
+      const inv = safeInvs.find(i => i && i.invoice_id === initialInvoiceId);
       if (inv) {
         handledInitialId.current = initialInvoiceId;
         setTimeout(() => {
@@ -136,12 +138,17 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
 
   // Derive currentPeriodKey from the invoice date dynamically
   const currentPeriodKey = useMemo(() => {
-    return formData.invoice_date.substring(0, 7); // "YYYY-MM" format
-  }, [formData.invoice_date]);
+    return (formData.invoice_date || todayDateString).substring(0, 7); // "YYYY-MM" format
+  }, [formData.invoice_date, todayDateString]);
 
   const activeEmployees = useMemo(() => {
-    const activeIds = monthlyRoster[currentPeriodKey] || [];
-    return employees.filter(emp => activeIds.includes(emp.emp_id) && emp.status === 'Active');
+    const safeEmployees = Array.isArray(employees) ? employees : [];
+    const safeRoster = monthlyRoster || {};
+    const activeIds = safeRoster[currentPeriodKey];
+    if (Array.isArray(activeIds) && activeIds.length > 0) {
+      return safeEmployees.filter(emp => emp && activeIds.includes(emp.emp_id) && emp.status === 'Active');
+    }
+    return safeEmployees.filter(emp => emp && emp.status === 'Active');
   }, [employees, monthlyRoster, currentPeriodKey]);
   
   useEffect(() => {
@@ -152,13 +159,16 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
   }, [successMessage]);
 
   const todayInvoiceCount = useMemo(() => {
-    return invoices.filter(inv => inv.invoice_date === todayDateString && inv.status !== 'Cancelled').length;
+    const safeInvs = Array.isArray(invoices) ? invoices : [];
+    return safeInvs.filter(inv => inv && inv.invoice_date === todayDateString && inv.status !== 'Cancelled').length;
   }, [invoices, todayDateString]);
 
   const monthlyInvoiceCount = useMemo(() => {
+    const safeInvs = Array.isArray(invoices) ? invoices : [];
     const currentMonth = today.getMonth();
     const currentYear = today.getFullYear();
-    return invoices.filter(inv => {
+    return safeInvs.filter(inv => {
+      if (!inv || !inv.invoice_date) return false;
       const invDate = new Date(inv.invoice_date);
       return invDate.getMonth() === currentMonth && invDate.getFullYear() === currentYear && inv.status !== 'Cancelled';
     }).length;
@@ -210,8 +220,8 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
   
   // Filter invoices when search term or invoices state changes
   const filteredInvoices = useMemo(() => {
-    if (!Array.isArray(invoices)) return [];
-    return invoices.filter(invoice => {
+    const safeInvs = Array.isArray(invoices) ? invoices : [];
+    return safeInvs.filter(invoice => {
       if (!invoice) return false;
       const matchesSearch = (invoice.invoice_id || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
         (invoice.patient_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -227,7 +237,7 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
       const matchesDoctor = !tableFilterDoctorId || invoice.doctor_id === tableFilterDoctorId;
       const matchesReferrar = !tableFilterReferrarId || invoice.referrar_id === tableFilterReferrarId;
       const matchesPatient = !tableFilterPatientName || (invoice.patient_name || '').toLowerCase().includes(tableFilterPatientName.toLowerCase());
-      const matchesDue = !tableFilterDueOnly || (invoice.due_amount > 0 && invoice.status !== 'Cancelled' && invoice.status !== 'Returned');
+      const matchesDue = !tableFilterDueOnly || ((invoice.due_amount || 0) > 0 && invoice.status !== 'Cancelled' && invoice.status !== 'Returned');
 
       return matchesSearch && matchesDate && matchesMonth && matchesYear && matchesDoctor && matchesReferrar && matchesPatient && matchesDue;
     });
@@ -235,22 +245,25 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
 
 
   const filteredTestsForSelect = useMemo(() => {
+    const safeTests = Array.isArray(tests) ? tests : [];
     if (selectedTestCategory === 'All') {
-      return tests;
+      return safeTests;
     }
-    return tests.filter(test => test.category === selectedTestCategory);
+    return safeTests.filter(test => test && test.category === selectedTestCategory);
   }, [tests, selectedTestCategory]);
 
-  const getTestAvailability = (test: Test, currentReagents: Reagent[]): boolean => {
-    if (test.reagents_required.length === 0) {
+  const getTestAvailability = (test: Test, currentReagents?: Reagent[]): boolean => {
+    if (!test || !Array.isArray(test.reagents_required) || test.reagents_required.length === 0) {
       return true; // No reagents required, always available
     }
+    const safeReagentsList = Array.isArray(currentReagents) ? currentReagents : (Array.isArray(reagents) ? reagents : []);
     return test.reagents_required.every(req => {
-      const reagent = currentReagents.find(r => r.reagent_id === req.reagent_id);
+      if (!req) return true;
+      const reagent = safeReagentsList.find(r => r && r.reagent_id === req.reagent_id);
       if (!reagent || !reagent.availability) {
         return false;
       }
-      return reagent.quantity >= req.quantity_per_test;
+      return (reagent.quantity || 0) >= (req.quantity_per_test || 0);
     });
   };
 
@@ -969,78 +982,83 @@ pdate the local state and reset form
   };
 
   const dailyReport = useMemo(() => {
-    const collections = invoices.filter(inv => inv.invoice_date === reportDate && inv.status !== 'Cancelled');
-    const refunds = invoices.filter(inv => inv.return_date === reportDate && inv.status === 'Returned');
+    const safeInvs = Array.isArray(invoices) ? invoices : [];
+    const collections = safeInvs.filter(inv => inv && inv.invoice_date === reportDate && inv.status !== 'Cancelled');
+    const refunds = safeInvs.filter(inv => inv && inv.return_date === reportDate && inv.status === 'Returned');
     
     const summary = collections.reduce((acc, inv) => {
-      acc.totalBill += inv.total_amount;
-      acc.totalDiscount += inv.discount_amount;
-      acc.netPayable += inv.net_payable;
-      acc.paidAmount += inv.paid_amount;
-      acc.dueAmount += inv.due_amount;
+      acc.totalBill += (inv.total_amount || 0);
+      acc.totalDiscount += (inv.discount_amount || 0);
+      acc.netPayable += (inv.net_payable || 0);
+      acc.paidAmount += (inv.paid_amount || 0);
+      acc.dueAmount += (inv.due_amount || 0);
       return acc;
     }, { totalBill: 0, totalDiscount: 0, netPayable: 0, paidAmount: 0, dueAmount: 0 });
 
-    const totalRefunded = refunds.reduce((sum, inv) => sum + inv.paid_amount, 0);
+    const totalRefunded = refunds.reduce((sum, inv) => sum + (inv.paid_amount || 0), 0);
     summary.paidAmount -= totalRefunded; // Deduct refunds from today's cash
 
     return summary;
   }, [invoices, reportDate]); // Using invoices and reportDate as triggers
 
-    const yearlyReport = useMemo(() => {
+  const yearlyReport = useMemo(() => {
+    const safeInvs = Array.isArray(invoices) ? invoices : [];
     const currentYear = today.getFullYear();
 
-    const collections = invoices.filter(inv => {
+    const collections = safeInvs.filter(inv => {
+      if (!inv || !inv.invoice_date) return false;
       const invDate = new Date(inv.invoice_date);
       return invDate.getFullYear() === currentYear && inv.status !== 'Cancelled';
     });
 
-    const refunds = invoices.filter(inv => {
-        if (!inv.return_date) return false;
+    const refunds = safeInvs.filter(inv => {
+        if (!inv || !inv.return_date) return false;
         const retDate = new Date(inv.return_date);
         return retDate.getFullYear() === currentYear && inv.status === 'Returned';
     });
 
     const summary = collections.reduce((acc, inv) => {
-      acc.totalBill += inv.total_amount;
-      acc.totalDiscount += inv.discount_amount;
-      acc.netPayable += inv.net_payable;
-      acc.paidAmount += inv.paid_amount;
-      acc.dueAmount += inv.due_amount;
+      acc.totalBill += (inv.total_amount || 0);
+      acc.totalDiscount += (inv.discount_amount || 0);
+      acc.netPayable += (inv.net_payable || 0);
+      acc.paidAmount += (inv.paid_amount || 0);
+      acc.dueAmount += (inv.due_amount || 0);
       return acc;
     }, { totalBill: 0, totalDiscount: 0, netPayable: 0, paidAmount: 0, dueAmount: 0 });
 
-    const totalRefunded = refunds.reduce((sum, inv) => sum + inv.paid_amount, 0);
+    const totalRefunded = refunds.reduce((sum, inv) => sum + (inv.paid_amount || 0), 0);
     summary.paidAmount -= totalRefunded;
 
     return summary;
   }, [invoices, today]);
 
   const monthlyReport = useMemo(() => {
+    const safeInvs = Array.isArray(invoices) ? invoices : [];
     const currentMonth = today.getMonth();
     const currentYear = today.getFullYear();
 
-    const collections = invoices.filter(inv => {
+    const collections = safeInvs.filter(inv => {
+      if (!inv || !inv.invoice_date) return false;
       const invDate = new Date(inv.invoice_date);
       return invDate.getMonth() === currentMonth && invDate.getFullYear() === currentYear && inv.status !== 'Cancelled';
     });
 
-    const refunds = invoices.filter(inv => {
-        if (!inv.return_date) return false;
+    const refunds = safeInvs.filter(inv => {
+        if (!inv || !inv.return_date) return false;
         const retDate = new Date(inv.return_date);
         return retDate.getMonth() === currentMonth && retDate.getFullYear() === currentYear && inv.status === 'Returned';
     });
 
     const summary = collections.reduce((acc, inv) => {
-      acc.totalBill += inv.total_amount;
-      acc.totalDiscount += inv.discount_amount;
-      acc.netPayable += inv.net_payable;
-      acc.paidAmount += inv.paid_amount;
-      acc.dueAmount += inv.due_amount;
+      acc.totalBill += (inv.total_amount || 0);
+      acc.totalDiscount += (inv.discount_amount || 0);
+      acc.netPayable += (inv.net_payable || 0);
+      acc.paidAmount += (inv.paid_amount || 0);
+      acc.dueAmount += (inv.due_amount || 0);
       return acc;
     }, { totalBill: 0, totalDiscount: 0, netPayable: 0, paidAmount: 0, dueAmount: 0 });
 
-    const totalRefunded = refunds.reduce((sum, inv) => sum + inv.paid_amount, 0);
+    const totalRefunded = refunds.reduce((sum, inv) => sum + (inv.paid_amount || 0), 0);
     summary.paidAmount -= totalRefunded;
 
     return summary;
@@ -1103,7 +1121,7 @@ pdate the local state and reset form
                                     }}
                                     className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white outline-none focus:border-emerald-500"
                                 >
-                                    {reagents.filter(r => r.linked_category === 'X-Ray' || r.reagent_name.toLowerCase().includes('film') || r.reagent_name.toLowerCase().includes('x-ray')).map(r => (
+                                    {(Array.isArray(reagents) ? reagents : []).filter(r => r && (r.linked_category === 'X-Ray' || (r.reagent_name || '').toLowerCase().includes('film') || (r.reagent_name || '').toLowerCase().includes('x-ray'))).map(r => (
                                         <option key={r.reagent_id} value={r.reagent_id}>{r.reagent_name}</option>
                                     ))}
                                 </select>
@@ -1171,8 +1189,8 @@ pdate the local state and reset form
                         <button type="submit" form="invoice-form" disabled={readOnly} className="min-w-[110px] px-4 py-1.5 text-[10px] font-black text-white bg-emerald-600 rounded-md hover:bg-emerald-500 uppercase tracking-tighter shadow-md disabled:opacity-50 transition-all border border-emerald-400/20 active:scale-95">Save Invoice</button>
                         <button type="button" onClick={resetForm} disabled={readOnly} className="min-w-[90px] px-4 py-1.5 text-[10px] font-black text-slate-200 bg-slate-700 rounded-md hover:bg-slate-600 uppercase tracking-tighter shadow-md disabled:opacity-50 transition-all border border-slate-600/50 active:scale-95">Clear Form</button>
                         <button type="button" onClick={handleEditInvoice} disabled={!selectedInvoiceId || readOnly} className="min-w-[90px] px-4 py-1.5 text-[10px] font-black text-white bg-amber-500 rounded-md hover:bg-amber-400 uppercase tracking-tighter shadow-md disabled:opacity-50 transition-all border border-amber-400/20 active:scale-95">Edit Invoice</button>
-                        <button type="button" onClick={handleCancelInvoice} disabled={!selectedInvoiceId || invoices.find(inv => inv.invoice_id === selectedInvoiceId)?.status === 'Cancelled' || readOnly} className="min-w-[110px] px-4 py-1.5 text-[10px] font-black text-white bg-rose-600 rounded-md hover:bg-rose-700 uppercase tracking-tighter shadow-md disabled:opacity-50 transition-all border border-rose-400/20 active:scale-95">Cancel Invoice</button>
-                        <button type="button" onClick={handleReturnInvoice} disabled={!selectedInvoiceId || invoices.find(inv => inv.invoice_id === selectedInvoiceId)?.status === 'Returned' || readOnly} className="min-w-[110px] px-4 py-1.5 text-[10px] font-black text-white bg-pink-700 rounded-md hover:bg-pink-600 uppercase tracking-tighter shadow-md disabled:opacity-50 transition-all border border-pink-400/20 active:scale-95">Return Invoice</button>
+                        <button type="button" onClick={handleCancelInvoice} disabled={!selectedInvoiceId || (Array.isArray(invoices) ? invoices : []).find(inv => inv && inv.invoice_id === selectedInvoiceId)?.status === 'Cancelled' || readOnly} className="min-w-[110px] px-4 py-1.5 text-[10px] font-black text-white bg-rose-600 rounded-md hover:bg-rose-700 uppercase tracking-tighter shadow-md disabled:opacity-50 transition-all border border-rose-400/20 active:scale-95">Cancel Invoice</button>
+                        <button type="button" onClick={handleReturnInvoice} disabled={!selectedInvoiceId || (Array.isArray(invoices) ? invoices : []).find(inv => inv && inv.invoice_id === selectedInvoiceId)?.status === 'Returned' || readOnly} className="min-w-[110px] px-4 py-1.5 text-[10px] font-black text-white bg-pink-700 rounded-md hover:bg-pink-600 uppercase tracking-tighter shadow-md disabled:opacity-50 transition-all border border-pink-400/20 active:scale-95">Return Invoice</button>
                         <button type="button" onClick={handlePrintInvoice} disabled={!selectedInvoiceId} className="min-w-[100px] px-4 py-1.5 text-[10px] font-black text-white bg-indigo-600 rounded-md hover:bg-indigo-500 uppercase tracking-tighter shadow-md transition-all border border-indigo-400/20 active:scale-95">Print Invoice</button>
                     </div>
                 </div>
@@ -1774,7 +1792,11 @@ pdate the local state and reset form
                         className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-1.5 text-xs text-white font-bold outline-none focus:border-blue-500"
                     >
                         <option value="">Filter by Referrer...</option>
-                        {referrars.map(r => <option key={r.referrar_id} value={r.referrar_id}>{r.referrar_name}</option>)}
+                        {referrars.map(r => {
+                          const refId = r.ref_id || (r as any).referrar_id || '';
+                          const refName = r.ref_name || (r as any).referrar_name || '';
+                          return <option key={refId} value={refId}>{refName}</option>;
+                        })}
                     </select>
                 </div>
                 <div className="flex items-center gap-2">

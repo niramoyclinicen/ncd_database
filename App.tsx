@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
-import { Activity, LayoutDashboard, Stethoscope, Building2, Pill, Calculator, TrendingUp, Settings, LogOut, Menu, X } from 'lucide-react';
+import { Activity, LayoutDashboard, Stethoscope, Building2, Pill, Calculator, TrendingUp, Settings, LogOut, Menu, X, FileText } from 'lucide-react';
 import { ViewState, UserRole, DepartmentPasswords } from './types';
 import Dashboard from './components/Dashboard';
 import DiagnosticPage from './components/DiagnosticPage';
@@ -11,6 +11,7 @@ import MarketingPage from './components/MarketingPage';
 import DoctorLogin from './components/DoctorLogin';
 import DoctorPortal from './components/DoctorPortal';
 import DepartmentLogin from './components/DepartmentLogin';
+import LabLogin from './components/LabLogin';
 import AdminSettings from './components/AdminSettings';
 import AIAssistant from './components/AIAssistant';
 import { useAppData } from './useAppData';
@@ -18,97 +19,126 @@ import { useAppData } from './useAppData';
 const SidebarLayout = ({ children, onLogout }: { children: React.ReactNode, onLogout: () => void }) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isQuickNavOpen, setIsQuickNavOpen] = useState(false);
 
   const menuItems = [
-    { path: '/', icon: <LayoutDashboard size={20} />, label: 'Dashboard' },
-    { path: '/diagnostic', icon: <Stethoscope size={20} />, label: 'Diagnostic' },
-    { path: '/clinic', icon: <Building2 size={20} />, label: 'Clinic' },
-    { path: '/medicine', icon: <Pill size={20} />, label: 'Pharmacy' },
-    { path: '/accounting', icon: <Calculator size={20} />, label: 'Accounts' },
-    { path: '/marketing', icon: <TrendingUp size={20} />, label: 'Marketing' },
-    { path: '/settings', icon: <Settings size={20} />, label: 'Settings' },
+    { path: '/', icon: <LayoutDashboard size={18} />, label: 'Dashboard' },
+    { path: '/diagnostic', icon: <Stethoscope size={18} />, label: 'Diagnostic' },
+    { path: '/clinic', icon: <Building2 size={18} />, label: 'Clinic' },
+    { path: '/medicine', icon: <Pill size={18} />, label: 'Pharmacy' },
+    { path: '/accounting', icon: <Calculator size={18} />, label: 'Accounts' },
+    { path: '/marketing', icon: <TrendingUp size={18} />, label: 'Marketing' },
+    { path: '/settings', icon: <Settings size={18} />, label: 'Settings' },
   ];
 
   const handleNavigate = (path: string) => {
     navigate(path);
-    setIsMobileMenuOpen(false);
+    setIsQuickNavOpen(false);
   };
 
   return (
-    <div className="flex flex-col md:flex-row h-screen bg-slate-950 overflow-hidden">
-      {/* Mobile Menu Button */}
-      {/* Mobile Top Bar */}
-      <div className="md:hidden flex items-center justify-between bg-slate-900 border-b border-slate-800 px-4 py-3 shrink-0 z-50">
-        <div className="flex items-center gap-3">
-          <button 
-            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            className="p-2 bg-slate-800 rounded-lg text-slate-200"
-          >
-            {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
-          </button>
-          <h1 className="text-lg font-bold bg-clip-text text-transparent bg-gradient-to-r from-sky-400 to-cyan-300">
-            Niramoy Clinic
-          </h1>
-        </div>
-      </div>
-
-      {/* Mobile Menu Backdrop */}
-      {isMobileMenuOpen && (
+    <div className="h-screen w-full bg-slate-950 overflow-hidden flex flex-col relative text-slate-100">
+      {/* Quick Navigation Drawer */}
+      {isQuickNavOpen && (
         <div 
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-30 md:hidden"
-          onClick={() => setIsMobileMenuOpen(false)}
+          className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[99998] transition-opacity"
+          onClick={() => setIsQuickNavOpen(false)}
         />
       )}
-      {/* Sidebar */}
-      <div className={`fixed inset-y-0 left-0 z-40 w-64 bg-slate-900 border-r border-slate-800 transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-        <div className="flex flex-col h-full">
-          <div className="p-6 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-500 to-cyan-400 flex items-center justify-center shadow-lg shadow-sky-500/20">
-              <Activity className="text-white" size={24} />
+
+      {/* Slide-out Quick Nav Menu */}
+      <div 
+        className={`fixed top-0 left-0 bottom-0 w-72 bg-slate-900 border-r border-slate-800 z-[99999] shadow-2xl flex flex-col transform transition-transform duration-300 ease-in-out ${
+          isQuickNavOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
+        <div className="p-5 flex items-center justify-between border-b border-slate-800">
+          <div className="flex items-center gap-3 cursor-pointer" onClick={() => handleNavigate('/')}>
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-sky-500 to-cyan-400 flex items-center justify-center shadow-lg shadow-sky-500/20">
+              <Activity className="text-white" size={20} />
             </div>
-            <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-sky-400 to-cyan-300">
-              Niramoy Clinic
-            </h1>
+            <div>
+              <h1 className="text-base font-bold bg-clip-text text-transparent bg-gradient-to-r from-sky-400 to-cyan-300">
+                Niramoy Clinic
+              </h1>
+              <p className="text-[10px] text-slate-400 font-semibold">Hospital Management</p>
+            </div>
           </div>
+          <button 
+            onClick={() => setIsQuickNavOpen(false)} 
+            className="p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white"
+          >
+            <X size={20} />
+          </button>
+        </div>
 
-          <nav className="flex-1 px-4 space-y-2 overflow-y-auto">
-            {menuItems.map((item) => (
-              <button
-                key={item.path}
-                onClick={() => handleNavigate(item.path)}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
-                  location.pathname === item.path 
-                  ? 'bg-sky-500/10 text-sky-400 border border-sky-500/20' 
-                  : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
-                }`}
-              >
-                {item.icon}
-                <span className="font-medium">{item.label}</span>
-              </button>
-            ))}
-          </nav>
-
-          <div className="p-4 border-t border-slate-800">
+        <nav className="flex-1 p-4 space-y-1.5 overflow-y-auto">
+          <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-3 mb-2">
+            Main Navigation
+          </div>
+          {menuItems.map((item) => (
             <button
-              onClick={() => {
-                onLogout();
-                handleNavigate('/');
-              }}
-              className="w-full flex items-center gap-3 px-4 py-3 text-red-400 hover:bg-red-500/10 rounded-xl transition-all"
+              key={item.path}
+              onClick={() => handleNavigate(item.path)}
+              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-semibold transition-all ${
+                location.pathname === item.path 
+                ? 'bg-sky-500/20 text-sky-300 border border-sky-500/40 shadow-sm' 
+                : 'text-slate-400 hover:bg-slate-800/80 hover:text-slate-200'
+              }`}
             >
-              <LogOut size={20} />
-              <span className="font-medium">Logout</span>
+              {item.icon}
+              <span>{item.label}</span>
             </button>
+          ))}
+
+          <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-3 mt-6 mb-2">
+            Portals
           </div>
+          <button
+            onClick={() => handleNavigate('/doctor-login')}
+            className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-semibold text-blue-400 hover:bg-blue-500/10 transition-all"
+          >
+            <Stethoscope size={18} />
+            <span>Doctor Portal</span>
+          </button>
+          <button
+            onClick={() => handleNavigate('/lab-login')}
+            className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-semibold text-cyan-400 hover:bg-cyan-500/10 transition-all"
+          >
+            <FileText size={18} />
+            <span>Lab Reporting</span>
+          </button>
+        </nav>
+
+        <div className="p-4 border-t border-slate-800 bg-slate-950/50">
+          <button
+            onClick={() => {
+              onLogout();
+              handleNavigate('/');
+            }}
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-bold text-red-400 bg-red-950/30 hover:bg-red-900/40 border border-red-900/40 rounded-xl transition-all"
+          >
+            <LogOut size={16} />
+            <span>Logout</span>
+          </button>
         </div>
       </div>
 
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col overflow-hidden bg-slate-950 relative">
-        <div className="flex-1 overflow-y-auto p-4 md:p-8 animate-fade-in-up">
-          {children}
-        </div>
+      {/* Floating Quick Nav Button for fast module switching from any view */}
+      {location.pathname !== '/' && (
+        <button
+          onClick={() => setIsQuickNavOpen(true)}
+          className="fixed bottom-5 left-5 z-[99997] bg-slate-900/90 text-sky-400 p-3 rounded-full border border-sky-500/40 shadow-[0_4px_20px_rgba(0,0,0,0.6)] backdrop-blur-md hover:bg-sky-600 hover:text-white transition-all group flex items-center gap-2"
+          title="Quick Switch Module"
+        >
+          <Menu size={20} />
+          <span className="text-xs font-bold uppercase tracking-wider hidden group-hover:inline-block pr-1">Switch Module</span>
+        </button>
+      )}
+
+      {/* Full-bleed Content View */}
+      <div className="flex-1 w-full h-full min-h-0 overflow-hidden flex flex-col">
+        {children}
       </div>
     </div>
   );
@@ -116,14 +146,22 @@ const SidebarLayout = ({ children, onLogout }: { children: React.ReactNode, onLo
 
 const AppContent = () => {
   const data = useAppData();
-  
-  // Pending Dept Login State inside the layout so we don't reload the entire app
-    const navigate = useNavigate();
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const defaultDepartmentPasswords: Record<string, string> = {
+    DIAGNOSTIC: 'diag123',
+    LAB_REPORTING: 'lab123',
+    CLINIC: 'clinic123',
+    ACCOUNTING: 'acc123',
+    MEDICINE: 'med123',
+    ADMIN: 'niramoy123'
+  };
 
   const RequireAuth = ({ children, requiredRole, dept, targetPath }: { children: React.ReactNode, requiredRole: UserRole, dept: keyof DepartmentPasswords, targetPath: string }) => {
     if (data.userRole !== requiredRole && data.userRole !== 'ADMIN') {
       return (
-        <div className="h-full flex flex-col items-center justify-center bg-slate-950 rounded-3xl overflow-hidden shadow-2xl border border-slate-800">
+        <div className="h-full w-full flex flex-col items-center justify-center bg-slate-950 overflow-y-auto">
            <DepartmentLogin 
              department={dept} 
              onLogin={(pwd) => handleDepartmentLogin(pwd, dept, requiredRole, targetPath)} 
@@ -137,7 +175,7 @@ const AppContent = () => {
 
   const handleDepartmentLogin = (password: string, dept: keyof DepartmentPasswords, role: UserRole, targetPath: string) => {
     const enteredPwd = password.trim();
-    let storedPwd = (data.passwords[dept] || '').trim();
+    let storedPwd = (data.passwords[dept] || defaultDepartmentPasswords[dept] || '').trim();
     if (dept === 'ADMIN' && !storedPwd) storedPwd = 'niramoy123';
     
     if (enteredPwd === storedPwd) {
@@ -192,10 +230,22 @@ const AppContent = () => {
                 'ACCOUNTING': '/accounting',
                 'MARKETING': '/marketing',
                 'ADMIN_SETTINGS': '/settings',
-                'DOCTOR_PORTAL': '/doctor-login'
+                'DOCTOR_PORTAL': '/doctor-login',
+                'DOCTOR_LOGIN': '/doctor-login',
+                'LAB_LOGIN': '/lab-login'
               };
               navigate(routes[view] || '/');
             }} 
+          />
+        } />
+        
+        <Route path="/lab-login" element={
+          <LabLogin 
+            onLogin={() => {
+              data.setUserRole('LAB_REPORTER');
+              navigate('/diagnostic');
+            }}
+            onBack={() => navigate('/')}
           />
         } />
         
@@ -209,7 +259,7 @@ const AppContent = () => {
               referrars={data.referrars} setReferrars={data.setReferrars}
               tests={data.tests} setTests={data.setTests}
               reagents={data.reagents} setReagents={data.setReagents}
-              invoices={data.labInvoices} setLabInvoices={data.setLabInvoices}
+              labInvoices={data.labInvoices} invoices={data.labInvoices} setLabInvoices={data.setLabInvoices}
               dueCollections={data.dueCollections} setDueCollections={data.setDueCollections}
               reports={data.reports} setReports={data.setReports} rtTemplates={data.rtTemplates} setRtTemplates={data.setRtTemplates}
               employees={data.employees} setEmployees={data.setEmployees}
@@ -331,7 +381,18 @@ const AppContent = () => {
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-            {!['/', '/doctor-login', '/lab-login', '/settings'].includes(location.pathname) && <AIAssistant />}
+      {!['/', '/doctor-login', '/lab-login', '/settings'].includes(location.pathname) && (
+        <AIAssistant 
+          detailedExpenses={data.detailedExpenses}
+          setDetailedExpenses={data.setDetailedExpenses}
+          employees={data.employees}
+          medicines={data.medicines}
+          purchaseInvoices={data.purchaseInvoices}
+          salesInvoices={data.salesInvoices}
+          labInvoices={data.labInvoices}
+          indoorInvoices={data.indoorInvoices}
+        />
+      )}
     </SidebarLayout>
   );
 };

@@ -46,8 +46,8 @@ const DepartmentLogin: React.FC<DepartmentLoginProps> = ({ department, onLogin, 
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-950 px-4">
-      <div className="bg-slate-900 p-10 rounded-[2.5rem] shadow-2xl w-full max-w-md border-2 border-slate-800 relative overflow-hidden">
+    <div className="w-full min-h-screen flex items-center justify-center bg-slate-950 p-4">
+      <div className="bg-slate-900 p-8 sm:p-10 rounded-[2.5rem] shadow-2xl w-full max-w-md border-2 border-slate-800 relative overflow-hidden my-auto">
         <div className={`absolute top-0 left-0 w-full h-2 bg-gradient-to-r ${getColor()}`}></div>
         
         <button onClick={onBack} className="text-slate-500 hover:text-white mb-8 flex items-center gap-2 transition-colors font-bold uppercase text-xs tracking-widest">
