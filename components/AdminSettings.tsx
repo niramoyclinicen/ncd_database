@@ -22,6 +22,63 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ passwords, onSave, onBack
     const [showManualPaste, setShowManualPaste] = useState(false);
     const [pastedJson, setPastedJson] = useState('');
 
+    // Supabase Live DB state
+    const supConfig = dbService.getSupabaseConfig();
+    const [supabaseUrlInput, setSupabaseUrlInput] = useState(supConfig.url || '');
+    const [supabaseKeyInput, setSupabaseKeyInput] = useState(supConfig.key || '');
+    const [isTestingSupabase, setIsTestingSupabase] = useState(false);
+    const [testResult, setTestResult] = useState<{ success: boolean; message: string; tablesFound?: Record<string, number> } | null>(null);
+    const [isReloadingFromCloud, setIsReloadingFromCloud] = useState(false);
+    const [showConfigInputs, setShowConfigInputs] = useState(!supConfig.isConnected);
+
+    const handleSaveSupabaseConfig = () => {
+        if (!supabaseUrlInput.trim() || !supabaseKeyInput.trim()) {
+            alert("দয়া করে Supabase URL এবং Anon Key দিন!");
+            return;
+        }
+        const ok = dbService.setSupabaseConfig(supabaseUrlInput.trim(), supabaseKeyInput.trim());
+        if (ok) {
+            alert("Supabase কনফিগারেশন সফলভাবে সেভ হয়েছে!");
+            handleTestSupabaseConnection();
+        } else {
+            alert("Supabase URL বা Key এর ফরম্যাট সঠিক নয়।");
+        }
+    };
+
+    const handleTestSupabaseConnection = async () => {
+        setIsTestingSupabase(true);
+        setTestResult(null);
+        try {
+            const res = await dbService.testConnection();
+            setTestResult(res);
+        } catch (e: any) {
+            setTestResult({ success: false, message: e?.message || "টেস্ট ব্যর্থ হয়েছে" });
+        } finally {
+            setIsTestingSupabase(false);
+        }
+    };
+
+    const handleForcePullAllFromCloud = async () => {
+        const confirmPull = window.confirm("আপনি কি Supabase ক্লাউড থেকে সব লাইভ ডাটা লোড করে বর্তমান অ্যাপ রিফ্রেশ করতে চান?");
+        if (!confirmPull) return;
+
+        setIsReloadingFromCloud(true);
+        try {
+            const cloudState = await dbService.loadFromCloud();
+            if (cloudState && !cloudState._error) {
+                await performBlockingSync(cloudState);
+                alert("Supabase থেকে সফলভাবে সব ডাটা লোড হয়েছে! পেজ রিলোড হচ্ছে...");
+                window.location.reload();
+            } else {
+                alert("ডাটা ফেচ ব্যর্থ: " + (cloudState?._error || "Unknown error"));
+            }
+        } catch (e: any) {
+            alert("ত্রুটি: " + e.message);
+        } finally {
+            setIsReloadingFromCloud(false);
+        }
+    };
+
     const handleRestoreFromCache = async () => {
         const backup = dbService.getLocalBackup();
         if (!backup || Object.keys(backup).length === 0) {
@@ -486,6 +543,113 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ passwords, onSave, onBack
                 <h3 className="text-sm font-black text-amber-500 uppercase tracking-widest flex items-center gap-2"><DatabaseIcon size={14}/> System Maintenance</h3>
                 
                 <div className="space-y-4">
+                    {/* SUPABASE LIVE DATABASE HUB */}
+                    <div className="bg-slate-900 border border-emerald-500/40 p-5 rounded-2xl space-y-4 shadow-2xl relative overflow-hidden">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <span className="relative flex h-3 w-3">
+                                    <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${supConfig.isConnected ? 'bg-emerald-400' : 'bg-rose-400'}`}></span>
+                                    <span className={`relative inline-flex rounded-full h-3 w-3 ${supConfig.isConnected ? 'bg-emerald-500' : 'bg-rose-500'}`}></span>
+                                </span>
+                                <span className="text-xs font-black text-white uppercase tracking-wider">
+                                    Supabase লাইভ ক্লাউড ডাটাবেজ
+                                </span>
+                            </div>
+                            <span className={`text-[10px] font-black px-2.5 py-1 rounded-full uppercase ${supConfig.isConnected ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'}`}>
+                                {supConfig.isConnected ? '✓ ক্লাউড কানেক্টেড' : '✕ ডিসকানেক্টেড'}
+                            </span>
+                        </div>
+
+                        <p className="text-[11px] text-slate-300 leading-relaxed">
+                            সরাসরি অনলাইন Supabase ডাটাবেজ থেকে আপনার আগের সংরক্ষিত সব ডাটা (রোগী, ল্যাব ইনভয়েস, টেস্ট, ডাক্তার ইত্যাদি) লোড ও নিরীক্ষণ করুন।
+                        </p>
+
+                        <div className="grid grid-cols-2 gap-2">
+                            <button
+                                type="button"
+                                onClick={handleTestSupabaseConnection}
+                                disabled={isTestingSupabase}
+                                className="bg-sky-600 hover:bg-sky-500 text-white text-xs font-black py-2.5 px-3 rounded-xl uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 shadow"
+                            >
+                                <Activity size={14} className={isTestingSupabase ? 'animate-spin' : ''} />
+                                {isTestingSupabase ? 'স্ক্যান হচ্ছে...' : '🔍 টেস্ট ও ক্লাউড টেবিল স্ক্যান'}
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={handleForcePullAllFromCloud}
+                                disabled={isReloadingFromCloud}
+                                className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black py-2.5 px-3 rounded-xl uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 shadow"
+                            >
+                                <RefreshIcon size={14} className={isReloadingFromCloud ? 'animate-spin' : ''} />
+                                {isReloadingFromCloud ? 'লোড হচ্ছে...' : '⚡ ক্লাউড থেকে সব ডাটা লোড'}
+                            </button>
+                        </div>
+
+                        {testResult && (
+                            <div className={`p-3 rounded-xl text-xs space-y-2 border ${testResult.success ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-200' : 'bg-rose-950/40 border-rose-500/40 text-rose-200'}`}>
+                                <div className="font-bold flex items-center justify-between">
+                                    <span>{testResult.message}</span>
+                                </div>
+                                {testResult.tablesFound && Object.keys(testResult.tablesFound).length > 0 && (
+                                    <div className="mt-2 pt-2 border-t border-slate-800/80">
+                                        <div className="text-[10px] font-black text-amber-400 uppercase mb-1">ক্লাউডে পাওয়া টেবিল ও ডাটা সংখ্যা:</div>
+                                        <div className="grid grid-cols-2 gap-1 text-[10px] font-mono">
+                                            {Object.entries(testResult.tablesFound).map(([tbl, cnt]) => (
+                                                <div key={tbl} className="flex justify-between bg-slate-900/80 px-2 py-1 rounded">
+                                                    <span className="text-slate-300 font-bold">{tbl}:</span>
+                                                    <span className="text-emerald-400 font-black">{cnt} টি</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        <div className="pt-2 border-t border-slate-800">
+                            <button
+                                type="button"
+                                onClick={() => setShowConfigInputs(!showConfigInputs)}
+                                className="text-[10px] font-black text-slate-400 hover:text-white transition-colors uppercase tracking-widest flex items-center gap-1"
+                            >
+                                {showConfigInputs ? '▼ Supabase কী কনফিগারেশন লুকান' : '⚙️ Supabase URL ও Key পরিবর্তন / যুক্ত করুন'}
+                            </button>
+
+                            {showConfigInputs && (
+                                <div className="mt-3 space-y-2.5 bg-slate-950/80 p-3 rounded-xl border border-slate-800 animate-fade-in">
+                                    <div>
+                                        <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Supabase Project URL</label>
+                                        <input
+                                            type="text"
+                                            value={supabaseUrlInput}
+                                            onChange={e => setSupabaseUrlInput(e.target.value)}
+                                            placeholder="https://xyzcompany.supabase.co"
+                                            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white outline-none focus:border-sky-500 font-mono"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Supabase Anon Key</label>
+                                        <input
+                                            type="password"
+                                            value={supabaseKeyInput}
+                                            onChange={e => setSupabaseKeyInput(e.target.value)}
+                                            placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6..."
+                                            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white outline-none focus:border-sky-500 font-mono"
+                                        />
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={handleSaveSupabaseConfig}
+                                        className="w-full bg-blue-600 hover:bg-blue-500 text-white text-xs font-black py-2 rounded-lg uppercase tracking-wider transition-all shadow"
+                                    >
+                                        💾 Supabase ক্রেডেনশিয়াল সেভ ও কানেক্ট করুন
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
                     <button 
                         onClick={handleRestoreFromCache} 
                         disabled={isRestoring}

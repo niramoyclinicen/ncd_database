@@ -91,10 +91,18 @@ const initialShareholders: Shareholder[] = [
 ];
 
 const monthOptions = [
-    { value: 0, name: 'January' }, { value: 1, name: 'February' }, { value: 2, name: 'March' },
-    { value: 3, name: 'April' }, { value: 4, name: 'May' }, { value: 5, name: 'June' },
-    { value: 6, name: 'July' }, { value: 7, name: 'August' }, { value: 8, name: 'September' },
-    { value: 9, name: 'October' }, { value: 10, name: 'November' }, { value: 11, name: 'December' }
+    { value: 0, name: 'January', bnName: 'জানুয়ারি' },
+    { value: 1, name: 'February', bnName: 'ফেব্রুয়ারি' },
+    { value: 2, name: 'March', bnName: 'মার্চ' },
+    { value: 3, name: 'April', bnName: 'এপ্রিল' },
+    { value: 4, name: 'May', bnName: 'মে' },
+    { value: 5, name: 'June', bnName: 'জুন' },
+    { value: 6, name: 'July', bnName: 'জুলাই' },
+    { value: 7, name: 'August', bnName: 'আগস্ট' },
+    { value: 8, name: 'September', bnName: 'সেপ্টেম্বর' },
+    { value: 9, name: 'October', bnName: 'অক্টোবর' },
+    { value: 10, name: 'November', bnName: 'নভেম্বর' },
+    { value: 11, name: 'December', bnName: 'ডিসেম্বর' }
 ];
 
 const expenseMapSequence = [
@@ -852,7 +860,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
     return (
         <div className="min-h-screen bg-slate-100 flex flex-col font-['Inter']">
             <header className="bg-slate-800 p-4 border-b border-slate-700 sticky top-0 z-[100] no-print flex flex-col md:flex-row justify-between items-center text-white gap-4 pt-16 md:pt-4 shadow-xl">
-                <div className="flex items-center">
+                <div className="flex items-center gap-3">
                     <button 
                         onClick={onBack} 
                         className="p-2 bg-slate-700/90 hover:bg-slate-600 rounded-full text-yellow-400 hover:text-yellow-300 transition-all shadow-md active:scale-95 flex items-center justify-center"
@@ -860,6 +868,9 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                     >
                         <BackIcon className="w-5 h-5 text-yellow-400" />
                     </button>
+                    <span className="hidden sm:inline-block text-xs font-bold text-slate-300 uppercase tracking-widest">
+                        কনসোলিডেটেড রিপোর্ট
+                    </span>
                 </div>
                 <div className="flex bg-slate-900/50 p-1 rounded-lg border border-slate-700 overflow-x-auto max-w-full">
                     <button onClick={() => setActiveTab('monthly_expense_sheet')} className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all whitespace-nowrap ${activeTab === 'monthly_expense_sheet' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}>Monthly Expense Sheet</button>
@@ -873,11 +884,96 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                     <button onClick={() => setActiveTab('future_plans')} className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all whitespace-nowrap ${activeTab === 'future_plans' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}>Future Plans</button>
                     <button onClick={() => setActiveTab('shareholder_mgmt')} className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all whitespace-nowrap ${activeTab === 'shareholder_mgmt' ? 'bg-slate-700 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}>Partner Mgmt</button>
                 </div>
-                <div className="flex gap-4 items-center">
-                    <select value={selectedMonth} onChange={e => setSelectedMonth(parseInt(e.target.value))} className="bg-slate-700 border-none rounded p-1 text-white text-xs">{monthOptions.map(m => <option key={m.value} value={m.value}>{m.name}</option>)}</select>
-                    <select value={selectedYear} onChange={e => setSelectedYear(parseInt(e.target.value))} className="bg-slate-700 border-none rounded p-1 text-white text-xs">{[2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}</select>
+                <div className="flex items-center gap-2 bg-slate-900/80 px-3 py-1.5 rounded-xl border border-slate-700 shadow-inner">
+                    <span className="text-[11px] font-bold text-amber-400 whitespace-nowrap">📅 মাস/বছর:</span>
+                    <select 
+                        value={selectedMonth} 
+                        onChange={e => setSelectedMonth(parseInt(e.target.value))} 
+                        className="bg-slate-800 border border-slate-600 rounded px-2 py-1 text-white text-xs font-bold focus:ring-2 focus:ring-amber-400 outline-none"
+                    >
+                        {monthOptions.map(m => (
+                            <option key={m.value} value={m.value}>
+                                {m.bnName} ({m.name})
+                            </option>
+                        ))}
+                    </select>
+                    <select 
+                        value={selectedYear} 
+                        onChange={e => setSelectedYear(parseInt(e.target.value))} 
+                        className="bg-slate-800 border border-slate-600 rounded px-2 py-1 text-white text-xs font-bold focus:ring-2 focus:ring-amber-400 outline-none font-mono"
+                    >
+                        {[2023, 2024, 2025, 2026, 2027, 2028, 2029, 2030].map(y => (
+                            <option key={y} value={y}>{y}</option>
+                        ))}
+                    </select>
                 </div>
             </header>
+
+            {/* Persistent Month Switcher & Overview Bar */}
+            <div className="no-print bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 border-b border-slate-700 text-white px-4 py-2.5 flex flex-wrap items-center justify-between gap-3 shadow-md z-40">
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={() => {
+                            if (selectedMonth === 0) {
+                                setSelectedMonth(11);
+                                setSelectedYear(prev => prev - 1);
+                            } else {
+                                setSelectedMonth(prev => prev - 1);
+                            }
+                        }}
+                        className="px-2.5 py-1 bg-slate-700 hover:bg-slate-600 text-amber-300 hover:text-white rounded-lg text-xs font-bold transition flex items-center gap-1 border border-slate-600 shadow"
+                        title="পূর্ববর্তী মাস"
+                    >
+                        ◀ পূর্ববর্তী মাস
+                    </button>
+                    <div className="bg-slate-950/80 px-4 py-1 rounded-lg border border-amber-500/40 flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                        <span className="text-xs text-slate-300">প্রদর্শিত রিপোর্ট:</span>
+                        <span className="text-sm font-black text-amber-400 font-['Hind_Siliguri']">
+                            {monthOptions[selectedMonth]?.bnName || monthOptions[selectedMonth]?.name} {selectedYear}
+                        </span>
+                        <span className="text-[11px] text-slate-400">({monthOptions[selectedMonth]?.name} {selectedYear})</span>
+                    </div>
+                    <button
+                        onClick={() => {
+                            if (selectedMonth === 11) {
+                                setSelectedMonth(0);
+                                setSelectedYear(prev => prev + 1);
+                            } else {
+                                setSelectedMonth(prev => prev + 1);
+                            }
+                        }}
+                        className="px-2.5 py-1 bg-slate-700 hover:bg-slate-600 text-amber-300 hover:text-white rounded-lg text-xs font-bold transition flex items-center gap-1 border border-slate-600 shadow"
+                        title="পরবর্তী মাস"
+                    >
+                        পরবর্তী মাস ▶
+                    </button>
+                </div>
+
+                <div className="flex items-center gap-3">
+                    <span className="text-xs text-slate-400">দ্রুত মাস পরিবর্তন:</span>
+                    <div className="flex flex-wrap gap-1">
+                        {monthOptions.slice(0, 6).map(m => (
+                            <button
+                                key={m.value}
+                                onClick={() => setSelectedMonth(m.value)}
+                                className={`px-2 py-0.5 rounded text-[11px] font-bold transition ${selectedMonth === m.value ? 'bg-amber-500 text-black shadow' : 'bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white'}`}
+                            >
+                                {m.name.substring(0, 3)}
+                            </button>
+                        ))}
+                        {monthOptions.slice(6, 12).map(m => (
+                            <button
+                                key={m.value}
+                                onClick={() => setSelectedMonth(m.value)}
+                                className={`px-2 py-0.5 rounded text-[11px] font-bold transition ${selectedMonth === m.value ? 'bg-amber-500 text-black shadow' : 'bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white'}`}
+                            >
+                                {m.name.substring(0, 3)}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            </div>
 
             <div className="flex-1 overflow-y-auto p-4 md:p-8 bg-slate-200">
                 
@@ -1051,19 +1147,24 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                 </div>
                                 <h3 className="text-sm font-bold underline uppercase tracking-widest bg-gray-50 px-3 py-1 border border-black font-['Hind_Siliguri']">অ্যাকাউন্টস শিট : {monthOptions[selectedMonth].name}, {selectedYear}</h3>
                             </div>
-                            <div className="grid grid-cols-2 gap-4 sm:gap-6 flex-1 min-w-0">
-                                <div className="space-y-3 min-w-0">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start flex-1 min-w-0">
+                                <div className="space-y-3 min-w-0 w-full">
                                     <div className="bg-gray-100 text-slate-900 border-2 border-black p-1 text-center font-black text-xs font-['Hind_Siliguri'] uppercase shadow-sm relative overflow-hidden">
                                         <div className="absolute inset-0 opacity-10 pointer-events-none bg-[radial-gradient(#000_1px,transparent_1px)] [background-size:10px_10px]"></div>
                                         কালেকশন এর হিসাব
                                     </div>
-                                    <div className="space-y-2.5">
+                                    <div className="space-y-2.5 w-full">
                                     <div className="space-y-0.5">
                                         <div className="text-[13px] font-black font-['Hind_Siliguri'] underline mb-0.5">ক) ডায়াগনস্টিক হইতে :</div>
                                         <table className="w-full border border-black border-collapse table-fixed">
+                                            <colgroup>
+                                                <col style={{ width: '28px' }} />
+                                                <col />
+                                                <col style={{ width: '95px' }} />
+                                            </colgroup>
                                             <tbody>
-                                                <tr className="h-8"><td className="p-1 border border-black text-center w-7 text-xs">১</td><td className={collectionTableCellClass}>বর্তমান মাসের ক্যাশ</td><td className={collectionAmtCellClass}>{safeNum(summary.diagCurrent).toLocaleString()}</td></tr>
-                                                <tr className="h-8"><td className="p-1 border border-black text-center w-7 text-xs">২</td><td className={collectionTableCellClass}>বকেয়া আদায়</td><td className={collectionAmtCellClass}>{safeNum(summary.diagDue).toLocaleString()}</td></tr>
+                                                <tr className="h-8"><td className="p-1 border border-black text-center text-xs">১</td><td className={collectionTableCellClass}>বর্তমান মাসের ক্যাশ</td><td className={collectionAmtCellClass}>{safeNum(summary.diagCurrent).toLocaleString()}</td></tr>
+                                                <tr className="h-8"><td className="p-1 border border-black text-center text-xs">২</td><td className={collectionTableCellClass}>বকেয়া আদায়</td><td className={collectionAmtCellClass}>{safeNum(summary.diagDue).toLocaleString()}</td></tr>
                                                 <tr className="bg-gray-50 font-black h-8"><td colSpan={2} className="p-1 text-right text-[11px]">ডায়াগনস্টিক মোট :</td><td className={collectionAmtCellClass}>{safeNum(summary.totalDiag).toLocaleString()}</td></tr>
                                             </tbody>
                                         </table>
@@ -1071,9 +1172,14 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                     <div className="space-y-0.5">
                                         <div className="text-[13px] font-black font-['Hind_Siliguri'] underline mb-0.5">খ) ক্লিনিক হইতে :</div>
                                         <table className="w-full border border-black border-collapse table-fixed">
+                                            <colgroup>
+                                                <col style={{ width: '28px' }} />
+                                                <col />
+                                                <col style={{ width: '95px' }} />
+                                            </colgroup>
                                             <tbody>
-                                                <tr className="h-8"><td className="p-1 border border-black text-center w-7 text-xs">১</td><td className={collectionTableCellClass}>বর্তমান মাসের ক্যাশ</td><td className={collectionAmtCellClass}>{safeNum(summary.clinicCurrent).toLocaleString()}</td></tr>
-                                                <tr className="h-8"><td className="p-1 border border-black text-center w-7 text-xs">২</td><td className={collectionTableCellClass}>বকেয়া আদায়</td><td className={collectionAmtCellClass}>{safeNum(summary.clinicDue).toLocaleString()}</td></tr>
+                                                <tr className="h-8"><td className="p-1 border border-black text-center text-xs">১</td><td className={collectionTableCellClass}>বর্তমান মাসের ক্যাশ</td><td className={collectionAmtCellClass}>{safeNum(summary.clinicCurrent).toLocaleString()}</td></tr>
+                                                <tr className="h-8"><td className="p-1 border border-black text-center text-xs">২</td><td className={collectionTableCellClass}>বকেয়া আদায়</td><td className={collectionAmtCellClass}>{safeNum(summary.clinicDue).toLocaleString()}</td></tr>
                                                 <tr className="bg-gray-100 font-black h-8"><td colSpan={2} className="p-1 text-right text-[11px]">ক্লিনিক মোট :</td><td className={collectionAmtCellClass}>{safeNum(summary.totalClinic).toLocaleString()}</td></tr>
                                             </tbody>
                                         </table>
@@ -1081,9 +1187,14 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                     <div className="space-y-0.5">
                                         <div className="text-[13px] font-black font-['Hind_Siliguri'] underline mb-0.5">গ) ঔষধ হইতে (নিট মুনাফা) :</div>
                                         <table className="w-full border border-black border-collapse table-fixed">
+                                            <colgroup>
+                                                <col style={{ width: '28px' }} />
+                                                <col />
+                                                <col style={{ width: '95px' }} />
+                                            </colgroup>
                                             <tbody>
-                                                <tr className="h-8"><td className="p-1 border border-black text-center w-7 text-xs">১</td><td className={collectionTableCellClass}>মোট ঔষধ বিক্রয়</td><td className={collectionAmtCellClass}>{safeNum(summary.medSalesCurrent).toLocaleString()}</td></tr>
-                                                <tr className="h-8"><td className="p-1 border border-black text-center w-7 text-xs">২</td><td className={collectionTableCellClass}>মোট ঔষধ ক্রয়</td><td className={`${collectionAmtCellClass} text-rose-600`}>({safeNum(summary.medPurchCurrent).toLocaleString()})</td></tr>
+                                                <tr className="h-8"><td className="p-1 border border-black text-center text-xs">১</td><td className={collectionTableCellClass}>মোট ঔষধ বিক্রয়</td><td className={collectionAmtCellClass}>{safeNum(summary.medSalesCurrent).toLocaleString()}</td></tr>
+                                                <tr className="h-8"><td className="p-1 border border-black text-center text-xs">২</td><td className={collectionTableCellClass}>মোট ঔষধ ক্রয়</td><td className={`${collectionAmtCellClass} text-rose-600`}>({safeNum(summary.medPurchCurrent).toLocaleString()})</td></tr>
                                                 <tr className="bg-gray-100 font-black h-8"><td colSpan={2} className="p-1 text-right text-[11px]">নিট ঔষধ মুনাফা :</td><td className={collectionAmtCellClass}>{safeNum(summary.totalMedNet).toLocaleString()}</td></tr>
                                             </tbody>
                                         </table>
@@ -1091,6 +1202,11 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                     <div className="space-y-0.5">
                                         <div className="text-[13px] font-black font-['Hind_Siliguri'] underline mb-0.5">ঘ) কোম্পানি হইতে প্রাপ্তি :</div>
                                         <table className="w-full border border-black border-collapse table-fixed">
+                                            <colgroup>
+                                                <col style={{ width: '28px' }} />
+                                                <col />
+                                                <col style={{ width: '95px' }} />
+                                            </colgroup>
                                             <tbody>
                                                 <tr className="bg-gray-50 font-black h-8"><td colSpan={2} className="p-1 text-right text-[11px]">কোম্পানি মোট :</td><td className={collectionAmtCellClass}>{safeNum(summary.companyCurrent).toLocaleString()}</td></tr>
                                             </tbody>
@@ -1098,12 +1214,17 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                     </div>
                                     <div className="mt-2 border-t-2 border-black pt-1">
                                         <table className="w-full border-2 border-black border-collapse table-fixed">
+                                            <colgroup>
+                                                <col style={{ width: '28px' }} />
+                                                <col />
+                                                <col style={{ width: '95px' }} />
+                                            </colgroup>
                                             <tbody>
                                                 <tr className="bg-gray-50 h-9">
-                                                    <td colSpan={2} className={`${collectionTableCellClass} !text-left`}>
-                                                        <div className="flex justify-between items-center w-full px-1">
+                                                    <td colSpan={2} className={`${collectionTableCellClass} !text-left !p-1`}>
+                                                        <div className="flex justify-between items-center w-full">
                                                             <span className="whitespace-nowrap font-bold text-slate-800 text-[11px]">বাড়ী ভাড়া কর্তন</span>
-                                                            <div className="no-print flex items-center gap-1 justify-end ml-1">
+                                                            <div className="no-print flex items-center gap-1">
                                                                 <input 
                                                                     type="number" 
                                                                     min="0"
@@ -1113,12 +1234,12 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                                                         const v = e.target.value === '' ? 0 : parseFloat(e.target.value);
                                                                         updateAdjustment('houseRent', isNaN(v) ? 0 : v);
                                                                     }} 
-                                                                    className="w-16 sm:w-20 px-1.5 py-0.5 text-right border border-gray-400 bg-white rounded text-[11px] font-bold font-['JetBrains_Mono'] focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-sm shrink-0" 
+                                                                    className="w-14 sm:w-16 px-1 py-0.5 text-right border border-gray-400 bg-white rounded text-[10px] font-bold font-['JetBrains_Mono'] focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-sm shrink-0" 
                                                                 />
                                                                 <button 
                                                                     type="button"
                                                                     onClick={() => setShowSaveConfirm(true)} 
-                                                                    className="p-1 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors shadow-sm active:scale-95 flex items-center gap-0.5 shrink-0" 
+                                                                    className="p-1 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors shadow-sm active:scale-95 flex items-center shrink-0" 
                                                                     title="Save"
                                                                 >
                                                                     <SaveIcon className="w-3 h-3" />
@@ -1145,10 +1266,10 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                                 
                                                 <tr className="bg-rose-50/30 h-8"><td colSpan={2} className={`${collectionTableCellClass} text-rose-900 text-[11px]`}>মোট খরচ (B)</td><td className={`${collectionAmtCellClass} text-rose-900`}>({safeNum(summary.totalExpense).toLocaleString()})</td></tr>
                                                 <tr className="bg-amber-50/40 h-9">
-                                                    <td colSpan={2} className={`${collectionTableCellClass} !text-left text-amber-900`}>
-                                                        <div className="flex justify-between items-center w-full px-1">
+                                                    <td colSpan={2} className={`${collectionTableCellClass} !text-left !p-1 text-amber-900`}>
+                                                        <div className="flex justify-between items-center w-full">
                                                             <span className="whitespace-nowrap font-bold text-amber-950 text-[11px]">লভ্যাংশ বন্টন</span>
-                                                            <div className="no-print flex items-center gap-1 justify-end ml-1">
+                                                            <div className="no-print flex items-center gap-1">
                                                                 <input 
                                                                     type="number" 
                                                                     min="0"
@@ -1158,12 +1279,12 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                                                         const v = e.target.value === '' ? 0 : parseFloat(e.target.value);
                                                                         updateAdjustment('profitDist', isNaN(v) ? 0 : v);
                                                                     }} 
-                                                                    className="w-16 sm:w-20 px-1.5 py-0.5 text-right border border-amber-400 bg-white rounded text-[11px] font-bold text-amber-950 font-['JetBrains_Mono'] focus:outline-none focus:ring-1 focus:ring-amber-500 shadow-sm shrink-0" 
+                                                                    className="w-14 sm:w-16 px-1 py-0.5 text-right border border-amber-400 bg-white rounded text-[10px] font-bold text-amber-950 font-['JetBrains_Mono'] focus:outline-none focus:ring-1 focus:ring-amber-500 shadow-sm shrink-0" 
                                                                 />
                                                                 <button 
                                                                     type="button"
                                                                     onClick={() => setShowSaveConfirm(true)} 
-                                                                    className="p-1 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors shadow-sm active:scale-95 flex items-center gap-0.5 shrink-0" 
+                                                                    className="p-1 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors shadow-sm active:scale-95 flex items-center shrink-0" 
                                                                     title="Save"
                                                                 >
                                                                     <SaveIcon className="w-3 h-3" />
@@ -1185,12 +1306,17 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                     </div>
                                     </div>
                                 </div>
-                                <div className="space-y-3 flex flex-col min-w-0">
+                                <div className="space-y-3 flex flex-col min-w-0 w-full">
                                     <div className="bg-gray-100 text-slate-900 border-2 border-black p-1 text-center font-black text-xs font-['Hind_Siliguri'] uppercase shadow-sm relative overflow-hidden">
                                         <div className="absolute inset-0 opacity-10 pointer-events-none bg-[radial-gradient(#000_1px,transparent_1px)] [background-size:10px_10px]"></div>
                                         খরচের হিসাব
                                     </div>
                                     <table className="w-full border-2 border-black flex-1 border-collapse table-fixed">
+                                        <colgroup>
+                                            <col style={{ width: '28px' }} />
+                                            <col />
+                                            <col style={{ width: '95px' }} />
+                                        </colgroup>
                                         <thead><tr className="bg-gray-50"><th className="p-1 border border-black w-7 text-[10px]">ক্র.</th><th className="p-1 border border-black text-left text-[10px]">বিবরণ</th><th className="p-1 border border-black w-[95px] text-[10px]">টাকা</th></tr></thead>
                                         <tbody>
                                             {expenseMapSequence.map((item, idx) => (

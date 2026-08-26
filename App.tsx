@@ -373,10 +373,24 @@ const AppContent = () => {
               purchaseInvoices={data.purchaseInvoices}
               dueCollections={data.dueCollections}
               detailedExpenses={data.detailedExpenses}
+              setDetailedExpenses={data.setDetailedExpenses}
               reagents={data.reagents}
+              setReagents={data.setReagents}
               medicines={data.medicines}
               employees={data.employees}
+              setEmployees={data.setEmployees}
               attendanceLog={data.attendanceLog}
+              setAttendanceLog={data.setAttendanceLog}
+              leaveLog={data.leaveLog}
+              setLeaveLog={data.setLeaveLog}
+              monthlyRoster={data.monthlyRoster}
+              setMonthlyRoster={data.setMonthlyRoster}
+              patients={data.patients}
+              doctors={data.doctors}
+              tests={data.tests}
+              diagnosticSettings={data.diagnosticSettings}
+              setDiagnosticSettings={data.setDiagnosticSettings}
+              performBlockingSync={data.performBlockingSync}
             />
           </RequireAuth>
         } />
