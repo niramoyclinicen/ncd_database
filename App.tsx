@@ -209,7 +209,7 @@ const AppContent = () => {
               referrars={data.referrars} setReferrars={data.setReferrars}
               tests={data.tests} setTests={data.setTests}
               reagents={data.reagents} setReagents={data.setReagents}
-              labInvoices={data.labInvoices} setLabInvoices={data.setLabInvoices}
+              invoices={data.labInvoices} setLabInvoices={data.setLabInvoices}
               dueCollections={data.dueCollections} setDueCollections={data.setDueCollections}
               reports={data.reports} setReports={data.setReports} rtTemplates={data.rtTemplates} setRtTemplates={data.setRtTemplates}
               employees={data.employees} setEmployees={data.setEmployees}
@@ -263,7 +263,7 @@ const AppContent = () => {
           <RequireAuth requiredRole="ACCOUNTING_ADMIN" dept="ACCOUNTING" targetPath="/accounting">
             <AccountingPage 
               onBack={() => navigate('/')}
-              labInvoices={data.labInvoices}
+              invoices={data.labInvoices}
               indoorInvoices={data.indoorInvoices}
               salesInvoices={data.salesInvoices}
               purchaseInvoices={data.purchaseInvoices}
