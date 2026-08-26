@@ -466,8 +466,8 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
     }
   };
 
-  const handleTestSelect = (testId: string, testName: string) => {
-    const selectedTest = tests.find(t => t.test_id === testId);
+  const handleTestSelect = (testId: string, testName?: string, newlyCreatedTest?: Test) => {
+    const selectedTest = newlyCreatedTest || tests.find(t => t.test_id === testId);
     if (selectedTest) {
       if (!getTestAvailability(selectedTest, reagents)) {
         alert(`Test "${selectedTest.test_name}" is currently unavailable due to insufficient reagent stock.`);
@@ -490,6 +490,7 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
           })
         }));
         if (errors.items) setErrors(prev => ({...prev, items: false}));
+        setShowNewTestForm(false);
         return;
       }
       const newItem: LabInvoiceItem = {
@@ -504,6 +505,7 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
       };
       setFormData(prev => ({ ...prev, items: [...prev.items, newItem] }));
       if (errors.items) setErrors(prev => ({...prev, items: false}));
+      setShowNewTestForm(false);
     }
   };
 

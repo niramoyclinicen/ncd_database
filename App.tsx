@@ -144,47 +144,69 @@ const SidebarLayout = ({ children, onLogout }: { children: React.ReactNode, onLo
   );
 };
 
+const defaultDepartmentPasswords: Record<string, string> = {
+  DIAGNOSTIC: 'diag123',
+  LAB_REPORTING: 'lab123',
+  CLINIC: 'clinic123',
+  ACCOUNTING: 'acc123',
+  MEDICINE: 'med123',
+  ADMIN: 'niramoy123'
+};
+
+interface RequireAuthProps {
+  children: React.ReactNode;
+  requiredRole: UserRole;
+  dept: keyof DepartmentPasswords;
+  targetPath: string;
+  userRole: UserRole;
+  passwords: DepartmentPasswords;
+  onLoginSuccess: (role: UserRole, targetPath: string) => void;
+  onBack: () => void;
+}
+
+const RequireAuth: React.FC<RequireAuthProps> = ({
+  children,
+  requiredRole,
+  dept,
+  targetPath,
+  userRole,
+  passwords,
+  onLoginSuccess,
+  onBack,
+}) => {
+  if (userRole !== requiredRole && userRole !== 'ADMIN') {
+    return (
+      <div className="h-full w-full flex flex-col items-center justify-center bg-slate-950 overflow-y-auto">
+        <DepartmentLogin 
+          department={dept} 
+          onLogin={(pwd) => {
+            const enteredPwd = pwd.trim();
+            let storedPwd = (passwords[dept] || defaultDepartmentPasswords[dept] || '').trim();
+            if (dept === 'ADMIN' && !storedPwd) storedPwd = 'niramoy123';
+            
+            if (enteredPwd === storedPwd) {
+              onLoginSuccess(requiredRole, targetPath);
+            } else {
+              alert("ভুল পাসওয়ার্ড!");
+            }
+          }} 
+          onBack={onBack} 
+        />
+      </div>
+    );
+  }
+  return <>{children}</>;
+};
+
 const AppContent = () => {
   const data = useAppData();
   const navigate = useNavigate();
   const location = useLocation();
 
-  const defaultDepartmentPasswords: Record<string, string> = {
-    DIAGNOSTIC: 'diag123',
-    LAB_REPORTING: 'lab123',
-    CLINIC: 'clinic123',
-    ACCOUNTING: 'acc123',
-    MEDICINE: 'med123',
-    ADMIN: 'niramoy123'
-  };
-
-  const RequireAuth = ({ children, requiredRole, dept, targetPath }: { children: React.ReactNode, requiredRole: UserRole, dept: keyof DepartmentPasswords, targetPath: string }) => {
-    if (data.userRole !== requiredRole && data.userRole !== 'ADMIN') {
-      return (
-        <div className="h-full w-full flex flex-col items-center justify-center bg-slate-950 overflow-y-auto">
-           <DepartmentLogin 
-             department={dept} 
-             onLogin={(pwd) => handleDepartmentLogin(pwd, dept, requiredRole, targetPath)} 
-             onBack={() => navigate('/')} 
-           />
-        </div>
-      );
-    }
-    return <>{children}</>;
-  };
-
-  const handleDepartmentLogin = (password: string, dept: keyof DepartmentPasswords, role: UserRole, targetPath: string) => {
-    const enteredPwd = password.trim();
-    let storedPwd = (data.passwords[dept] || defaultDepartmentPasswords[dept] || '').trim();
-    if (dept === 'ADMIN' && !storedPwd) storedPwd = 'niramoy123';
-    
-    if (enteredPwd === storedPwd) {
-      data.setUserRole(role);
-      if (role === 'ADMIN') data.setIsAdminLoggedIn(true);
-      navigate(targetPath);
-    } else {
-      alert("ভুল পাসওয়ার্ড!");
-    }
+  const handleLoginSuccess = (role: UserRole, targetPath: string) => {
+    data.setUserRole(role);
+    if (role === 'ADMIN') data.setIsAdminLoggedIn(true);
+    navigate(targetPath);
   };
 
   if (data.connectionError && !data.isDataLoaded) {
@@ -250,7 +272,15 @@ const AppContent = () => {
         } />
         
         <Route path="/diagnostic" element={
-          <RequireAuth requiredRole="DIAGNOSTIC_ADMIN" dept="DIAGNOSTIC" targetPath="/diagnostic">
+          <RequireAuth 
+            requiredRole="DIAGNOSTIC_ADMIN" 
+            dept="DIAGNOSTIC" 
+            targetPath="/diagnostic"
+            userRole={data.userRole}
+            passwords={data.passwords}
+            onLoginSuccess={handleLoginSuccess}
+            onBack={() => navigate('/')}
+          >
             <DiagnosticPage 
               onBack={() => navigate('/')} 
               userRole={data.userRole}
@@ -277,7 +307,15 @@ const AppContent = () => {
         } />
 
         <Route path="/clinic" element={
-          <RequireAuth requiredRole="CLINIC_ADMIN" dept="CLINIC" targetPath="/clinic">
+          <RequireAuth 
+            requiredRole="CLINIC_ADMIN" 
+            dept="CLINIC" 
+            targetPath="/clinic"
+            userRole={data.userRole}
+            passwords={data.passwords}
+            onLoginSuccess={handleLoginSuccess}
+            onBack={() => navigate('/')}
+          >
             <ClinicPage 
               onBack={() => navigate('/')}
               patients={data.patients} setPatients={data.setPatients}
@@ -294,7 +332,15 @@ const AppContent = () => {
         } />
 
         <Route path="/medicine" element={
-          <RequireAuth requiredRole="MEDICINE_ADMIN" dept="MEDICINE" targetPath="/medicine">
+          <RequireAuth 
+            requiredRole="MEDICINE_ADMIN" 
+            dept="MEDICINE" 
+            targetPath="/medicine"
+            userRole={data.userRole}
+            passwords={data.passwords}
+            onLoginSuccess={handleLoginSuccess}
+            onBack={() => navigate('/')}
+          >
             <MedicinePage 
               onBack={() => navigate('/')}
               medicines={data.medicines} setMedicines={data.setMedicines}
@@ -310,7 +356,15 @@ const AppContent = () => {
         } />
 
         <Route path="/accounting" element={
-          <RequireAuth requiredRole="ACCOUNTING_ADMIN" dept="ACCOUNTING" targetPath="/accounting">
+          <RequireAuth 
+            requiredRole="ACCOUNTING_ADMIN" 
+            dept="ACCOUNTING" 
+            targetPath="/accounting"
+            userRole={data.userRole}
+            passwords={data.passwords}
+            onLoginSuccess={handleLoginSuccess}
+            onBack={() => navigate('/')}
+          >
             <AccountingPage 
               onBack={() => navigate('/')}
               invoices={data.labInvoices}
@@ -328,7 +382,15 @@ const AppContent = () => {
         } />
 
         <Route path="/marketing" element={
-          <RequireAuth requiredRole="DIAGNOSTIC_ADMIN" dept="DIAGNOSTIC" targetPath="/marketing">
+          <RequireAuth 
+            requiredRole="DIAGNOSTIC_ADMIN" 
+            dept="DIAGNOSTIC" 
+            targetPath="/marketing"
+            userRole={data.userRole}
+            passwords={data.passwords}
+            onLoginSuccess={handleLoginSuccess}
+            onBack={() => navigate('/')}
+          >
             <MarketingPage 
               onBack={() => navigate('/')}
               employees={data.employees}
@@ -344,7 +406,15 @@ const AppContent = () => {
         } />
 
         <Route path="/settings" element={
-          <RequireAuth requiredRole="ADMIN" dept="ADMIN" targetPath="/settings">
+          <RequireAuth 
+            requiredRole="ADMIN" 
+            dept="ADMIN" 
+            targetPath="/settings"
+            userRole={data.userRole}
+            passwords={data.passwords}
+            onLoginSuccess={handleLoginSuccess}
+            onBack={() => navigate('/')}
+          >
             <AdminSettings 
               onBack={() => navigate('/')}
               passwords={data.passwords}

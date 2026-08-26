@@ -172,11 +172,21 @@ const DiagnosticPage: React.FC<DiagnosticPageProps> = ({
   const isLabReporter = userRole === 'LAB_REPORTER';
   const isDiagAdmin = userRole === 'DIAGNOSTIC_ADMIN';
   
-  const [activeTab, setActiveTab] = useState<DiagnosticSubPage>(() => isLabReporter ? 'lab_reporting' : 'doctor_appointment');
+  const [activeTab, setActiveTab] = useState<DiagnosticSubPage>(() => {
+    if (isLabReporter) return 'lab_reporting';
+    const saved = sessionStorage.getItem('ncd_diag_active_tab') as DiagnosticSubPage;
+    if (saved && ['doctor_appointment', 'lab_invoice', 'due_collection', 'lab_reporting', 'report_delivery', 'test_info', 'reagent_info', 'diagnostic_accounts', 'marketing_overview'].includes(saved)) {
+      return saved;
+    }
+    return 'doctor_appointment';
+  });
   const activeTabRef = useRef(activeTab);
 
   useEffect(() => {
     activeTabRef.current = activeTab;
+    try {
+      sessionStorage.setItem('ncd_diag_active_tab', activeTab);
+    } catch {}
   }, [activeTab]);
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);

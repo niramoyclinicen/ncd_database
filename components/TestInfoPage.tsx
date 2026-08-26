@@ -10,7 +10,7 @@ interface Props {
     setTests: React.Dispatch<React.SetStateAction<Test[]>>;
     isEmbedded?: boolean;
     onClose?: () => void;
-    onSaveAndSelect?: (id: string, name: string) => void;
+    onSaveAndSelect?: (id: string, name: string, testObj?: Test) => void;
     performBlockingSync?: (overrides?: any) => Promise<boolean>;
 }
 
@@ -24,9 +24,40 @@ const TestInfoPage: React.FC<Props> = ({ reagents, tests, setTests, isEmbedded =
 
   const [tempSubTests, setTempSubTests] = useState<SubTest[]>([]);
 
+  // Generate unique test ID
+  const generateNewTestId = React.useCallback(() => {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    const dateStr = `${year}${month}${day}`;
+    const prefix = `TEST-${dateStr}-`;
+    
+    const safeTests = Array.isArray(tests) ? tests : [];
+    let maxCounter = 0;
+    safeTests.forEach(t => {
+      if (t && t.test_id && t.test_id.startsWith(prefix)) {
+        const numPart = t.test_id.replace(prefix, '');
+        const num = parseInt(numPart, 10);
+        if (!isNaN(num) && num > maxCounter) {
+          maxCounter = num;
+        }
+      }
+    });
+    
+    const nextCount = maxCounter > 0 ? maxCounter + 1 : safeTests.length + 1;
+    return `${prefix}${String(nextCount).padStart(3, '0')}`;
+  }, [tests]);
+
+  useEffect(() => {
+    if (!isEditing && !formData.test_id) {
+      const newId = generateNewTestId();
+      setFormData(prev => ({ ...prev, test_id: newId }));
+    }
+  }, [isEditing, formData.test_id, generateNewTestId]);
+
   useEffect(() => {
     if (successMessage) {
-        // Reduced duration to 3 seconds as requested
         const timer = setTimeout(() => setSuccessMessage(''), 3000);
         return () => clearTimeout(timer);
     }
@@ -59,7 +90,7 @@ const TestInfoPage: React.FC<Props> = ({ reagents, tests, setTests, isEmbedded =
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
     if (type === 'number') {
-      setFormData(prev => ({ ...prev, [name]: parseFloat(value) || 0 }));
+      setFormData(prev => ({ ...prev, [name]: value === '' ? 0 : parseFloat(value) || 0 }));
     } else if (name === 'is_group_test') {
       setFormData(prev => ({ ...prev, is_group_test: (e.target as HTMLInputElement).checked }));
     } else {
@@ -87,28 +118,44 @@ const TestInfoPage: React.FC<Props> = ({ reagents, tests, setTests, isEmbedded =
   }));
 
   const resetForm = () => {
-    setFormData(emptyTest);
+    const newId = generateNewTestId();
+    setFormData({ ...emptyTest, test_id: newId });
     setSelectedTestId(null);
     setIsEditing(false);
     setTempSubTests([]);
-    if (isEmbedded && onClose) onClose();
   };
 
   const handleGetNewId = () => {
-    const today = new Date();
-    const dateStr = today.toISOString().split('T')[0].replace(/-/g, '');
-    const count = tests.length + 1;
-    const newId = `TEST-${dateStr}-${String(count).padStart(3, '0')}`;
-    resetForm();
-    setFormData({ ...emptyTest, test_id: newId });
+    const newId = generateNewTestId();
+    setFormData(prev => ({ ...prev, test_id: newId }));
+    setIsEditing(false);
+    setSelectedTestId(null);
   };
 
   const handleSaveTest = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.test_id || !formData.test_name || !formData.category) return alert("Missing info");
-    const finalTest = { ...formData, sub_tests: formData.is_group_test ? tempSubTests : [] };
+    const finalId = formData.test_id?.trim() || generateNewTestId();
+    const testName = formData.test_name?.trim();
+    const category = formData.category?.trim();
+
+    if (!testName || !category) {
+      alert("অনুগ্রহ করে টেস্টের নাম এবং ক্যাটাগরি পূরণ করুন।");
+      return;
+    }
+
+    const finalTest: Test = { 
+      ...formData, 
+      test_id: finalId,
+      test_name: testName,
+      category: category,
+      price: Number(formData.price) || 0,
+      test_commission: Number(formData.test_commission) || 0,
+      usg_exam_charge: Number(formData.usg_exam_charge) || 0,
+      extra_lab_fee: Number(formData.extra_lab_fee) || 0,
+      sub_tests: formData.is_group_test ? tempSubTests : [] 
+    };
     
-    let newTests;
+    let newTests: Test[];
     if (isEditing) {
       newTests = tests.map(t => t.test_id === finalTest.test_id ? finalTest : t);
     } else {
@@ -121,14 +168,15 @@ const TestInfoPage: React.FC<Props> = ({ reagents, tests, setTests, isEmbedded =
     }
 
     setTests(newTests);
-    if (!isEditing && isEmbedded && onSaveAndSelect) {
-      onSaveAndSelect(finalTest.test_id, finalTest.test_name);
+    
+    if (isEmbedded && onSaveAndSelect) {
+      onSaveAndSelect(finalTest.test_id, finalTest.test_name, finalTest);
     }
 
     setSuccessMessage('টেস্ট ডাটা সফলভাবে সেভ করা হয়েছে!');
     
     if (isEmbedded && onClose) {
-      setTimeout(() => onClose(), 1500); 
+      setTimeout(() => onClose(), 800); 
     } else {
       resetForm();
     }
