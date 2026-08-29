@@ -1853,38 +1853,38 @@ pdate the local state and reset form
             <thead className="bg-slate-700">
               {/* COLUMN-WISE TOTALS SUMMARY ROW */}
               <tr className="bg-slate-800 border-b border-slate-700 no-print">
-                <th colSpan={6} className="px-6 py-2 text-right text-xs font-black text-slate-400 uppercase tracking-widest">Summary Totals:</th>
-                <th className="px-6 py-2 text-right text-base font-black text-white">{(tableTotals.total || 0).toFixed(2)}</th>
-                <th className="px-6 py-2 text-right text-base font-black text-emerald-400">{(tableTotals.paid || 0).toFixed(2)}</th>
-                <th className="px-6 py-2 text-right text-base font-black text-rose-400">{(tableTotals.due || 0).toFixed(2)}</th>
-                <th colSpan={2} className="px-6 py-2 text-left text-base font-black text-blue-400 border-l border-slate-700">
+                <th colSpan={6} className="px-3 py-2 text-right text-xs font-black text-slate-400 uppercase tracking-widest">Summary Totals:</th>
+                <th className="px-3 py-2 text-right text-xs sm:text-sm font-black text-white">{(tableTotals.total || 0).toFixed(2)}</th>
+                <th className="px-3 py-2 text-right text-xs sm:text-sm font-black text-emerald-400">{(tableTotals.paid || 0).toFixed(2)}</th>
+                <th className="px-3 py-2 text-right text-xs sm:text-sm font-black text-rose-400">{(tableTotals.due || 0).toFixed(2)}</th>
+                <th colSpan={2} className="px-3 py-2 text-left text-xs sm:text-sm font-black text-blue-400 border-l border-slate-700">
                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mr-1">Income:</span>
                     {(tableTotals.income || 0).toFixed(2)}
                 </th>
               </tr>
               <tr>
-                <th scope="col" className="px-4 py-4 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">SL</th>
-                <th scope="col" className="px-6 py-4 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Invoice ID</th>
-                <th scope="col" className="px-6 py-4 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Date</th>
-                <th scope="col" className="px-6 py-4 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Patient Name</th>
-                <th scope="col" className="px-6 py-4 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Doctor</th>
-                <th scope="col" className="px-6 py-4 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Referrar</th>
-                <th scope="col" className="px-6 py-4 text-right text-xs font-medium text-slate-300 uppercase tracking-wider">Total (BDT)</th>
-                <th scope="col" className="px-6 py-4 text-right text-xs font-medium text-slate-300 uppercase tracking-wider">Paid (BDT)</th>
-                <th scope="col" className="px-6 py-4 text-right text-xs font-medium text-slate-300 uppercase tracking-wider">Due (BDT)</th>
-                <th scope="col" className="px-6 py-4 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Status</th>
-                <th scope="col" className="px-6 py-4 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Last Modified</th>
+                <th scope="col" className="px-2.5 py-3 text-left text-[11px] font-bold text-slate-300 uppercase tracking-wider w-10">SL</th>
+                <th scope="col" className="px-3 py-3 text-left text-[11px] font-bold text-slate-300 uppercase tracking-wider">Invoice ID</th>
+                <th scope="col" className="px-3 py-3 text-left text-[11px] font-bold text-slate-300 uppercase tracking-wider">Date</th>
+                <th scope="col" className="px-3 py-3 text-left text-[11px] font-bold text-slate-300 uppercase tracking-wider">Patient Name</th>
+                <th scope="col" className="px-3 py-3 text-left text-[11px] font-bold text-slate-300 uppercase tracking-wider">Doctor</th>
+                <th scope="col" className="px-3 py-3 text-left text-[11px] font-bold text-slate-300 uppercase tracking-wider">Referrar</th>
+                <th scope="col" className="px-3 py-3 text-right text-[11px] font-bold text-slate-300 uppercase tracking-wider">Total (BDT)</th>
+                <th scope="col" className="px-3 py-3 text-right text-[11px] font-bold text-slate-300 uppercase tracking-wider">Paid (BDT)</th>
+                <th scope="col" className="px-3 py-3 text-right text-[11px] font-bold text-slate-300 uppercase tracking-wider">Due (BDT)</th>
+                <th scope="col" className="px-3 py-3 text-center text-[11px] font-bold text-slate-300 uppercase tracking-wider">Status</th>
+                <th scope="col" className="px-3 py-3 text-left text-[11px] font-bold text-slate-300 uppercase tracking-wider">Last Modified</th>
               </tr>
             </thead>
             <tbody className="bg-slate-800 divide-y divide-slate-700">
               {filteredInvoices.map((invoice, index) => (
                 <tr key={invoice.invoice_id} onClick={() => handleRowClick(invoice)} className={`cursor-pointer hover:bg-slate-700/50 ${selectedInvoiceId === invoice.invoice_id ? 'bg-blue-900/40' : ''}`} aria-selected={selectedInvoiceId === invoice.invoice_id} tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && handleRowClick(invoice)}>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm text-slate-400 font-bold">{index + 1}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300 font-mono text-xs">{invoice.invoice_id}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300">{invoice.invoice_date}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-100 uppercase">
+                  <td className="px-2.5 py-2.5 whitespace-nowrap text-xs text-slate-400 font-bold">{index + 1}</td>
+                  <td className="px-3 py-2.5 whitespace-nowrap text-xs text-slate-300 font-mono">{invoice.invoice_id}</td>
+                  <td className="px-3 py-2.5 whitespace-nowrap text-xs text-slate-300">{invoice.invoice_date}</td>
+                  <td className="px-3 py-2.5 whitespace-nowrap text-xs text-slate-100 uppercase">
                     <div className="flex flex-col">
-                      <span className="font-black">{invoice.patient_name}</span>
+                      <span className="font-bold">{invoice.patient_name}</span>
                       <span className="text-[10px] text-slate-400 normal-case font-medium">
                         {(() => {
                           const p = patients.find(pt => pt.pt_id === invoice.patient_id);
@@ -1893,13 +1893,13 @@ pdate the local state and reset form
                       </span>
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300 font-medium">{invoice.doctor_name || 'N/A'}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-400 italic">{invoice.referrar_name || 'N/A'}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300 text-right">{(invoice.total_amount || 0).toFixed(2)}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300 text-right font-bold text-emerald-400">{(invoice.paid_amount || 0).toFixed(2)}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300 text-right font-bold text-rose-400">{(invoice.due_amount || 0).toFixed(2)}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300"><span className={`px-2 inline-flex text-xs leading-5 font-black uppercase rounded-full ${invoice.status === 'Paid' ? 'bg-green-900/50 text-green-300' : invoice.status === 'Due' ? 'bg-orange-900/50 text-orange-300' : invoice.status === 'Returned' ? 'bg-blue-900/50 text-blue-300' : 'bg-red-900/50 text-red-300'}`}>{invoice.status}</span></td>
-                  <td className="px-6 py-4 whitespace-nowrap text-xs text-slate-500">{invoice.last_modified}</td>
+                  <td className="px-3 py-2.5 whitespace-nowrap text-xs text-slate-300 font-medium">{invoice.doctor_name || 'N/A'}</td>
+                  <td className="px-3 py-2.5 whitespace-nowrap text-xs text-slate-400 italic">{invoice.referrar_name || 'N/A'}</td>
+                  <td className="px-3 py-2.5 whitespace-nowrap text-xs text-slate-300 text-right font-medium">{(invoice.total_amount || 0).toFixed(2)}</td>
+                  <td className="px-3 py-2.5 whitespace-nowrap text-xs text-slate-300 text-right font-bold text-emerald-400">{(invoice.paid_amount || 0).toFixed(2)}</td>
+                  <td className="px-3 py-2.5 whitespace-nowrap text-xs text-slate-300 text-right font-bold text-rose-400">{(invoice.due_amount || 0).toFixed(2)}</td>
+                  <td className="px-3 py-2.5 whitespace-nowrap text-xs text-center"><span className={`px-2 py-0.5 inline-flex text-[10px] leading-4 font-black uppercase rounded-full ${invoice.status === 'Paid' ? 'bg-green-900/50 text-green-300' : invoice.status === 'Due' ? 'bg-orange-900/50 text-orange-300' : invoice.status === 'Returned' ? 'bg-blue-900/50 text-blue-300' : 'bg-red-900/50 text-red-300'}`}>{invoice.status}</span></td>
+                  <td className="px-3 py-2.5 whitespace-nowrap text-[11px] text-slate-400 font-mono">{invoice.last_modified}</td>
                 </tr>
               ))}
               {filteredInvoices.length === 0 && (
@@ -1913,11 +1913,11 @@ pdate the local state and reset form
             {filteredInvoices.length > 0 && (
               <tfoot className="bg-slate-700/80 border-t-2 border-slate-600">
                 <tr>
-                  <td colSpan={6} className="px-6 py-4 text-right text-xs font-black text-slate-100 uppercase tracking-wider">Total:</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-100 text-right font-black border-l border-slate-600/50">{(tableTotals.total || 0).toFixed(2)}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-emerald-400 text-right font-black border-l border-slate-600/50">{(tableTotals.paid || 0).toFixed(2)}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-rose-400 text-right font-black border-l border-slate-600/50">{(tableTotals.due || 0).toFixed(2)}</td>
-                  <td colSpan={2} className="px-6 py-4 border-l border-slate-600/50"></td>
+                  <td colSpan={6} className="px-3 py-3 text-right text-xs font-black text-slate-100 uppercase tracking-wider">Total:</td>
+                  <td className="px-3 py-3 whitespace-nowrap text-xs text-slate-100 text-right font-black border-l border-slate-600/50">{(tableTotals.total || 0).toFixed(2)}</td>
+                  <td className="px-3 py-3 whitespace-nowrap text-xs text-emerald-400 text-right font-black border-l border-slate-600/50">{(tableTotals.paid || 0).toFixed(2)}</td>
+                  <td className="px-3 py-3 whitespace-nowrap text-xs text-rose-400 text-right font-black border-l border-slate-600/50">{(tableTotals.due || 0).toFixed(2)}</td>
+                  <td colSpan={2} className="px-3 py-3 border-l border-slate-600/50"></td>
                 </tr>
               </tfoot>
             )}

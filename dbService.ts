@@ -172,28 +172,52 @@ export const dbService = {
         return localState || { _error: "Supabase not initialized. Check Supabase URL & Key." };
       }
       
-      // 1. Try to fetch master monolithic state from ncd_state
+      // 1. Primary Source: Fetch master state from ncd_state
+      // We look at all records and pick the most complete master record
       let state: any = null;
       try {
         const { data: records, error } = await supabase
           .from('ncd_state')
           .select('id, data, updated_at')
-          .order('updated_at', { ascending: false })
-          .limit(1);
+          .order('updated_at', { ascending: false });
           
-        if (!error && records && records.length > 0 && records[0].data) {
-          state = records[0].data;
+        if (!error && records && records.length > 0) {
+          let bestRecord = records[0];
+          let maxScore = -1;
+          for (const r of records) {
+            if (r.data && typeof r.data === 'object') {
+              const invCount = Array.isArray(r.data.labInvoices) ? r.data.labInvoices.length : 0;
+              const expDays = r.data.detailedExpenses && typeof r.data.detailedExpenses === 'object' && !Array.isArray(r.data.detailedExpenses)
+                ? Object.keys(r.data.detailedExpenses).length 
+                : 0;
+              const ptCount = Array.isArray(r.data.patients) ? r.data.patients.length : 0;
+              const docCount = Array.isArray(r.data.doctors) ? r.data.doctors.length : 0;
+              const score = (invCount * 3) + (expDays * 10) + ptCount + docCount;
+              if (score > maxScore) {
+                maxScore = score;
+                bestRecord = r;
+              }
+            }
+          }
+          if (bestRecord && bestRecord.data) {
+            state = { ...bestRecord.data };
+          }
         }
       } catch (err) {
         console.warn("Notice fetching ncd_state:", err);
       }
 
-      // If state is not found or empty, initialize empty object
+      // If state is not found or empty, initialize with localState or empty object
       if (!state || typeof state !== 'object') {
         state = localState ? { ...localState } : {};
       }
 
-      // 2. Query individual tables in Supabase to guarantee all prior data is loaded!
+      // Ensure historical detailedExpenses is preserved as an object Record<string, ExpenseItem[]>
+      if (!state.detailedExpenses || typeof state.detailedExpenses !== 'object' || Array.isArray(state.detailedExpenses)) {
+        state.detailedExpenses = {};
+      }
+
+      // 2. Query individual tables in Supabase to non-destructively append any new records
       try {
         const [
           dbPatients,
@@ -227,228 +251,292 @@ export const dbService = {
           fetchTableSafe(supabase, 'due_collections')
         ]);
 
-        // Map patients if found in table and more complete
+        // Safely append ONLY newly added patients without overwriting existing
         if (dbPatients && dbPatients.length > 0) {
-          const mapped = dbPatients.map((p: any) => ({
-            pt_id: p.id || p.pt_id,
-            pt_name: p.name || p.pt_name || '',
-            ageY: p.age || p.ageY || '',
-            gender: p.gender || '',
-            mobile: p.phone || p.mobile || '',
-            address: p.address || '',
-            createdAt: p.createdAt || p.created_at || ''
-          }));
-          if (!state.patients || state.patients.length < mapped.length) {
-            state.patients = mapped;
-          }
+          const currentPatients = Array.isArray(state.patients) ? [...state.patients] : [];
+          const existingIds = new Set(currentPatients.map((p: any) => p.pt_id || p.id));
+          dbPatients.forEach((p: any) => {
+            const pId = p.id || p.pt_id;
+            if (pId && !existingIds.has(pId)) {
+              currentPatients.push({
+                pt_id: pId,
+                pt_name: p.name || p.pt_name || '',
+                ageY: p.age || p.ageY || '',
+                ageM: p.ageM || '',
+                ageD: p.ageD || '',
+                gender: p.gender || '',
+                mobile: p.phone || p.mobile || '',
+                address: p.address || '',
+                co_pref: p.co_pref || 'S/O',
+                co_name: p.co_name || '',
+                dobY: p.dobY || '',
+                dobM: p.dobM || '',
+                dobD: p.dobD || '',
+                thana: p.thana || '',
+                district: p.district || 'Sirajganj',
+                date_modified: p.createdAt || p.created_at || ''
+              });
+              existingIds.add(pId);
+            }
+          });
+          state.patients = currentPatients;
         }
 
-        // Map doctors
+        // Safely append ONLY newly added doctors without overwriting existing
         if (dbDoctors && dbDoctors.length > 0) {
-          const mapped = dbDoctors.map((d: any) => ({
-            doctor_id: d.id || d.doctor_id,
-            doctor_name: d.name || d.doctor_name || '',
-            degree: d.designation || d.degree || '',
-            specialty: d.specialty || '',
-            mobile: d.phone || d.mobile || '',
-            fee: d.fee || 0,
-            department: d.department || ''
-          }));
-          if (!state.doctors || state.doctors.length < mapped.length) {
-            state.doctors = mapped;
-          }
+          const currentDocs = Array.isArray(state.doctors) ? [...state.doctors] : [];
+          const existingIds = new Set(currentDocs.map((d: any) => d.doctor_id || d.id));
+          dbDoctors.forEach((d: any) => {
+            const dId = d.id || d.doctor_id;
+            if (dId && !existingIds.has(dId)) {
+              currentDocs.push({
+                doctor_id: dId,
+                doctor_name: d.name || d.doctor_name || '',
+                degree: d.designation || d.degree || '',
+                gender: d.gender || '',
+                mobile: d.phone || d.mobile || '',
+                email: d.email || '',
+                photo: d.photo || ''
+              });
+              existingIds.add(dId);
+            }
+          });
+          state.doctors = currentDocs;
         }
 
-        // Map referrars
+        // Safely append ONLY newly added referrars without overwriting existing
         if (dbReferrars && dbReferrars.length > 0) {
-          const mapped = dbReferrars.map((r: any) => ({
-            ref_id: r.id || r.ref_id,
-            ref_name: r.name || r.ref_name || '',
-            ref_mobile: r.phone || r.ref_mobile || '',
-            address: r.hospital || r.address || '',
-            area: r.district || r.area || '',
-            commission: r.commission_rate || r.commission || 0
-          }));
-          if (!state.referrars || state.referrars.length < mapped.length) {
-            state.referrars = mapped;
-          }
+          const currentRefs = Array.isArray(state.referrars) ? [...state.referrars] : [];
+          const existingIds = new Set(currentRefs.map((r: any) => r.ref_id || r.id));
+          dbReferrars.forEach((r: any) => {
+            const rId = r.id || r.ref_id;
+            if (rId && !existingIds.has(rId)) {
+              currentRefs.push({
+                ref_id: rId,
+                ref_name: r.name || r.ref_name || '',
+                ref_degrees: r.designation || r.ref_degrees || '',
+                ref_gender: r.gender || r.ref_gender || '',
+                ref_mobile: r.phone || r.ref_mobile || '',
+                address: r.hospital || r.address || '',
+                area: r.district || r.area || ''
+              });
+              existingIds.add(rId);
+            }
+          });
+          state.referrars = currentRefs;
         }
 
-        // Map employees
+        // Safely append ONLY newly added employees without overwriting existing
         if (dbEmployees && dbEmployees.length > 0) {
-          const mapped = dbEmployees.map((e: any) => ({
-            emp_id: e.id || e.emp_id,
-            emp_name: e.name || e.emp_name || '',
-            job_position: e.designation || e.job_position || '',
-            department: e.department || '',
-            basic_salary: e.salary || e.basic_salary || 0,
-            phone: e.phone || e.mobile || '',
-            joining_date: e.join_date || e.joining_date || '',
-            machine_id: e.machine_id || ''
-          }));
-          if (!state.employees || state.employees.length < mapped.length) {
-            state.employees = mapped;
-          }
+          const currentEmps = Array.isArray(state.employees) ? [...state.employees] : [];
+          const existingIds = new Set(currentEmps.map((e: any) => e.emp_id || e.id));
+          dbEmployees.forEach((e: any) => {
+            const eId = e.id || e.emp_id;
+            if (eId && !existingIds.has(eId)) {
+              currentEmps.push({
+                emp_id: eId,
+                emp_name: e.name || e.emp_name || '',
+                machine_id: e.machine_id || '',
+                gender: e.gender || '',
+                job_position: e.designation || e.job_position || '',
+                department: e.department || '',
+                salary: e.salary || e.basic_salary || 0,
+                mobile: e.phone || e.mobile || '',
+                address: e.address || '',
+                joining_date: e.join_date || e.joining_date || '',
+                status: (e.status as any) || 'Active',
+                is_current_month: false
+              });
+              existingIds.add(eId);
+            }
+          });
+          state.employees = currentEmps;
         }
 
-        // Map tests
+        // Safely append ONLY newly added tests without overwriting existing
         if (dbTests && dbTests.length > 0) {
-          const mapped = dbTests.map((t: any) => ({
-            test_id: t.id || t.test_id,
-            test_name: t.name || t.test_name || '',
-            category: t.department || t.category || '',
-            price: t.price || 0,
-            room_no: t.room_no || ''
-          }));
-          if (!state.tests || state.tests.length < mapped.length) {
-            state.tests = mapped;
-          }
+          const currentTests = Array.isArray(state.tests) ? [...state.tests] : [];
+          const existingIds = new Set(currentTests.map((t: any) => t.test_id || t.id));
+          dbTests.forEach((t: any) => {
+            const tId = t.id || t.test_id;
+            if (tId && !existingIds.has(tId)) {
+              currentTests.push({
+                test_id: tId,
+                test_name: t.name || t.test_name || '',
+                category: t.department || t.category || '',
+                price: t.price || 0,
+                test_commission: t.commission || t.test_commission || 0,
+                is_group_test: !!t.is_group_test,
+                sub_tests: t.sub_tests || [],
+                usg_exam_charge: t.usg_exam_charge || 0,
+                extra_lab_fee: t.extra_lab_fee || 0,
+                reagents_required: t.reagents_required || [],
+                availability: t.availability !== false
+              });
+              existingIds.add(tId);
+            }
+          });
+          state.tests = currentTests;
         }
 
-        // Map medicines
+        // Safely append ONLY newly added medicines without overwriting existing
         if (dbMedicines && dbMedicines.length > 0) {
-          const mapped = dbMedicines.map((m: any) => ({
-            id: m.id || m.med_id,
-            tradeName: m.name || m.tradeName || m.brand_name || '',
-            genericName: m.generic_name || m.genericName || '',
-            formulation: m.category || m.formulation || '',
-            stock: m.stock || 0,
-            unitPriceBuy: m.purchase_price || m.unitPriceBuy || 0,
-            unitPriceSell: m.selling_price || m.unitPriceSell || m.mrp || 0,
-            company: m.supplier || m.company || '',
-            expiryDate: m.expiry_date || m.expiryDate || ''
-          }));
-          if (!state.medicines || state.medicines.length < mapped.length) {
-            state.medicines = mapped;
-          }
+          const currentMeds = Array.isArray(state.medicines) ? [...state.medicines] : [];
+          const existingIds = new Set(currentMeds.map((m: any) => m.id || m.med_id));
+          dbMedicines.forEach((m: any) => {
+            const mId = m.id || m.med_id;
+            if (mId && !existingIds.has(mId)) {
+              currentMeds.push({
+                id: mId,
+                tradeName: m.name || m.tradeName || m.brand_name || '',
+                genericName: m.generic_name || m.genericName || '',
+                formulation: m.category || m.formulation || '',
+                strength: m.strength || '',
+                stock: m.stock || 0,
+                unitPriceBuy: m.purchase_price || m.unitPriceBuy || 0,
+                unitPriceSell: m.selling_price || m.unitPriceSell || m.mrp || 0,
+                expiryDate: m.expiry_date || m.expiryDate || ''
+              });
+              existingIds.add(mId);
+            }
+          });
+          state.medicines = currentMeds;
         }
 
-        // Map lab invoices
+        // Safely append ONLY newly added lab invoices without overwriting existing rich history
         if (dbLabInvoices && dbLabInvoices.length > 0) {
-          const mapped = dbLabInvoices.map((i: any) => ({
-            invoice_id: i.id || i.invoice_id || i.invoice_no,
-            patient_id: i.patient_id || i.pt_id || '',
-            patient_name: i.patient_name || i.pt_name || '',
-            doctor_id: i.doctor_id || i.ref_by || '',
-            referrar_id: i.referrer_id || i.referrar_id || '',
-            invoice_date: i.date || i.invoice_date || '',
-            total_amount: i.subtotal || i.total_amount || 0,
-            discount_amount: i.discount || i.discount_amount || 0,
-            net_payable: i.total || i.net_payable || i.net_amount || 0,
-            paid_amount: i.paid || i.paid_amount || 0,
-            due_amount: i.due || i.due_amount || 0,
-            status: i.status || '',
-            items: i.items || i.tests || []
-          }));
-          if (!state.labInvoices || state.labInvoices.length < mapped.length) {
-            state.labInvoices = mapped;
-          }
+          const currentInvoices = Array.isArray(state.labInvoices) ? [...state.labInvoices] : [];
+          const existingIds = new Set(currentInvoices.map((i: any) => i.invoice_id || i.id || i.invoice_no));
+          
+          dbLabInvoices.forEach((i: any) => {
+            const invId = i.id || i.invoice_id || i.invoice_no;
+            if (invId && !existingIds.has(invId)) {
+              currentInvoices.push({
+                invoice_id: invId,
+                patient_id: i.patient_id || i.pt_id || '',
+                patient_name: i.patient_name || i.pt_name || '',
+                doctor_id: i.doctor_id || i.ref_by || '',
+                doctor_name: i.doctor_name || '',
+                referrar_id: i.referrer_id || i.referrar_id || '',
+                referrar_name: i.referrar_name || '',
+                invoice_date: (i.date || i.invoice_date || '').split('T')[0],
+                total_amount: Number(i.subtotal || i.total_amount || 0),
+                discount_percentage: Number(i.discount_percentage || 0),
+                discount_amount: Number(i.discount || i.discount_amount || 0),
+                net_payable: Number(i.total || i.net_payable || i.net_amount || 0),
+                paid_amount: Number(i.paid || i.paid_amount || 0),
+                due_amount: Number(i.due || i.due_amount || 0),
+                status: i.status || 'Paid',
+                payment_method: i.payment_method || 'Cash',
+                special_commission: i.special_commission || 0,
+                commission_paid: i.commission_paid || 0,
+                notes: i.notes || '',
+                date_created: i.date_created || i.created_at || (i.date ? i.date.split('T')[0] : ''),
+                last_modified: i.last_modified || '',
+                sample_collection_time: i.sample_collection_time || '',
+                expected_delivery_time: i.expected_delivery_time || '',
+                items: Array.isArray(i.items) ? i.items : (Array.isArray(i.tests) ? i.tests : [])
+              });
+              existingIds.add(invId);
+            }
+          });
+          state.labInvoices = currentInvoices;
         }
 
-        // Map indoor invoices
-        if (dbIndoorInvoices && dbIndoorInvoices.length > 0) {
-          const mapped = dbIndoorInvoices.map((i: any) => ({
-            daily_id: i.id || i.daily_id || i.invoice_id,
-            patient_id: i.patient_id || '',
-            patient_name: i.patient_name || '',
-            admission_date: i.admission_date || i.date || '',
-            discharge_date: i.discharge_date || '',
-            total_bill: i.total_bill || 0,
-            paid_amount: i.paid || i.paid_amount || 0,
-            due_bill: i.due || i.due_bill || 0,
-            status: i.status || '',
-            items: i.items || i.services || []
-          }));
-          if (!state.indoorInvoices || state.indoorInvoices.length < mapped.length) {
-            state.indoorInvoices = mapped;
-          }
+        // Safely append ONLY newly added due collections
+        if (dbDueCollections && dbDueCollections.length > 0) {
+          const currentDueCols = Array.isArray(state.dueCollections) ? [...state.dueCollections] : [];
+          const existingIds = new Set(currentDueCols.map((c: any) => c.collection_id || c.id));
+          dbDueCollections.forEach((c: any) => {
+            const colId = c.collection_id || c.id;
+            if (colId && !existingIds.has(colId)) {
+              currentDueCols.push({
+                collection_id: colId,
+                invoice_id: c.invoice_id || '',
+                amount_collected: Number(c.amount_collected || c.amount || 0),
+                collection_date: (c.collection_date || c.date || '').split('T')[0],
+                collected_by: c.collected_by || '',
+                payment_method: c.payment_method || 'Cash',
+                notes: c.notes || ''
+              });
+              existingIds.add(colId);
+            }
+          });
+          state.dueCollections = currentDueCols;
         }
 
-        // Map sales invoices
-        if (dbSalesInvoices && dbSalesInvoices.length > 0) {
-          const mapped = dbSalesInvoices.map((i: any) => ({
-            invoiceId: i.id || i.invoiceId || i.invoice_id,
-            customerName: i.customer_name || i.customerName || '',
-            invoiceDate: i.date || i.invoiceDate || '',
-            netPayable: i.total || i.netPayable || i.totalAmount || 0,
-            paidAmount: i.paid || i.paidAmount || i.paid_amount || 0,
-            dueAmount: i.due || i.dueAmount || i.due_amount || 0,
-            items: i.items || []
-          }));
-          if (!state.salesInvoices || state.salesInvoices.length < mapped.length) {
-            state.salesInvoices = mapped;
-          }
-        }
-
-        // Map expenses
+        // Safely merge expenses: preserve complete detailedExpenses structure from master state
         if (dbExpenses && dbExpenses.length > 0) {
-          const expenseObj: Record<string, any[]> = state.detailedExpenses || {};
+          const expenseObj: Record<string, any[]> = { ...(state.detailedExpenses || {}) };
           dbExpenses.forEach((e: any) => {
             const dateKey = (e.date || '').split('T')[0] || new Date().toISOString().split('T')[0];
             if (!expenseObj[dateKey]) expenseObj[dateKey] = [];
-            const exists = expenseObj[dateKey].some((x: any) => x.id === e.id);
+            const existingList = expenseObj[dateKey];
+            const exists = existingList.some((x: any) => x.id === e.id || (x.category === e.category && (x.paidAmount === e.amount || x.billAmount === e.amount) && x.description === e.description));
             if (!exists) {
-              expenseObj[dateKey].push({
-                id: e.id,
+              existingList.push({
+                id: e.id || Date.now() + Math.random(),
                 category: e.category || 'General',
-                paidAmount: e.amount || e.paidAmount || 0,
-                billAmount: e.amount || e.billAmount || 0,
+                subCategory: e.subCategory || e.sub_category || '',
                 description: e.description || '',
-                dept: e.entered_by || e.dept || '',
-                date: dateKey
+                billAmount: Number(e.amount || e.billAmount || 0),
+                paidAmount: Number(e.amount || e.paidAmount || 0),
+                dept: (e.dept || e.entered_by === 'Clinic' ? 'Clinic' : 'Diagnostic') as 'Clinic' | 'Diagnostic'
               });
             }
           });
           state.detailedExpenses = expenseObj;
         }
 
-        // Map reports
+        // Safely append ONLY newly added reports
         if (dbReports && dbReports.length > 0) {
-          const mapped = dbReports.map((r: any) => ({
-            report_id: r.id || r.report_id,
-            invoice_id: r.invoice_id || r.invoice_no || '',
-            test_id: r.test_id || r.test_name || '',
-            patient_id: r.patient_id || r.pt_id || '',
-            report_date: r.date || r.report_date || '',
-            results: r.results || r.data || [],
-            status: r.status || '',
-            prepared_by: r.prepared_by || ''
-          }));
-          if (!state.reports || state.reports.length < mapped.length) {
-            state.reports = mapped;
-          }
+          const currentReports = Array.isArray(state.reports) ? [...state.reports] : [];
+          const existingIds = new Set(currentReports.map((r: any) => r.report_id || r.id));
+          dbReports.forEach((r: any) => {
+            const repId = r.report_id || r.id;
+            if (repId && !existingIds.has(repId)) {
+              currentReports.push({
+                report_id: repId,
+                invoice_id: r.invoice_id || r.invoice_no || '',
+                test_name: r.test_name || r.test_id || '',
+                patient_id: r.patient_id || r.pt_id || '',
+                report_date: (r.date || r.report_date || '').split('T')[0],
+                status: r.status || 'Ready',
+                data: r.results || r.data || {},
+                technologistId: r.prepared_by || r.technologistId || '',
+                technologistName: r.technologistName || '',
+                consultantId: r.consultantId || '',
+                consultantName: r.consultantName || ''
+              });
+              existingIds.add(repId);
+            }
+          });
+          state.reports = currentReports;
         }
 
-        // Map prescriptions
-        if (dbPrescriptions && dbPrescriptions.length > 0) {
-          if (!state.prescriptions || state.prescriptions.length < dbPrescriptions.length) {
-            state.prescriptions = dbPrescriptions;
-          }
-        }
-
-        // Map appointments
+        // Safely append appointments
         if (dbAppointments && dbAppointments.length > 0) {
-          const mapped = dbAppointments.map((a: any) => ({
-            apt_id: a.id || a.apt_id,
-            patient_id: a.patient_id || '',
-            patient_name: a.patient_name || '',
-            doctor_id: a.doctor_id || '',
-            date: a.date || '',
-            time: a.time || '',
-            serial_no: a.serial_no || 0,
-            status: a.status || '',
-            fee: a.fee || 0
-          }));
-          if (!state.appointments || state.appointments.length < mapped.length) {
-            state.appointments = mapped;
-          }
-        }
-
-        // Map due collections
-        if (dbDueCollections && dbDueCollections.length > 0) {
-          if (!state.dueCollections || state.dueCollections.length < dbDueCollections.length) {
-            state.dueCollections = dbDueCollections;
-          }
+          const currentApts = Array.isArray(state.appointments) ? [...state.appointments] : [];
+          const existingIds = new Set(currentApts.map((a: any) => a.apt_id || a.id));
+          dbAppointments.forEach((a: any) => {
+            const aptId = a.apt_id || a.id;
+            if (aptId && !existingIds.has(aptId)) {
+              currentApts.push({
+                apt_id: aptId,
+                patient_id: a.patient_id || '',
+                patient_name: a.patient_name || '',
+                doctor_id: a.doctor_id || '',
+                doctor_name: a.doctor_name || '',
+                date: (a.date || '').split('T')[0],
+                time: a.time || '',
+                serial_no: a.serial_no || 0,
+                status: a.status || 'Confirmed',
+                fee: a.fee || 0
+              });
+              existingIds.add(aptId);
+            }
+          });
+          state.appointments = currentApts;
         }
       } catch (tableErr) {
         console.warn("Individual tables load notice:", tableErr);
