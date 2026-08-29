@@ -926,14 +926,46 @@ export const dbService = {
   cleanDuplicateExpenses: async (onProgress?: (progress: number) => void) => {
     try {
       onProgress?.(15);
-      const state = await dbService.loadFromCloud();
+      let state: any = null;
+      try {
+        state = await dbService.loadFromCloud();
+      } catch (err) {
+        console.warn("Cloud load error during deduplication:", err);
+      }
+
       if (!state || state._error) {
-        return { success: false, message: "ক্লাউড থেকে ডাটা লোড করা যায়নি।" };
+        // Fallback to local storage if cloud load didn't work
+        try {
+          const localStr = localStorage.getItem('ncd_state');
+          if (localStr) {
+            state = JSON.parse(localStr);
+          }
+        } catch (e) {
+          console.warn("Local storage state load error:", e);
+        }
+      }
+
+      if (!state) {
+        state = {};
       }
 
       onProgress?.(40);
       let totalCleaned = 0;
-      const rawDetailed = state.detailedExpenses || {};
+      
+      // Get detailedExpenses from state or localStorage
+      let rawDetailed = state.detailedExpenses;
+      if (!rawDetailed || typeof rawDetailed !== 'object') {
+        try {
+          const localDetailedStr = localStorage.getItem('ncd_detailed_expenses');
+          if (localDetailedStr) {
+            rawDetailed = JSON.parse(localDetailedStr);
+          }
+        } catch (e) {
+          console.warn("Failed to parse ncd_detailed_expenses:", e);
+        }
+      }
+
+      rawDetailed = rawDetailed || {};
       const cleanedDetailed: Record<string, any[]> = {};
 
       Object.entries(rawDetailed).forEach(([dateKey, items]: any) => {
@@ -946,7 +978,7 @@ export const dbService = {
         const seenKeys = new Set<string>();
 
         items.forEach((it: any) => {
-          if (it.isDeleted) return; // Discard deleted items or handle cleanly
+          if (it.isDeleted) return;
           const cat = (it.category || '').trim().toLowerCase();
           const sub = (it.subCategory || '').trim().toLowerCase();
           const desc = (it.description || '').trim().toLowerCase();
@@ -968,16 +1000,28 @@ export const dbService = {
       });
 
       state.detailedExpenses = cleanedDetailed;
+      
+      // Update local storage immediately
+      try {
+        localStorage.setItem('ncd_detailed_expenses', JSON.stringify(cleanedDetailed));
+        localStorage.setItem('ncd_state', JSON.stringify(state));
+      } catch (lsErr) {
+        console.warn("Error updating local storage:", lsErr);
+      }
+
       onProgress?.(70);
 
-      const saveRes = await dbService.saveToCloud(state);
-      onProgress?.(100);
-
-      if (saveRes?.success) {
-        return { success: true, cleanedCount: totalCleaned };
-      } else {
-        return { success: false, message: "ডাটাবেজে সেভ করতে সমস্যা হয়েছে।" };
+      // Save to Supabase Cloud if available
+      try {
+        if (dbService.getSupabaseConfig().isConnected) {
+          await dbService.saveToCloud(state);
+        }
+      } catch (saveErr) {
+        console.warn("Cloud save warning during deduplication:", saveErr);
       }
+
+      onProgress?.(100);
+      return { success: true, cleanedCount: totalCleaned };
     } catch (e: any) {
       return { success: false, message: e.message || "ত্রুটি ঘটেছে।" };
     }

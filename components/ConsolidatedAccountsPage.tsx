@@ -318,8 +318,12 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
         try {
             const result = await dbService.cleanDuplicateExpenses();
             if (result?.success) {
-                alert(`সফলভাবে ডুপ্লিকেট খরচ ক্লিন করা হয়েছে! মোট ${result.cleanedCount} টি ডাবল এন্ট্রি সরানো হয়েছে। পেজ রিলোড হচ্ছে...`);
-                window.location.reload();
+                alert(`সফলভাবে ডুপ্লিকেট খরচ ক্লিন করা হয়েছে! মোট ${result.cleanedCount} টি ডাবল এন্ট্রি সরানো হয়েছে।`);
+                if (window.location.hash) {
+                    window.location.reload();
+                } else {
+                    window.location.href = window.location.origin + '/#/accounting';
+                }
             } else {
                 alert("ক্লিন সম্পন্ন: " + (result?.message || 'কোন ডুপ্লিকেট এন্ট্রি পাওয়া যায়নি।'));
             }
