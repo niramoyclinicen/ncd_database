@@ -3,6 +3,7 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { LabInvoice, DueCollection, ExpenseItem, Employee, PurchaseInvoice, SalesInvoice, Medicine } from './DiagnosticData';
 import { IndoorInvoice } from './ClinicPage';
 import { BackIcon, FileTextIcon, UsersIcon, WalletIcon, MoneyIcon, TrendingDownIcon, ChartIcon, PlusIcon, Activity, TrashIcon, SaveIcon, PrinterIcon, ClinicIcon, EditIcon, XIcon, Plus } from './Icons';
+import { dbService } from '../dbService';
 
 interface ConsolidatedAccountsPageProps {
   onBack: () => void;
@@ -307,6 +308,27 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
 
     const [newPlan, setNewPlan] = useState<Partial<FuturePlan>>({ title: '', estimatedCost: 0, status: 'Pending', targetDate: '' });
     const [newCompanyEntry, setNewCompanyEntry] = useState({ companyName: '', amount: 0, date: new Date().toISOString().split('T')[0] });
+    const [isCleaningDuplicates, setIsCleaningDuplicates] = useState(false);
+
+    const handleCleanDuplicateExpenses = async () => {
+        const confirmClean = window.confirm("আপনি কি সমস্ত খরচের হিসাব (Detailed Expenses) থেকে ডুপ্লিকেট/ডাবল এন্ট্রি স্বয়ংক্রিয়ভাবে ক্লিন করে সুপাবেজ ক্লাউডে আপডেট করতে চান?");
+        if (!confirmClean) return;
+
+        setIsCleaningDuplicates(true);
+        try {
+            const result = await dbService.cleanDuplicateExpenses();
+            if (result?.success) {
+                alert(`সফলভাবে ডুপ্লিকেট খরচ ক্লিন করা হয়েছে! মোট ${result.cleanedCount} টি ডাবল এন্ট্রি সরানো হয়েছে। পেজ রিলোড হচ্ছে...`);
+                window.location.reload();
+            } else {
+                alert("ক্লিন সম্পন্ন: " + (result?.message || 'কোন ডুপ্লিকেট এন্ট্রি পাওয়া যায়নি।'));
+            }
+        } catch (e: any) {
+            alert("ডুপ্লিকেট ক্লিন করতে সমস্যা: " + e.message);
+        } finally {
+            setIsCleaningDuplicates(false);
+        }
+    };
 
     useEffect(() => {
         localStorage.setItem('ncd_shareholders', JSON.stringify(dynamicShareholders));
@@ -972,6 +994,18 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                             </button>
                         ))}
                     </div>
+                </div>
+
+                <div className="flex items-center">
+                    <button
+                        onClick={handleCleanDuplicateExpenses}
+                        disabled={isCleaningDuplicates}
+                        className="px-3.5 py-1.5 bg-gradient-to-r from-rose-600 to-amber-600 hover:from-rose-500 hover:to-amber-500 text-white rounded-lg text-xs font-black transition-all flex items-center gap-1.5 shadow-lg border border-rose-400 active:scale-95 cursor-pointer"
+                        title="ডুপ্লিকেট খরচ ও ডাবল স্যালারি স্বয়ংক্রিয়ভাবে ক্লিন করুন"
+                    >
+                        <TrashIcon size={14} />
+                        <span>{isCleaningDuplicates ? 'ক্লিন হচ্ছে...' : '🧹 ডাবল খরচ ফিক্স করুন (One-Click Fix)'}</span>
+                    </button>
                 </div>
             </div>
 
