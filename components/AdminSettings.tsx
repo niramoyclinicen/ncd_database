@@ -430,6 +430,28 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ passwords, onSave, onBack
             setRestoreProgress(0);
         }
     };
+
+    const handleDeduplicateExpenses = async () => {
+        const confirmClean = window.confirm("আপনি কি সমস্ত খরচের হিসাব (Detailed Expenses) থেকে ডুপ্লিকেট/ডাবল এন্ট্রি স্বয়ংক্রিয়ভাবে ক্লিন করে সুপাবেজ ক্লাউডে আপডেট করতে চান?");
+        if (!confirmClean) return;
+
+        setIsRestoring(true);
+        setRestoreProgress(0);
+        try {
+            const result = await dbService.cleanDuplicateExpenses((p) => setRestoreProgress(p));
+            if (result?.success) {
+                alert(`সফলভাবে ডুপ্লিকেট খরচ ক্লিন করা হয়েছে! মোট ${result.cleanedCount} টি ডাবল এন্ট্রি সরানো হয়েছে। পেজ রিলোড হচ্ছে...`);
+                window.location.reload();
+            } else {
+                alert("ক্লিন সম্পন্ন: " + (result?.message || 'কোন ডুপ্লিকেট এন্ট্রি পাওয়া যায়নি।'));
+            }
+        } catch (e: any) {
+            alert("ডুপ্লিকেট ক্লিন করতে সমস্যা: " + e.message);
+        } finally {
+            setIsRestoring(false);
+            setRestoreProgress(0);
+        }
+    };
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -763,6 +785,26 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ passwords, onSave, onBack
                                 )}
                             </div>
                         )}
+                    </div>
+
+                    {/* DEDUPLICATE EXPENSES CLEANING TOOL */}
+                    <div className="bg-slate-900/90 border border-rose-500/30 p-5 rounded-2xl space-y-3 shadow-xl">
+                        <div className="flex items-center justify-between">
+                            <span className="text-xs font-black text-rose-400 uppercase tracking-widest flex items-center gap-1.5">
+                                🧹 ডুপ্লিকেট খরচ ও স্যালারি ক্লিন টুল (One-Click Fix)
+                            </span>
+                        </div>
+                        <p className="text-[10px] text-slate-400 leading-snug font-medium">
+                            একাধিকবার ডাটা রিস্টোর বা মার্জ করার কারণে স্টাফ স্যালারি বা অন্যান্য খরচ যদি ডাবল (দ্বিগুণ) হয়ে থাকে, তবে এই বাটনে চাপলে স্বয়ংক্রিয়ভাবে ডুপ্লিকেট এন্ট্রিগুলো বাদ দিয়ে হিসাবটি নিখুঁত ও সঠিক করা হবে।
+                        </p>
+                        <button 
+                            onClick={handleDeduplicateExpenses}
+                            disabled={isRestoring}
+                            className="w-full bg-gradient-to-r from-rose-600 to-amber-600 hover:from-rose-500 hover:to-amber-500 text-white font-black text-xs py-2.5 rounded-xl uppercase tracking-wider transition-all shadow-md flex items-center justify-center gap-2"
+                        >
+                            <TrashIcon size={14} />
+                            {isRestoring ? 'ক্লিন হচ্ছে...' : '⚡ সকল ডুপ্লিকেট খরচ ও ডাবল স্যালারি ক্লিন করুন'}
+                        </button>
                     </div>
 
                     {/* SUPABASE CLOUD DATA RECOVERY CARD */}

@@ -472,7 +472,24 @@ export const dbService = {
             const dateKey = (e.date || '').split('T')[0] || new Date().toISOString().split('T')[0];
             if (!expenseObj[dateKey]) expenseObj[dateKey] = [];
             const existingList = expenseObj[dateKey];
-            const exists = existingList.some((x: any) => x.id === e.id || (x.category === e.category && (x.paidAmount === e.amount || x.billAmount === e.amount) && x.description === e.description));
+            const eAmount = Number(e.amount || e.paidAmount || e.billAmount || 0);
+            const eSub = (e.subCategory || e.sub_category || '').trim().toLowerCase();
+            const eDesc = (e.description || '').trim().toLowerCase();
+            const eCat = (e.category || '').trim().toLowerCase();
+
+            const exists = existingList.some((x: any) => {
+              if (x.id && e.id && String(x.id) === String(e.id)) return true;
+              const xAmount = Number(x.paidAmount || x.billAmount || 0);
+              const xSub = (x.subCategory || '').trim().toLowerCase();
+              const xDesc = (x.description || '').trim().toLowerCase();
+              const xCat = (x.category || '').trim().toLowerCase();
+
+              const sameCategory = xCat === eCat;
+              const sameAmount = Math.abs(xAmount - eAmount) < 0.01;
+              const sameSubOrDesc = (xSub && xSub === eSub) || (xDesc && xDesc === eDesc) || (!xSub && !eSub && !xDesc && !eDesc);
+              return sameCategory && sameAmount && sameSubOrDesc;
+            });
+
             if (!exists) {
               existingList.push({
                 id: e.id || Date.now() + Math.random(),
@@ -905,6 +922,66 @@ export const dbService = {
   },
   
   normalizeRecoveredData: (raw: any) => raw,
+  
+  cleanDuplicateExpenses: async (onProgress?: (progress: number) => void) => {
+    try {
+      onProgress?.(15);
+      const state = await dbService.loadFromCloud();
+      if (!state || state._error) {
+        return { success: false, message: "ক্লাউড থেকে ডাটা লোড করা যায়নি।" };
+      }
+
+      onProgress?.(40);
+      let totalCleaned = 0;
+      const rawDetailed = state.detailedExpenses || {};
+      const cleanedDetailed: Record<string, any[]> = {};
+
+      Object.entries(rawDetailed).forEach(([dateKey, items]: any) => {
+        if (!Array.isArray(items)) {
+          cleanedDetailed[dateKey] = items;
+          return;
+        }
+
+        const uniqueItems: any[] = [];
+        const seenKeys = new Set<string>();
+
+        items.forEach((it: any) => {
+          if (it.isDeleted) return; // Discard deleted items or handle cleanly
+          const cat = (it.category || '').trim().toLowerCase();
+          const sub = (it.subCategory || '').trim().toLowerCase();
+          const desc = (it.description || '').trim().toLowerCase();
+          const paid = Number(it.paidAmount || it.billAmount || 0);
+          const dept = (it.dept || '').trim().toLowerCase();
+
+          // Create a composite signature key
+          const signature = `${cat}__${sub}__${desc}__${paid}__${dept}`;
+
+          if (seenKeys.has(signature)) {
+            totalCleaned++;
+          } else {
+            seenKeys.add(signature);
+            uniqueItems.push(it);
+          }
+        });
+
+        cleanedDetailed[dateKey] = uniqueItems;
+      });
+
+      state.detailedExpenses = cleanedDetailed;
+      onProgress?.(70);
+
+      const saveRes = await dbService.saveToCloud(state);
+      onProgress?.(100);
+
+      if (saveRes?.success) {
+        return { success: true, cleanedCount: totalCleaned };
+      } else {
+        return { success: false, message: "ডাটাবেজে সেভ করতে সমস্যা হয়েছে।" };
+      }
+    } catch (e: any) {
+      return { success: false, message: e.message || "ত্রুটি ঘটেছে।" };
+    }
+  },
   
   acquireLock: async (moduleName: string, userId: string) => { return { success: true }; },
   releaseLock: async (moduleName: string, userId: string) => { },
