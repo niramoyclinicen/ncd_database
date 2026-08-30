@@ -766,8 +766,8 @@ const ClinicAccountsPage: React.FC<any> = ({
             setSuccessMsg("খরচটি সফলভাবে ডিলিট করা হয়েছে।");
             setTimeout(() => setSuccessMsg(""), 4000);
 
-            // Delete from Supabase separate table and LocalStorage
-            dbService.deleteExpense(date, itemId).catch(e => console.warn("Supabase deleteExpense warning:", e));
+            // Remove from Supabase separate modular table
+            dbService.deleteExpense(date, targetIdStr).catch(e => console.warn("Supabase deleteExpense notice:", e));
 
             const success = await performBlockingSync({ detailedExpenses: newState });
             if (!success) {

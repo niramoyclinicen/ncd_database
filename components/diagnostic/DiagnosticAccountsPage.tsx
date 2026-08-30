@@ -803,7 +803,13 @@ const DailyExpenseForm: React.FC<any> = ({
             setItems([{ ...editingItem }]);
         } else {
             setItems([{
-                id: Date.now(), category: expenseCategories[0], subCategory: '', description: '', billAmount: 0, paidAmount: 0, dept: 'Diagnostic'
+                id: `exp_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`, 
+                category: expenseCategories[0], 
+                subCategory: '', 
+                description: '', 
+                billAmount: 0, 
+                paidAmount: 0, 
+                dept: 'Diagnostic'
             }]);
         }
     }, [selectedDate, editingItem]);
@@ -849,9 +855,9 @@ const DailyExpenseForm: React.FC<any> = ({
     const activeEmpIds = (monthlyRoster && monthlyRoster[periodKey]) || [];
     const filteredEmployees = (employees || []).filter((e: any) => activeEmpIds.length > 0 ? activeEmpIds.includes(e.emp_id) : (e.status === 'Active' || !e.status));
 
-    const handleItemChange = (id: number, field: keyof ExpenseItem, value: any) => {
+    const handleItemChange = (id: any, field: keyof ExpenseItem, value: any) => {
         setItems(prev => prev.map(item => {
-            if (item.id === id) {
+            if (String(item.id) === String(id)) {
                 const oldValue = item[field];
                 if (oldValue === value) return item;
 
@@ -875,8 +881,16 @@ const DailyExpenseForm: React.FC<any> = ({
         }));
     };
 
-    const addItem = () => setItems(prev => [...prev, { id: Date.now(), category: expenseCategories[0], subCategory: '', description: '', billAmount: 0, paidAmount: 0, dept: 'Diagnostic' }]);
-    const removeItem = (id: number) => setItems(prev => prev.filter(i => i.id !== id));
+    const addItem = () => setItems(prev => [...prev, { 
+        id: `exp_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`, 
+        category: expenseCategories[0], 
+        subCategory: '', 
+        description: '', 
+        billAmount: 0, 
+        paidAmount: 0, 
+        dept: 'Diagnostic' 
+    }]);
+    const removeItem = (id: any) => setItems(prev => prev.filter(i => String(i.id) !== String(id)));
 
     const [editingBatchItem, setEditingBatchItem] = useState<any>(null);
 
@@ -1029,21 +1043,116 @@ const DailyExpenseForm: React.FC<any> = ({
 
     const totalPaid = items.reduce((acc, item) => acc + (Number(item.paidAmount) || 0), 0);
     
-    const filteredSavedItems = useMemo(() => {
-        const normalizeBangla = (str: string): string => {
-            if (!str) return '';
-            return str
-                .toLowerCase()
-                .replace(/[\s\u200B-\u200D\uFEFF]/g, '') // remove spaces and zero-width characters
-                .replace(/ড়/g, 'র')
-                .replace(/ঢ়/g, 'র')
-                .replace(/ী/g, 'ি')
-                .replace(/ূ/g, 'ু')
-                .replace(/্য/g, '')
-                .replace(/ঃ/g, '')
-                .replace(/য়/g, 'য');
+    // Normalizer function for accurate Bengali and English search matching
+    const normalizeSearchText = (str: any): string => {
+        if (str === null || str === undefined) return '';
+        let s = String(str).normalize('NFC').toLowerCase();
+        
+        // Bengali digits to English digits
+        const bnDigits: Record<string, string> = {
+            '০': '0', '১': '1', '২': '2', '৩': '3', '৪': '4',
+            '৫': '5', '৬': '6', '৭': '7', '৮': '8', '৯': '9'
         };
+        s = s.replace(/[০-৯]/g, d => bnDigits[d] || d);
+        
+        // Remove zero-width & formatting characters
+        s = s.replace(/[\u200B-\u200D\uFEFF\u00A0]/g, '');
+        
+        // Normalize decomposed Bengali characters
+        s = s.replace(/\u09A1\u09BC/g, 'ড়');
+        s = s.replace(/\u09A2\u09BC/g, 'ঢ়');
+        s = s.replace(/\u09AF\u09BC/g, 'য়');
+        s = s.replace(/\u09B0\u09BC/g, 'র');
+        
+        // Phonetic / spelling tolerance in Bengali
+        s = s.replace(/[ড়ঢ়]/g, 'র');
+        s = s.replace(/[ীি]/g, 'ি');
+        s = s.replace(/[ূু]/g, 'ু');
+        s = s.replace(/[শষস]/g, 'স');
+        s = s.replace(/[ণন]/g, 'ন');
+        s = s.replace(/ৎ/g, 'ত');
+        s = s.replace(/ং/g, 'ঙ');
+        s = s.replace(/ঃ/g, '');
+        s = s.replace(/ঁ/g, '');
+        s = s.replace(/্য/g, '');
+        s = s.replace(/য়/g, 'য');
+        
+        // Remove extra spaces and punctuation
+        return s.replace(/[\s\-_/\\,.:;()]+/g, '').trim();
+    };
 
+    // Helper to map any category variation / Bangla / English to standard category name
+    const getCanonicalCategory = (rawCat: string): string => {
+        if (!rawCat) return '';
+        const clean = String(rawCat).trim();
+        if (expenseCategories.includes(clean)) return clean;
+        
+        for (const [eng, bng] of Object.entries(expenseCategoryBanglaMap)) {
+            if (bng === clean || normalizeSearchText(bng) === normalizeSearchText(clean)) {
+                return eng;
+            }
+            if (normalizeSearchText(eng) === normalizeSearchText(clean)) {
+                return eng;
+            }
+        }
+
+        const lower = clean.toLowerCase();
+        if (lower.includes('house') || lower.includes('rent') || lower.includes('বাড়ি') || lower.includes('বাড়ি') || lower.includes('ভাড়া') || lower.includes('ভাড়া')) {
+            return 'House rent';
+        }
+        if (lower.includes('stuff') || lower.includes('staff') || lower.includes('salary') || lower.includes('স্টাফ') || lower.includes('স্যালারি') || lower.includes('বেতন')) {
+            return 'Stuff salary';
+        }
+        if (lower.includes('motor') || lower.includes('bike') || lower.includes('মোটর') || lower.includes('সাইকেল') || lower.includes('বাইক')) {
+            return 'Motorcycle';
+        }
+        if (lower.includes('electr') || lower.includes('বিদ্যুৎ') || lower.includes('কারেন্ট')) {
+            return 'Electricity bill';
+        }
+        if (lower.includes('reagent') || lower.includes('রিএজেন্ট')) {
+            return 'Reagent buy';
+        }
+        if (lower.includes('x-ray') || lower.includes('film') || lower.includes('ফিল্ম')) {
+            return 'X-ray Film buy';
+        }
+        if (lower.includes('marketing') || lower.includes('মার্কেটিং')) {
+            return 'Marketing';
+        }
+        if (lower.includes('doctor') || lower.includes('donation') || lower.includes('vehicle') || lower.includes('ডাক্তার') || lower.includes('ডোনেশন')) {
+            return 'Doctor donation & Vehicle service';
+        }
+        if (lower.includes('instrument') || lower.includes('যন্ত্রপাতি')) {
+            return 'Instruments buy/ repair';
+        }
+        if (lower.includes('development') || lower.includes('উন্নয়ন') || lower.includes('উন্নয়ন')) {
+            return 'Diagnostic development';
+        }
+        if (lower.includes('maintenance') || lower.includes('রক্ষণাবেক্ষণ')) {
+            return 'Maintenance';
+        }
+        if (lower.includes('license') || lower.includes('লাইসেন্স')) {
+            return 'License cost';
+        }
+        if (lower.includes('mobile') || lower.includes('flexi') || lower.includes('মোবাইল') || lower.includes('ফ্লেক্সি')) {
+            return 'Mobile buy/ Flexiload';
+        }
+        if (lower.includes('press') || lower.includes('প্রেস')) {
+            return 'Press Cost';
+        }
+        if (lower.includes('food') || lower.includes('meal') || lower.includes('খাবার') || lower.includes('লাঞ্চ')) {
+            return 'Food/Meal Cost';
+        }
+        if (lower.includes('paper') || lower.includes('dish') || lower.includes('wifi') || lower.includes('ওয়াইফাই') || lower.includes('ডিশ') || lower.includes('পেপার')) {
+            return 'Paper / Dish / Wifi Bill';
+        }
+        if (lower.includes('electronic') || lower.includes('ইলেকট্রনিক্স') || lower.includes('ইলেকট্রিক্যাল')) {
+            return 'Electrical and Electronics';
+        }
+
+        return clean;
+    };
+    
+    const filteredSavedItems = useMemo(() => {
         const allItems: any[] = [];
         Object.entries(allDetailedExpenses || {}).forEach(([date, items]: [string, any]) => {
             const [y, m] = date.split('-').map(Number);
@@ -1063,38 +1172,54 @@ const DailyExpenseForm: React.FC<any> = ({
 
         return allItems.filter((it: any) => {
             const cat = it.category || '';
-            const subCat = it.subCategory || '';
-            const desc = it.description || '';
-            
-            // 1. Check if category matches dropdown page filter (Strict Category filtering first)
-            const matchesCategory = savedCategoryFilter === 'All' || cat === savedCategoryFilter;
-            if (!matchesCategory) return false;
+            const itemCanonicalCat = getCanonicalCategory(cat);
 
-            // 2. Check if search term matches
-            if (savedSearchTerm) {
-                const normSearch = normalizeBangla(savedSearchTerm);
-                const normCatEng = normalizeBangla(cat);
-                const normCatBng = normalizeBangla(expenseCategoryBanglaMap[cat] || '');
-                const normSubCat = normalizeBangla(subCat);
-                const normDesc = normalizeBangla(desc);
-                
-                // Check if search matches any category name in English or Bangla
-                const isCatFilterActive = expenseCategories.some(c => {
-                    const cEng = normalizeBangla(c);
-                    const cBng = normalizeBangla(expenseCategoryBanglaMap[c] || '');
-                    return normSearch && (cEng.includes(normSearch) || cBng.includes(normSearch));
-                });
-                
-                if (isCatFilterActive) {
-                    // Strictly match category name only
-                    return normCatEng.includes(normSearch) || normCatBng.includes(normSearch);
-                } else {
-                    // Fallback to normal search over all fields
-                    return normCatEng.includes(normSearch) ||
-                        normCatBng.includes(normSearch) ||
-                        normSubCat.includes(normSearch) ||
-                        normDesc.includes(normSearch);
+            // 1. Strict Category Dropdown Filter
+            if (savedCategoryFilter !== 'All') {
+                const filterCanonicalCat = getCanonicalCategory(savedCategoryFilter);
+                if (itemCanonicalCat !== filterCanonicalCat) {
+                    return false;
                 }
+            }
+
+            // 2. Comprehensive Search Query Filter
+            if (savedSearchTerm && savedSearchTerm.trim()) {
+                const rawTokens = savedSearchTerm.trim().split(/\s+/).filter(Boolean);
+                
+                const bngCat = expenseCategoryBanglaMap[cat] || expenseCategoryBanglaMap[itemCanonicalCat] || '';
+                const subCat = it.subCategory || '';
+                const desc = it.description || '';
+                const dateStr = it.date || '';
+                const paidStr = String(it.paidAmount || '');
+                const billStr = String(it.billAmount || '');
+                const deptStr = it.dept || '';
+
+                const itemFields = [
+                    cat,
+                    itemCanonicalCat,
+                    bngCat,
+                    subCat,
+                    desc,
+                    dateStr,
+                    paidStr,
+                    billStr,
+                    deptStr
+                ];
+
+                const combinedNormalized = itemFields.map(f => normalizeSearchText(f)).join('###');
+                const combinedRaw = itemFields.map(f => String(f).toLowerCase()).join(' ');
+
+                const matchesAllTokens = rawTokens.every(token => {
+                    const normToken = normalizeSearchText(token);
+                    const rawToken = token.toLowerCase();
+                    
+                    return (
+                        (rawToken && combinedRaw.includes(rawToken)) ||
+                        (normToken && combinedNormalized.includes(normToken))
+                    );
+                });
+
+                if (!matchesAllTokens) return false;
             }
             
             return true;
@@ -1321,7 +1446,7 @@ const DailyExpenseForm: React.FC<any> = ({
                                     <tr>
                                         <td className="py-3 pr-2">
                                             <select value={item.category} onChange={e => handleItemChange(item.id, 'category', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white text-sm font-black outline-none focus:border-blue-500">
-                                                {expenseCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                                                {expenseCategories.map(cat => <option key={cat} value={cat}>{expenseCategoryBanglaMap[cat] ? `${expenseCategoryBanglaMap[cat]} (${cat})` : cat}</option>)}
                                             </select>
                                         </td>
                                         <td className="py-3 pr-2">
@@ -1516,21 +1641,34 @@ const DailyExpenseForm: React.FC<any> = ({
                             {expenseCategories.map(cat => <option key={cat} value={cat}>{expenseCategoryBanglaMap[cat] || cat} ({cat})</option>)}
                         </select>
 
-                        <div className="relative w-64">
+                        <div className="relative w-72">
                             <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
                             <input 
                                 list="saved-categories-search"
                                 type="text" 
-                                placeholder="Search by item/desc..." 
+                                placeholder="খুঁজুন (Category, Sub-cat, details, ৳)..." 
                                 value={savedSearchTerm} 
                                 onChange={e => setSavedSearchTerm(e.target.value)} 
-                                className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-10 pr-4 py-2 text-xs text-white outline-none focus:border-blue-500" 
+                                className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-10 pr-8 py-2 text-xs text-white outline-none focus:border-blue-500" 
                             />
+                            {savedSearchTerm && (
+                                <button 
+                                    onClick={() => setSavedSearchTerm('')}
+                                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white text-xs"
+                                >
+                                    ✕
+                                </button>
+                            )}
                             <datalist id="saved-categories-search">
                                 {expenseCategories.map(cat => (
-                                    <option key={cat} value={cat}>
-                                        {cat}
-                                    </option>
+                                    <React.Fragment key={cat}>
+                                        <option value={expenseCategoryBanglaMap[cat] || cat}>
+                                            {cat}
+                                        </option>
+                                        <option value={cat}>
+                                            {expenseCategoryBanglaMap[cat] || cat}
+                                        </option>
+                                    </React.Fragment>
                                 ))}
                             </datalist>
                         </div>
@@ -1718,8 +1856,9 @@ const DiagnosticAccountsPage: React.FC<any> = ({
             const otherDeptItems = existingItems.filter((it: any) => it.dept !== 'Diagnostic');
             const prevDiagItems = existingItems.filter((it: any) => it.dept === 'Diagnostic');
 
-            const incomingItems = (items || []).map(it => ({ 
+            const incomingItems = (items || []).map((it, idx) => ({ 
                 ...it, 
+                id: it.id ? String(it.id) : `exp_${date.replace(/-/g, '')}_${idx}_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
                 dept: 'Diagnostic' as const,
                 date: date
             }));
@@ -1727,14 +1866,24 @@ const DiagnosticAccountsPage: React.FC<any> = ({
             // Logic: 
             // If editingItem exists, find and replace IT specifically in the list.
             // If not editingItem, APPEND new items to existing diagnostic items.
-            let finalDiagItems = [];
+            let finalDiagItems: ExpenseItem[] = [];
             if (editingItem) {
+                const editIdStr = String(editingItem.id).trim();
+                let replaced = false;
                 finalDiagItems = prevDiagItems.map(prev => {
-                    const match = incomingItems.find(curr => curr.id === prev.id);
-                    return match || prev;
+                    if (String(prev.id).trim() === editIdStr) {
+                        replaced = true;
+                        return incomingItems[0] || prev;
+                    }
+                    return prev;
                 });
+                if (!replaced && incomingItems.length > 0) {
+                    finalDiagItems.push(...incomingItems);
+                }
             } else {
-                finalDiagItems = [...prevDiagItems, ...incomingItems];
+                const existingIdSet = new Set(prevDiagItems.map(it => String(it.id).trim()));
+                const nonDupIncoming = incomingItems.filter(it => !existingIdSet.has(String(it.id).trim()));
+                finalDiagItems = [...prevDiagItems, ...nonDupIncoming];
             }
             
             const newState = { ...safePrev, [date]: [...otherDeptItems, ...finalDiagItems] };
@@ -1784,15 +1933,12 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                         const descTrim = (it.description || '').trim();
 
                         if (descTrim && subCatTrim && !genericSubCats.includes(subCatTrim) && descTrim !== subCatTrim) {
-                            // e.g. subCategory = Company ("Incepta"), description = Reagent Name ("Urea Kit")
                             reagentName = descTrim;
                             if (!companyName) companyName = subCatTrim;
                         } else if (subCatTrim && !genericSubCats.includes(subCatTrim)) {
-                            // subCategory is provided e.g. "Urea Kit"
                             reagentName = subCatTrim;
                             if (!companyName && descTrim) companyName = descTrim;
                         } else if (descTrim) {
-                            // subCategory is generic e.g. "Local Market", description = "Urea Kit"
                             reagentName = descTrim;
                         } else if (subCatTrim) {
                             reagentName = subCatTrim;
@@ -1916,9 +2062,6 @@ const DiagnosticAccountsPage: React.FC<any> = ({
             setSuccessMessage("খরচটি সফলভাবে ডিলিট করা হয়েছে।");
             setTimeout(() => setSuccessMessage(''), 4000);
 
-            // Delete from Supabase separate table and LocalStorage
-            dbService.deleteExpense(date, id).catch(e => console.warn("Supabase deleteExpense warning:", e));
-
             const syncPayload: any = { detailedExpenses: newDetailedExpenses };
             if (reagentsModified) {
                 syncPayload.reagents = updatedReagents;
@@ -1926,7 +2069,7 @@ const DiagnosticAccountsPage: React.FC<any> = ({
 
             const success = await performBlockingSync(syncPayload);
             if (!success) {
-                console.warn("[DiagnosticAccounts] Sync completed with local fallback");
+                console.warn("[DiagnosticAccounts] Cloud sync failed during delete, local state retained");
             }
         } catch (err) {
             console.error("[DiagnosticAccounts] Critical error deleting expense:", err);
