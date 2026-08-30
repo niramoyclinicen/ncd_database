@@ -1885,6 +1885,9 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                 syncPayload.reagents = updatedReagents;
             }
             
+            // Explicitly delete from Supabase separate table if present
+            dbService.deleteExpense(date, id).catch(e => console.warn("Supabase deleteExpense warning:", e));
+
             const success = await performBlockingSync(syncPayload);
             
             if (success) {
@@ -2170,7 +2173,7 @@ const DiagnosticAccountsPage: React.FC<any> = ({
             expenseCategories.forEach(c => expenseMap[c] = 0);
 
             if (rangeType === 'daily') {
-                ((detailedExpenses && detailedExpenses[selectedDate]) || []).filter((it: any) => it.dept === 'Diagnostic' || (!it.dept && expenseCategories.includes(it.category))).forEach((it: any) => {
+                ((detailedExpenses && detailedExpenses[selectedDate]) || []).filter((it: any) => !it.isDeleted && (it.dept === 'Diagnostic' || (!it.dept && expenseCategories.includes(it.category)))).forEach((it: any) => {
                     expenseMap[it.category] = (expenseMap[it.category] || 0) + it.paidAmount;
                     exp.total += it.paidAmount;
                 });

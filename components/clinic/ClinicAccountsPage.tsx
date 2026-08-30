@@ -774,6 +774,8 @@ const ClinicAccountsPage: React.FC<any> = ({
 
         const newState = { ...safePrev, [date]: updatedItems };
 
+        dbService.deleteExpense(date, itemId).catch(e => console.warn("Supabase deleteExpense warning:", e));
+
         const success = await performBlockingSync({ detailedExpenses: newState });
 
         if (success) {

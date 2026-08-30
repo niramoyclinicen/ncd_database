@@ -193,7 +193,6 @@ export const dbService = {
       }
       
       // 1. Primary Source: Fetch master state from ncd_state
-      // We look at all records and pick the most complete master record
       let state: any = null;
       try {
         const { data: records, error } = await supabase
@@ -202,25 +201,10 @@ export const dbService = {
           .order('updated_at', { ascending: false });
           
         if (!error && records && records.length > 0) {
-          let bestRecord = records[0];
-          let maxScore = -1;
-          for (const r of records) {
-            if (r.data && typeof r.data === 'object') {
-              const invCount = Array.isArray(r.data.labInvoices) ? r.data.labInvoices.length : 0;
-              const expDays = r.data.detailedExpenses && typeof r.data.detailedExpenses === 'object' && !Array.isArray(r.data.detailedExpenses)
-                ? Object.keys(r.data.detailedExpenses).length 
-                : 0;
-              const ptCount = Array.isArray(r.data.patients) ? r.data.patients.length : 0;
-              const docCount = Array.isArray(r.data.doctors) ? r.data.doctors.length : 0;
-              const score = (invCount * 3) + (expDays * 10) + ptCount + docCount;
-              if (score > maxScore) {
-                maxScore = score;
-                bestRecord = r;
-              }
-            }
-          }
-          if (bestRecord && bestRecord.data) {
-            state = { ...bestRecord.data };
+          // Prefer master record with MASTER_RECORD_ID (id: 1) or the most recently updated record
+          const masterRecord = records.find(r => r.id === MASTER_RECORD_ID) || records[0];
+          if (masterRecord && masterRecord.data && typeof masterRecord.data === 'object') {
+            state = { ...masterRecord.data };
           }
         }
       } catch (err) {
@@ -803,24 +787,47 @@ export const dbService = {
         
         const cutoffDate = getTableSplitCutoffDate();
         const mappedExpenses: any[] = [];
+        const deletedExpenseIds: string[] = [];
         if (detailedExpenses && typeof detailedExpenses === 'object' && !Array.isArray(detailedExpenses)) {
           Object.entries(detailedExpenses).forEach(([dateKey, items]) => {
-            // ONLY sync to separate detailed_expenses table for dates on or after the cutoff date
-            if (dateKey >= cutoffDate && Array.isArray(items)) {
+            if (Array.isArray(items)) {
               items.forEach((e: any, idx: number) => {
-                if (e && !e.isDeleted) {
-                  mappedExpenses.push({
-                    id: e.id ? String(e.id) : `EXP-${dateKey}-${idx}`,
-                    category: e.category || 'General',
-                    amount: e.paidAmount || e.billAmount || 0,
-                    date: safeIsoDate(dateKey),
-                    description: e.description || e.subCategory || '',
-                    entered_by: e.dept || ''
-                  });
+                if (e && e.isDeleted && e.id) {
+                  deletedExpenseIds.push(String(e.id));
+                } else if (e && !e.isDeleted) {
+                  // ONLY sync to separate detailed_expenses table for dates on or after the cutoff date
+                  if (dateKey >= cutoffDate) {
+                    mappedExpenses.push({
+                      id: e.id ? String(e.id) : `EXP-${dateKey}-${idx}`,
+                      category: e.category || 'General',
+                      amount: e.paidAmount || e.billAmount || 0,
+                      date: safeIsoDate(dateKey),
+                      description: e.description || e.subCategory || '',
+                      entered_by: e.dept || ''
+                    });
+                  }
                 }
               });
             }
           });
+        }
+
+        // Delete any soft-deleted expense IDs from Supabase detailed_expenses table
+        if (deletedExpenseIds.length > 0 && supabase) {
+          try {
+            await supabase.from('detailed_expenses').delete().in('id', deletedExpenseIds);
+          } catch (delErr) {
+            console.warn("Notice deleting soft-deleted expenses from detailed_expenses:", delErr);
+          }
+        }
+        
+        // Ensure no pre-cutoff rows exist in the separate detailed_expenses table
+        if (supabase) {
+          try {
+            await supabase.from('detailed_expenses').delete().lt('date', cutoffDate);
+          } catch (delCutoffErr) {
+            console.warn("Notice deleting pre-cutoff expenses from detailed_expenses:", delCutoffErr);
+          }
         }
         
         const mappedReports = (reports || []).map((r: any) => ({
@@ -1084,12 +1091,43 @@ export const dbService = {
 
       onProgress?.(65);
 
-      // Purge any pre-cutoff records in the separate detailed_expenses table in Supabase
+      // Purge and synchronize separate detailed_expenses table in Supabase
       if (supabase && dbService.getSupabaseConfig().isConnected) {
         try {
+          // 1. Purge all pre-cutoff records from detailed_expenses (pre-cutoff is strictly stored in ncd_state only)
           await supabase.from('detailed_expenses').delete().lt('date', cutoffDate);
+          
+          // 2. Wipe existing post-cutoff records from detailed_expenses so duplicate zombie rows are eradicated
+          await supabase.from('detailed_expenses').delete().gte('date', cutoffDate);
+
+          // 3. Re-insert only the freshly deduplicated post-cutoff records
+          const mappedCleanExpenses: any[] = [];
+          Object.entries(cleanedDetailed).forEach(([dateKey, items]) => {
+            if (dateKey >= cutoffDate && Array.isArray(items)) {
+              items.forEach((e: any, idx: number) => {
+                if (e && !e.isDeleted) {
+                  mappedCleanExpenses.push({
+                    id: e.id ? String(e.id) : `EXP-${dateKey}-${idx}`,
+                    category: e.category || 'General',
+                    amount: e.paidAmount || e.billAmount || 0,
+                    date: safeIsoDate(dateKey),
+                    description: e.description || e.subCategory || '',
+                    entered_by: e.dept || ''
+                  });
+                }
+              });
+            }
+          });
+
+          if (mappedCleanExpenses.length > 0) {
+            const chunkSize = 100;
+            for (let i = 0; i < mappedCleanExpenses.length; i += chunkSize) {
+              const chunk = mappedCleanExpenses.slice(i, i + chunkSize);
+              await supabase.from('detailed_expenses').insert(chunk);
+            }
+          }
         } catch (purgeErr) {
-          console.warn("Notice: could not purge pre-cutoff detailed_expenses rows:", purgeErr);
+          console.warn("Notice: could not complete detailed_expenses table purge/reinsert:", purgeErr);
         }
       }
 
@@ -1097,8 +1135,12 @@ export const dbService = {
 
       // Save the cleaned unified master state to Supabase Cloud
       try {
-        if (dbService.getSupabaseConfig().isConnected) {
-          await dbService.saveToCloud(state);
+        if (dbService.getSupabaseConfig().isConnected && supabase) {
+          await supabase.from('ncd_state').upsert({
+            id: MASTER_RECORD_ID,
+            data: state,
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'id' });
         }
       } catch (saveErr) {
         console.warn("Cloud save warning during deduplication:", saveErr);
@@ -1108,6 +1150,38 @@ export const dbService = {
       return { success: true, cleanedCount: totalCleaned };
     } catch (e: any) {
       return { success: false, message: e.message || "ত্রুটি ঘটেছে।" };
+    }
+  },
+  
+  deleteExpense: async (date: string, id: number | string) => {
+    try {
+      // 1. Remove from local storage
+      try {
+        const localStateStr = localStorage.getItem('ncd_state') || localStorage.getItem(LOCAL_STORAGE_KEY);
+        if (localStateStr) {
+          const localState = JSON.parse(localStateStr);
+          if (localState.detailedExpenses && Array.isArray(localState.detailedExpenses[date])) {
+            localState.detailedExpenses[date] = localState.detailedExpenses[date].filter((it: any) => String(it.id) !== String(id));
+            localStorage.setItem('ncd_state', JSON.stringify(localState));
+            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(localState));
+            localStorage.setItem('ncd_detailed_expenses', JSON.stringify(localState.detailedExpenses));
+          }
+        }
+      } catch (lsErr) {
+        console.warn("Local storage delete warning:", lsErr);
+      }
+
+      // 2. Delete from Supabase detailed_expenses table if connected
+      if (supabase && dbService.getSupabaseConfig().isConnected) {
+        try {
+          await supabase.from('detailed_expenses').delete().eq('id', String(id));
+        } catch (delErr) {
+          console.warn("Supabase detailed_expenses delete warning:", delErr);
+        }
+      }
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err.message };
     }
   },
   
