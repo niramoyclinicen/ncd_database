@@ -2062,6 +2062,9 @@ const DiagnosticAccountsPage: React.FC<any> = ({
             setSuccessMessage("খরচটি সফলভাবে ডিলিট করা হয়েছে।");
             setTimeout(() => setSuccessMessage(''), 4000);
 
+            // Remove from Supabase separate modular table
+            dbService.deleteExpense(date, targetIdStr).catch(e => console.warn("Supabase deleteExpense notice:", e));
+
             const syncPayload: any = { detailedExpenses: newDetailedExpenses };
             if (reagentsModified) {
                 syncPayload.reagents = updatedReagents;

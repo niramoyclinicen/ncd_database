@@ -203,7 +203,7 @@ export const dbService = {
     try {
       let localState: any = null;
       try {
-        const cached = localStorage.getItem(LOCAL_STORAGE_KEY);
+        const cached = localStorage.getItem(LOCAL_STORAGE_KEY) || localStorage.getItem('ncd_offline_cache_v1');
         if (cached) localState = JSON.parse(cached);
       } catch (e) {
         console.warn("Could not read local cache:", e);
@@ -215,7 +215,7 @@ export const dbService = {
       
       const cutoffDate = getTableSplitCutoffDate(); // '2026-08-01'
 
-      // 1. Primary Source: Fetch master state from single table ncd_state (houses full pre-August data)
+      // 1. Primary Source: Fetch master state from single table ncd_state
       let state: any = null;
       try {
         const { data: records, error } = await supabase
@@ -237,49 +237,32 @@ export const dbService = {
         state = localState ? { ...localState } : {};
       }
 
-      // 2. Fetch modern records from modular tables concurrently (August 1st onwards)
+      // Safety check: If local cache has richer collections than cloud (e.g. from prior session), merge them safely
+      if (localState) {
+        if ((!state.labInvoices || state.labInvoices.length === 0) && Array.isArray(localState.labInvoices) && localState.labInvoices.length > 0) {
+          state.labInvoices = localState.labInvoices;
+        }
+        if ((!state.dueCollections || state.dueCollections.length === 0) && Array.isArray(localState.dueCollections) && localState.dueCollections.length > 0) {
+          state.dueCollections = localState.dueCollections;
+        }
+        if ((!state.indoorInvoices || state.indoorInvoices.length === 0) && Array.isArray(localState.indoorInvoices) && localState.indoorInvoices.length > 0) {
+          state.indoorInvoices = localState.indoorInvoices;
+        }
+        if ((!state.patients || state.patients.length === 0) && Array.isArray(localState.patients) && localState.patients.length > 0) {
+          state.patients = localState.patients;
+        }
+        if ((!state.doctors || state.doctors.length === 0) && Array.isArray(localState.doctors) && localState.doctors.length > 0) {
+          state.doctors = localState.doctors;
+        }
+      }
+
+      // 2. Fetch modern detailed_expenses records from modular table (August 1st onwards)
       try {
-        const [
-          expRows,
-          patientRows,
-          doctorRows,
-          referrerRows,
-          testRows,
-          reagentRows,
-          empRows,
-          medRows,
-          labInvRows,
-          indoorInvRows,
-          salesInvRows,
-          purchaseInvRows,
-          dueColRows,
-          repRows,
-          prescRows,
-          apptRows,
-          admRows
-        ] = await Promise.all([
-          fetchTableSafe(supabase, 'detailed_expenses'),
-          fetchTableSafe(supabase, 'patients'),
-          fetchTableSafe(supabase, 'doctors'),
-          fetchTableSafe(supabase, 'referrars'),
-          fetchTableSafe(supabase, 'tests'),
-          fetchTableSafe(supabase, 'reagents'),
-          fetchTableSafe(supabase, 'employees'),
-          fetchTableSafe(supabase, 'medicines'),
-          fetchTableSafe(supabase, 'lab_invoices'),
-          fetchTableSafe(supabase, 'indoor_invoices'),
-          fetchTableSafe(supabase, 'sales_invoices'),
-          fetchTableSafe(supabase, 'purchase_invoices'),
-          fetchTableSafe(supabase, 'due_collections'),
-          fetchTableSafe(supabase, 'reports'),
-          fetchTableSafe(supabase, 'prescriptions'),
-          fetchTableSafe(supabase, 'appointments'),
-          fetchTableSafe(supabase, 'admissions')
-        ]);
+        const expRows = await fetchTableSafe(supabase, 'detailed_expenses');
 
         // Detailed Expenses Dual-Partition:
         // Dates < cutoffDate (July and earlier): strictly preserved from ncd_state
-        // Dates >= cutoffDate (August 1st onwards): loaded from detailed_expenses modular table
+        // Dates >= cutoffDate (August 1st onwards): loaded from detailed_expenses modular table (or fallback to ncd_state)
         const rawExpenses = state.detailedExpenses || {};
         const mergedExpenses: Record<string, any[]> = {};
 
@@ -324,44 +307,6 @@ export const dbService = {
         }
 
         state.detailedExpenses = mergedExpenses;
-
-        // Merge entity collections from modular tables with priority
-        const mergeEntityList = (masterList: any[], separateRows: any[] | null, idField: string) => {
-          if (!separateRows || separateRows.length === 0) return masterList || [];
-          const base = Array.isArray(masterList) ? [...masterList] : [];
-          const map = new Map<string, any>();
-          base.forEach(item => {
-            const idVal = String(item[idField] || item.id || '').trim();
-            if (idVal) map.set(idVal, item);
-          });
-          separateRows.forEach(item => {
-            const idVal = String(item[idField] || item.id || '').trim();
-            if (idVal) {
-              map.set(idVal, { ...map.get(idVal), ...item });
-            } else {
-              base.push(item);
-            }
-          });
-          return Array.from(map.values());
-        };
-
-        if (patientRows && patientRows.length > 0) state.patients = mergeEntityList(state.patients, patientRows, 'patient_id');
-        if (doctorRows && doctorRows.length > 0) state.doctors = mergeEntityList(state.doctors, doctorRows, 'doctor_id');
-        if (referrerRows && referrerRows.length > 0) state.referrars = mergeEntityList(state.referrars, referrerRows, 'ref_id');
-        if (testRows && testRows.length > 0) state.tests = mergeEntityList(state.tests, testRows, 'test_id');
-        if (reagentRows && reagentRows.length > 0) state.reagents = mergeEntityList(state.reagents, reagentRows, 'id');
-        if (empRows && empRows.length > 0) state.employees = mergeEntityList(state.employees, empRows, 'emp_id');
-        if (medRows && medRows.length > 0) state.medicines = mergeEntityList(state.medicines, medRows, 'id');
-        if (labInvRows && labInvRows.length > 0) state.labInvoices = mergeEntityList(state.labInvoices, labInvRows, 'invoice_no');
-        if (indoorInvRows && indoorInvRows.length > 0) state.indoorInvoices = mergeEntityList(state.indoorInvoices, indoorInvRows, 'invoice_no');
-        if (salesInvRows && salesInvRows.length > 0) state.salesInvoices = mergeEntityList(state.salesInvoices, salesInvRows, 'invoice_no');
-        if (purchaseInvRows && purchaseInvRows.length > 0) state.purchaseInvoices = mergeEntityList(state.purchaseInvoices, purchaseInvRows, 'invoice_no');
-        if (dueColRows && dueColRows.length > 0) state.dueCollections = mergeEntityList(state.dueCollections, dueColRows, 'id');
-        if (repRows && repRows.length > 0) state.reports = mergeEntityList(state.reports, repRows, 'report_id');
-        if (prescRows && prescRows.length > 0) state.prescriptions = mergeEntityList(state.prescriptions, prescRows, 'id');
-        if (apptRows && apptRows.length > 0) state.appointments = mergeEntityList(state.appointments, apptRows, 'id');
-        if (admRows && admRows.length > 0) state.admissions = mergeEntityList(state.admissions, admRows, 'id');
-
       } catch (modularErr) {
         console.warn("Modular table load notice:", modularErr);
       }
@@ -417,7 +362,7 @@ export const dbService = {
 
       state.detailedExpenses = cleanExpenses;
 
-      // Ensure all other collections are safe arrays
+      // Ensure all collections are safe arrays
       if (!Array.isArray(state.patients)) state.patients = [];
       if (!Array.isArray(state.doctors)) state.doctors = [];
       if (!Array.isArray(state.referrars)) state.referrars = [];
@@ -455,6 +400,7 @@ export const dbService = {
       // 1. Always update local storage cache immediately (0ms latency local safety)
       try {
         localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(appState));
+        localStorage.setItem('ncd_offline_cache_v1', JSON.stringify(appState));
       } catch (e) {
         console.warn("Local cache save error:", e);
       }
@@ -467,105 +413,50 @@ export const dbService = {
       const cutoffDate = getTableSplitCutoffDate(); // '2026-08-01'
       const now = new Date().toISOString();
 
-      // 2. Concurrently save to:
-      // a) Master ncd_state single table (keeps complete historical archive and backup)
-      // b) Modular tables (detailed_expenses for dates >= 2026-08-01, plus entity tables)
-      const savePromises: Promise<any>[] = [];
+      // 2. Fast Save to Master ncd_state single table (< 200ms latency)
+      const { error: masterErr } = await supabase
+        .from('ncd_state')
+        .upsert({ 
+          id: MASTER_RECORD_ID, 
+          data: appState,
+          updated_at: now 
+        }, { onConflict: 'id' });
 
-      // Task A: Master State
-      savePromises.push(
-        supabase
-          .from('ncd_state')
-          .upsert({ 
-            id: MASTER_RECORD_ID, 
-            data: appState,
-            updated_at: now 
-          }, { onConflict: 'id' })
-      );
+      if (masterErr) {
+        console.error("Master state save error:", masterErr);
+        return { success: false, error: masterErr.message || "Cloud save failed." };
+      }
 
-      // Task B: Modular detailed_expenses for dates >= cutoffDate (August 1st onwards)
-      const expenseRows: any[] = [];
-      Object.entries(appState.detailedExpenses || {}).forEach(([dateKey, items]) => {
-        if (dateKey >= cutoffDate && Array.isArray(items)) {
-          items.forEach((it: any, idx: number) => {
-            if (!it || it.isDeleted) return;
-            const rowId = String(it.id || `exp_${dateKey.replace(/-/g, '')}_${idx}_${Date.now()}`);
-            expenseRows.push({
-              id: rowId,
-              date: dateKey,
-              category: it.category || 'General',
-              sub_category: it.subCategory || it.sub_category || '',
-              description: it.description || '',
-              bill_amount: Number(it.billAmount || it.paidAmount || 0),
-              paid_amount: Number(it.paidAmount || it.billAmount || 0),
-              dept: it.dept || 'Diagnostic',
-              updated_at: now
+      // 3. Asynchronously sync modern detailed_expenses (August 1st onwards) without blocking the UI
+      try {
+        const expenseRows: any[] = [];
+        Object.entries(appState.detailedExpenses || {}).forEach(([dateKey, items]) => {
+          if (dateKey >= cutoffDate && Array.isArray(items)) {
+            items.forEach((it: any, idx: number) => {
+              if (!it || it.isDeleted) return;
+              const rowId = String(it.id || `exp_${dateKey.replace(/-/g, '')}_${idx}_${Date.now()}`);
+              expenseRows.push({
+                id: rowId,
+                date: dateKey,
+                category: it.category || 'General',
+                sub_category: it.subCategory || it.sub_category || '',
+                description: it.description || '',
+                bill_amount: Number(it.billAmount || it.paidAmount || 0),
+                paid_amount: Number(it.paidAmount || it.billAmount || 0),
+                dept: it.dept || 'Diagnostic',
+                updated_at: now
+              });
             });
+          }
+        });
+
+        if (expenseRows.length > 0) {
+          upsertTableSafe(supabase, 'detailed_expenses', expenseRows).catch(e => {
+            console.warn("Background detailed_expenses sync notice:", e);
           });
         }
-      });
-
-      if (expenseRows.length > 0) {
-        savePromises.push(upsertTableSafe(supabase, 'detailed_expenses', expenseRows));
-      }
-
-      // Task C: Modular entities (upserting concurrently with safe error handling)
-      if (Array.isArray(appState.patients) && appState.patients.length > 0) {
-        savePromises.push(upsertTableSafe(supabase, 'patients', appState.patients));
-      }
-      if (Array.isArray(appState.doctors) && appState.doctors.length > 0) {
-        savePromises.push(upsertTableSafe(supabase, 'doctors', appState.doctors));
-      }
-      if (Array.isArray(appState.referrars) && appState.referrars.length > 0) {
-        savePromises.push(upsertTableSafe(supabase, 'referrars', appState.referrars));
-      }
-      if (Array.isArray(appState.tests) && appState.tests.length > 0) {
-        savePromises.push(upsertTableSafe(supabase, 'tests', appState.tests));
-      }
-      if (Array.isArray(appState.reagents) && appState.reagents.length > 0) {
-        savePromises.push(upsertTableSafe(supabase, 'reagents', appState.reagents));
-      }
-      if (Array.isArray(appState.employees) && appState.employees.length > 0) {
-        savePromises.push(upsertTableSafe(supabase, 'employees', appState.employees));
-      }
-      if (Array.isArray(appState.medicines) && appState.medicines.length > 0) {
-        savePromises.push(upsertTableSafe(supabase, 'medicines', appState.medicines));
-      }
-      if (Array.isArray(appState.labInvoices) && appState.labInvoices.length > 0) {
-        savePromises.push(upsertTableSafe(supabase, 'lab_invoices', appState.labInvoices));
-      }
-      if (Array.isArray(appState.indoorInvoices) && appState.indoorInvoices.length > 0) {
-        savePromises.push(upsertTableSafe(supabase, 'indoor_invoices', appState.indoorInvoices));
-      }
-      if (Array.isArray(appState.salesInvoices) && appState.salesInvoices.length > 0) {
-        savePromises.push(upsertTableSafe(supabase, 'sales_invoices', appState.salesInvoices));
-      }
-      if (Array.isArray(appState.purchaseInvoices) && appState.purchaseInvoices.length > 0) {
-        savePromises.push(upsertTableSafe(supabase, 'purchase_invoices', appState.purchaseInvoices));
-      }
-      if (Array.isArray(appState.dueCollections) && appState.dueCollections.length > 0) {
-        savePromises.push(upsertTableSafe(supabase, 'due_collections', appState.dueCollections));
-      }
-      if (Array.isArray(appState.reports) && appState.reports.length > 0) {
-        savePromises.push(upsertTableSafe(supabase, 'reports', appState.reports));
-      }
-      if (Array.isArray(appState.prescriptions) && appState.prescriptions.length > 0) {
-        savePromises.push(upsertTableSafe(supabase, 'prescriptions', appState.prescriptions));
-      }
-      if (Array.isArray(appState.appointments) && appState.appointments.length > 0) {
-        savePromises.push(upsertTableSafe(supabase, 'appointments', appState.appointments));
-      }
-      if (Array.isArray(appState.admissions) && appState.admissions.length > 0) {
-        savePromises.push(upsertTableSafe(supabase, 'admissions', appState.admissions));
-      }
-
-      const results = await Promise.allSettled(savePromises);
-      
-      const masterResult = results[0];
-      if (masterResult.status === 'rejected' || (masterResult.value && masterResult.value.error)) {
-        const err = masterResult.status === 'rejected' ? masterResult.reason : masterResult.value.error;
-        console.error("Master state save error:", err);
-        return { success: false, error: err.message || "Cloud save failed." };
+      } catch (e) {
+        console.warn("Async expense sync warning:", e);
       }
 
       return { success: true };
