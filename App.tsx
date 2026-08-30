@@ -13,7 +13,6 @@ import DoctorPortal from './components/DoctorPortal';
 import DepartmentLogin from './components/DepartmentLogin';
 import LabLogin from './components/LabLogin';
 import AdminSettings from './components/AdminSettings';
-import AIAssistant from './components/AIAssistant';
 import { useAppData } from './useAppData';
 
 const SidebarLayout = ({ children, onLogout }: { children: React.ReactNode, onLogout: () => void }) => {
@@ -465,47 +464,16 @@ const AppContent = () => {
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-      {!['/', '/doctor-login', '/lab-login', '/settings'].includes(location.pathname) && (
-        <AIAssistant 
-          detailedExpenses={data.detailedExpenses}
-          setDetailedExpenses={data.setDetailedExpenses}
-          employees={data.employees}
-          medicines={data.medicines}
-          purchaseInvoices={data.purchaseInvoices}
-          salesInvoices={data.salesInvoices}
-          labInvoices={data.labInvoices}
-          indoorInvoices={data.indoorInvoices}
-        />
-      )}
     </SidebarLayout>
   );
 };
 
 const App = () => {
-  const [isMobilePreview, setIsMobilePreview] = useState(false);
-  const isIframe = new URLSearchParams(window.location.search).has('mobile_preview');
-
   return (
     <Router>
-      <div className={isMobilePreview && !isIframe ? "fixed inset-0 bg-slate-900 flex items-center justify-center p-4 z-[100000]" : "h-screen w-full"}>
-         <div className={isMobilePreview && !isIframe ? "w-[375px] h-[812px] bg-slate-950 rounded-[3rem] border-[14px] border-black overflow-hidden relative shadow-[0_20px_50px_rgba(0,0,0,0.5)] ring-1 ring-white/20 after:content-[''] after:absolute after:top-0 after:left-1/2 after:-translate-x-1/2 after:w-32 after:h-6 after:bg-black after:rounded-b-3xl" : "h-full w-full"}>
-           {isMobilePreview && !isIframe ? (
-             <iframe src={`${window.location.pathname}?mobile_preview=1`} className="w-full h-full border-0 bg-slate-950" title="Mobile Preview" />
-           ) : (
-             <AppContent />
-           )}
-         </div>
+      <div className="h-screen w-full">
+        <AppContent />
       </div>
-      
-      {/* Floating Toggle Button - hidden inside iframe */}
-      {!isIframe && (
-        <button
-          onClick={() => setIsMobilePreview(!isMobilePreview)}
-          className="fixed top-4 right-4 z-[999999] bg-indigo-600 text-white px-5 py-2.5 rounded-full font-bold text-sm shadow-[0_0_20px_rgba(79,70,229,0.5)] hover:bg-indigo-500 hover:scale-105 transition-all border-2 border-indigo-400 flex items-center gap-2 uppercase tracking-widest"
-        >
-          {isMobilePreview ? "📱 Exit Mobile View" : "📱 Test Mobile View"}
-        </button>
-      )}
     </Router>
   );
 };

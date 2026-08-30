@@ -218,6 +218,43 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
     return { totalAmount, netPayable, dueAmount, status, tComm100, commAfterDisc, payableComm, commDue };
   }, [formData, applyPC]);
   
+  // Helper for resilient date parsing and matching across all date formats
+  const getNormalizedDateParts = (rawDate: any) => {
+    if (!rawDate) return { y: 0, m: 0, d: 0, isoDate: '' };
+    const str = String(rawDate).trim();
+    const dateOnly = str.split(/[T ]/)[0];
+    if (dateOnly.includes('-')) {
+      const parts = dateOnly.split('-');
+      if (parts[0].length === 4) {
+        const y = parseInt(parts[0], 10);
+        const m = parseInt(parts[1], 10);
+        const d = parseInt(parts[2], 10);
+        return { y, m, d, isoDate: `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}` };
+      } else if (parts[2]?.length === 4) {
+        const d = parseInt(parts[0], 10);
+        const m = parseInt(parts[1], 10);
+        const y = parseInt(parts[2], 10);
+        return { y, m, d, isoDate: `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}` };
+      }
+    } else if (dateOnly.includes('/')) {
+      const parts = dateOnly.split('/');
+      if (parts[2]?.length === 4) {
+        const d = parseInt(parts[0], 10);
+        const m = parseInt(parts[1], 10);
+        const y = parseInt(parts[2], 10);
+        return { y, m, d, isoDate: `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}` };
+      }
+    }
+    const dt = new Date(str);
+    if (!isNaN(dt.getTime())) {
+      const y = dt.getFullYear();
+      const m = dt.getMonth() + 1;
+      const d = dt.getDate();
+      return { y, m, d, isoDate: `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}` };
+    }
+    return { y: 0, m: 0, d: 0, isoDate: dateOnly };
+  };
+
   // Filter invoices when search term or invoices state changes
   const filteredInvoices = useMemo(() => {
     const safeInvs = Array.isArray(invoices) ? invoices : [];
@@ -228,16 +265,16 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
         (invoice.doctor_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
         (invoice.referrar_name || '').toLowerCase().includes(searchTerm.toLowerCase());
 
-      const matchesDate = !tableFilterDate || invoice.invoice_date === tableFilterDate;
+      const invDateParts = getNormalizedDateParts(invoice.invoice_date);
+      const matchesDate = !tableFilterDate || invDateParts.isoDate === tableFilterDate || invoice.invoice_date === tableFilterDate;
       
-      const invDateObj = invoice.invoice_date ? new Date(invoice.invoice_date) : null;
-      const matchesMonth = !tableFilterMonth || (invDateObj && (String(invDateObj.getMonth() + 1).padStart(2, '0')) === tableFilterMonth);
-      const matchesYear = !tableFilterYear || (invDateObj && String(invDateObj.getFullYear()) === tableFilterYear);
+      const matchesMonth = !tableFilterMonth || String(invDateParts.m).padStart(2, '0') === tableFilterMonth;
+      const matchesYear = !tableFilterYear || String(invDateParts.y) === tableFilterYear;
       
       const matchesDoctor = !tableFilterDoctorId || invoice.doctor_id === tableFilterDoctorId;
       const matchesReferrar = !tableFilterReferrarId || invoice.referrar_id === tableFilterReferrarId;
       const matchesPatient = !tableFilterPatientName || (invoice.patient_name || '').toLowerCase().includes(tableFilterPatientName.toLowerCase());
-      const matchesDue = !tableFilterDueOnly || ((invoice.due_amount || 0) > 0 && invoice.status !== 'Cancelled' && invoice.status !== 'Returned');
+      const matchesDue = !tableFilterDueOnly || ((Number(invoice.due_amount) || 0) > 0 && invoice.status !== 'Cancelled' && invoice.status !== 'Returned');
 
       return matchesSearch && matchesDate && matchesMonth && matchesYear && matchesDoctor && matchesReferrar && matchesPatient && matchesDue;
     });
@@ -985,50 +1022,69 @@ pdate the local state and reset form
 
   const dailyReport = useMemo(() => {
     const safeInvs = Array.isArray(invoices) ? invoices : [];
-    const collections = safeInvs.filter(inv => inv && inv.invoice_date === reportDate && inv.status !== 'Cancelled');
-    const refunds = safeInvs.filter(inv => inv && inv.return_date === reportDate && inv.status === 'Returned');
+    const repParts = getNormalizedDateParts(reportDate);
+    const collections = safeInvs.filter(inv => {
+      if (!inv || inv.status === 'Cancelled') return false;
+      const invParts = getNormalizedDateParts(inv.invoice_date);
+      return invParts.isoDate === repParts.isoDate || inv.invoice_date === reportDate;
+    });
+    const refunds = safeInvs.filter(inv => {
+      if (!inv || inv.status !== 'Returned') return false;
+      const retParts = getNormalizedDateParts(inv.return_date);
+      return retParts.isoDate === repParts.isoDate || inv.return_date === reportDate;
+    });
     
     const summary = collections.reduce((acc, inv) => {
-      acc.totalBill += (inv.total_amount || 0);
-      acc.totalDiscount += (inv.discount_amount || 0);
-      acc.netPayable += (inv.net_payable || 0);
-      acc.paidAmount += (inv.paid_amount || 0);
-      acc.dueAmount += (inv.due_amount || 0);
+      const tot = Number(inv.total_amount) || 0;
+      const disc = Number(inv.discount_amount) || 0;
+      const net = Number(inv.net_payable) || Math.max(0, tot - disc);
+      const paid = Number(inv.paid_amount) || 0;
+      const due = Number(inv.due_amount) || Math.max(0, net - paid);
+      acc.totalBill += tot;
+      acc.totalDiscount += disc;
+      acc.netPayable += net;
+      acc.paidAmount += paid;
+      acc.dueAmount += due;
       return acc;
     }, { totalBill: 0, totalDiscount: 0, netPayable: 0, paidAmount: 0, dueAmount: 0 });
 
-    const totalRefunded = refunds.reduce((sum, inv) => sum + (inv.paid_amount || 0), 0);
+    const totalRefunded = refunds.reduce((sum, inv) => sum + (Number(inv.paid_amount) || 0), 0);
     summary.paidAmount -= totalRefunded; // Deduct refunds from today's cash
 
     return summary;
-  }, [invoices, reportDate]); // Using invoices and reportDate as triggers
+  }, [invoices, reportDate]);
 
   const yearlyReport = useMemo(() => {
     const safeInvs = Array.isArray(invoices) ? invoices : [];
     const currentYear = today.getFullYear();
 
     const collections = safeInvs.filter(inv => {
-      if (!inv || !inv.invoice_date) return false;
-      const invDate = new Date(inv.invoice_date);
-      return invDate.getFullYear() === currentYear && inv.status !== 'Cancelled';
+      if (!inv || !inv.invoice_date || inv.status === 'Cancelled') return false;
+      const invParts = getNormalizedDateParts(inv.invoice_date);
+      return invParts.y === currentYear;
     });
 
     const refunds = safeInvs.filter(inv => {
-        if (!inv || !inv.return_date) return false;
-        const retDate = new Date(inv.return_date);
-        return retDate.getFullYear() === currentYear && inv.status === 'Returned';
+      if (!inv || !inv.return_date || inv.status !== 'Returned') return false;
+      const retParts = getNormalizedDateParts(inv.return_date);
+      return retParts.y === currentYear;
     });
 
     const summary = collections.reduce((acc, inv) => {
-      acc.totalBill += (inv.total_amount || 0);
-      acc.totalDiscount += (inv.discount_amount || 0);
-      acc.netPayable += (inv.net_payable || 0);
-      acc.paidAmount += (inv.paid_amount || 0);
-      acc.dueAmount += (inv.due_amount || 0);
+      const tot = Number(inv.total_amount) || 0;
+      const disc = Number(inv.discount_amount) || 0;
+      const net = Number(inv.net_payable) || Math.max(0, tot - disc);
+      const paid = Number(inv.paid_amount) || 0;
+      const due = Number(inv.due_amount) || Math.max(0, net - paid);
+      acc.totalBill += tot;
+      acc.totalDiscount += disc;
+      acc.netPayable += net;
+      acc.paidAmount += paid;
+      acc.dueAmount += due;
       return acc;
     }, { totalBill: 0, totalDiscount: 0, netPayable: 0, paidAmount: 0, dueAmount: 0 });
 
-    const totalRefunded = refunds.reduce((sum, inv) => sum + (inv.paid_amount || 0), 0);
+    const totalRefunded = refunds.reduce((sum, inv) => sum + (Number(inv.paid_amount) || 0), 0);
     summary.paidAmount -= totalRefunded;
 
     return summary;
@@ -1036,31 +1092,36 @@ pdate the local state and reset form
 
   const monthlyReport = useMemo(() => {
     const safeInvs = Array.isArray(invoices) ? invoices : [];
-    const currentMonth = today.getMonth();
+    const currentMonth = today.getMonth() + 1; // 1-12
     const currentYear = today.getFullYear();
 
     const collections = safeInvs.filter(inv => {
-      if (!inv || !inv.invoice_date) return false;
-      const invDate = new Date(inv.invoice_date);
-      return invDate.getMonth() === currentMonth && invDate.getFullYear() === currentYear && inv.status !== 'Cancelled';
+      if (!inv || !inv.invoice_date || inv.status === 'Cancelled') return false;
+      const invParts = getNormalizedDateParts(inv.invoice_date);
+      return invParts.m === currentMonth && invParts.y === currentYear;
     });
 
     const refunds = safeInvs.filter(inv => {
-        if (!inv || !inv.return_date) return false;
-        const retDate = new Date(inv.return_date);
-        return retDate.getMonth() === currentMonth && retDate.getFullYear() === currentYear && inv.status === 'Returned';
+      if (!inv || !inv.return_date || inv.status !== 'Returned') return false;
+      const retParts = getNormalizedDateParts(inv.return_date);
+      return retParts.m === currentMonth && retParts.y === currentYear;
     });
 
     const summary = collections.reduce((acc, inv) => {
-      acc.totalBill += (inv.total_amount || 0);
-      acc.totalDiscount += (inv.discount_amount || 0);
-      acc.netPayable += (inv.net_payable || 0);
-      acc.paidAmount += (inv.paid_amount || 0);
-      acc.dueAmount += (inv.due_amount || 0);
+      const tot = Number(inv.total_amount) || 0;
+      const disc = Number(inv.discount_amount) || 0;
+      const net = Number(inv.net_payable) || Math.max(0, tot - disc);
+      const paid = Number(inv.paid_amount) || 0;
+      const due = Number(inv.due_amount) || Math.max(0, net - paid);
+      acc.totalBill += tot;
+      acc.totalDiscount += disc;
+      acc.netPayable += net;
+      acc.paidAmount += paid;
+      acc.dueAmount += due;
       return acc;
     }, { totalBill: 0, totalDiscount: 0, netPayable: 0, paidAmount: 0, dueAmount: 0 });
 
-    const totalRefunded = refunds.reduce((sum, inv) => sum + (inv.paid_amount || 0), 0);
+    const totalRefunded = refunds.reduce((sum, inv) => sum + (Number(inv.paid_amount) || 0), 0);
     summary.paidAmount -= totalRefunded;
 
     return summary;

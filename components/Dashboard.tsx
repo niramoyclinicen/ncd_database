@@ -144,24 +144,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onNavigate }) => {
 
           {/* GRID SECTION - Centered vertically */}
           <main className="flex-1 flex flex-col items-center justify-center w-full max-w-5xl mx-auto relative py-2 md:py-4">
-              
-              {/* Mobile Marketing Button (Stacks nicely on mobile, hidden on desktop) */}
-              <div className="md:hidden flex w-full justify-center mb-6 z-20 animate-fade-in-up">
-                  <button
-                      onClick={() => onNavigate(ViewState.MARKETING)}
-                      className="group relative w-full max-w-[280px] py-4 rounded-[2rem] bg-[#0f172a] border border-cyan-500/60 flex flex-col items-center justify-center shadow-[0_0_30px_rgba(0,0,0,0.5)] transition-all duration-300 active:scale-95"
-                  >
-                      <div className="absolute inset-0 bg-gradient-to-r from-cyan-600/10 via-blue-600/10 to-cyan-600/10 opacity-0 group-hover:opacity-100 transition-opacity rounded-[2rem]" />
-                      <div className="p-1.5 rounded-full text-cyan-400">
-                          <UsersIcon size={24} />
-                      </div>
-                      <div className="text-center px-2 mt-1">
-                          <span className="block text-xl font-black text-white font-bengali tracking-wider drop-shadow-sm leading-tight">মার্কেটিং ম্যানেজমেন্ট</span>
-                          <span className="block text-[10px] font-bold text-cyan-400 uppercase tracking-[0.15em] opacity-80 mt-1">Marketing Management</span>
-                      </div>
-                  </button>
-              </div>
-
               {/* 2x2 Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6 lg:gap-10 w-full relative z-10">
                 <DashboardButton 
@@ -198,7 +180,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onNavigate }) => {
                           <span className="block text-xl sm:text-2xl lg:text-3xl font-extrabold text-white mb-1 drop-shadow-sm tracking-normal">মেডিসিন ম্যানেজমেন্ট</span>
                           <span className="block text-[10px] sm:text-xs lg:text-sm font-semibold text-rose-200 mt-1.5 lg:mt-2 tracking-widest uppercase">Medicine Management</span>
                       </>
-                  }
+                  } 
                   icon={<MedicineIcon />} 
                   onClick={() => onNavigate(ViewState.MEDICINE)} 
                   colorFrom="from-rose-500/40"
@@ -212,7 +194,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onNavigate }) => {
                           <span className="block text-xl sm:text-2xl lg:text-3xl font-extrabold text-white mb-1 drop-shadow-sm tracking-normal">অ্যাকাউন্টিং ম্যানেজমেন্ট</span>
                           <span className="block text-[10px] sm:text-xs lg:text-sm font-semibold text-amber-200 mt-1.5 lg:mt-2 tracking-widest uppercase">Accounting Management</span>
                       </>
-                  }
+                  } 
                   icon={<AccountingIcon />} 
                   onClick={() => onNavigate(ViewState.ACCOUNTING)} 
                   colorFrom="from-amber-500/30"
@@ -220,26 +202,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onNavigate }) => {
                   borderColor="border-slate-700 hover:border-amber-400"
                   delay="400ms"
                 />
-              </div>
-
-              {/* Desktop Marketing Button (Absolute Center - Hidden on Mobile) */}
-              <div className="hidden md:flex absolute inset-0 items-center justify-center pointer-events-none z-[100]">
-                  <div className="pointer-events-auto animate-fade-in-up" style={{ animationDelay: '450ms' }}>
-                      <button
-                          onClick={() => onNavigate(ViewState.MARKETING)}
-                          className="group relative w-64 lg:w-72 h-32 lg:h-36 rounded-[50%] bg-[#0f172a] border-2 border-cyan-500/60 flex flex-col items-center justify-center shadow-[0_0_50px_rgba(0,0,0,0.8)] transition-all duration-300 hover:scale-110 active:scale-95 hover:shadow-[0_0_60px_rgba(34,211,238,0.5)] hover:border-cyan-500 backdrop-blur-2xl"
-                      >
-                          <div className="absolute inset-0 bg-gradient-to-r from-cyan-600/10 via-blue-600/10 to-cyan-600/10 opacity-0 group-hover:opacity-100 transition-opacity rounded-[50%]" />
-                          <div className="p-1.5 lg:p-2 rounded-full text-cyan-400 group-hover:scale-110 transition-transform">
-                              <UsersIcon size={26} />
-                          </div>
-                          <div className="text-center px-1">
-                              <span className="block text-xl lg:text-2xl font-black text-white font-bengali tracking-wider drop-shadow-sm leading-tight">মার্কেটিং ম্যানেজমেন্ট</span>
-                              <span className="block text-[10px] lg:text-xs font-bold text-cyan-400 uppercase tracking-[0.2em] opacity-80 mt-1">Marketing Management</span>
-                          </div>
-                          <div className="absolute -inset-1 bg-cyan-500/10 blur-3xl opacity-0 group-hover:opacity-100 transition-opacity -z-10" />
-                      </button>
-                  </div>
               </div>
           </main>
 

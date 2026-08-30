@@ -202,9 +202,10 @@ export const dbService = {
   loadFromCloud: async () => {
     try {
       let localState: any = null;
+      // Scan all possible local storage keys for offline recovery
       try {
-        const cached = localStorage.getItem(LOCAL_STORAGE_KEY) || localStorage.getItem('ncd_offline_cache_v1');
-        if (cached) localState = JSON.parse(cached);
+        const primaryCache = localStorage.getItem(LOCAL_STORAGE_KEY) || localStorage.getItem('ncd_offline_cache_v1');
+        if (primaryCache) localState = JSON.parse(primaryCache);
       } catch (e) {
         console.warn("Could not read local cache:", e);
       }
@@ -215,8 +216,58 @@ export const dbService = {
       
       const cutoffDate = getTableSplitCutoffDate(); // '2026-08-01'
 
-      // 1. Primary Source: Fetch master state from single table ncd_state
-      let state: any = null;
+      // Helper for robust ID extraction
+      const getItemId = (it: any, idFields: string[]): string => {
+        if (!it || typeof it !== 'object') return '';
+        for (const f of idFields) {
+          const val = it[f];
+          if (val !== undefined && val !== null && String(val).trim() !== '' && String(val) !== 'undefined' && String(val) !== 'null') {
+            return String(val).trim();
+          }
+        }
+        return '';
+      };
+
+      // Helper to merge two lists without losing records or fields
+      const mergeEntityList = (baseList: any[], extraList: any[], idFields: string[]) => {
+        const result: any[] = Array.isArray(baseList) ? [...baseList] : [];
+        if (!Array.isArray(extraList) || extraList.length === 0) return result;
+
+        const map = new Map<string, number>();
+        result.forEach((item, index) => {
+          const id = getItemId(item, idFields);
+          if (id) map.set(id, index);
+        });
+
+        extraList.forEach(item => {
+          if (!item) return;
+          const id = getItemId(item, idFields);
+          if (id && map.has(id)) {
+            const existingIdx = map.get(id)!;
+            result[existingIdx] = { ...item, ...result[existingIdx] }; // base has priority, fill missing from extra
+          } else {
+            result.push(item);
+            if (id) map.set(id, result.length - 1);
+          }
+        });
+
+        return result;
+      };
+
+      // 1. Primary Source: Fetch master state records from single table ncd_state
+      let state: any = {};
+      const extractDataObj = (raw: any) => {
+        if (!raw) return null;
+        if (typeof raw === 'object' && !Array.isArray(raw)) return raw;
+        if (typeof raw === 'string') {
+          try {
+            const parsed = JSON.parse(raw);
+            if (typeof parsed === 'object' && !Array.isArray(parsed)) return parsed;
+          } catch {}
+        }
+        return null;
+      };
+
       try {
         const { data: records, error } = await supabase
           .from('ncd_state')
@@ -224,10 +275,57 @@ export const dbService = {
           .order('updated_at', { ascending: false });
           
         if (!error && records && records.length > 0) {
+          // Find master record or the richest snapshot
           const masterRecord = records.find(r => r.id === MASTER_RECORD_ID) || records[0];
-          if (masterRecord && masterRecord.data && typeof masterRecord.data === 'object') {
-            state = { ...masterRecord.data };
+          const masterData = masterRecord ? extractDataObj(masterRecord.data) : null;
+          if (masterData) {
+            state = { ...masterData };
           }
+          
+          // Also check other records in ncd_state to rescue any historical data
+          records.forEach(rec => {
+            if (rec && rec.data) {
+              const d = extractDataObj(rec.data);
+              if (d) {
+                const recInvs = d.labInvoices || d.invoices || d.lab_invoices || d.diagnostic_invoices;
+                if (Array.isArray(recInvs) && recInvs.length > 0) {
+                  state.labInvoices = mergeEntityList(state.labInvoices || [], recInvs, ['invoice_id', 'id', 'invoice_no', 'invoiceId']);
+                }
+                const recDues = d.dueCollections || d.due_collections || d.dues || d.collections;
+                if (Array.isArray(recDues) && recDues.length > 0) {
+                  state.dueCollections = mergeEntityList(state.dueCollections || [], recDues, ['collection_id', 'id', 'collectionId']);
+                }
+                const recIndoor = d.indoorInvoices || d.indoor_invoices || d.clinicInvoices;
+                if (Array.isArray(recIndoor) && recIndoor.length > 0) {
+                  state.indoorInvoices = mergeEntityList(state.indoorInvoices || [], recIndoor, ['invoice_id', 'daily_id', 'id']);
+                }
+                if (Array.isArray(d.patients) && d.patients.length > 0) {
+                  state.patients = mergeEntityList(state.patients || [], d.patients, ['pt_id', 'patient_id', 'id']);
+                }
+                if (Array.isArray(d.doctors) && d.doctors.length > 0) {
+                  state.doctors = mergeEntityList(state.doctors || [], d.doctors, ['doctor_id', 'id']);
+                }
+                if (Array.isArray(d.referrars) && d.referrars.length > 0) {
+                  state.referrars = mergeEntityList(state.referrars || [], d.referrars, ['ref_id', 'referrer_id', 'id']);
+                }
+                if (Array.isArray(d.tests) && d.tests.length > 0) {
+                  state.tests = mergeEntityList(state.tests || [], d.tests, ['test_id', 'id']);
+                }
+                if (Array.isArray(d.reagents) && d.reagents.length > 0) {
+                  state.reagents = mergeEntityList(state.reagents || [], d.reagents, ['reagent_id', 'id']);
+                }
+                if (Array.isArray(d.employees) && d.employees.length > 0) {
+                  state.employees = mergeEntityList(state.employees || [], d.employees, ['emp_id', 'id']);
+                }
+                if (Array.isArray(d.medicines) && d.medicines.length > 0) {
+                  state.medicines = mergeEntityList(state.medicines || [], d.medicines, ['id']);
+                }
+                if (d.detailedExpenses && typeof d.detailedExpenses === 'object') {
+                  state.detailedExpenses = { ...(state.detailedExpenses || {}), ...d.detailedExpenses };
+                }
+              }
+            }
+          });
         }
       } catch (err) {
         console.warn("Notice fetching ncd_state:", err);
@@ -237,32 +335,139 @@ export const dbService = {
         state = localState ? { ...localState } : {};
       }
 
-      // Safety check: If local cache has richer collections than cloud (e.g. from prior session), merge them safely
-      if (localState) {
-        if ((!state.labInvoices || state.labInvoices.length === 0) && Array.isArray(localState.labInvoices) && localState.labInvoices.length > 0) {
-          state.labInvoices = localState.labInvoices;
-        }
-        if ((!state.dueCollections || state.dueCollections.length === 0) && Array.isArray(localState.dueCollections) && localState.dueCollections.length > 0) {
-          state.dueCollections = localState.dueCollections;
-        }
-        if ((!state.indoorInvoices || state.indoorInvoices.length === 0) && Array.isArray(localState.indoorInvoices) && localState.indoorInvoices.length > 0) {
-          state.indoorInvoices = localState.indoorInvoices;
-        }
-        if ((!state.patients || state.patients.length === 0) && Array.isArray(localState.patients) && localState.patients.length > 0) {
-          state.patients = localState.patients;
-        }
-        if ((!state.doctors || state.doctors.length === 0) && Array.isArray(localState.doctors) && localState.doctors.length > 0) {
-          state.doctors = localState.doctors;
-        }
+      // Normalization of alternate keys in state
+      if (!Array.isArray(state.labInvoices)) {
+        state.labInvoices = Array.isArray(state.invoices) ? state.invoices : (Array.isArray(state.lab_invoices) ? state.lab_invoices : (Array.isArray(state.diagnostic_invoices) ? state.diagnostic_invoices : []));
+      }
+      if (!Array.isArray(state.dueCollections)) {
+        state.dueCollections = Array.isArray(state.due_collections) ? state.due_collections : (Array.isArray(state.dues) ? state.dues : []);
+      }
+      if (!Array.isArray(state.indoorInvoices)) {
+        state.indoorInvoices = Array.isArray(state.indoor_invoices) ? state.indoor_invoices : [];
       }
 
-      // 2. Fetch modern detailed_expenses records from modular table (August 1st onwards)
+      // 2. Fetch modular tables concurrently from Supabase (lab_invoices, due_collections, detailed_expenses, etc.)
       try {
-        const expRows = await fetchTableSafe(supabase, 'detailed_expenses');
+        const [
+          expRows,
+          labInvRows,
+          altInvRows,
+          dueColRows,
+          altDueRows,
+          indoorInvRows,
+          patientRows,
+          doctorRows,
+          referrerRows,
+          testRows,
+          reagentRows,
+          empRows,
+          medRows,
+          salesInvRows,
+          purchaseInvRows,
+          repRows,
+          prescRows,
+          apptRows,
+          admRows
+        ] = await Promise.all([
+          fetchTableSafe(supabase, 'detailed_expenses'),
+          fetchTableSafe(supabase, 'lab_invoices'),
+          fetchTableSafe(supabase, 'invoices'),
+          fetchTableSafe(supabase, 'due_collections'),
+          fetchTableSafe(supabase, 'dues'),
+          fetchTableSafe(supabase, 'indoor_invoices'),
+          fetchTableSafe(supabase, 'patients'),
+          fetchTableSafe(supabase, 'doctors'),
+          fetchTableSafe(supabase, 'referrars'),
+          fetchTableSafe(supabase, 'tests'),
+          fetchTableSafe(supabase, 'reagents'),
+          fetchTableSafe(supabase, 'employees'),
+          fetchTableSafe(supabase, 'medicines'),
+          fetchTableSafe(supabase, 'sales_invoices'),
+          fetchTableSafe(supabase, 'purchase_invoices'),
+          fetchTableSafe(supabase, 'reports'),
+          fetchTableSafe(supabase, 'prescriptions'),
+          fetchTableSafe(supabase, 'appointments'),
+          fetchTableSafe(supabase, 'admissions')
+        ]);
+
+        // Merge Lab Invoices from modular table(s)
+        const combinedLabRows = [...(labInvRows || []), ...(altInvRows || [])];
+        if (combinedLabRows.length > 0) {
+          const parsedLabInvs = combinedLabRows.map((r: any) => {
+            let items = r.items;
+            if (typeof items === 'string') {
+              try { items = JSON.parse(items); } catch { items = []; }
+            }
+            return {
+              ...r,
+              invoice_id: String(r.invoice_id || r.id || r.invoice_no || r.invoiceId || '').trim(),
+              invoice_date: r.invoice_date || r.date || r.created_at || '',
+              patient_id: r.patient_id || r.pt_id || '',
+              patient_name: r.patient_name || r.pt_name || '',
+              doctor_id: r.doctor_id || '',
+              doctor_name: r.doctor_name || '',
+              referrar_id: r.referrar_id || r.ref_id || '',
+              referrar_name: r.referrar_name || r.ref_name || '',
+              items: Array.isArray(items) ? items : [],
+              total_amount: Number(r.total_amount || r.totalAmount || r.total || 0),
+              paid_amount: Number(r.paid_amount || r.paidAmount || r.paid || 0),
+              due_amount: Number(r.due_amount || r.dueAmount || r.due || 0),
+              discount_amount: Number(r.discount_amount || r.discountAmount || r.discount || 0),
+              commission_paid: Number(r.commission_paid || r.commissionPaid || 0),
+              special_commission: Number(r.special_commission || r.specialCommission || 0),
+              status: r.status || (Number(r.due_amount || 0) > 0 ? 'Due' : 'Paid')
+            };
+          }).filter(r => r.invoice_id);
+          state.labInvoices = mergeEntityList(state.labInvoices, parsedLabInvs, ['invoice_id', 'id', 'invoice_no', 'invoiceId']);
+        }
+
+        // Merge Due Collections from modular table(s)
+        const combinedDueRows = [...(dueColRows || []), ...(altDueRows || [])];
+        if (combinedDueRows.length > 0) {
+          const parsedDues = combinedDueRows.map((r: any) => ({
+            ...r,
+            collection_id: String(r.collection_id || r.id || r.collectionId || '').trim(),
+            invoice_id: String(r.invoice_id || r.invoice_no || r.invoiceId || '').trim(),
+            amount_collected: Number(r.amount_collected || r.amount || r.paid_amount || 0),
+            collection_date: r.collection_date || r.date || r.created_at || ''
+          })).filter(r => r.collection_id || r.invoice_id);
+          state.dueCollections = mergeEntityList(state.dueCollections, parsedDues, ['collection_id', 'id', 'collectionId']);
+        }
+
+        // Merge Indoor Invoices from modular table
+        if (indoorInvRows && indoorInvRows.length > 0) {
+          const parsedIndoor = indoorInvRows.map((r: any) => {
+            let items = r.items;
+            if (typeof items === 'string') {
+              try { items = JSON.parse(items); } catch { items = []; }
+            }
+            return {
+              ...r,
+              invoice_id: String(r.invoice_id || r.daily_id || r.id || '').trim(),
+              invoice_date: r.invoice_date || r.admission_date || r.date || '',
+              items: Array.isArray(items) ? items : [],
+              paid_amount: Number(r.paid_amount || r.paidAmount || 0)
+            };
+          });
+          state.indoorInvoices = mergeEntityList(state.indoorInvoices, parsedIndoor, ['invoice_id', 'daily_id', 'id']);
+        }
+
+        // Merge other entity collections
+        if (patientRows && patientRows.length > 0) state.patients = mergeEntityList(state.patients, patientRows, ['pt_id', 'patient_id', 'id']);
+        if (doctorRows && doctorRows.length > 0) state.doctors = mergeEntityList(state.doctors, doctorRows, ['doctor_id', 'id']);
+        if (referrerRows && referrerRows.length > 0) state.referrars = mergeEntityList(state.referrars, referrerRows, ['ref_id', 'referrer_id', 'id']);
+        if (testRows && testRows.length > 0) state.tests = mergeEntityList(state.tests, testRows, ['test_id', 'id']);
+        if (reagentRows && reagentRows.length > 0) state.reagents = mergeEntityList(state.reagents, reagentRows, ['reagent_id', 'id']);
+        if (empRows && empRows.length > 0) state.employees = mergeEntityList(state.employees, empRows, ['emp_id', 'id']);
+        if (medRows && medRows.length > 0) state.medicines = mergeEntityList(state.medicines, medRows, ['id']);
+        if (salesInvRows && salesInvRows.length > 0) state.salesInvoices = mergeEntityList(state.salesInvoices, salesInvRows, ['invoiceId', 'invoice_id', 'id']);
+        if (purchaseInvRows && purchaseInvRows.length > 0) state.purchaseInvoices = mergeEntityList(state.purchaseInvoices, purchaseInvRows, ['invoiceId', 'invoice_id', 'id']);
+        if (repRows && repRows.length > 0) state.reports = mergeEntityList(state.reports, repRows, ['report_id', 'id']);
+        if (prescRows && prescRows.length > 0) state.prescriptions = mergeEntityList(state.prescriptions, prescRows, ['id']);
+        if (apptRows && apptRows.length > 0) state.appointments = mergeEntityList(state.appointments, apptRows, ['appointment_id', 'id']);
+        if (admRows && admRows.length > 0) state.admissions = mergeEntityList(state.admissions, admRows, ['admission_id', 'id']);
 
         // Detailed Expenses Dual-Partition:
-        // Dates < cutoffDate (July and earlier): strictly preserved from ncd_state
-        // Dates >= cutoffDate (August 1st onwards): loaded from detailed_expenses modular table (or fallback to ncd_state)
         const rawExpenses = state.detailedExpenses || {};
         const mergedExpenses: Record<string, any[]> = {};
 
@@ -311,7 +516,29 @@ export const dbService = {
         console.warn("Modular table load notice:", modularErr);
       }
 
-      // 3. Strict Deduplication & Guaranteed Unique ID normalization for detailedExpenses
+      // 3. Safety check with local cache: Never lose offline collections
+      if (localState) {
+        if (Array.isArray(localState.labInvoices) && localState.labInvoices.length > 0) {
+          state.labInvoices = mergeEntityList(state.labInvoices || [], localState.labInvoices, ['invoice_id', 'id', 'invoice_no']);
+        }
+        if (Array.isArray(localState.dueCollections) && localState.dueCollections.length > 0) {
+          state.dueCollections = mergeEntityList(state.dueCollections || [], localState.dueCollections, ['collection_id', 'id']);
+        }
+        if (Array.isArray(localState.indoorInvoices) && localState.indoorInvoices.length > 0) {
+          state.indoorInvoices = mergeEntityList(state.indoorInvoices || [], localState.indoorInvoices, ['invoice_id', 'daily_id', 'id']);
+        }
+        if (Array.isArray(localState.patients) && localState.patients.length > 0) {
+          state.patients = mergeEntityList(state.patients || [], localState.patients, ['pt_id', 'patient_id', 'id']);
+        }
+        if (Array.isArray(localState.doctors) && localState.doctors.length > 0) {
+          state.doctors = mergeEntityList(state.doctors || [], localState.doctors, ['doctor_id', 'id']);
+        }
+        if (Array.isArray(localState.referrars) && localState.referrars.length > 0) {
+          state.referrars = mergeEntityList(state.referrars || [], localState.referrars, ['ref_id', 'referrer_id', 'id']);
+        }
+      }
+
+      // 4. Strict Deduplication & Guaranteed Unique ID normalization for detailedExpenses
       const rawExpenses = state.detailedExpenses || {};
       const cleanExpenses: Record<string, any[]> = {};
 
@@ -331,7 +558,6 @@ export const dbService = {
               const billAmt = Number(item.billAmount || item.paidAmount || item.bill_amount || 0);
               const dept = item.dept || 'Diagnostic';
 
-              // Unique signature for detecting duplicates on the exact same date
               const sig = `${cat.toLowerCase()}|${sub.toLowerCase()}|${desc.toLowerCase()}|${paidAmt}|${billAmt}|${dept.toLowerCase()}`;
 
               if (!seen.has(sig)) {
@@ -382,13 +608,14 @@ export const dbService = {
       // Save fresh state to local cache
       try {
         localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(state));
+        localStorage.setItem('ncd_offline_cache_v1', JSON.stringify(state));
       } catch (e) {}
 
       return state;
     } catch (error) {
       console.error("Cloud load error:", error);
       try {
-        const cached = localStorage.getItem(LOCAL_STORAGE_KEY);
+        const cached = localStorage.getItem(LOCAL_STORAGE_KEY) || localStorage.getItem('ncd_offline_cache_v1');
         if (cached) return JSON.parse(cached);
       } catch (e) {}
       return { _error: "Failed to load state from cloud." };

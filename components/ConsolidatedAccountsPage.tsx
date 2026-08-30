@@ -488,13 +488,32 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
         return { rows, columnTotals, grandTotal }; } catch(e) { console.error('expenseSheetData error:', e); return { rows: [], columnTotals: {}, grandTotal: 0 }; } }, [detailedExpenses, selectedMonth, selectedYear, deptFilter]);
 
     const dailyCollectionData = useMemo(() => { try {
+    const normalizeDateStr = (d: any): string => {
+        if (!d) return '';
+        const str = String(d).trim().split(/[T ]/)[0];
+        if (str.includes('-')) {
+            const parts = str.split('-');
+            if (parts[0].length === 4) {
+                return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+            } else if (parts[2]?.length === 4) {
+                return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+            }
+        } else if (str.includes('/')) {
+            const parts = str.split('/');
+            if (parts[0].length === 4) {
+                return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+            } else if (parts[2]?.length === 4) {
+                return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+            }
+        }
+        return str;
+    };
+
     const isSameDay = (d1: any, d2: any) => {
         if (!d1 || !d2) return false;
-        try {
-            const [y1, m1, day1] = String(d1).split(/[T ]/)[0].split('-').map(Number);
-            const [y2, m2, day2] = String(d2).split(/[T ]/)[0].split('-').map(Number);
-            return y1 === y2 && m1 === m2 && day1 === day2;
-        } catch(e) { return false; }
+        const n1 = normalizeDateStr(d1);
+        const n2 = normalizeDateStr(d2);
+        return Boolean(n1 && n2 && n1 === n2);
     };
 
         const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
@@ -504,13 +523,15 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
         let lastDayWithData = -1;
 
         const getNetDiagCash = (inv: LabInvoice) => {
+            if (!inv) return 0;
             const items = Array.isArray(inv.items) ? inv.items : [];
-            const usgFee = items.reduce((s, it) => s + ((it.usg_exam_charge || 0) * (it.quantity || 0)), 0);
-            const labFee = items.reduce((s, it) => s + ((it.extra_lab_fee || 0) * (it.quantity || 0)), 0);
-            const commPaid = inv.commission_paid || 0;
-            const subsequentDues = dueCollections.filter(dc => dc.invoice_id === inv.invoice_id).reduce((s, dc) => s + dc.amount_collected, 0);
-            const initialPaid = inv.paid_amount - subsequentDues;
-            return initialPaid - usgFee - labFee - commPaid;
+            const usgFee = items.reduce((s, it) => s + ((Number(it?.usg_exam_charge) || 0) * (Number(it?.quantity) || 1)), 0);
+            const labFee = items.reduce((s, it) => s + ((Number(it?.extra_lab_fee) || 0) * (Number(it?.quantity) || 1)), 0);
+            const commPaid = Number(inv.commission_paid) || 0;
+            const totalPaid = Number(inv.paid_amount) || 0;
+            const subsequentDues = dueCollections.filter(dc => dc && dc.invoice_id === inv.invoice_id).reduce((s, dc) => s + (Number(dc.amount_collected) || 0), 0);
+            const initialPaid = totalPaid >= subsequentDues ? totalPaid - subsequentDues : totalPaid;
+            return Math.max(0, initialPaid - usgFee - labFee - commPaid);
         };
 
         for (let d = 1; d <= daysInMonth; d++) {
@@ -521,7 +542,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
             const diagDue = dueCollections.filter(dc => {
                 if (!dc || !isSameDay(dc.collection_date, dateStr) || !(dc.invoice_id || '').startsWith('INV')) return false;
                 return true;
-            }).reduce((s, dc) => s + dc.amount_collected, 0);
+            }).reduce((s, dc) => s + (Number(dc.amount_collected) || 0), 0);
             const diagTotal = diagToday + diagDue;
             diagUpto += diagTotal;
 
@@ -531,16 +552,16 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                 return isSameDay(dateToUse, dateStr) && inv.status !== 'Cancelled' && inv.status !== 'Returned' && inv.status !== 'Deleted';
             }).reduce((s, inv) => {
                 const items = Array.isArray(inv.items) ? inv.items : [];
-                const fundedRevenue = items.filter(it => it && it.isClinicFund).reduce((ss, ii) => ss + (ii.payable_amount || 0), 0);
-                const pcAmount = (inv.commission_paid || 0) + (inv.special_commission || 0);
-                const specialDiscount = inv.special_discount_amount || 0;
+                const fundedRevenue = items.filter(it => it && it.isClinicFund).reduce((ss, ii) => ss + (Number(ii.payable_amount) || 0), 0);
+                const pcAmount = (Number(inv.commission_paid) || 0) + (Number(inv.special_commission) || 0);
+                const specialDiscount = Number(inv.special_discount_amount) || 0;
                 return s + (fundedRevenue - pcAmount - specialDiscount);
             }, 0);
             const clinicDue = dueCollections.filter(dc => {
                 if (!dc || !isSameDay(dc.collection_date, dateStr) || (dc.invoice_id || '').startsWith('INV')) return false;
                 const inv = indoorInvoices.find(i => i.invoice_id === dc.invoice_id);
                 return !inv || !isSameDay(inv.invoice_date || inv.admission_date || '', dc.collection_date);
-            }).reduce((s, dc) => s + dc.amount_collected, 0);
+            }).reduce((s, dc) => s + (Number(dc.amount_collected) || 0), 0);
             const clinicTotal = clinicToday + clinicDue;
             clinicUpto += clinicTotal;
 
@@ -651,38 +672,61 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
     } catch (e) { console.error('statusReportData error:', e); return []; } }, [dailyCollectionData, dailyExpenseReportData]);
 
     const summary = useMemo(() => { try {
+    const normalizeDateStr = (d: any): string => {
+        if (!d) return '';
+        const str = String(d).trim().split(/[T ]/)[0];
+        if (str.includes('-')) {
+            const parts = str.split('-');
+            if (parts[0].length === 4) {
+                return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+            } else if (parts[2]?.length === 4) {
+                return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+            }
+        } else if (str.includes('/')) {
+            const parts = str.split('/');
+            if (parts[0].length === 4) {
+                return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+            } else if (parts[2]?.length === 4) {
+                return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+            }
+        }
+        return str;
+    };
+
     const isSameDay = (d1: any, d2: any) => {
         if (!d1 || !d2) return false;
-        try {
-            const [y1, m1, day1] = String(d1).split(/[T ]/)[0].split('-').map(Number);
-            const [y2, m2, day2] = String(d2).split(/[T ]/)[0].split('-').map(Number);
-            return y1 === y2 && m1 === m2 && day1 === day2;
-        } catch(e) { return false; }
+        const n1 = normalizeDateStr(d1);
+        const n2 = normalizeDateStr(d2);
+        return Boolean(n1 && n2 && n1 === n2);
     };
 
         const isSelectedMonth = (dateStr: any) => {
             if (!dateStr) return false;
             try {
-                const [y, m] = String(dateStr).split(/[T ]/)[0].split('-').map(Number);
+                const norm = normalizeDateStr(dateStr);
+                const [y, m] = norm.split('-').map(Number);
                 return m - 1 === selectedMonth && y === selectedYear;
             } catch(e) { return false; }
         };
         const isBeforeSelectedMonth = (dateStr: any) => {
             if (!dateStr) return false;
             try {
-                const [y, m] = String(dateStr).split(/[T ]/)[0].split('-').map(Number);
+                const norm = normalizeDateStr(dateStr);
+                const [y, m] = norm.split('-').map(Number);
                 return y < selectedYear || (y === selectedYear && m - 1 < selectedMonth);
             } catch(e) { return false; }
         };
         
         const getNetDiagCash = (inv: LabInvoice) => {
+            if (!inv) return 0;
             const items = Array.isArray(inv.items) ? inv.items : [];
-            const usgFee = items.reduce((s, it) => s + ((it.usg_exam_charge || 0) * (it.quantity || 0)), 0);
-            const labFee = items.reduce((s, it) => s + ((it.extra_lab_fee || 0) * (it.quantity || 0)), 0);
-            const commPaid = inv.commission_paid || 0;
-            const subsequentDues = dueCollections.filter(dc => dc.invoice_id === inv.invoice_id).reduce((s, dc) => s + dc.amount_collected, 0);
-            const initialPaid = inv.paid_amount - subsequentDues;
-            return initialPaid - usgFee - labFee - commPaid;
+            const usgFee = items.reduce((s, it) => s + ((Number(it?.usg_exam_charge) || 0) * (Number(it?.quantity) || 1)), 0);
+            const labFee = items.reduce((s, it) => s + ((Number(it?.extra_lab_fee) || 0) * (Number(it?.quantity) || 1)), 0);
+            const commPaid = Number(inv.commission_paid) || 0;
+            const totalPaid = Number(inv.paid_amount) || 0;
+            const subsequentDues = dueCollections.filter(dc => dc && dc.invoice_id === inv.invoice_id).reduce((s, dc) => s + (Number(dc.amount_collected) || 0), 0);
+            const initialPaid = totalPaid >= subsequentDues ? totalPaid - subsequentDues : totalPaid;
+            return Math.max(0, initialPaid - usgFee - labFee - commPaid);
         };
 
         const calcNetPrev = () => {
