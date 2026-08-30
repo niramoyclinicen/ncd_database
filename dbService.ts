@@ -87,6 +87,26 @@ const safeIsoDate = (d: any): string | null => {
   }
 };
 
+// Default cutoff date for separate individual tables (e.g. detailed_expenses)
+export const DEFAULT_SEPARATE_TABLES_CUTOFF_DATE = '2026-08-01';
+
+export const getTableSplitCutoffDate = (): string => {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      return localStorage.getItem('ncd_table_split_cutoff_date') || DEFAULT_SEPARATE_TABLES_CUTOFF_DATE;
+    }
+  } catch (e) {}
+  return DEFAULT_SEPARATE_TABLES_CUTOFF_DATE;
+};
+
+export const setTableSplitCutoffDate = (dateStr: string) => {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('ncd_table_split_cutoff_date', dateStr);
+    }
+  } catch (e) {}
+};
+
 // Safe helper to fetch all rows from a table
 const fetchTableSafe = async (client: SupabaseClient, tableName: string) => {
   try {
@@ -466,10 +486,21 @@ export const dbService = {
         }
 
         // Safely merge expenses: preserve complete detailedExpenses structure from master state
+        // CRITICAL: For dates before the cutoff date (default: 2026-08-01), strictly use ONLY the master ncd_state table!
+        // The separate detailed_expenses table is ONLY merged for dates on or after the cutoff date.
+        const cutoffDate = getTableSplitCutoffDate();
+        const expenseObj: Record<string, any[]> = { ...(state.detailedExpenses || {}) };
+
         if (dbExpenses && dbExpenses.length > 0) {
-          const expenseObj: Record<string, any[]> = { ...(state.detailedExpenses || {}) };
-          dbExpenses.forEach((e: any) => {
-            const dateKey = (e.date || '').split('T')[0] || new Date().toISOString().split('T')[0];
+          // Filter ONLY expenses on or after the cutoff date
+          const validDbExpenses = dbExpenses.filter((e: any) => {
+            const d = (e.date || '').split('T')[0];
+            return d && d >= cutoffDate;
+          });
+
+          validDbExpenses.forEach((e: any) => {
+            const dateKey = (e.date || '').split('T')[0];
+            if (!dateKey) return;
             if (!expenseObj[dateKey]) expenseObj[dateKey] = [];
             const existingList = expenseObj[dateKey];
             const eAmount = Number(e.amount || e.paidAmount || e.billAmount || 0);
@@ -502,8 +533,36 @@ export const dbService = {
               });
             }
           });
-          state.detailedExpenses = expenseObj;
         }
+
+        // Automatic in-memory deduplication across all dates to ensure pristine presentation
+        Object.keys(expenseObj).forEach((dKey) => {
+          if (!Array.isArray(expenseObj[dKey])) return;
+          const seen = new Set<string>();
+          const deduped: any[] = [];
+          expenseObj[dKey].forEach((item: any) => {
+            if (!item || item.isDeleted) return;
+            const cat = (item.category || '').trim().toLowerCase();
+            const sub = (item.subCategory || '').trim().toLowerCase();
+            const desc = (item.description || '').trim().toLowerCase();
+            const amt = Number(item.paidAmount || item.billAmount || 0);
+            
+            // Normalize salary entries to match by employee keyword/name
+            let key = `${cat}_${sub}_${desc}_${amt}`;
+            if (cat === 'stuff salary' || cat === 'staff salary') {
+              const empTag = desc || sub || '';
+              key = `salary_${empTag}_${amt}`;
+            }
+
+            if (!seen.has(key)) {
+              seen.add(key);
+              deduped.push(item);
+            }
+          });
+          expenseObj[dKey] = deduped;
+        });
+
+        state.detailedExpenses = expenseObj;
 
         // Safely append ONLY newly added reports
         if (dbReports && dbReports.length > 0) {
@@ -742,18 +801,20 @@ export const dbService = {
           items: i.items || []
         }));
         
+        const cutoffDate = getTableSplitCutoffDate();
         const mappedExpenses: any[] = [];
         if (detailedExpenses && typeof detailedExpenses === 'object' && !Array.isArray(detailedExpenses)) {
           Object.entries(detailedExpenses).forEach(([dateKey, items]) => {
-            if (Array.isArray(items)) {
+            // ONLY sync to separate detailed_expenses table for dates on or after the cutoff date
+            if (dateKey >= cutoffDate && Array.isArray(items)) {
               items.forEach((e: any, idx: number) => {
                 if (e && !e.isDeleted) {
                   mappedExpenses.push({
-                    id: e.id || `EXP-${dateKey}-${idx}`,
+                    id: e.id ? String(e.id) : `EXP-${dateKey}-${idx}`,
                     category: e.category || 'General',
                     amount: e.paidAmount || e.billAmount || 0,
                     date: safeIsoDate(dateKey),
-                    description: e.description || '',
+                    description: e.description || e.subCategory || '',
                     entered_by: e.dept || ''
                   });
                 }
@@ -923,9 +984,14 @@ export const dbService = {
   
   normalizeRecoveredData: (raw: any) => raw,
   
+  getTableSplitCutoffDate,
+  setTableSplitCutoffDate,
+
   cleanDuplicateExpenses: async (onProgress?: (progress: number) => void) => {
     try {
       onProgress?.(15);
+      const cutoffDate = getTableSplitCutoffDate();
+
       let state: any = null;
       try {
         state = await dbService.loadFromCloud();
@@ -978,15 +1044,22 @@ export const dbService = {
         const seenKeys = new Set<string>();
 
         items.forEach((it: any) => {
-          if (it.isDeleted) return;
+          if (!it || it.isDeleted) {
+            totalCleaned++;
+            return;
+          }
           const cat = (it.category || '').trim().toLowerCase();
           const sub = (it.subCategory || '').trim().toLowerCase();
           const desc = (it.description || '').trim().toLowerCase();
           const paid = Number(it.paidAmount || it.billAmount || 0);
           const dept = (it.dept || '').trim().toLowerCase();
 
-          // Create a composite signature key
-          const signature = `${cat}__${sub}__${desc}__${paid}__${dept}`;
+          // Standardize salary signature to prevent double salary logging for the same staff/month
+          let signature = `${cat}__${sub}__${desc}__${paid}__${dept}`;
+          if (cat === 'stuff salary' || cat === 'staff salary') {
+            const empTag = desc || sub || '';
+            signature = `salary__${empTag}__${paid}`;
+          }
 
           if (seenKeys.has(signature)) {
             totalCleaned++;
@@ -1009,9 +1082,20 @@ export const dbService = {
         console.warn("Error updating local storage:", lsErr);
       }
 
-      onProgress?.(70);
+      onProgress?.(65);
 
-      // Save to Supabase Cloud if available
+      // Purge any pre-cutoff records in the separate detailed_expenses table in Supabase
+      if (supabase && dbService.getSupabaseConfig().isConnected) {
+        try {
+          await supabase.from('detailed_expenses').delete().lt('date', cutoffDate);
+        } catch (purgeErr) {
+          console.warn("Notice: could not purge pre-cutoff detailed_expenses rows:", purgeErr);
+        }
+      }
+
+      onProgress?.(80);
+
+      // Save the cleaned unified master state to Supabase Cloud
       try {
         if (dbService.getSupabaseConfig().isConnected) {
           await dbService.saveToCloud(state);

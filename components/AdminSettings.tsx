@@ -30,6 +30,16 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ passwords, onSave, onBack
     const [testResult, setTestResult] = useState<{ success: boolean; message: string; tablesFound?: Record<string, number> } | null>(null);
     const [isReloadingFromCloud, setIsReloadingFromCloud] = useState(false);
     const [showConfigInputs, setShowConfigInputs] = useState(!supConfig.isConnected);
+    const [tableCutoffDate, setTableCutoffDate] = useState(dbService.getTableSplitCutoffDate());
+    const [isSavingCutoffDate, setIsSavingCutoffDate] = useState(false);
+
+    const handleSaveCutoffDate = () => {
+        if (!tableCutoffDate) return;
+        dbService.setTableSplitCutoffDate(tableCutoffDate);
+        setIsSavingCutoffDate(true);
+        setTimeout(() => setIsSavingCutoffDate(false), 1500);
+        alert(`কাট-অফ ডেট সফলভাবে ${tableCutoffDate} নির্ধারণ করা হয়েছে! ${tableCutoffDate} তারিখের পূর্বের সমস্ত হিসাব শুধুমাত্র মূল একক টেবিল থেকে এককভাবে আসবে।`);
+    };
 
     const handleSaveSupabaseConfig = () => {
         if (!supabaseUrlInput.trim() || !supabaseKeyInput.trim()) {
@@ -676,8 +686,8 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ passwords, onSave, onBack
                         </div>
                     </div>
 
-                    {/* DEDUPLICATE EXPENSES CLEANING TOOL */}
-                    <div className="bg-gradient-to-br from-rose-950/90 via-slate-900 to-amber-950/90 border-2 border-rose-500/60 p-5 rounded-2xl space-y-3 shadow-2xl">
+                    {/* DEDUPLICATE EXPENSES CLEANING TOOL & SEPARATE TABLE CUTOFF DATE */}
+                    <div className="bg-gradient-to-br from-rose-950/90 via-slate-900 to-amber-950/90 border-2 border-rose-500/60 p-5 rounded-2xl space-y-4 shadow-2xl">
                         <div className="flex items-center justify-between">
                             <span className="text-sm font-black text-rose-400 uppercase tracking-widest flex items-center gap-2">
                                 🧹 ডুপ্লিকেট খরচ ও স্যালারি ক্লিন টুল (One-Click Fix)
@@ -687,10 +697,38 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ passwords, onSave, onBack
                         <p className="text-xs text-slate-300 leading-snug font-medium">
                             স্টাফ স্যালারি বা খরচের ভাউচার যদি ডাবল (দ্বিগুণ) হয়ে থাকে, তবে নিচের বাটনে ক্লিক করলেই স্বয়ংক্রিয়ভাবে সমস্ত ডুপ্লিকেট এন্ট্রি ক্লিন হয়ে আসল হিসাব ফিরে আসবে।
                         </p>
+
+                        {/* Cutoff Date Setting */}
+                        <div className="bg-slate-900/90 border border-amber-500/40 p-3.5 rounded-xl space-y-2.5">
+                            <div className="flex items-center justify-between">
+                                <label className="text-[11px] font-black text-amber-400 uppercase tracking-wide">
+                                    🗓️ পৃথক টেবিল শুরু হওয়ার কাট-অফ তারিখ:
+                                </label>
+                                <span className="text-[9px] text-slate-400 font-bold">ডিফল্ট: 2026-08-01</span>
+                            </div>
+                            <div className="flex gap-2">
+                                <input
+                                    type="date"
+                                    value={tableCutoffDate}
+                                    onChange={(e) => setTableCutoffDate(e.target.value)}
+                                    className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white outline-none focus:border-amber-400 font-mono font-bold"
+                                />
+                                <button
+                                    onClick={handleSaveCutoffDate}
+                                    className="bg-amber-600 hover:bg-amber-500 text-white text-xs font-black px-4 py-1.5 rounded-lg uppercase tracking-wider transition-all shadow"
+                                >
+                                    {isSavingCutoffDate ? 'সেভড!' : 'সেভ তারিখ'}
+                                </button>
+                            </div>
+                            <p className="text-[10px] text-amber-200/80 leading-relaxed font-normal">
+                                ℹ️ <b>{tableCutoffDate}</b> তারিখের পূর্ববর্তী সমস্ত ডাটা ও খরচ শুধুমাত্র <b>একক মাস্টার টেবিল (ncd_state)</b> থেকে এককভাবে লোড হবে এবং কখনোই ডাবল হবে না। পৃথক টেবিল থেকে ডাটা শুধুমাত্র <b>{tableCutoffDate}</b> থেকে কার্যকর হবে।
+                            </p>
+                        </div>
+
                         <button 
                             onClick={handleDeduplicateExpenses}
                             disabled={isRestoring}
-                            className="w-full bg-gradient-to-r from-rose-600 to-amber-600 hover:from-rose-500 hover:to-amber-500 text-white font-black text-sm py-3 rounded-xl uppercase tracking-wider transition-all shadow-xl flex items-center justify-center gap-2 border border-rose-400 active:scale-98 cursor-pointer"
+                            className="w-full bg-gradient-to-r from-rose-600 to-amber-600 hover:from-rose-500 hover:to-amber-500 text-white font-black text-sm py-3.5 rounded-xl uppercase tracking-wider transition-all shadow-xl flex items-center justify-center gap-2 border border-rose-400 active:scale-98 cursor-pointer"
                         >
                             <TrashIcon size={16} />
                             {isRestoring ? 'ক্লিন হচ্ছে...' : '⚡ সকল ডুপ্লিকেট খরচ ও ডাবল স্যালারি ক্লিন করুন (One-Click)'}
