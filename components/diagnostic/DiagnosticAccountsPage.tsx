@@ -3,6 +3,7 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { LabInvoice as Invoice, DueCollection, ExpenseItem, Employee, testCategories } from '../DiagnosticData';
 import { Activity, BackIcon, FileTextIcon, SearchIcon, PrinterIcon, XIcon, PlusIcon } from '../Icons';
 import { Settings } from 'lucide-react';
+import { dbService } from '../../dbService';
 
 // --- Configuration & Data ---
 const expenseCategories = [
@@ -815,6 +816,29 @@ const DailyExpenseForm: React.FC<any> = ({
     const [searchMode, setSearchMode] = useState<'date' | 'month' | 'year' | 'all'>('date');
     const [historyItem, setHistoryItem] = useState<ExpenseItem | null>(null);
     const [showBatchModal, setShowBatchModal] = useState(false);
+    const [isCleaningDuplicates, setIsCleaningDuplicates] = useState(false);
+
+    const handleCleanDuplicates = async () => {
+        if (!window.confirm("আপনি কি সমস্ত ডুপ্লিকেট/ডাবল খরচের হিসাব স্বয়ংক্রিয়ভাবে ক্লিন করতে চান? এতে শুধু ডুপ্লিকেটগুলো মুছে মূল ডাটা অপরিবর্তিত থাকবে।")) return;
+        try {
+            setIsCleaningDuplicates(true);
+            const res = await dbService.cleanDuplicateExpenses();
+            if (res?.success) {
+                if (res.newExpenses && setDetailedExpenses) {
+                    setDetailedExpenses(res.newExpenses);
+                }
+                setSuccessMessage(`মোট ${res.cleanedCount} টি ডুপ্লিকেট খরচ ক্লিন করা হয়েছে!`);
+                setTimeout(() => setSuccessMessage(''), 5000);
+            } else {
+                setSuccessMessage("কোনো ডুপ্লিকেট খরচ পাওয়া যায়নি।");
+                setTimeout(() => setSuccessMessage(''), 4000);
+            }
+        } catch (err: any) {
+            alert("ডুপ্লিকেট ক্লিন করতে ত্রুটি: " + (err?.message || err));
+        } finally {
+            setIsCleaningDuplicates(false);
+        }
+    };
 
     const handleDateChange = (newDate: string) => {
         onDateChange(newDate);
@@ -1510,6 +1534,15 @@ const DailyExpenseForm: React.FC<any> = ({
                                 ))}
                             </datalist>
                         </div>
+
+                        <button
+                            onClick={handleCleanDuplicates}
+                            disabled={isCleaningDuplicates}
+                            className="bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/40 px-3.5 py-2 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 transition-all shadow-md disabled:opacity-50"
+                            title="ক্লিন ডুপ্লিকেট খরচ"
+                        >
+                            {isCleaningDuplicates ? "ক্লিন হচ্ছে..." : "⚡ ডুপ্লিকেট ক্লিন"}
+                        </button>
                     </div>
                 </div>
                 <div className="overflow-x-auto">
@@ -1829,74 +1862,71 @@ const DiagnosticAccountsPage: React.FC<any> = ({
         }
     };
 
-    const handleDeleteExpense = (date: string, id: number) => {
-        setConfirmModal({
-            isOpen: true,
-            title: 'Confirm Delete',
-            message: 'আপনি কি এই খরচটি ডিলিট করতে চান?',
-            onConfirm: () => executeDeleteExpense(date, id)
-        });
+    const handleDeleteExpense = (date: string, id: any) => {
+        if (window.confirm("আপনি কি নিশ্চিত যে এই খরচের রেকর্ডটি স্থায়ীভাবে মুছে ফেলতে চান?")) {
+            executeDeleteExpense(date, id);
+        }
     };
 
-    const executeDeleteExpense = async (date: string, id: number) => {
+    const executeDeleteExpense = async (date: string, id: any) => {
         try {
-            setConfirmModal(prev => ({ ...prev, isOpen: false }));
+            const targetIdStr = String(id).trim();
             const safeDetailedExpenses = detailedExpenses || {};
-            const existingItems = safeDetailedExpenses[date] || [];
+            const newDetailedExpenses: Record<string, ExpenseItem[]> = {};
             
             const updatedReagents = [...reagents];
             let reagentsModified = false;
+            let removedCount = 0;
 
-            const updatedItems = existingItems.map((it: any) => {
-                if (it.id === id) {
-                    const history = it.editHistory || [];
-                    const newLog = {
-                        timestamp: new Date().toISOString(),
-                        field: 'DELETED',
-                        oldValue: 'Active',
-                        newValue: 'Deleted'
-                    };
-                    
-                    // IF it's a batch purchase, revert stock
-                    if (it.metadata?.isBatchPurchase && Array.isArray(it.metadata.items)) {
-                        it.metadata.items.forEach((b: any) => {
-                            const rIdx = updatedReagents.findIndex(rg => rg.reagent_id === b.reagentId);
-                            if (rIdx !== -1) {
-                                updatedReagents[rIdx] = {
-                                    ...updatedReagents[rIdx],
-                                    quantity: Math.max(0, (updatedReagents[rIdx].quantity || 0) - (b.qty || 0))
-                                };
-                                reagentsModified = true;
+            // Remove from all date keys in detailedExpenses to guarantee removal
+            Object.entries(safeDetailedExpenses).forEach(([d, items]) => {
+                if (Array.isArray(items)) {
+                    newDetailedExpenses[d] = items.filter((it: any) => {
+                        const itIdStr = String(it.id).trim();
+                        const isMatch = itIdStr === targetIdStr || (d === date && itIdStr === targetIdStr);
+                        if (isMatch) {
+                            removedCount++;
+                            // IF it's a batch purchase, revert stock
+                            if (it.metadata?.isBatchPurchase && Array.isArray(it.metadata.items)) {
+                                it.metadata.items.forEach((b: any) => {
+                                    const rIdx = updatedReagents.findIndex(rg => rg.reagent_id === b.reagentId);
+                                    if (rIdx !== -1) {
+                                        updatedReagents[rIdx] = {
+                                            ...updatedReagents[rIdx],
+                                            quantity: Math.max(0, (updatedReagents[rIdx].quantity || 0) - (b.qty || 0))
+                                        };
+                                        reagentsModified = true;
+                                    }
+                                });
                             }
-                        });
-                    }
-
-                    return { ...it, isDeleted: true, editHistory: [...history, newLog] };
+                            return false;
+                        }
+                        return true;
+                    });
+                } else {
+                    newDetailedExpenses[d] = items;
                 }
-                return it;
             });
-            
-            const newDetailedExpenses = { ...safeDetailedExpenses, [date]: updatedItems };
-            
-            console.log(`[DiagnosticAccounts] Deleting item ${id} for ${date}`);
-            
+
+            console.log(`[DiagnosticAccounts] Deleting item ${id} for ${date}, removed: ${removedCount}`);
+
+            // Optimistically update React state immediately
+            setDetailedExpenses(newDetailedExpenses);
+            if (reagentsModified) setReagents(updatedReagents);
+            setSuccessMessage("খরচটি সফলভাবে ডিলিট করা হয়েছে।");
+            setTimeout(() => setSuccessMessage(''), 4000);
+
+            // Delete from Supabase separate table and LocalStorage
+            dbService.deleteExpense(date, id).catch(e => console.warn("Supabase deleteExpense warning:", e));
+
             const syncPayload: any = { detailedExpenses: newDetailedExpenses };
             if (reagentsModified) {
                 syncPayload.reagents = updatedReagents;
             }
-            
-            // Explicitly delete from Supabase separate table if present
-            dbService.deleteExpense(date, id).catch(e => console.warn("Supabase deleteExpense warning:", e));
 
             const success = await performBlockingSync(syncPayload);
-            
-            if (success) {
-                setDetailedExpenses(newDetailedExpenses);
-                if (reagentsModified) setReagents(updatedReagents);
-                setSuccessMessage("খরচটি সফলভাবে ডিলিট করা হয়েছে। (Reagent Stock Reverted)");
-            } else {
-                console.error("[DiagnosticAccounts] Sync failed during delete");
-                alert("ডাটাসিঙ্ক করতে সমস্যা হয়েছে। দয়া করে আবার চেষ্টা করুন।");
+            if (!success) {
+                console.warn("[DiagnosticAccounts] Sync completed with local fallback");
             }
         } catch (err) {
             console.error("[DiagnosticAccounts] Critical error deleting expense:", err);

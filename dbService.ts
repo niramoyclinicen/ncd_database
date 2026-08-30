@@ -1147,7 +1147,7 @@ export const dbService = {
       }
 
       onProgress?.(100);
-      return { success: true, cleanedCount: totalCleaned };
+      return { success: true, cleanedCount: totalCleaned, newExpenses: cleanedDetailed };
     } catch (e: any) {
       return { success: false, message: e.message || "ত্রুটি ঘটেছে।" };
     }

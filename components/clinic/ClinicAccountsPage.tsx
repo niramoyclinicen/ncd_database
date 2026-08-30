@@ -2,6 +2,7 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { ExpenseItem, Employee, DueCollection, IndoorInvoice } from '../DiagnosticData';
 import { ClinicIcon, Activity, BackIcon, FileTextIcon, PrinterIcon, SearchIcon, AlertCircle } from '../Icons';
+import { dbService } from '../../dbService';
 
 // --- Clinic Specific Categories ---
 const clinicExpenseCategories = [
@@ -740,47 +741,41 @@ const ClinicAccountsPage: React.FC<any> = ({
         }
     };
 
-    const handleLedgerDelete = (date: string, itemId: number) => {
-        setConfirmModal({
-            isOpen: true,
-            title: 'Confirm Delete',
-            message: 'আপনি কি এই খরচটি ডিলিট করতে চান?',
-            onConfirm: () => executeLedgerDelete(date, itemId)
-        });
+    const handleLedgerDelete = (date: string, itemId: any) => {
+        if (window.confirm("আপনি কি নিশ্চিত যে এই খরচের রেকর্ডটি স্থায়ীভাবে মুছে ফেলতে চান?")) {
+            executeLedgerDelete(date, itemId);
+        }
     };
 
-    const executeLedgerDelete = async (date: string, itemId: number) => {
-        setConfirmModal(prev => ({ ...prev, isOpen: false }));
-        const safePrev = detailedExpenses || {};
-        const dateItems = safePrev[date] || [];
-        const updatedItems = dateItems.map((it: any) => {
-            if (it.id === itemId) {
-                const history = it.editHistory || [];
-                const newLog = {
-                    timestamp: new Date().toISOString(),
-                    field: 'DELETED',
-                    oldValue: 'Active',
-                    newValue: 'Deleted'
-                };
-                return { 
-                    ...it, 
-                    isDeleted: true, 
-                    deletedAt: new Date().toISOString(),
-                    editHistory: [...history, newLog]
-                };
-            }
-            return it;
-        });
+    const executeLedgerDelete = async (date: string, itemId: any) => {
+        try {
+            const targetIdStr = String(itemId).trim();
+            const safePrev = detailedExpenses || {};
+            const newState: Record<string, ExpenseItem[]> = {};
 
-        const newState = { ...safePrev, [date]: updatedItems };
+            Object.entries(safePrev).forEach(([d, items]) => {
+                if (Array.isArray(items)) {
+                    newState[d] = items.filter((it: any) => String(it.id).trim() !== targetIdStr);
+                } else {
+                    newState[d] = items;
+                }
+            });
 
-        dbService.deleteExpense(date, itemId).catch(e => console.warn("Supabase deleteExpense warning:", e));
-
-        const success = await performBlockingSync({ detailedExpenses: newState });
-
-        if (success) {
+            // Optimistically update React state immediately
             setDetailedExpenses(newState);
-            setSuccessMsg("Expense Entry Deleted (Logged)");
+            setSuccessMsg("খরচটি সফলভাবে ডিলিট করা হয়েছে।");
+            setTimeout(() => setSuccessMsg(""), 4000);
+
+            // Delete from Supabase separate table and LocalStorage
+            dbService.deleteExpense(date, itemId).catch(e => console.warn("Supabase deleteExpense warning:", e));
+
+            const success = await performBlockingSync({ detailedExpenses: newState });
+            if (!success) {
+                console.warn("[ClinicAccounts] Sync completed with local fallback");
+            }
+        } catch (err) {
+            console.error("[ClinicAccounts] Critical error deleting expense:", err);
+            alert("সিস্টেম এরর হয়েছে। দয়া করে পেজটি রিফ্রেশ দিন।");
         }
     };
 
