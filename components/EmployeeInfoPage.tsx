@@ -489,6 +489,20 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
     const newList = currentList.includes(empId) ? currentList.filter(id => id !== empId) : [...currentList, empId];
     const newMonthlyRoster = { ...roster, [currentPeriodKey]: newList };
     setMonthlyRoster(newMonthlyRoster);
+    if (performBlockingSync) {
+      performBlockingSync({ monthlyRoster: newMonthlyRoster });
+    }
+  };
+
+  const toggleSelectAllRoster = (selectAll: boolean) => {
+    const roster = monthlyRoster || {};
+    const safeEmps = Array.isArray(employees) ? employees : [];
+    const validEmpIds = selectAll ? safeEmps.map(e => e.emp_id).filter(Boolean) : [];
+    const newMonthlyRoster = { ...roster, [currentPeriodKey]: validEmpIds };
+    setMonthlyRoster(newMonthlyRoster);
+    if (performBlockingSync) {
+      performBlockingSync({ monthlyRoster: newMonthlyRoster });
+    }
   };
 
   const handleSaveRosterData = async () => {
@@ -1032,8 +1046,22 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
     const leaves = leaveLog || {};
     const emps = Array.isArray(employees) ? employees : [];
     const selectedEmpIds = roster[currentPeriodKey] || [];
+    
+    const rosterEmps = emps.filter(e => {
+      if (!e) return false;
+      const term = (searchTerm || '').trim().toLowerCase();
+      if (!term) return true;
+      const name = (e.emp_name || '').toLowerCase();
+      const id = (e.emp_id || '').toLowerCase();
+      const pos = (e.job_position || e.designation || '').toLowerCase();
+      const dept = (e.department || '').toLowerCase();
+      return name.includes(term) || id.includes(term) || pos.includes(term) || dept.includes(term);
+    });
+
+    const isAllSelected = rosterEmps.length > 0 && rosterEmps.every(e => selectedEmpIds.includes(e.emp_id));
+
     const totalRosterSalary = emps.reduce((total, emp) => {
-        if (emp.status === 'Active' && selectedEmpIds.includes(emp.emp_id)) {
+        if (selectedEmpIds.includes(emp.emp_id)) {
             const key = `${selectedMonth}_${selectedYear}_${emp.emp_id}`;
             const record = leaves[key] || {};
             const basic = record.basicSalary !== undefined ? record.basicSalary : (record.agreedSalary !== undefined ? record.agreedSalary : (emp.salary || 0));
@@ -1046,32 +1074,65 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
 
     return (
     <div className="space-y-6 animate-fade-in">
-        <div className="bg-white dark:bg-slate-900 p-8 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xl">
+        <div className="bg-white dark:bg-slate-900 p-6 md:p-8 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xl">
             <div className="flex flex-col md:flex-row justify-between items-center gap-6 border-b border-slate-100 dark:border-slate-800 pb-6 mb-8">
                 <div>
                     <h2 className="text-xl font-black text-slate-800 dark:text-sky-100 uppercase tracking-tight flex items-center gap-3">
                         <UsersIcon size={24} className="text-blue-500" /> মাসিক তালিকা ব্যবস্থাপনা (Monthly Roster)
                     </h2>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Select employees active for the chosen period & adjust monthly salary</p>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">যে সকল কর্মচারী এই মাসে কর্মরত তাদের টিক চিহ্ন দিন। টিক দেয়া কর্মচারীদের নাম ল্যাব ইনভয়েস ও একাউন্টিংয়ে পাওয়া যাবে।</p>
                 </div>
-                <div className="flex gap-4 items-center">
+                <div className="flex flex-wrap gap-3 items-center">
                     <select value={selectedMonth} onChange={(e) => setSelectedMonth(parseInt(e.target.value))} className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2 text-slate-700 dark:text-white font-bold">{monthOptions.map(m => <option key={m.value} value={m.value}>{m.name}</option>)}</select>
-                    <select value={selectedYear} onChange={(e) => setSelectedYear(parseInt(e.target.value))} className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2 text-slate-700 dark:text-white font-bold">{[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}</select>
-                    <button onClick={handleSaveRosterData} className="px-6 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold text-xs uppercase shadow-lg transition-all active:scale-95">Save Changes</button>
+                    <select value={selectedYear} onChange={(e) => setSelectedYear(parseInt(e.target.value))} className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2 text-slate-700 dark:text-white font-bold">{[2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}</select>
+                    <button onClick={handleSaveRosterData} className="px-6 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold text-xs uppercase shadow-lg transition-all active:scale-95 flex items-center gap-2">
+                      <SaveIcon size={16}/> Save Changes
+                    </button>
                 </div>
             </div>
-            <div className="flex flex-col md:flex-row gap-4 mb-6">
-                <div className="relative flex-1">
+            <div className="flex flex-col md:flex-row gap-4 mb-6 items-center">
+                <div className="relative flex-1 w-full">
                     <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                    <input type="text" placeholder="Search staff to add to roster..." value={searchTerm} onChange={e=>setSearchTerm(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl pl-12 pr-6 py-3 text-sm text-slate-800 dark:text-white outline-none focus:border-blue-500 shadow-inner"/>
+                    <input type="text" placeholder="Search staff by name, ID or designation..." value={searchTerm} onChange={e=>setSearchTerm(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl pl-12 pr-6 py-3 text-sm text-slate-800 dark:text-white outline-none focus:border-blue-500 shadow-inner"/>
                 </div>
-                <div className="bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800 rounded-2xl px-6 py-3 flex items-center justify-between min-w-[250px]">
-                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Total Active Payroll</span>
-                    <span className="text-xl font-black text-blue-600 dark:text-blue-400">৳{(totalRosterSalary || 0).toLocaleString()}</span>
+                <div className="flex items-center gap-3 w-full md:w-auto">
+                    <button
+                      type="button"
+                      onClick={() => toggleSelectAllRoster(!isAllSelected)}
+                      className={`px-4 py-3 rounded-2xl font-bold text-xs uppercase tracking-wider transition-all border whitespace-nowrap ${
+                        isAllSelected 
+                          ? 'bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20' 
+                          : 'bg-blue-600 border-blue-600 text-white hover:bg-blue-500 shadow-md'
+                      }`}
+                    >
+                      {isAllSelected ? '❌ সব আনসিলেক্ট করুন' : '✅ সকলকে সিলেক্ট করুন'}
+                    </button>
+                    <div className="bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800 rounded-2xl px-6 py-3 flex items-center justify-between min-w-[220px]">
+                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Active ({selectedEmpIds.length}/{emps.length})</span>
+                        <span className="text-lg font-black text-blue-600 dark:text-blue-400">৳{(totalRosterSalary || 0).toLocaleString()}</span>
+                    </div>
                 </div>
             </div>
             <div className="overflow-x-auto rounded-2xl border border-slate-100 dark:border-slate-800 shadow-inner">
-                <table className="w-full text-left text-sm border-collapse">
+                {rosterEmps.length === 0 ? (
+                  <div className="p-12 text-center space-y-4">
+                    <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/30 text-blue-600 rounded-2xl flex items-center justify-center mx-auto text-2xl font-bold">
+                      👥
+                    </div>
+                    <h3 className="text-base font-bold text-slate-800 dark:text-white">কোন কর্মচারী পাওয়া যায়নি</h3>
+                    <p className="text-xs text-slate-400 max-w-md mx-auto">
+                      সিস্টেমে এখনো কোন কর্মচারী যুক্ত করা হয়নি অথবা সার্চ অনুযায়ী মেলেনি। &ldquo;Global Profiles&rdquo; ট্যাবে গিয়ে নতুন কর্মচারী প্রোফাইল তৈরি করুন।
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('data_entry')}
+                      className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold text-xs uppercase tracking-wider transition-all shadow-lg"
+                    >
+                      + নতুন কর্মচারী যুক্ত করুন
+                    </button>
+                  </div>
+                ) : (
+                  <table className="w-full text-left text-sm border-collapse">
                     <thead className="bg-slate-50 dark:bg-slate-950 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                         <tr>
                             <th className="p-3 text-center w-16">Active</th>
@@ -1083,8 +1144,8 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                        {Array.isArray(employees) && employees.filter(e => e && e.status === 'Active' && (e.emp_name || '').toLowerCase().includes(searchTerm.toLowerCase())).map((emp) => {
-                            const isSelected = ((monthlyRoster || {})[currentPeriodKey] || []).includes(emp.emp_id);
+                        {rosterEmps.map((emp) => {
+                            const isSelected = selectedEmpIds.includes(emp.emp_id);
                             const key = `${selectedMonth}_${selectedYear}_${emp.emp_id}`;
                             const record = (leaveLog || {})[key] || { leaveDays: 0, deductionAmount: 0, bonus: 0, overtime: 0 };
                             
@@ -1104,10 +1165,22 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
 
                             return (
                                 <tr key={emp.emp_id} className={`hover:bg-slate-50 dark:hover:bg-blue-900/10 transition-all ${isSelected ? 'bg-blue-50/50 dark:bg-blue-900/5' : ''}`}>
-                                    <td className="p-3 text-center"><input type="checkbox" checked={isSelected} onChange={() => toggleRosterStatus(emp.emp_id)} className="w-5 h-5 rounded-lg accent-blue-600 cursor-pointer" /></td>
+                                    <td className="p-3 text-center">
+                                      <input 
+                                        type="checkbox" 
+                                        checked={isSelected} 
+                                        onChange={() => toggleRosterStatus(emp.emp_id)} 
+                                        className="w-5 h-5 rounded-lg accent-blue-600 cursor-pointer" 
+                                      />
+                                    </td>
                                     <td className="p-3 font-bold text-slate-700 dark:text-slate-200 uppercase">
-                                        {emp.emp_name}
-                                        <div className="font-mono text-[9px] text-slate-400 mt-0.5">#{emp.emp_id} • {emp.job_position}</div>
+                                        <div className="flex items-center gap-2">
+                                          <span>{emp.emp_name}</span>
+                                          {emp.status === 'Released' && (
+                                            <span className="text-[8.5px] px-1.5 py-0.5 bg-rose-100 text-rose-700 rounded font-normal">বিদায়ী</span>
+                                          )}
+                                        </div>
+                                        <div className="font-mono text-[9px] text-slate-400 mt-0.5">#{emp.emp_id} • {emp.job_position || emp.designation || 'Staff'} {emp.department ? `(${emp.department})` : ''}</div>
                                     </td>
                                     <td className="p-3 text-right">
                                         {isSelected ? (
@@ -1147,6 +1220,7 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
                         })}
                     </tbody>
                 </table>
+                )}
             </div>
         </div>
     </div>

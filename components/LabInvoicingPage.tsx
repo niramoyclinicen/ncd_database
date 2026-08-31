@@ -146,9 +146,10 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
     const safeRoster = monthlyRoster || {};
     const activeIds = safeRoster[currentPeriodKey];
     if (Array.isArray(activeIds) && activeIds.length > 0) {
-      return safeEmployees.filter(emp => emp && activeIds.includes(emp.emp_id) && emp.status === 'Active');
+      const rosterFiltered = safeEmployees.filter(emp => emp && activeIds.includes(emp.emp_id) && emp.status !== 'Released');
+      if (rosterFiltered.length > 0) return rosterFiltered;
     }
-    return safeEmployees.filter(emp => emp && emp.status === 'Active');
+    return safeEmployees.filter(emp => emp && emp.status !== 'Released');
   }, [employees, monthlyRoster, currentPeriodKey]);
   
   useEffect(() => {

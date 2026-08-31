@@ -14,9 +14,11 @@ import LabInvoicingPage from './LabInvoicingPage';
 import PrevDueCollectionPage from './PrevDueCollectionPage';
 import LabReportingPage from './LabReportingPage';
 import EmployeeInfoPage from './EmployeeInfoPage';
+import { DailyConsolidatedEntryPage } from './diagnostic/DailyConsolidatedEntryPage';
 import { Patient, Doctor, Referrar, Reagent, Test, LabInvoice, Employee, DueCollection, DiagnosticSubPage, ExpenseItem, LabReport, Appointment } from './DiagnosticData';
 import { UserRole } from '../types';
 import { dbService } from '../dbService';
+import { Layers } from 'lucide-react';
 
 interface DiagnosticPageProps {
   onBack: () => void;
@@ -366,6 +368,15 @@ const DiagnosticPage: React.FC<DiagnosticPageProps> = ({
         return <div className="animate-fade-in h-full flex flex-col"><TestInfoPage tests={tests} setTests={setTests} reagents={reagents} performBlockingSync={performBlockingSync} /></div>;
       case 'reagent_info':
         return <div className="animate-fade-in h-full flex flex-col"><ReagentInfoPage reagents={reagents} setReagents={setReagents} detailedExpenses={detailedExpenses} setDetailedExpenses={setDetailedExpenses} labInvoices={currentInvoices} tests={tests} performBlockingSync={performBlockingSync} /></div>;
+      case 'consolidated_entry':
+        return (
+          <div className="animate-fade-in h-full flex flex-col">
+            <DailyConsolidatedEntryPage 
+              performBlockingSync={performBlockingSync}
+              currentUserEmail={currentUserEmail}
+            />
+          </div>
+        );
       case 'employee_info':
         return (
             <div className="animate-fade-in h-full flex flex-col">
@@ -428,6 +439,7 @@ const DiagnosticPage: React.FC<DiagnosticPageProps> = ({
               <SidebarItem id="referrer_info" label="Referrer Information" isSidebarOpen={isSidebarOpen} icon={<UserPlusIcon className="w-5 h-5" />} activeTab={activeTab} onClick={handleTabChange} disabled={isLabReporter} />
               <SidebarItem id="test_info" label="Test Information" isSidebarOpen={isSidebarOpen} icon={<DnaIcon className="w-5 h-5" />} activeTab={activeTab} onClick={handleTabChange} disabled={isLabReporter} />
               <SidebarItem id="reagent_info" label="Reagent Information" isSidebarOpen={isSidebarOpen} icon={<TestTubeIcon className="w-5 h-5" />} activeTab={activeTab} onClick={handleTabChange} disabled={isLabReporter} />
+              <SidebarItem id="consolidated_entry" label="Consolidated Lab Entry" isSidebarOpen={isSidebarOpen} icon={<Layers className="w-5 h-5 text-emerald-400" />} activeTab={activeTab} onClick={handleTabChange} disabled={isLabReporter} />
             </div>
 
             <div className={`mt-8 px-4 mb-2 text-xs font-semibold text-slate-500 uppercase tracking-wider transition-opacity duration-300 ${!isSidebarOpen ? 'md:opacity-0' : 'opacity-100'}`}>

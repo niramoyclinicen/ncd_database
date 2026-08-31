@@ -15,6 +15,8 @@ interface ConsolidatedAccountsPageProps {
   salesInvoices: SalesInvoice[];
   indoorInvoices: IndoorInvoice[];
   medicines?: Medicine[];
+  consolidatedLabEntries?: any[];
+  performBlockingSync?: (overrides?: any) => Promise<boolean>;
 }
 
 interface CompanyCollection {
@@ -146,12 +148,26 @@ const clinicExpenseCategories = [
 ];
 
 const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
-  onBack, labInvoices, dueCollections, detailedExpenses, employees, purchaseInvoices, salesInvoices, indoorInvoices, medicines = []
+  onBack, labInvoices, dueCollections, detailedExpenses, employees, purchaseInvoices, salesInvoices, indoorInvoices, medicines = [], consolidatedLabEntries, performBlockingSync
 }) => {
     const safeNum = (val: any) => {
         if (typeof val === 'number' && !isNaN(val)) return val;
         return 0;
     };
+
+    const [consolidatedEntries, setConsolidatedEntries] = useState<any[]>(() => {
+        return (consolidatedLabEntries && consolidatedLabEntries.length > 0)
+            ? consolidatedLabEntries
+            : dbService.getConsolidatedEntries();
+    });
+
+    useEffect(() => {
+        if (consolidatedLabEntries && consolidatedLabEntries.length > 0) {
+            setConsolidatedEntries(consolidatedLabEntries);
+        } else {
+            setConsolidatedEntries(dbService.getConsolidatedEntries());
+        }
+    }, [consolidatedLabEntries]);
 
     const [activeTab, setActiveTab] = useState<'monthly_expense_sheet' | 'daily_collection' | 'daily_expense' | 'accounts' | 'shareholders' | 'money_mgmt' | 'final_status' | 'future_plans' | 'shareholder_mgmt' | 'company_collection'>('accounts');
     const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth());
@@ -538,7 +554,15 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
             const dayStr = String(d).padStart(2, '0');
             const dateStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${dayStr}`;
             
-            const diagToday = labInvoices.filter(inv => inv && isSameDay(inv.invoice_date, dateStr) && inv.status !== 'Cancelled' && inv.status !== 'Returned' && inv.status !== 'Deleted').reduce((s, inv) => s + getNetDiagCash(inv), 0);
+            const diagInvToday = labInvoices.filter(inv => inv && isSameDay(inv.invoice_date, dateStr) && inv.status !== 'Cancelled' && inv.status !== 'Returned' && inv.status !== 'Deleted').reduce((s, inv) => s + getNetDiagCash(inv), 0);
+            const diagConsolidatedToday = (consolidatedEntries || []).filter(e => e && isSameDay(e.date, dateStr)).reduce((s, e) => {
+                const cash = Number(e.cashCollected) || 0;
+                const docPC = Number(e.doctorCommissionPaid) || 0;
+                const usgFee = Number(e.usgDoctorFeePaid) || 0;
+                return s + Math.max(0, cash - docPC - usgFee);
+            }, 0);
+            const diagToday = diagInvToday + diagConsolidatedToday;
+
             const diagDue = dueCollections.filter(dc => {
                 if (!dc || !isSameDay(dc.collection_date, dateStr) || !(dc.invoice_id || '').startsWith('INV')) return false;
                 return true;
@@ -583,7 +607,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                 return { ...row, diag: { ...row.diag, upto: null }, clinic: { ...row.clinic, upto: null } };
             }
             return row;
-        }); } catch(e) { console.error('dailyCollectionData error:', e); return []; } }, [labInvoices, indoorInvoices, dueCollections, detailedExpenses, selectedMonth, selectedYear]);
+        }); } catch(e) { console.error('dailyCollectionData error:', e); return []; } }, [labInvoices, indoorInvoices, dueCollections, detailedExpenses, consolidatedEntries, selectedMonth, selectedYear]);
 
     const dailyExpenseReportData = useMemo(() => { try {
         const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
@@ -731,6 +755,12 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
 
         const calcNetPrev = () => {
             const prevLab = labInvoices.filter(inv => inv && isBeforeSelectedMonth(inv.invoice_date) && inv.status !== 'Cancelled' && inv.status !== 'Returned' && inv.status !== 'Deleted').reduce((s, i) => s + getNetDiagCash(i), 0);
+            const prevConsolidatedLab = (consolidatedEntries || []).filter(e => e && isBeforeSelectedMonth(e.date)).reduce((s, e) => {
+                const cash = Number(e.cashCollected) || 0;
+                const docPC = Number(e.doctorCommissionPaid) || 0;
+                const usgFee = Number(e.usgDoctorFeePaid) || 0;
+                return s + Math.max(0, cash - docPC - usgFee);
+            }, 0);
             const prevLabDue = dueCollections.filter(dc => {
                 if (!dc || !isBeforeSelectedMonth(dc.collection_date) || !(dc.invoice_id || '').startsWith('INV')) return false;
                 return true;
@@ -788,12 +818,19 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                 }
             });
 
-            const net = (prevLab + prevLabDue + prevClinic + prevClinicDue + prevMedSales + prevCompany) - (prevExp + prevMedPurch + prevAdjustments);
+            const net = (prevLab + prevConsolidatedLab + prevLabDue + prevClinic + prevClinicDue + prevMedSales + prevCompany) - (prevExp + prevMedPurch + prevAdjustments);
             return net;
         };
 
         const prevJer = calcNetPrev();
-        const diagCurrent = labInvoices.filter(inv => inv && isSelectedMonth(inv.invoice_date) && inv.status !== 'Cancelled' && inv.status !== 'Returned' && inv.status !== 'Deleted').reduce((s, inv) => s + getNetDiagCash(inv), 0);
+        const diagInvCurrent = labInvoices.filter(inv => inv && isSelectedMonth(inv.invoice_date) && inv.status !== 'Cancelled' && inv.status !== 'Returned' && inv.status !== 'Deleted').reduce((s, inv) => s + getNetDiagCash(inv), 0);
+        const diagConsolidatedCurrent = (consolidatedEntries || []).filter(e => e && isSelectedMonth(e.date)).reduce((s, e) => {
+            const cash = Number(e.cashCollected) || 0;
+            const docPC = Number(e.doctorCommissionPaid) || 0;
+            const usgFee = Number(e.usgDoctorFeePaid) || 0;
+            return s + Math.max(0, cash - docPC - usgFee);
+        }, 0);
+        const diagCurrent = diagInvCurrent + diagConsolidatedCurrent;
         const diagDue = dueCollections.filter(dc => {
             if (!dc || !isSelectedMonth(dc.collection_date) || !(dc.invoice_id || '').startsWith('INV')) return false;
             return true;
@@ -893,7 +930,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
         const totalShares = dynamicShareholders.reduce((s, h) => s + h.shares, 0);
         const profitPerShare = totalShares > 0 ? (safeNum(adj.profitDist)) / totalShares : 0;
         
-        return { prevJer: safeNum(prevJer), diagCurrent: safeNum(diagCurrent), diagDue: safeNum(diagDue), totalDiag: safeNum(totalDiag), clinicCurrent: safeNum(clinicCurrent), clinicDue: safeNum(clinicDue), totalClinic: safeNum(totalClinic), medSalesCurrent: safeNum(medSalesCurrent), medPurchCurrent: safeNum(medPurchCurrent), totalMedNet: safeNum(totalMedNet), companyCurrent: safeNum(companyCurrent), grandTotalCollection: safeNum(grandTotalCollection), groupedExp, totalExpense: safeNum(totalExpenseTableOnly), netProfit: safeNum(netProfit), finalClosingJer: safeNum(finalClosingJer), profitPerShare: safeNum(profitPerShare), totalShares: safeNum(totalShares) }; } catch(e) { console.error('summary error:', e); return { prevJer: 0, diagCurrent: 0, diagDue: 0, totalDiag: 0, clinicCurrent: 0, clinicDue: 0, totalClinic: 0, medSalesCurrent: 0, medPurchCurrent: 0, totalMedNet: 0, companyCurrent: 0, grandTotalCollection: 0, groupedExp: {}, totalExpense: 0, netProfit: 0, finalClosingJer: 0, profitPerShare: 0, totalShares: 0 }; } }, [labInvoices, dueCollections, indoorInvoices, salesInvoices, purchaseInvoices, companyCollections, detailedExpenses, selectedMonth, selectedYear, monthlyAdjustments, dynamicShareholders, repayments, adj.houseRent, adj.loanInstallment, adj.profitDist]);
+        return { prevJer: safeNum(prevJer), diagCurrent: safeNum(diagCurrent), diagDue: safeNum(diagDue), totalDiag: safeNum(totalDiag), clinicCurrent: safeNum(clinicCurrent), clinicDue: safeNum(clinicDue), totalClinic: safeNum(totalClinic), medSalesCurrent: safeNum(medSalesCurrent), medPurchCurrent: safeNum(medPurchCurrent), totalMedNet: safeNum(totalMedNet), companyCurrent: safeNum(companyCurrent), grandTotalCollection: safeNum(grandTotalCollection), groupedExp, totalExpense: safeNum(totalExpenseTableOnly), netProfit: safeNum(netProfit), finalClosingJer: safeNum(finalClosingJer), profitPerShare: safeNum(profitPerShare), totalShares: safeNum(totalShares) }; } catch(e) { console.error('summary error:', e); return { prevJer: 0, diagCurrent: 0, diagDue: 0, totalDiag: 0, clinicCurrent: 0, clinicDue: 0, totalClinic: 0, medSalesCurrent: 0, medPurchCurrent: 0, totalMedNet: 0, companyCurrent: 0, grandTotalCollection: 0, groupedExp: {}, totalExpense: 0, netProfit: 0, finalClosingJer: 0, profitPerShare: 0, totalShares: 0 }; } }, [labInvoices, dueCollections, indoorInvoices, salesInvoices, purchaseInvoices, companyCollections, detailedExpenses, consolidatedEntries, selectedMonth, selectedYear, monthlyAdjustments, dynamicShareholders, repayments, adj.houseRent, adj.loanInstallment, adj.profitDist]);
 
     const handlePrintSpecific = (elementId: string) => {
         const content = document.getElementById(elementId);

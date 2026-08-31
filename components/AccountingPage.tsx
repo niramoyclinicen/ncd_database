@@ -41,6 +41,8 @@ interface AccountingPageProps {
   doctors: Doctor[];
   diagnosticSettings: any;
   setDiagnosticSettings: React.Dispatch<React.SetStateAction<any>>;
+  consolidatedLabEntries?: any[];
+  setConsolidatedLabEntries?: React.Dispatch<React.SetStateAction<any[]>>;
   performBlockingSync: (overrides?: any) => Promise<boolean>;
 }
 
@@ -146,6 +148,7 @@ const AccountingPage: React.FC<AccountingPageProps> = ({
             performBlockingSync={performBlockingSync}
             attendanceLog={attendanceLog}
             leaveLog={leaveLog}
+            consolidatedLabEntries={consolidatedLabEntries}
         />
     );
   }
@@ -188,10 +191,10 @@ const AccountingPage: React.FC<AccountingPageProps> = ({
   if (activeView === 'medicine_accounts') {
     return (
         <MedicineAccountsPage 
-            onBack={() => setActiveView('main')}
-            purchaseInvoices={purchaseInvoices}
-            salesInvoices={salesInvoices}
-            indoorInvoices={indoorInvoices}
+            onBack={() => setActiveView('main')} 
+            purchaseInvoices={purchaseInvoices} 
+            salesInvoices={salesInvoices} 
+            indoorInvoices={indoorInvoices} 
         />
     );
   }
@@ -208,6 +211,8 @@ const AccountingPage: React.FC<AccountingPageProps> = ({
             salesInvoices={salesInvoices}
             indoorInvoices={indoorInvoices}
             medicines={medicines}
+            consolidatedLabEntries={consolidatedLabEntries}
+            performBlockingSync={performBlockingSync}
         />
     );
   }

@@ -931,6 +931,177 @@ export const dbService = {
   acquireLock: async (moduleName: string, userId: string) => { return { success: true }; },
   releaseLock: async (moduleName: string, userId: string) => { },
   
+  getClinicProfile: (): ClinicProfile => {
+    try {
+      const saved = localStorage.getItem('ncd_clinic_profile');
+      if (saved) return { ...defaultClinicProfile, ...JSON.parse(saved) };
+    } catch (e) {}
+    return defaultClinicProfile;
+  },
+
+  saveClinicProfile: (profile: ClinicProfile) => {
+    try {
+      localStorage.setItem('ncd_clinic_profile', JSON.stringify(profile));
+      return true;
+    } catch (e) {
+      return false;
+    }
+  },
+
+  getPrintSettings: (): PrintSettings => {
+    try {
+      const saved = localStorage.getItem('ncd_print_settings');
+      if (saved) return { ...defaultPrintSettings, ...JSON.parse(saved) };
+    } catch (e) {}
+    return defaultPrintSettings;
+  },
+
+  savePrintSettings: (settings: PrintSettings) => {
+    try {
+      localStorage.setItem('ncd_print_settings', JSON.stringify(settings));
+      return true;
+    } catch (e) {
+      return false;
+    }
+  },
+
+  getStaffAccounts: (): StaffAccount[] => {
+    try {
+      const saved = localStorage.getItem('ncd_staff_accounts');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return defaultStaffAccounts;
+  },
+
+  saveStaffAccounts: (accounts: StaffAccount[]) => {
+    try {
+      localStorage.setItem('ncd_staff_accounts', JSON.stringify(accounts));
+      return true;
+    } catch (e) {
+      return false;
+    }
+  },
+
+  getSMSGatewaySettings: (): SMSGatewaySettings => {
+    try {
+      const saved = localStorage.getItem('ncd_sms_settings');
+      if (saved) return { ...defaultSMSGatewaySettings, ...JSON.parse(saved) };
+    } catch (e) {}
+    return defaultSMSGatewaySettings;
+  },
+
+  saveSMSGatewaySettings: (settings: SMSGatewaySettings) => {
+    try {
+      localStorage.setItem('ncd_sms_settings', JSON.stringify(settings));
+      return true;
+    } catch (e) {
+      return false;
+    }
+  },
+
+  getConsolidatedEntries: (): DailyConsolidatedEntry[] => {
+    try {
+      const saved = localStorage.getItem('ncd_consolidated_lab_entries');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return [];
+  },
+
+  saveConsolidatedEntries: (entries: DailyConsolidatedEntry[]) => {
+    try {
+      localStorage.setItem('ncd_consolidated_lab_entries', JSON.stringify(entries));
+      return true;
+    } catch (e) {
+      return false;
+    }
+  },
+
+  saveSingleConsolidatedEntry: (entry: DailyConsolidatedEntry) => {
+    try {
+      const existing = dbService.getConsolidatedEntries();
+      const updated = [entry, ...existing.filter(e => e.id !== entry.id)];
+      dbService.saveConsolidatedEntries(updated);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  },
+
+  deleteConsolidatedEntry: (id: string) => {
+    try {
+      const existing = dbService.getConsolidatedEntries();
+      const updated = existing.filter(e => e.id !== id);
+      dbService.saveConsolidatedEntries(updated);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  },
+
+  getAutoBackupSettings: (): AutoBackupSettings => {
+    try {
+      const saved = localStorage.getItem('ncd_auto_backup_settings');
+      if (saved) return { ...defaultAutoBackupSettings, ...JSON.parse(saved) };
+    } catch (e) {}
+    return defaultAutoBackupSettings;
+  },
+
+  saveAutoBackupSettings: (settings: AutoBackupSettings) => {
+    try {
+      localStorage.setItem('ncd_auto_backup_settings', JSON.stringify(settings));
+      return true;
+    } catch (e) {
+      return false;
+    }
+  },
+
+  getLocalSnapshots: (): { id: string; timestamp: string; title: string; recordCount: number; sizeKb: number; data: any }[] => {
+    try {
+      const saved = localStorage.getItem('ncd_local_snapshots_vault');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return [];
+  },
+
+  saveLocalSnapshot: (title: string, data: any) => {
+    try {
+      const snapshots = dbService.getLocalSnapshots();
+      const jsonStr = JSON.stringify(data);
+      const sizeKb = Math.round(jsonStr.length / 1024);
+      let recordCount = 0;
+      if (typeof data === 'object' && data !== null) {
+        Object.values(data).forEach(val => {
+          if (Array.isArray(val)) recordCount += val.length;
+        });
+      }
+      const newSnapshot = {
+        id: 'SNP-' + Date.now(),
+        timestamp: new Date().toISOString(),
+        title: title || `Auto Snapshot ${new Date().toLocaleDateString()}`,
+        recordCount,
+        sizeKb,
+        data
+      };
+      const settings = dbService.getAutoBackupSettings();
+      const updated = [newSnapshot, ...snapshots].slice(0, settings.maxSnapshots || 10);
+      localStorage.setItem('ncd_local_snapshots_vault', JSON.stringify(updated));
+      return true;
+    } catch (e) {
+      return false;
+    }
+  },
+
+  deleteLocalSnapshot: (id: string) => {
+    try {
+      const snapshots = dbService.getLocalSnapshots();
+      const updated = snapshots.filter(s => s.id !== id);
+      localStorage.setItem('ncd_local_snapshots_vault', JSON.stringify(updated));
+      return true;
+    } catch (e) {
+      return false;
+    }
+  },
+
   subscribeToChanges: (callback: (data: any) => void) => {
     if (!supabase) return null;
     return supabase
@@ -943,3 +1114,136 @@ export const dbService = {
       .subscribe();
   }
 };
+
+export interface ClinicProfile {
+  name: string;
+  nameBn: string;
+  tagline: string;
+  address: string;
+  mobile: string;
+  email: string;
+  website: string;
+  licenseNo: string;
+  regNo: string;
+  emergencyHotline: string;
+}
+
+export const defaultClinicProfile: ClinicProfile = {
+  name: 'Niramoy Clinic & Diagnostic',
+  nameBn: 'নিরাময় ক্লিনিক এন্ড ডায়াগনস্টিক সেন্টার',
+  tagline: 'বিশ্বস্ত চিকিৎসা ও নির্ভুল ডায়াগনস্টিক সেবা',
+  address: 'Enayetpur, Chouhali, Sirajganj',
+  mobile: '01730 923007',
+  email: 'niramoyclinic@gmail.com',
+  website: 'www.niramoyclinic.com',
+  licenseNo: 'HSM41671',
+  regNo: 'REG-2024-SRJ-881',
+  emergencyHotline: '01730 923007'
+};
+
+export interface PrintSettings {
+  paperSize: 'A4_landscape' | 'A4_portrait' | 'A5_portrait' | 'POS_80mm';
+  headerTitle: string;
+  footerNote: string;
+  authorizedSign: string;
+  showBarcode: boolean;
+  showQrCode: boolean;
+}
+
+export const defaultPrintSettings: PrintSettings = {
+  paperSize: 'A4_landscape',
+  headerTitle: 'Niramoy Clinic & Diagnostic',
+  footerNote: '* জরুরি প্রয়োজনে হেল্পলাইনে যোগাযোগ করুন | রিপোর্ট ডেলিভারির সময় মূল রসিদ প্রদর্শন করুন।',
+  authorizedSign: 'Authorized Sign / প্রধান হিসাবরক্ষক',
+  showBarcode: true,
+  showQrCode: true
+};
+
+export interface StaffAccount {
+  id: string;
+  name: string;
+  username: string;
+  role: 'ADMIN' | 'RECEPTIONIST' | 'LAB_TECHNOLOGIST' | 'DOCTOR' | 'ACCOUNTANT';
+  dept: string;
+  mobile: string;
+  status: 'Active' | 'Inactive';
+}
+
+export const defaultStaffAccounts: StaffAccount[] = [
+  { id: 'STF-01', name: 'Super Admin', username: 'admin', role: 'ADMIN', dept: 'System Admin', mobile: '01730 923007', status: 'Active' },
+  { id: 'STF-02', name: 'Lab Cashier / Receptionist', username: 'reception', role: 'RECEPTIONIST', dept: 'Diagnostic & Billing', mobile: '01711 000001', status: 'Active' },
+  { id: 'STF-03', name: 'Senior Medical Technologist', username: 'labtech', role: 'LAB_TECHNOLOGIST', dept: 'Pathology & Lab', mobile: '01711 000002', status: 'Active' },
+  { id: 'STF-04', name: 'Head of Accounts', username: 'accountant', role: 'ACCOUNTANT', dept: 'Accounts & Finance', mobile: '01711 000003', status: 'Active' }
+];
+
+export interface SMSGatewaySettings {
+  provider: 'greenweb' | 'bulksmsbd' | 'onnorokom' | 'alphasms' | 'custom';
+  apiKey: string;
+  senderId: string;
+  clientId: string;
+  enabled: boolean;
+  autoSendOnInvoice: boolean;
+  autoSendOnReportReady: boolean;
+  templates: {
+    invoiceCreated: string;
+    reportReady: string;
+    dueReminder: string;
+  };
+}
+
+export const defaultSMSGatewaySettings: SMSGatewaySettings = {
+  provider: 'bulksmsbd',
+  apiKey: '',
+  senderId: 'NIRAMOY',
+  clientId: '',
+  enabled: false,
+  autoSendOnInvoice: true,
+  autoSendOnReportReady: true,
+  templates: {
+    invoiceCreated: 'Dear {patient_name}, thanks for visiting {clinic_name}. Inv #{invoice_id}, Total: ৳{total}, Paid: ৳{paid}, Due: ৳{due}. Hotline: {hotline}',
+    reportReady: 'Dear {patient_name}, your lab test reports (Inv #{invoice_id}) are ready for delivery at {clinic_name}. Hotline: {hotline}',
+    dueReminder: 'Dear {patient_name}, your due balance for Inv #{invoice_id} is ৳{due} at {clinic_name}. Please settle soon.'
+  }
+};
+
+export interface DailyConsolidatedEntry {
+  id: string;
+  date: string;
+  shift: 'Full Day' | 'Morning' | 'Evening' | 'Night';
+  entryTime: string;
+  operatorName: string;
+  totalPatients: number;
+  totalTests: number;
+  grossAmount: number;
+  discountAmount: number;
+  netPayable: number;
+  cashCollected: number;
+  dueAmount: number;
+  doctorCommissionPaid: number;
+  usgDoctorFeePaid: number;
+  breakdown: {
+    pathology: number;
+    usg: number;
+    xray: number;
+    ecg: number;
+    hormone: number;
+    others: number;
+  };
+  notes: string;
+  createdAt: string;
+}
+
+export interface AutoBackupSettings {
+  autoBackupEnabled: boolean;
+  frequency: 'daily' | 'weekly';
+  maxSnapshots: number;
+  lastAutoBackupDate: string;
+}
+
+export const defaultAutoBackupSettings: AutoBackupSettings = {
+  autoBackupEnabled: true,
+  frequency: 'daily',
+  maxSnapshots: 10,
+  lastAutoBackupDate: ''
+};
+

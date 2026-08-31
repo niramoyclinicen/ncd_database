@@ -59,6 +59,9 @@ export function useAppData() {
   
   // Marketing States
   const [employeeReferrerMap, setEmployeeReferrerMap] = useState<Record<string, string[]>>({});
+  const [consolidatedLabEntries, setConsolidatedLabEntries] = useState<any[]>(() => {
+    return dbService.getConsolidatedEntries();
+  });
 
   // HR/Payroll States
   const [attendanceLog, setAttendanceLog] = useState<Record<string, any>>({});
@@ -154,6 +157,10 @@ export function useAppData() {
       if (data.monthlyRoster !== undefined) setMonthlyRoster(data.monthlyRoster || {});
       if (data.diagnosticSettings !== undefined) setDiagnosticSettings(data.diagnosticSettings || {});
       if (data.employeeReferrerMap !== undefined) setEmployeeReferrerMap(data.employeeReferrerMap || {});
+      if (Array.isArray(data.consolidatedLabEntries)) {
+        setConsolidatedLabEntries(data.consolidatedLabEntries);
+        dbService.saveConsolidatedEntries(data.consolidatedLabEntries);
+      }
       if (data.passwords !== undefined) setPasswords(data.passwords || {});
     };
 
@@ -191,11 +198,12 @@ export function useAppData() {
       purchaseInvoices, salesInvoices, admissions, indoorInvoices,
       detailedExpenses, prescriptions, appointments, attendanceLog, leaveLog, monthlyRoster,
       diagnosticSettings, employeeReferrerMap,
+      consolidatedLabEntries: (overrides && overrides.consolidatedLabEntries) || consolidatedLabEntries || dbService.getConsolidatedEntries(),
       passwords,
       last_updated_at: new Date().toISOString(),
       ...overrides
     };
-  }, [patients, doctors, referrars, tests, reagents, labInvoices, dueCollections, reports, rtTemplates, employees, medicines, clinicalDrugs, purchaseInvoices, salesInvoices, admissions, indoorInvoices, detailedExpenses, prescriptions, appointments, attendanceLog, leaveLog, monthlyRoster, diagnosticSettings, employeeReferrerMap, passwords]);
+  }, [patients, doctors, referrars, tests, reagents, labInvoices, dueCollections, reports, rtTemplates, employees, medicines, clinicalDrugs, purchaseInvoices, salesInvoices, admissions, indoorInvoices, detailedExpenses, prescriptions, appointments, attendanceLog, leaveLog, monthlyRoster, diagnosticSettings, employeeReferrerMap, consolidatedLabEntries, passwords]);
 
   // Blocking Manual Sync Handler
   const performBlockingSync = useCallback(async (overrides?: any) => {
@@ -247,5 +255,5 @@ export function useAppData() {
 
   // --- HANDLERS ---
   
-  return { viewState, userRole, isAdminLoggedIn, isDataLoaded, connectionError, connectionErrorMessage, lastSavedAt, currentUserEmail, passwords, patients, doctors, referrars, tests, reagents, labInvoices, dueCollections, reports, rtTemplates, employees, medicines, clinicalDrugs, purchaseInvoices, salesInvoices, admissions, indoorInvoices, detailedExpenses, prescriptions, appointments, employeeReferrerMap, attendanceLog, leaveLog, monthlyRoster, diagnosticSettings, isSyncing, isManualSyncing, manualSyncError, syncError, lastManualSyncTime, setViewState, setUserRole, setIsAdminLoggedIn, setIsDataLoaded, setConnectionError, setConnectionErrorMessage, setLastSavedAt, setPasswords, setPatients, setDoctors, setReferrars, setTests, setReagents, setLabInvoices, setDueCollections, setReports, setRtTemplates, setEmployees, setMedicines, setClinicalDrugs, setPurchaseInvoices, setSalesInvoices, setAdmissions, setIndoorInvoices, setDetailedExpenses, setPrescriptions, setAppointments, setEmployeeReferrerMap, setAttendanceLog, setLeaveLog, setMonthlyRoster, setDiagnosticSettings, setIsSyncing, setIsManualSyncing, setManualSyncError, setSyncError, setLastManualSyncTime, getCurrentState, performBlockingSync, showSyncNotification };
+  return { viewState, userRole, isAdminLoggedIn, isDataLoaded, connectionError, connectionErrorMessage, lastSavedAt, currentUserEmail, passwords, patients, doctors, referrars, tests, reagents, labInvoices, dueCollections, reports, rtTemplates, employees, medicines, clinicalDrugs, purchaseInvoices, salesInvoices, admissions, indoorInvoices, detailedExpenses, prescriptions, appointments, employeeReferrerMap, attendanceLog, leaveLog, monthlyRoster, diagnosticSettings, consolidatedLabEntries, setConsolidatedLabEntries, isSyncing, isManualSyncing, manualSyncError, syncError, lastManualSyncTime, setViewState, setUserRole, setIsAdminLoggedIn, setIsDataLoaded, setConnectionError, setConnectionErrorMessage, setLastSavedAt, setPasswords, setPatients, setDoctors, setReferrars, setTests, setReagents, setLabInvoices, setDueCollections, setReports, setRtTemplates, setEmployees, setMedicines, setClinicalDrugs, setPurchaseInvoices, setSalesInvoices, setAdmissions, setIndoorInvoices, setDetailedExpenses, setPrescriptions, setAppointments, setEmployeeReferrerMap, setAttendanceLog, setLeaveLog, setMonthlyRoster, setDiagnosticSettings, setIsSyncing, setIsManualSyncing, setManualSyncError, setSyncError, setLastManualSyncTime, getCurrentState, performBlockingSync, showSyncNotification };
 }

@@ -1766,8 +1766,22 @@ const DailyExpenseForm: React.FC<any> = ({
 const DiagnosticAccountsPage: React.FC<any> = ({ 
     onBack, invoices, dueCollections, employees, detailedExpenses, setDetailedExpenses, monthlyRoster,
     patients, doctors, diagnosticSettings, setDiagnosticSettings, performBlockingSync, availableTests = [], reagents = [], setReagents,
-    attendanceLog = {}, leaveLog = {}
+    attendanceLog = {}, leaveLog = {}, consolidatedLabEntries
 }) => {
+    const [consolidatedEntries, setConsolidatedEntries] = useState<any[]>(() => {
+        return (consolidatedLabEntries && consolidatedLabEntries.length > 0)
+            ? consolidatedLabEntries
+            : dbService.getConsolidatedEntries();
+    });
+
+    useEffect(() => {
+        if (consolidatedLabEntries && consolidatedLabEntries.length > 0) {
+            setConsolidatedEntries(consolidatedLabEntries);
+        } else {
+            setConsolidatedEntries(dbService.getConsolidatedEntries());
+        }
+    }, [consolidatedLabEntries]);
+
     const todayStr = new Date().toISOString().split('T')[0];
     const [selectedDate, setSelectedDate] = useState(todayStr);
     const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
@@ -2372,6 +2386,36 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                     coll.pathology += netFallback;
                 }
             });
+
+            // Merge Daily Consolidated Entries
+            const relevantConsolidated = (consolidatedEntries || []).filter((e: any) => {
+                if (!e || !e.date) return false;
+                const dParts = parseDateParts(e.date);
+                if (rangeType === 'daily') return (dParts.isoDate === selectedDate || e.date === selectedDate);
+                if (rangeType === 'monthly') return (dParts.m - 1) === selectedMonth && dParts.y === selectedYear;
+                return dParts.y === selectedYear;
+            });
+
+            relevantConsolidated.forEach((e: any) => {
+                const b = e.breakdown || {};
+                const grossSum = (Number(e.grossAmount) || 0);
+                const cash = (Number(e.cashCollected) || 0);
+                const docPC = (Number(e.doctorCommissionPaid) || 0);
+                const usgFee = (Number(e.usgDoctorFeePaid) || 0);
+                const netCenterCash = Math.max(0, cash - docPC - usgFee);
+
+                if (grossSum > 0 && netCenterCash > 0) {
+                    const ratio = netCenterCash / grossSum;
+                    coll.pathology += (Number(b.pathology) || 0) * ratio;
+                    coll.usg += (Number(b.usg) || 0) * ratio;
+                    coll.xray += (Number(b.xray) || 0) * ratio;
+                    coll.ecg += (Number(b.ecg) || 0) * ratio;
+                    coll.hormone += (Number(b.hormone) || 0) * ratio;
+                    coll.others += (Number(b.others) || 0) * ratio;
+                } else if (netCenterCash > 0) {
+                    coll.others += netCenterCash;
+                }
+            });
             
             coll.dueRecov = relevantDueColls.reduce((s: any, c: any) => s + (Number(c.amount_collected) || 0), 0);
 
@@ -2407,7 +2451,7 @@ const DiagnosticAccountsPage: React.FC<any> = ({
         };
 
         return { daily: getRangeStats('daily'), monthly: getRangeStats('monthly'), yearly: getRangeStats('yearly') };
-    }, [invoices, dueCollections, detailedExpenses, selectedDate, selectedMonth, selectedYear]);
+    }, [invoices, dueCollections, detailedExpenses, consolidatedEntries, selectedDate, selectedMonth, selectedYear]);
 
     const handlePrintDiagnosticExpenseSheet = () => {
         const win = window.open('', '_blank');

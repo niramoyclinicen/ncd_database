@@ -11,6 +11,30 @@ interface PatientInfoPageProps {
   performBlockingSync?: (overrides?: any) => Promise<boolean>;
 }
 
+// --- Robust ID Generation Helper ---
+const generateUniquePatientId = (existingPatients: Patient[] = []): string => {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const day = String(today.getDate()).padStart(2, '0');
+  const datePrefix = `${year}-${month}-${day}`;
+  
+  const safePatients = Array.isArray(existingPatients) ? existingPatients : [];
+  let maxCounter = 0;
+  safePatients.forEach(p => {
+    if (p && p.pt_id && typeof p.pt_id === 'string' && p.pt_id.startsWith(datePrefix)) {
+      const match = p.pt_id.match(/\((\d+)\)$/);
+      if (match && match[1]) {
+        const count = parseInt(match[1], 10);
+        if (!isNaN(count) && count > maxCounter) {
+          maxCounter = count;
+        }
+      }
+    }
+  });
+  return `${datePrefix}(${String(maxCounter + 1).padStart(5, '0')})`;
+};
+
 // --- Address Distribution Chart ---
 const AddressPieChart: React.FC<{ patients: Patient[], onAreaClick?: (area: string) => void }> = ({ patients, onAreaClick }) => {
     const addressCounts = useMemo(() => {
@@ -123,7 +147,14 @@ const AddressPieChart: React.FC<{ patients: Patient[], onAreaClick?: (area: stri
 const PatientInfoPage: React.FC<PatientInfoPageProps> = ({ 
   patients, setPatients, isEmbedded = false, onClose, onSaveAndSelect, performBlockingSync 
 }) => {
-  const [formData, setFormData] = useState<Patient>(emptyPatient);
+  const [formData, setFormData] = useState<Patient>(() => {
+    const initialId = generateUniquePatientId(patients);
+    return {
+      ...emptyPatient,
+      pt_id: initialId,
+      date_modified: formatDateTime(new Date())
+    };
+  });
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState<boolean>(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -134,30 +165,12 @@ const PatientInfoPage: React.FC<PatientInfoPageProps> = ({
 
   // --- ID GENERATION LOGIC ---
   const handleGetNewId = React.useCallback(() => {
-    const today = new Date();
-    const year = today.getFullYear();
-    const month = String(today.getMonth() + 1).padStart(2, '0');
-    const day = String(today.getDate()).padStart(2, '0');
-    const datePrefix = `${year}-${month}-${day}`;
-    
-    const safePatients = Array.isArray(patients) ? patients : [];
-    
-    // Robust ID generation to avoid duplicates
-    let maxCounter = 0;
-    safePatients.forEach(p => {
-        if (p && p.pt_id && p.pt_id.startsWith(datePrefix)) {
-            const match = p.pt_id.match(/\((\d+)\)$/);
-            if (match && match[1]) {
-                const count = parseInt(match[1], 10);
-                if (!isNaN(count) && count > maxCounter) {
-                    maxCounter = count;
-                }
-            }
-        }
+    const newId = generateUniquePatientId(patients);
+    setFormData({
+      ...emptyPatient,
+      pt_id: newId,
+      date_modified: formatDateTime(new Date())
     });
-    
-    const newId = `${datePrefix}(${String(maxCounter + 1).padStart(5, '0')})`;
-    setFormData({ ...emptyPatient, pt_id: newId, date_modified: formatDateTime(today) });
     setSelectedPatientId(null);
     setIsEditing(false);
     setMobileError('');
@@ -200,12 +213,16 @@ const PatientInfoPage: React.FC<PatientInfoPageProps> = ({
     }
   }, [errorMessage]);
 
+  // Ensure ID is present if empty without resetting typed inputs
   useEffect(() => {
-    if (isEmbedded && !isEditing && !formData.pt_id) {
-      const timer = setTimeout(() => handleGetNewId(), 0);
-      return () => clearTimeout(timer);
+    if (!formData.pt_id) {
+      setFormData(prev => ({
+        ...prev,
+        pt_id: generateUniquePatientId(patients),
+        date_modified: formatDateTime(new Date())
+      }));
     }
-  }, [isEmbedded, isEditing, formData.pt_id, handleGetNewId]);
+  }, [patients, formData.pt_id]);
 
   // --- AGE CALCULATION LOGIC ---
   const calculateAge = (dobY: string, dobM: string, dobD: string) => {
@@ -303,55 +320,68 @@ const PatientInfoPage: React.FC<PatientInfoPageProps> = ({
 
   const handleSavePatient = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.pt_id || !formData.pt_name) {
-        setErrorMessage('Patient ID and Name are required.');
-        return;
-    }
-    const rawMobile = formData.mobile ? formData.mobile.replace(/\D/g, '') : '';
-    if (rawMobile && (rawMobile.length !== 11 || !rawMobile.startsWith('01'))) {
-      setMobileError('Invalid BD mobile format (11 digits, starts with 01)');
+    
+    const trimmedName = (formData.pt_name || '').trim();
+    if (!trimmedName) {
+      setErrorMessage('রোগীর নাম দেওয়া আবশ্যক (Patient Name is required).');
       return;
+    }
+
+    const safePatients = Array.isArray(patients) ? patients : [];
+    let targetPtId = (formData.pt_id || '').trim();
+    
+    // Ensure unique valid ID
+    if (!targetPtId || (!isEditing && safePatients.some(p => p && p.pt_id === targetPtId))) {
+      targetPtId = generateUniquePatientId(safePatients);
     }
     
     // Validation
     const ageYNum = parseInt(formData.ageY, 10) || 0;
-    if (ageYNum < 0) return setErrorMessage('Age cannot be negative.');
+    if (ageYNum < 0) {
+      setErrorMessage('Age cannot be negative.');
+      return;
+    }
     
     const currentDateTime = formatDateTime(new Date()); 
-    const updatedPatient = { ...formData, date_modified: currentDateTime };
+    const updatedPatient: Patient = { 
+      ...formData, 
+      pt_id: targetPtId,
+      pt_name: trimmedName,
+      date_modified: currentDateTime 
+    };
     
-    let newPatients;
-    const safePatients = Array.isArray(patients) ? patients : [];
-    
-    if (isEditing) {
-      newPatients = safePatients.map(p => (p && p.pt_id === formData.pt_id) ? updatedPatient : p);
+    let newPatients: Patient[];
+    if (isEditing && selectedPatientId) {
+      newPatients = safePatients.map(p => (p && p.pt_id === selectedPatientId) ? updatedPatient : p);
     } else {
-      // Prevent duplicate creation if ID exists
-      if (safePatients.some(p => p.pt_id === formData.pt_id)) {
-         setErrorMessage('Patient ID already exists! Refreshing ID...');
-         handleGetNewId();
-         return;
-      }
-      newPatients = [updatedPatient, ...safePatients];
+      newPatients = [updatedPatient, ...safePatients.filter(p => p && p.pt_id !== targetPtId)];
     }
 
-    if (performBlockingSync) {
-      const success = await performBlockingSync({ patients: newPatients });
-      if (!success) {
-          setErrorMessage('Database synchronization failed.');
-          return; 
-      }
-    }
-
+    // Immediately update local state so invoice form gets the new patient without lag
     setPatients(newPatients);
-    setSuccessMessage('Patient saved successfully.');
+    setSuccessMessage('পেশেন্ট সফলভাবে সেভ হয়েছে!');
+
+    // Trigger parent selection callback immediately
     if (isEmbedded && onSaveAndSelect) {
-        onSaveAndSelect(formData.pt_id, formData.pt_name);
+      onSaveAndSelect(targetPtId, updatedPatient.pt_name);
     }
-    setFormData(emptyPatient);
+
+    // Persist to cloud in background / with blocking sync
+    if (performBlockingSync) {
+      try {
+        await performBlockingSync({ patients: newPatients });
+      } catch (err) {
+        console.error("Patient save sync error:", err);
+      }
+    }
+
+    const nextId = generateUniquePatientId(newPatients);
+    setFormData({ ...emptyPatient, pt_id: nextId, date_modified: formatDateTime(new Date()) });
     setSelectedPatientId(null);
     setIsEditing(false);
-    if (onClose && isEmbedded) onClose();
+    if (onClose && isEmbedded) {
+      onClose();
+    }
   };
   
   const handleDelete = async () => {
@@ -384,12 +414,12 @@ const PatientInfoPage: React.FC<PatientInfoPageProps> = ({
     <div className={`bg-slate-950 text-slate-200 rounded-xl px-3 sm:px-6 pb-6 pt-2 space-y-6 ${isEmbedded ? '!p-0 !space-y-0 !bg-transparent' : ''}`}>
         {/* Notifications */}
         {successMessage && (
-            <div className="fixed bottom-5 right-5 z-[9999] bg-green-600/90 backdrop-blur-sm border border-green-500 text-white px-6 py-3 rounded-lg shadow-2xl flex items-center transition-transform animate-fade-in-up">
+            <div className="fixed bottom-5 right-5 z-[999999] bg-green-600/95 backdrop-blur-sm border border-green-500 text-white px-6 py-3 rounded-lg shadow-2xl flex items-center transition-transform animate-fade-in-up">
                 <span className="font-semibold">{successMessage}</span>
             </div>
         )}
         {errorMessage && (
-            <div className="fixed bottom-5 right-5 z-[9999] bg-red-600/90 backdrop-blur-sm border border-red-500 text-white px-6 py-3 rounded-lg shadow-2xl flex items-center transition-transform animate-fade-in-up">
+            <div className="fixed bottom-5 right-5 z-[999999] bg-red-600/95 backdrop-blur-sm border border-red-500 text-white px-6 py-3 rounded-lg shadow-2xl flex items-center transition-transform animate-fade-in-up">
                 <span className="font-semibold">{errorMessage}</span>
             </div>
         )}
@@ -421,7 +451,29 @@ const PatientInfoPage: React.FC<PatientInfoPageProps> = ({
               </div>
           )}
           
-          <div className={`flex-1 order-1 xl:order-2 bg-slate-900 rounded-xl p-4 sm:p-6 ${isEmbedded ? 'border-2 border-blue-600/50 mt-4' : 'border border-slate-800 shadow-xl'}`}>
+          <div className={`flex-1 order-1 xl:order-2 bg-slate-900 rounded-xl p-4 sm:p-6 ${isEmbedded ? 'border-2 border-blue-600/50 mt-1' : 'border border-slate-800 shadow-xl'}`}>
+            
+            {/* Embedded Mode Header Banner */}
+            {isEmbedded && (
+                <div className="flex items-center justify-between gap-3 mb-5 pb-4 border-b border-slate-800/80">
+                    <div className="flex items-center gap-2.5">
+                        <span className="w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse"></span>
+                        <h3 className="text-base sm:text-lg font-bold text-white tracking-wide">নতুন রোগী নিবন্ধন (New Patient)</h3>
+                    </div>
+                    <div className="flex items-center gap-2 bg-slate-950 px-3 py-1.5 rounded-lg border border-blue-500/40">
+                        <span className="text-[11px] font-semibold text-slate-400 uppercase">Patient ID:</span>
+                        <span className="font-mono text-xs sm:text-sm font-bold text-blue-400">{formData.pt_id || 'Generating...'}</span>
+                    </div>
+                </div>
+            )}
+
+            {/* Inline Error Notice */}
+            {errorMessage && (
+                <div className="mb-4 bg-red-950/60 border border-red-500/80 text-red-200 px-4 py-2.5 rounded-lg text-sm flex items-center justify-between">
+                    <span>⚠️ {errorMessage}</span>
+                    <button type="button" onClick={() => setErrorMessage('')} className="text-xs text-red-400 hover:text-white ml-2 underline">Dismiss</button>
+                </div>
+            )}
             
             {/* Header Area */}
             {!isEmbedded && (
