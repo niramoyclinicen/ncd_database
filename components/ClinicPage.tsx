@@ -5,7 +5,7 @@ import SearchableSelect from './SearchableSelect';
 import PatientInfoPage from './PatientInfoPage';
 import DoctorInfoPage from './DoctorInfoPage';
 import ReferrerInfoPage from './ReferrerInfoPage';
-import { BackIcon, ClinicIcon, StethoscopeIcon, ClipboardIcon, FileTextIcon, SettingsIcon, UserPlusIcon, Armchair, Activity, SaveIcon, MoneyIcon, TrashIcon, PrinterIcon, EyeIcon, SearchIcon, PlusIcon, RefreshIcon, Database as DatabaseIcon, Plus, Save, Trash2, Loader2, Trash2Icon, AlertCircle, UsersIcon } from './Icons';
+import { BackIcon, ClinicIcon, StethoscopeIcon, ClipboardIcon, FileTextIcon, SettingsIcon, UserPlusIcon, Armchair, Activity, SaveIcon, MoneyIcon, TrashIcon, PrinterIcon, EyeIcon, SearchIcon, PlusIcon, RefreshIcon, Database as DatabaseIcon, Plus, Save, Trash2, Loader2, Trash2Icon, AlertCircle, UsersIcon, EditIcon } from './Icons';
 
 // Fixed Clinic Config
 const CLINIC_REGISTRATION = 'HSM76710';
@@ -2366,6 +2366,27 @@ const IndoorInvoicePage: React.FC<{
 
     const activeEmployees = useMemo(() => (Array.isArray(employees) ? employees : []).filter(e => e && e.status === 'Active'), [employees]);
 
+    const employeeOptions = useMemo(() => {
+        const safeEmployees = Array.isArray(employees) ? employees : [];
+        const activeList = safeEmployees.filter(emp => emp && emp.status !== 'Released');
+        const listToUse = activeList.length > 0 ? activeList : safeEmployees;
+
+        const opts = listToUse.map(emp => ({
+            id: emp.emp_name,
+            name: emp.emp_name,
+            details: [emp.emp_id ? `ID: ${emp.emp_id}` : '', emp.job_position || emp.designation, emp.department, emp.mobile ? `📞 ${emp.mobile}` : ''].filter(Boolean).join(' | ')
+        }));
+
+        if (!opts.some(o => o.name.toLowerCase() === 'admin')) {
+            opts.unshift({
+                id: 'Admin',
+                name: 'Admin',
+                details: 'System Administrator / Admin'
+            });
+        }
+        return opts;
+    }, [employees]);
+
     // Calculate Stats - Updated with Return logic and Hospital Net Balance formula
     const stats = useMemo(() => {
         const now = new Date();
@@ -2824,13 +2845,30 @@ const IndoorInvoicePage: React.FC<{
 
     const handleLoadInvoice = (inv: IndoorInvoice) => {
         if (!inv) return;
-        const patient = (Array.isArray(patients) ? patients : []).find(p => p && p.pt_id === inv.patient_id);
-        const cleanedInv = {
+        const safePatients = Array.isArray(patients) ? patients : [];
+        const patient = safePatients.find(p => p && p.pt_id === inv.patient_id);
+        const invDailyId = inv.daily_id || (inv as any).id || `CLIN-${inv.invoice_date || new Date().toISOString().split('T')[0]}-001`;
+        
+        const cleanedInv: IndoorInvoice = {
             ...emptyIndoorInvoice,
             ...inv,
+            daily_id: invDailyId,
+            patient_id: inv.patient_id || '',
+            patient_name: inv.patient_name || patient?.pt_name || '',
             patient_mobile: inv.patient_mobile || patient?.mobile || '',
             patient_address: inv.patient_address || patient?.address || '',
-            patient_dob: inv.patient_dob || (patient ? `${patient.dobY}-${patient.dobM}-${patient.dobD}` : ''),
+            patient_dob: inv.patient_dob || (patient ? `${patient.dobY || ''}-${patient.dobM || ''}-${patient.dobD || ''}` : ''),
+            admission_id: inv.admission_id || '',
+            admission_date: inv.admission_date || '',
+            discharge_date: inv.discharge_date || '',
+            doctor_id: inv.doctor_id || '',
+            doctor_name: inv.doctor_name || '',
+            referrar_id: inv.referrar_id || '',
+            referrar_name: inv.referrar_name || '',
+            indication: inv.indication || 'Indoor Service',
+            serviceCategory: inv.serviceCategory || 'Hospital Service',
+            subCategory: inv.subCategory || '',
+            ot_details: inv.ot_details || '',
             items: Array.isArray(inv.items) ? inv.items : [],
             edit_history: Array.isArray(inv.edit_history) ? inv.edit_history : [],
             total_bill: Number(inv.total_bill) || 0,
@@ -2838,12 +2876,32 @@ const IndoorInvoicePage: React.FC<{
             paid_amount: Number(inv.paid_amount) || 0,
             due_bill: Number(inv.due_bill) || 0,
             net_payable: Number(inv.net_payable) || 0,
-            special_discount_amount: Number(inv.special_discount_amount) || 0
+            special_discount_amount: Number(inv.special_discount_amount) || 0,
+            special_commission: Number(inv.special_commission) || 0,
+            bill_created_by: inv.bill_created_by || 'Admin',
+            payment_method: inv.payment_method || 'Cash',
+            status: inv.status || 'Posted'
         };
+
         setFormData(cleanedInv);
-        setSelectedInvoiceId(inv.daily_id);
+        setSelectedInvoiceId(invDailyId);
+        setApplyPC(Number(inv.special_commission || 0) > 0);
+        
         const adm = (Array.isArray(admissions) ? admissions : []).find(a => a && a.admission_id === inv.admission_id);
         if (adm) setSelectedAdmission(adm);
+        else setSelectedAdmission(null);
+
+        // Smoothly scroll to the form section at the top so the user instantly sees all loaded data
+        setTimeout(() => {
+            const formSection = document.getElementById('indoor-invoice-form-section');
+            if (formSection) {
+                formSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            } else {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+        }, 60);
+
+        setSuccessMessage(`ইনভয়েস ${invDailyId} এডিটের জন্য ফর্মে লোড হয়েছে`);
     };
 
     const handleSaveAsTemplate = () => {
@@ -2953,11 +3011,31 @@ const IndoorInvoicePage: React.FC<{
                 </div>
             </div>
 
-            <div className="bg-slate-900 p-6 rounded-3xl border border-slate-800 shadow-2xl shadow-black/40">
-                <h3 className="text-xl font-black text-white mb-6 border-b border-slate-800 pb-4 uppercase tracking-tighter flex items-center gap-3">
-                    <span className="p-2 bg-blue-500/20 rounded-lg text-blue-400"><DatabaseIcon size={24}/></span>
-                    Indoor Invoice
-                </h3>
+            <div id="indoor-invoice-form-section" className="bg-slate-900 p-6 rounded-3xl border border-slate-800 shadow-2xl shadow-black/40 scroll-mt-6">
+                <div className="flex flex-wrap items-center justify-between gap-4 mb-6 border-b border-slate-800 pb-4">
+                    <h3 className="text-xl font-black text-white uppercase tracking-tighter flex items-center gap-3">
+                        <span className="p-2 bg-blue-500/20 rounded-lg text-blue-400"><DatabaseIcon size={24}/></span>
+                        Indoor Invoice
+                        {selectedInvoiceId && (
+                            <span className="text-xs bg-amber-500/20 text-amber-300 border border-amber-500/40 px-3 py-1 rounded-lg font-mono font-bold flex items-center gap-1.5 ml-2">
+                                <EditIcon size={14} className="text-amber-400" /> Editing: {selectedInvoiceId}
+                            </span>
+                        )}
+                    </h3>
+                    {selectedInvoiceId && (
+                        <button 
+                            type="button" 
+                            onClick={() => { 
+                                setFormData(emptyIndoorInvoice); 
+                                setSelectedAdmission(null); 
+                                setSelectedInvoiceId(null); 
+                            }} 
+                            className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all border border-slate-700 flex items-center gap-2 shadow-sm"
+                        >
+                            <Plus size={14} /> New Invoice (Exit Edit)
+                        </button>
+                    )}
+                </div>
                 <div className="flex flex-wrap gap-4 mb-8">
                     <div className="w-full md:w-1/4">
                         <label className="block text-[10px] text-slate-500 font-black uppercase tracking-widest mb-1.5">Admitted Patient</label>
@@ -3053,6 +3131,35 @@ const IndoorInvoicePage: React.FC<{
                 </div>
                 {formData.daily_id && (
                     <form onSubmit={handleSaveInvoice} className="space-y-8">
+                        {/* Edit Mode Banner */}
+                        {selectedInvoiceId && (
+                            <div className="p-4 bg-gradient-to-r from-amber-950/80 via-amber-900/50 to-slate-900 border-2 border-amber-500/60 rounded-2xl flex flex-wrap items-center justify-between gap-4 shadow-xl">
+                                <div className="flex items-center gap-3">
+                                    <span className="p-2.5 bg-amber-500 text-slate-950 rounded-xl font-black text-xs uppercase tracking-wider flex items-center gap-1.5 shadow-lg">
+                                        <EditIcon size={16} /> EDIT MODE
+                                    </span>
+                                    <div>
+                                        <h4 className="text-white font-black text-sm uppercase tracking-wide">
+                                            Editing Invoice: <span className="text-amber-400 font-mono">{formData.daily_id}</span>
+                                        </h4>
+                                        <p className="text-xs text-amber-200/80 font-medium">
+                                            Patient: <span className="font-bold text-white">{formData.patient_name || 'N/A'}</span> (ID: {formData.patient_id || 'N/A'}) | Total: ৳{Number(formData.total_bill || 0).toLocaleString()} | Paid: ৳{Number(formData.paid_amount || 0).toLocaleString()}
+                                        </p>
+                                    </div>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setFormData(emptyIndoorInvoice);
+                                        setSelectedAdmission(null);
+                                        setSelectedInvoiceId(null);
+                                    }}
+                                    className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-black uppercase tracking-wider transition-all border border-slate-600 shadow-md"
+                                >
+                                    Cancel Edit
+                                </button>
+                            </div>
+                        )}
                         {/* Section 1: Details - Blue theme */}
                         <div className="flex justify-between items-center mb-2">
                             <h4 className="text-[10px] font-black text-blue-300 uppercase tracking-[0.3em] bg-blue-900/40 px-3 py-1 rounded-t-lg border-x border-t border-blue-700/50">Invoice Details & Timeline</h4>
@@ -3219,10 +3326,16 @@ const IndoorInvoicePage: React.FC<{
                             <div className="space-y-6">
                                 <div className="bg-slate-900/60 p-5 rounded-2xl border border-slate-700/50 shadow-inner">
                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2.5 block">Bill Prepared By</label>
-                                    <select name="bill_created_by" value={formData.bill_created_by} onChange={handleInputChange} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3.5 text-slate-100 font-bold focus:ring-2 focus:ring-emerald-500 outline-none shadow-lg appearance-none">
-                                        <option value="" className="bg-slate-950">Select Staff / Employee</option>
-                                        {(Array.isArray(activeEmployees) ? activeEmployees : []).map(e => e && <option key={e.emp_id} value={e.emp_name} className="bg-slate-950">{e.emp_name}</option>)}
-                                    </select>
+                                    <SearchableSelect 
+                                        label=""
+                                        theme="dark"
+                                        options={employeeOptions}
+                                        value={formData.bill_created_by || ''}
+                                        onChange={(_id, name) => setFormData(prev => ({ ...prev, bill_created_by: name }))}
+                                        placeholder="Select Staff / Admin"
+                                        allowCustom={true}
+                                        inputHeightClass="h-[46px] bg-slate-950 border-slate-800"
+                                    />
                                 </div>
                                 <div className="bg-slate-900/60 p-5 rounded-2xl border border-slate-700/50 shadow-inner">
                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2.5 block">Payment Method</label>
@@ -3244,7 +3357,7 @@ const IndoorInvoicePage: React.FC<{
                                         className="w-full bg-gradient-to-br from-emerald-600 to-teal-800 text-white py-4 rounded-2xl font-black uppercase text-[12px] tracking-[0.3em] shadow-2xl shadow-emerald-900/60 border border-emerald-400/30 hover:from-emerald-500 hover:to-teal-700 transition-all flex items-center justify-center gap-4 group"
                                     >
                                         {loading ? <Loader2 className="animate-spin" size={24}/> : <Save className="group-hover:scale-110 transition-transform" size={24}/>}
-                                        Confirm & Save Invoice
+                                        {selectedInvoiceId ? 'Update & Save Invoice' : 'Confirm & Save Invoice'}
                                     </button>
                                 </div>
                             </div>
@@ -3469,7 +3582,13 @@ const IndoorInvoicePage: React.FC<{
                                         </td>
                                         <td className="p-3 text-center"><span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase ${inv.status==='Returned'?'bg-rose-600 text-white':(inv.status==='Cancelled'||inv.status==='Deleted')?'bg-slate-700 text-slate-300':'bg-blue-600 text-white'}`}>{inv.status}</span></td>
                                         <td className="p-3 text-center space-x-2" onClick={e=>e.stopPropagation()}>
-                                            <button onClick={(e) => { e.stopPropagation(); handleLoadInvoice(inv); }} className="text-emerald-600 hover:text-emerald-800 text-xs font-bold underline">Edit</button>
+                                            <button 
+                                                onClick={(e) => { e.stopPropagation(); handleLoadInvoice(inv); }} 
+                                                className="inline-flex items-center gap-1 bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 hover:text-amber-800 px-2.5 py-1 rounded-md text-xs font-bold border border-amber-300/60 shadow-sm transition-all"
+                                                title="ইনভয়েসটি এডিট করতে উপরে ফর্মে লোড করুন"
+                                            >
+                                                <EditIcon size={12} className="text-amber-600" /> Edit
+                                            </button>
                                             <button onClick={(e) => { e.stopPropagation(); handlePrintInvoice(inv); }} className="text-sky-600 hover:text-sky-800 text-xs font-bold underline">Print</button>
                                             {inv.status !== 'Returned' && inv.status !== 'Cancelled' && inv.status !== 'Deleted' && (
                                                 <>
