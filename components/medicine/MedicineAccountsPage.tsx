@@ -28,44 +28,96 @@ const MedicineAccountsPage: React.FC<MedicineAccountsPageProps> = ({
         const safeSales = Array.isArray(salesInvoices) ? salesInvoices : [];
         const safeIndoor = Array.isArray(indoorInvoices) ? indoorInvoices : [];
 
-        const isSelectedMonth = (dateStr: string) => {
+        const normalizeDateStr = (dateStr?: string | null): string => {
+            if (!dateStr || typeof dateStr !== 'string') return '';
+            const cleaned = dateStr.trim();
+            if (!cleaned) return '';
+            if (/^\d{4}-\d{2}-\d{2}/.test(cleaned)) {
+                return cleaned.substring(0, 10);
+            }
+            if (cleaned.includes('/')) {
+                const parts = cleaned.split('/');
+                if (parts.length === 3) {
+                    if (parts[2].length === 4) {
+                        const y = parts[2];
+                        const m = parts[1].padStart(2, '0');
+                        const d = parts[0].padStart(2, '0');
+                        return `${y}-${m}-${d}`;
+                    } else if (parts[0].length === 4) {
+                        const y = parts[0];
+                        const m = parts[1].padStart(2, '0');
+                        const d = parts[2].padStart(2, '0');
+                        return `${y}-${m}-${d}`;
+                    }
+                }
+            }
+            if (cleaned.includes('-')) {
+                const parts = cleaned.split('-');
+                if (parts.length === 3) {
+                    if (parts[2].length === 4) {
+                        const y = parts[2];
+                        const m = parts[1].padStart(2, '0');
+                        const d = parts[0].padStart(2, '0');
+                        return `${y}-${m}-${d}`;
+                    } else if (parts[0].length === 4) {
+                        const y = parts[0];
+                        const m = parts[1].padStart(2, '0');
+                        const d = parts[2].padStart(2, '0');
+                        return `${y}-${m}-${d}`;
+                    }
+                }
+            }
+            return cleaned;
+        };
+
+        const isSelectedMonth = (rawDate?: string | null) => {
+            const dateStr = normalizeDateStr(rawDate);
             if (!dateStr) return false;
-            const [y, m] = dateStr.split('-').map(Number);
+            const parts = dateStr.split('-');
+            if (parts.length < 2) return false;
+            const y = Number(parts[0]);
+            const m = Number(parts[1]);
             return m - 1 === selectedMonth && y === selectedYear;
         };
 
-        const isBeforeSelectedMonth = (dateStr: string) => {
+        const isBeforeSelectedMonth = (rawDate?: string | null) => {
+            const dateStr = normalizeDateStr(rawDate);
             if (!dateStr) return false;
-            const [y, m] = dateStr.split('-').map(Number);
+            const parts = dateStr.split('-');
+            if (parts.length < 2) return false;
+            const y = Number(parts[0]);
+            const m = Number(parts[1]);
             return y < selectedYear || (y === selectedYear && m - 1 < selectedMonth);
+        };
+
+        const getInvDate = (inv: any): string => {
+            return inv?.invoiceDate || inv?.invoice_date || inv?.admission_date || inv?.date || inv?.createdDate || '';
         };
 
         // Calculate Current Month Stats
         // Exclude 'Initial' status from current expenses (Opening stock fix)
         const currentInvoices = safePurchases.filter(inv => {
-            if (inv.status === 'Initial' || inv.status === 'Cancelled') return false;
-            return isSelectedMonth(inv.invoiceDate);
+            if (!inv || inv.status === 'Initial' || inv.status === 'Cancelled' || inv.status === 'Deleted') return false;
+            return isSelectedMonth(getInvDate(inv));
         });
 
         const currentOutdoorSales = safeSales.filter(inv => {
-            // @ts-expect-error - status might exist even if not in type
-            if (inv.status === 'Cancelled' || inv.status === 'Returned') return false;
-            return isSelectedMonth(inv.invoiceDate);
+            if (!inv || (inv as any).status === 'Cancelled' || (inv as any).status === 'Returned' || (inv as any).status === 'Deleted') return false;
+            return isSelectedMonth(getInvDate(inv));
         });
 
         const currentIndoorSales = safeIndoor.filter(inv => {
-            if (inv.status === 'Cancelled' || inv.status === 'Returned') return false;
-            const dateToUse = inv.invoice_date || inv.admission_date;
-            return isSelectedMonth(dateToUse);
+            if (!inv || inv.status === 'Cancelled' || inv.status === 'Returned' || inv.status === 'Deleted') return false;
+            return isSelectedMonth(getInvDate(inv));
         });
 
         // Summing values
-        const totalBuyCurrent = currentInvoices.reduce((sum, inv) => sum + (inv.netPayable || 0), 0);
-        const totalSellOutdoor = currentOutdoorSales.reduce((sum, inv) => sum + (inv.netPayable || 0), 0);
+        const totalBuyCurrent = currentInvoices.reduce((sum, inv) => sum + (Number(inv.netPayable) || 0), 0);
+        const totalSellOutdoor = currentOutdoorSales.reduce((sum, inv) => sum + (Number(inv.netPayable) || 0), 0);
         const totalSellIndoor = currentIndoorSales.reduce((sum, inv) => {
             const medItemsTotal = (inv.items || [])
-                .filter(it => it && it.service_type === 'Medicine')
-                .reduce((s, it) => s + (it.payable_amount || 0), 0);
+                .filter(it => it && (it.service_type === 'Medicine' || it.service_type === 'ঔষধ' || (it.service_type || '').toLowerCase().includes('med')))
+                .reduce((s, it) => s + (Number(it.payable_amount) || Number(it.line_total) || 0), 0);
             return sum + medItemsTotal;
         }, 0);
 
@@ -73,24 +125,22 @@ const MedicineAccountsPage: React.FC<MedicineAccountsPageProps> = ({
 
         // Cumulative Stats (Previous Months)
         const prevPurchaseTotal = safePurchases.filter(inv => {
-            if (inv.status === 'Cancelled' || inv.status === 'Initial') return false;
-            return isBeforeSelectedMonth(inv.invoiceDate);
-        }).reduce((sum, inv) => sum + (inv.netPayable || 0), 0);
+            if (!inv || inv.status === 'Cancelled' || inv.status === 'Initial' || inv.status === 'Deleted') return false;
+            return isBeforeSelectedMonth(getInvDate(inv));
+        }).reduce((sum, inv) => sum + (Number(inv.netPayable) || 0), 0);
 
         const prevOutdoorTotal = safeSales.filter(inv => {
-            // @ts-expect-error - status property is missing in SalesInvoice type but present in runtime data
-            if (inv.status === 'Cancelled' || inv.status === 'Returned') return false;
-            return isBeforeSelectedMonth(inv.invoiceDate);
-        }).reduce((sum, inv) => sum + (inv.netPayable || 0), 0);
+            if (!inv || (inv as any).status === 'Cancelled' || (inv as any).status === 'Returned' || (inv as any).status === 'Deleted') return false;
+            return isBeforeSelectedMonth(getInvDate(inv));
+        }).reduce((sum, inv) => sum + (Number(inv.netPayable) || 0), 0);
 
         const prevIndoorTotal = safeIndoor.filter(inv => {
-            if (inv.status === 'Cancelled' || inv.status === 'Returned') return false;
-            const dateToUse = inv.invoice_date || inv.admission_date;
-            return isBeforeSelectedMonth(dateToUse);
+            if (!inv || inv.status === 'Cancelled' || inv.status === 'Returned' || inv.status === 'Deleted') return false;
+            return isBeforeSelectedMonth(getInvDate(inv));
         }).reduce((sum, inv) => {
              const medItemsTotal = (inv.items || [])
-                .filter(it => it && it.service_type === 'Medicine')
-                .reduce((s, it) => s + (it.payable_amount || 0), 0);
+                .filter(it => it && (it.service_type === 'Medicine' || it.service_type === 'ঔষধ' || (it.service_type || '').toLowerCase().includes('med')))
+                .reduce((s, it) => s + (Number(it.payable_amount) || Number(it.line_total) || 0), 0);
             return sum + medItemsTotal;
         }, 0);
 
@@ -103,33 +153,36 @@ const MedicineAccountsPage: React.FC<MedicineAccountsPageProps> = ({
         // Monthly List Generation for Chart
         const monthlyData: Record<string, { buy: number, sell: number }> = {};
         safePurchases.forEach(inv => {
-            if (inv.status === 'Cancelled' || inv.status === 'Initial' || !inv.invoiceDate) return;
-            const [y, m] = inv.invoiceDate.split('-').map(Number);
+            if (!inv || inv.status === 'Cancelled' || inv.status === 'Initial' || inv.status === 'Deleted') return;
+            const norm = normalizeDateStr(getInvDate(inv));
+            if (!norm) return;
+            const [y, m] = norm.split('-').map(Number);
             if (y === selectedYear && m >= 1 && m <= 12) {
                 const monthName = monthOptions[m - 1]?.name || `Month ${m}`;
                 if (!monthlyData[monthName]) monthlyData[monthName] = { buy: 0, sell: 0 };
-                monthlyData[monthName].buy += (inv.netPayable || 0);
+                monthlyData[monthName].buy += (Number(inv.netPayable) || 0);
             }
         });
         safeSales.forEach(inv => {
-            // @ts-expect-error - status property is missing in SalesInvoice type but present in runtime data
-            if (inv.status === 'Cancelled' || inv.status === 'Returned' || !inv.invoiceDate) return;
-            const [y, m] = inv.invoiceDate.split('-').map(Number);
+            if (!inv || (inv as any).status === 'Cancelled' || (inv as any).status === 'Returned' || (inv as any).status === 'Deleted') return;
+            const norm = normalizeDateStr(getInvDate(inv));
+            if (!norm) return;
+            const [y, m] = norm.split('-').map(Number);
             if (y === selectedYear && m >= 1 && m <= 12) {
                 const monthName = monthOptions[m - 1]?.name || `Month ${m}`;
                 if (!monthlyData[monthName]) monthlyData[monthName] = { buy: 0, sell: 0 };
-                monthlyData[monthName].sell += (inv.netPayable || 0);
+                monthlyData[monthName].sell += (Number(inv.netPayable) || 0);
             }
         });
         safeIndoor.forEach(inv => {
-            if (inv.status === 'Cancelled' || inv.status === 'Returned') return;
-            const dateToUse = inv.invoice_date || inv.admission_date;
-            if (!dateToUse) return;
-            const [y, m] = dateToUse.split('-').map(Number);
+            if (!inv || inv.status === 'Cancelled' || inv.status === 'Returned' || inv.status === 'Deleted') return;
+            const norm = normalizeDateStr(getInvDate(inv));
+            if (!norm) return;
+            const [y, m] = norm.split('-').map(Number);
             if (y === selectedYear && m >= 1 && m <= 12) {
                 const monthName = monthOptions[m - 1]?.name || `Month ${m}`;
                 if (!monthlyData[monthName]) monthlyData[monthName] = { buy: 0, sell: 0 };
-                monthlyData[monthName].sell += (inv.items || []).filter(it => it && it.service_type === 'Medicine').reduce((s, it) => s + (it.payable_amount || 0), 0);
+                monthlyData[monthName].sell += (inv.items || []).filter(it => it && (it.service_type === 'Medicine' || it.service_type === 'ঔষধ' || (it.service_type || '').toLowerCase().includes('med'))).reduce((s, it) => s + (Number(it.payable_amount) || Number(it.line_total) || 0), 0);
             }
         });
 

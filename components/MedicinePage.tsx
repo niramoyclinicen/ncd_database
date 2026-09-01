@@ -5,17 +5,23 @@ import SearchableSelect from './SearchableSelect';
 
 interface MedicinePageProps {
   onBack: () => void;
-  medicines: Medicine[];
-  setMedicines: React.Dispatch<React.SetStateAction<Medicine[]>>;
-  clinicalDrugs: DrugMonograph[];
-  setClinicalDrugs: React.Dispatch<React.SetStateAction<DrugMonograph[]>>;
-  employees: Employee[];
-  doctors: Doctor[];
-  invoices: PurchaseInvoice[];
-  setInvoices: React.Dispatch<React.SetStateAction<PurchaseInvoice[]>>;
-  salesInvoices: SalesInvoice[];
-  setSalesInvoices: React.Dispatch<React.SetStateAction<SalesInvoice[]>>;
-  indoorInvoices: IndoorInvoice[];
+  medicines?: Medicine[];
+  setMedicines?: React.Dispatch<React.SetStateAction<Medicine[]>>;
+  clinicalDrugs?: DrugMonograph[];
+  setClinicalDrugs?: React.Dispatch<React.SetStateAction<DrugMonograph[]>>;
+  employees?: Employee[];
+  doctors?: Doctor[];
+  invoices?: PurchaseInvoice[];
+  setInvoices?: React.Dispatch<React.SetStateAction<PurchaseInvoice[]>>;
+  purchaseInvoices?: PurchaseInvoice[];
+  setPurchaseInvoices?: React.Dispatch<React.SetStateAction<PurchaseInvoice[]>>;
+  salesInvoices?: SalesInvoice[];
+  setSalesInvoices?: React.Dispatch<React.SetStateAction<SalesInvoice[]>>;
+  indoorInvoices?: IndoorInvoice[];
+  patients?: any[];
+  setPatients?: any;
+  detailedExpenses?: Record<string, any[]>;
+  setDetailedExpenses?: React.Dispatch<React.SetStateAction<Record<string, any[]>>>;
   performBlockingSync?: (overrides?: any) => Promise<boolean>;
 }
 
@@ -39,8 +45,19 @@ const defaultSuppliers = [
 ];
 
 const MedicinePage: React.FC<MedicinePageProps> = ({ 
-    onBack, medicines, setMedicines, clinicalDrugs, setClinicalDrugs, employees, doctors, invoices, setInvoices, salesInvoices, setSalesInvoices, indoorInvoices, performBlockingSync
+    onBack, medicines = [], setMedicines, clinicalDrugs = [], setClinicalDrugs, employees = [], doctors = [], invoices = [], setInvoices, purchaseInvoices = [], setPurchaseInvoices, salesInvoices = [], setSalesInvoices, indoorInvoices = [], performBlockingSync
 }) => {
+  const safeInvoices = useMemo(() => Array.isArray(invoices) && invoices.length > 0 ? invoices : (Array.isArray(purchaseInvoices) ? purchaseInvoices : []), [invoices, purchaseInvoices]);
+  const safeSetInvoices = setInvoices || setPurchaseInvoices || (() => {});
+  const safeMedicines = useMemo(() => Array.isArray(medicines) ? medicines : [], [medicines]);
+  const safeSetMedicines = setMedicines || (() => {});
+  const safeSalesInvoices = useMemo(() => Array.isArray(salesInvoices) ? salesInvoices : [], [salesInvoices]);
+  const safeSetSalesInvoices = setSalesInvoices || (() => {});
+  const safeIndoorInvoices = useMemo(() => Array.isArray(indoorInvoices) ? indoorInvoices : [], [indoorInvoices]);
+  const safeEmployees = useMemo(() => Array.isArray(employees) ? employees : [], [employees]);
+  const safeClinicalDrugs = useMemo(() => Array.isArray(clinicalDrugs) ? clinicalDrugs : [], [clinicalDrugs]);
+  const safeSetClinicalDrugs = setClinicalDrugs || (() => {});
+
   const [activeTab, setActiveTab] = useState<MedicineTab>('sell');
   const [buyViewMode, setBuyViewMode] = useState<ViewMode>('list');
   const [sellViewMode, setSellViewMode] = useState<ViewMode>('list');
@@ -141,21 +158,20 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
 
   const handleSearchChange = (term: string, type: 'buy' | 'sell') => {
     setSearchTerm(term);
-    const safeMedicines = Array.isArray(medicines) ? medicines : [];
     if (type === 'buy') {
         setCurrentPurchaseItem(prev => ({ ...prev, tradeName: term }));
         if (term.length > 0) {
-            const matches = safeMedicines.filter(m => m && (m.tradeName || '').toLowerCase().includes(term.toLowerCase()) || (m.genericName || '').toLowerCase().includes(term.toLowerCase()));
+            const matches = safeMedicines.filter(m => m && ((m.tradeName || '').toLowerCase().includes(term.toLowerCase()) || (m.genericName || '').toLowerCase().includes(term.toLowerCase())));
             setSuggestions(matches);
             setShowSuggestions(true);
         } else { setSuggestions([]); setShowSuggestions(false); }
     } else {
         setCurrentSalesItem(prev => ({ ...prev, tradeName: term }));
         if (term.length === 0) {
-            setSuggestions(safeMedicines.filter(m => m && m.stock > 0));
+            setSuggestions(safeMedicines.filter(m => m && (m.stock || 0) > 0));
             setShowSuggestions(true);
         } else {
-            const matches = safeMedicines.filter(m => m && ((m.tradeName || '').toLowerCase().includes(term.toLowerCase()) || (m.genericName || '').toLowerCase().includes(term.toLowerCase())));
+            const matches = safeMedicines.filter(m => m && (((m.tradeName || '').toLowerCase().includes(term.toLowerCase())) || ((m.genericName || '').toLowerCase().includes(term.toLowerCase()))));
             setSuggestions(matches);
             setShowSuggestions(true);
         }
@@ -164,7 +180,6 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
 
   const handleSupplierChange = (val: string) => {
       setPurchaseFormData(prev => ({ ...prev, source: val }));
-      const safeInvoices = Array.isArray(invoices) ? invoices : [];
       const historySuppliers = Array.from(new Set(safeInvoices.map(i => i && i.source))).filter((s): s is string => !!s);
       const allSuppliers = Array.from(new Set([...defaultSuppliers, ...historySuppliers]));
       if (val) {
@@ -180,10 +195,10 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
           alert("Invalid payment amount"); return;
       }
       
-      const newInvoicesArr = invoices.map(inv => {
+      const newInvoicesArr = safeInvoices.map(inv => {
           if (inv.invoiceId === paymentData.invoiceId) {
-              const newPaid = inv.paidAmount + amt;
-              return { ...inv, paidAmount: newPaid, dueAmount: inv.netPayable - newPaid };
+              const newPaid = (inv.paidAmount || 0) + amt;
+              return { ...inv, paidAmount: newPaid, dueAmount: Math.max(0, (inv.netPayable || 0) - newPaid) };
           }
           return inv;
       });
@@ -191,12 +206,12 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
       if (performBlockingSync) {
           const success = await performBlockingSync({ purchaseInvoices: newInvoicesArr });
           if (success) {
-              setInvoices(newInvoicesArr);
+              safeSetInvoices(newInvoicesArr);
               setSuccessMessage("ডাটা সেভ হয়েছে");
               setShowPaymentModal(false);
           }
       } else {
-          setInvoices(newInvoicesArr);
+          safeSetInvoices(newInvoicesArr);
           setSuccessMessage("Supplier payment processed!");
           setShowPaymentModal(false);
       }
@@ -223,11 +238,11 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
           return;
       }
       if (qty <= 0) {
-          alert("ক্রয়ের পরিমাণ (Quantity) সঠিক হতে হবে!");
+          alert("ক্রয়ের পরিমাণ (Quantity) সঠিক হতে باشد!");
           return;
       }
 
-      const existingMed = medicines.find(m => m.tradeName.trim().toLowerCase() === tradeName.toLowerCase());
+      const existingMed = safeMedicines.find(m => m && m.tradeName && m.tradeName.trim().toLowerCase() === tradeName.toLowerCase());
       let itemId = currentPurchaseItem.id;
       if (!itemId && existingMed) {
           if (confirm(`"${existingMed.tradeName}" নামে ঔষধটি আগে থেকেই তালিকায় আছে। আপনি কি এই ঔষধটির সাথেই নতুন স্টক যোগ করতে চান?`)) {
@@ -256,14 +271,14 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
   const addSalesItem = () => {
       if (!currentSalesItem.id) { alert("Please select a medicine from stock list only."); return; }
       const qty = Number(currentSalesItem.qtySelling) || 0; 
-      const existingStock = medicines.find(m => m.id === currentSalesItem.id)?.stock || 0;
+      const existingStock = safeMedicines.find(m => m && m.id === currentSalesItem.id)?.stock || 0;
       
-      const alreadyInDraft = salesFormData.items.find(i => i.id === currentSalesItem.id)?.qtySelling || 0;
+      const alreadyInDraft = salesFormData.items.find(i => i && i.id === currentSalesItem.id)?.qtySelling || 0;
       const available = existingStock - alreadyInDraft;
 
       if (qty <= 0 || qty > available) { alert(`Invalid Quantity. Available: ${available}`); return; }
 
-      const existingItemIdx = salesFormData.items.findIndex(i => i.id === currentSalesItem.id);
+      const existingItemIdx = salesFormData.items.findIndex(i => i && i.id === currentSalesItem.id);
       if (existingItemIdx >= 0) {
           const updatedItems = [...salesFormData.items];
           updatedItems[existingItemIdx].qtySelling += qty;
@@ -305,27 +320,29 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
       try {
           const finalStatus = isOpeningStock ? 'Initial' : 'Posted';
           
-          const newMedsArr = [...(Array.isArray(medicines) ? medicines : [])];
+          const newMedsArr = [...safeMedicines];
           // If editing, reverse the previous invoice items quantities first
           if(buyViewMode === 'edit' && editingPurchaseId) {
-              const oldInv = invoices.find(x => x.invoiceId === editingPurchaseId);
-              if(oldInv) {
+              const oldInv = safeInvoices.find(x => x && x.invoiceId === editingPurchaseId);
+              if(oldInv && Array.isArray(oldInv.items)) {
                   oldInv.items.forEach(oldItem => {
-                      const mIdx = newMedsArr.findIndex(m => m.id === oldItem.id);
-                      if (mIdx >= 0) newMedsArr[mIdx] = { ...newMedsArr[mIdx], stock: Math.max(0, newMedsArr[mIdx].stock - oldItem.qtyBuying) };
+                      if (!oldItem) return;
+                      const mIdx = newMedsArr.findIndex(m => m && m.id === oldItem.id);
+                      if (mIdx >= 0) newMedsArr[mIdx] = { ...newMedsArr[mIdx], stock: Math.max(0, (newMedsArr[mIdx].stock || 0) - (oldItem.qtyBuying || 0)) };
                   });
               }
           }
 
           // Apply current form quantities
-          purchaseFormData.items.forEach(item => {
-              const mIdx = newMedsArr.findIndex(m => m.id === item.id);
+          (purchaseFormData.items || []).forEach(item => {
+              if (!item) return;
+              const mIdx = newMedsArr.findIndex(m => m && m.id === item.id);
               if (mIdx >= 0) { 
                   newMedsArr[mIdx] = { 
                       ...newMedsArr[mIdx], 
-                      stock: newMedsArr[mIdx].stock + Number(item.qtyBuying),
-                      unitPriceBuy: Number(item.unitPriceBuy),
-                      unitPriceSell: Number(item.unitPriceSell),
+                      stock: (newMedsArr[mIdx].stock || 0) + Number(item.qtyBuying || 0),
+                      unitPriceBuy: Number(item.unitPriceBuy || 0),
+                      unitPriceSell: Number(item.unitPriceSell || 0),
                       genericName: item.genericName,
                       strength: item.strength,
                       formulation: item.formulation,
@@ -333,15 +350,20 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
                   };
               } else { 
                   newMedsArr.push({ 
-                      id: item.id, tradeName: item.tradeName, genericName: item.genericName, 
-                      formulation: item.formulation, strength: item.strength, 
-                      stock: Number(item.qtyBuying), unitPriceBuy: item.unitPriceBuy, 
-                      unitPriceSell: item.unitPriceSell, expiryDate: item.expiryDate 
+                      id: item.id || `MED-${Date.now()}-${Math.random()}`, 
+                      tradeName: item.tradeName, 
+                      genericName: item.genericName, 
+                      formulation: item.formulation, 
+                      strength: item.strength, 
+                      stock: Number(item.qtyBuying || 0), 
+                      unitPriceBuy: item.unitPriceBuy || 0, 
+                      unitPriceSell: item.unitPriceSell || 0, 
+                      expiryDate: item.expiryDate 
                   }); 
               }
           });
 
-          let newInvoicesArr = [...(Array.isArray(invoices) ? invoices : [])];
+          let newInvoicesArr = [...safeInvoices];
           if (buyViewMode === 'edit') {
               newInvoicesArr = newInvoicesArr.map(inv => inv.invoiceId === editingPurchaseId ? { ...purchaseFormData, status: finalStatus as any } : inv);
           } else {
@@ -351,16 +373,16 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
           if (performBlockingSync) {
               const success = await performBlockingSync({ medicines: newMedsArr, purchaseInvoices: newInvoicesArr });
               if (success) {
-                  setMedicines(newMedsArr);
-                  setInvoices(newInvoicesArr);
+                  safeSetMedicines(newMedsArr);
+                  safeSetInvoices(newInvoicesArr);
                   setSuccessMessage("ডাটা সেভ হয়েছে");
                   setBuyViewMode('list');
                   setEditingPurchaseId(null);
                   setIsOpeningStock(false);
               }
           } else {
-              setMedicines(newMedsArr);
-              setInvoices(newInvoicesArr);
+              safeSetMedicines(newMedsArr);
+              safeSetInvoices(newInvoicesArr);
               setSuccessMessage(buyViewMode === 'edit' ? "Purchase invoice updated!" : "Purchase invoice saved!");
               setBuyViewMode('list');
               setEditingPurchaseId(null);
@@ -387,26 +409,28 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
     setConfirmModal(prev => ({ ...prev, isOpen: false }));
     setLoading(true);
     try {
-        const newMedsArr = medicines.map(m => {
-            const returnedItem = inv.items.find(it => it.id === m.id);
+        const newMedsArr = safeMedicines.map(m => {
+            if (!m) return m;
+            const items = Array.isArray(inv.items) ? inv.items : [];
+            const returnedItem = items.find(it => it && it.id === m.id);
             if (returnedItem) {
-                return { ...m, stock: Math.max(0, m.stock - returnedItem.qtyBuying) };
+                return { ...m, stock: Math.max(0, (m.stock || 0) - (returnedItem.qtyBuying || 0)) };
             }
             return m;
         });
 
-        const newInvoicesArr = invoices.filter(x => x.invoiceId !== inv.invoiceId);
+        const newInvoicesArr = safeInvoices.filter(x => x && x.invoiceId !== inv.invoiceId);
 
         if (performBlockingSync) {
             const success = await performBlockingSync({ medicines: newMedsArr, purchaseInvoices: newInvoicesArr });
             if (success) {
-                setMedicines(newMedsArr);
-                setInvoices(newInvoicesArr);
+                safeSetMedicines(newMedsArr);
+                safeSetInvoices(newInvoicesArr);
                 setSuccessMessage("ডাটা সেভ হয়েছে");
             }
         } else {
-            setMedicines(newMedsArr);
-            setInvoices(newInvoicesArr);
+            safeSetMedicines(newMedsArr);
+            safeSetInvoices(newInvoicesArr);
             setSuccessMessage("Purchase Invoice Returned & Stock Adjusted!");
         }
     } catch (err) {
@@ -440,22 +464,24 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
       setConfirmModal(prev => ({ ...prev, isOpen: false }));
       setLoading(true);
       try {
-          const newMedsArr = [...(Array.isArray(medicines) ? medicines : [])];
+          const newMedsArr = [...safeMedicines];
           if (sellViewMode === 'edit' && editingInvoiceId) {
-              const oldInv = salesInvoices.find(x => x.invoiceId === editingInvoiceId);
-              if (oldInv) {
+              const oldInv = safeSalesInvoices.find(x => x && x.invoiceId === editingInvoiceId);
+              if (oldInv && Array.isArray(oldInv.items)) {
                   oldInv.items.forEach(oldItem => {
-                      const mIdx = newMedsArr.findIndex(m => m.id === oldItem.id);
-                      if (mIdx >= 0) newMedsArr[mIdx] = { ...newMedsArr[mIdx], stock: newMedsArr[mIdx].stock + oldItem.qtySelling };
+                      if (!oldItem) return;
+                      const mIdx = newMedsArr.findIndex(m => m && m.id === oldItem.id);
+                      if (mIdx >= 0) newMedsArr[mIdx] = { ...newMedsArr[mIdx], stock: (newMedsArr[mIdx].stock || 0) + (oldItem.qtySelling || 0) };
                   });
               }
           }
-          salesFormData.items.forEach(newItem => {
-              const mIdx = newMedsArr.findIndex(m => m.id === newItem.id);
-              if (mIdx >= 0) newMedsArr[mIdx] = { ...newMedsArr[mIdx], stock: Math.max(0, newMedsArr[mIdx].stock - newItem.qtySelling) };
+          (salesFormData.items || []).forEach(newItem => {
+              if (!newItem) return;
+              const mIdx = newMedsArr.findIndex(m => m && m.id === newItem.id);
+              if (mIdx >= 0) newMedsArr[mIdx] = { ...newMedsArr[mIdx], stock: Math.max(0, (newMedsArr[mIdx].stock || 0) - (newItem.qtySelling || 0)) };
           });
 
-          let newSalesArr = [...(Array.isArray(salesInvoices) ? salesInvoices : [])];
+          let newSalesArr = [...safeSalesInvoices];
           if (sellViewMode === 'edit') {
               newSalesArr = newSalesArr.map(inv => inv.invoiceId === editingInvoiceId ? { ...salesFormData, status: 'Posted' } : inv);
           } else {
@@ -465,15 +491,15 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
           if (performBlockingSync) {
               const success = await performBlockingSync({ medicines: newMedsArr, salesInvoices: newSalesArr });
               if (success) {
-                  setMedicines(newMedsArr);
-                  setSalesInvoices(newSalesArr);
+                  safeSetMedicines(newMedsArr);
+                  safeSetSalesInvoices(newSalesArr);
                   setSuccessMessage("ডাটা সেভ হয়েছে");
                   setSellViewMode('list');
                   setEditingInvoiceId(null);
               }
           } else {
-              setMedicines(newMedsArr);
-              setSalesInvoices(newSalesArr);
+              safeSetMedicines(newMedsArr);
+              safeSetSalesInvoices(newSalesArr);
               setSuccessMessage(sellViewMode === 'edit' ? "Invoice Correction Saved!" : "ডাটা সেভ হয়েছে");
               setSellViewMode('list');
               setEditingInvoiceId(null);
@@ -499,24 +525,26 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
     setConfirmModal(prev => ({ ...prev, isOpen: false }));
     setLoading(true);
     try {
-        const newMedsArr = medicines.map(m => {
-            const returnedItem = inv.items.find(it => it.id === m.id);
-            if (returnedItem) return { ...m, stock: m.stock + returnedItem.qtySelling };
+        const newMedsArr = safeMedicines.map(m => {
+            if (!m) return m;
+            const items = Array.isArray(inv.items) ? inv.items : [];
+            const returnedItem = items.find(it => it && it.id === m.id);
+            if (returnedItem) return { ...m, stock: (m.stock || 0) + (returnedItem.qtySelling || 0) };
             return m;
         });
         
-        const newSalesArr = salesInvoices.filter(x => x.invoiceId !== inv.invoiceId);
+        const newSalesArr = safeSalesInvoices.filter(x => x && x.invoiceId !== inv.invoiceId);
     
         if (performBlockingSync) {
             const success = await performBlockingSync({ medicines: newMedsArr, salesInvoices: newSalesArr });
             if (success) {
-                setMedicines(newMedsArr);
-                setSalesInvoices(newSalesArr);
+                safeSetMedicines(newMedsArr);
+                safeSetSalesInvoices(newSalesArr);
                 setSuccessMessage("ডাটা সঠিকভাবে সেভ হয়েছে!");
             }
         } else {
-            setMedicines(newMedsArr);
-            setSalesInvoices(newSalesArr);
+            safeSetMedicines(newMedsArr);
+            safeSetSalesInvoices(newSalesArr);
             setSuccessMessage("Return Processed! Stock Restored.");
         }
     } catch (err) {
@@ -536,8 +564,8 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
 
   const handleSaveClinicalDrug = () => {
     if (!clinicalDrugForm.brandName || !clinicalDrugForm.genericName) return;
-    if (isEditingDrug) setClinicalDrugs(prev => prev.map(d => d.id === clinicalDrugForm.id ? clinicalDrugForm : d));
-    else setClinicalDrugs(prev => [{ ...clinicalDrugForm, id: Date.now().toString() }, ...prev]);
+    if (isEditingDrug) safeSetClinicalDrugs(prev => (Array.isArray(prev) ? prev : []).map(d => d.id === clinicalDrugForm.id ? clinicalDrugForm : d));
+    else safeSetClinicalDrugs(prev => [{ ...clinicalDrugForm, id: Date.now().toString() }, ...(Array.isArray(prev) ? prev : [])]);
     setClinicalDrugForm({ id: '', brandName: '', genericName: '', strength: '', formulation: 'Tab', company: '', pregnancyCategory: 'B', indications: [], sideEffects: [], adultDose: '' });
     setIsEditingDrug(false);
     setSuccessMessage("Drug Database updated!");
@@ -555,11 +583,11 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
       return;
     }
 
-    const newMedsArr = medicines.map(m => {
-      if (m.id === adjustmentData.medicineId) {
+    const newMedsArr = safeMedicines.map(m => {
+      if (m && m.id === adjustmentData.medicineId) {
         const newStock = adjustmentData.adjustmentType === 'add' 
-          ? m.stock + qty 
-          : Math.max(0, m.stock - qty);
+          ? (m.stock || 0) + qty 
+          : Math.max(0, (m.stock || 0) - qty);
         return {
           ...m,
           stock: newStock,
@@ -572,12 +600,12 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
     if (performBlockingSync) {
         const success = await performBlockingSync({ medicines: newMedsArr });
         if (success) {
-            setMedicines(newMedsArr);
+            safeSetMedicines(newMedsArr);
             setSuccessMessage("ডাটা সঠিকভাবে সেভ হয়েছে!");
             setShowAdjustmentModal(false);
         }
     } else {
-        setMedicines(newMedsArr);
+        safeSetMedicines(newMedsArr);
         setSuccessMessage(`Stock adjusted for ${adjustmentData.tradeName}`);
         setShowAdjustmentModal(false);
     }
@@ -619,20 +647,20 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
               </tr>
             </thead>
             <tbody>
-              ${medicines.map(m => `
+              ${safeMedicines.map(m => `
                 <tr>
-                  <td class="border border-slate-400 p-2 font-bold">${m.tradeName} ${m.strength}</td>
-                  <td class="border border-slate-400 p-2 italic text-slate-600">${m.genericName}</td>
-                  <td class="border border-slate-400 p-2 text-center">${m.stock}</td>
-                  <td class="border border-slate-400 p-2 text-right">${m.unitPriceBuy.toFixed(2)}</td>
-                  <td class="border border-slate-400 p-2 text-right font-bold">${(m.stock * m.unitPriceBuy).toFixed(2)}</td>
+                  <td class="border border-slate-400 p-2 font-bold">${m.tradeName || ''} ${m.strength || ''}</td>
+                  <td class="border border-slate-400 p-2 italic text-slate-600">${m.genericName || ''}</td>
+                  <td class="border border-slate-400 p-2 text-center">${m.stock || 0}</td>
+                  <td class="border border-slate-400 p-2 text-right">${(m.unitPriceBuy || 0).toFixed(2)}</td>
+                  <td class="border border-slate-400 p-2 text-right font-bold">${((m.stock || 0) * (m.unitPriceBuy || 0)).toFixed(2)}</td>
                 </tr>
               `).join('')}
             </tbody>
             <tfoot>
               <tr class="bg-slate-50 font-bold">
                 <td colspan="4" class="border border-slate-400 p-2 text-right">Total Asset Value:</td>
-                <td class="border border-slate-400 p-2 text-right">৳${medicines.reduce((sum, m) => sum + (m.stock * m.unitPriceBuy), 0).toFixed(2)}</td>
+                <td class="border border-slate-400 p-2 text-right">৳${safeMedicines.reduce((sum, m) => sum + ((m.stock || 0) * (m.unitPriceBuy || 0)), 0).toFixed(2)}</td>
               </tr>
             </tfoot>
           </table>
@@ -644,19 +672,19 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
   };
 
   const handlePrintHishab = () => {
-    const monthName = monthOptions[selectedMonth].name;
-    const filteredPurchases = invoices.filter(inv => {
-        if (!inv.invoiceDate || inv.status === 'Cancelled' || inv.status === 'Initial') return false;
+    const monthName = monthOptions[selectedMonth]?.name || '';
+    const filteredPurchases = safeInvoices.filter(inv => {
+        if (!inv || !inv.invoiceDate || inv.status === 'Cancelled' || inv.status === 'Initial') return false;
         const [y, m] = inv.invoiceDate.split('-').map(Number);
         return (m - 1) === selectedMonth && y === selectedYear;
     });
-    const filteredSales = salesInvoices.filter(inv => {
-        if (!inv.invoiceDate) return false;
+    const filteredSales = safeSalesInvoices.filter(inv => {
+        if (!inv || !inv.invoiceDate) return false;
         const [y, m] = inv.invoiceDate.split('-').map(Number);
         return (m - 1) === selectedMonth && y === selectedYear;
     });
-    const buyTotal = filteredPurchases.reduce((sum, inv) => sum + inv.netPayable, 0);
-    const saleTotal = filteredSales.reduce((sum, inv) => sum + inv.netPayable, 0);
+    const buyTotal = filteredPurchases.reduce((sum, inv) => sum + (inv.netPayable || 0), 0);
+    const saleTotal = filteredSales.reduce((sum, inv) => sum + (inv.netPayable || 0), 0);
 
     const win = window.open('', '_blank');
     if (!win) return;
@@ -677,7 +705,7 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
               <table class="w-full border-collapse border border-slate-400 text-[10px]">
                 <thead><tr class="bg-slate-100"><th>Date</th><th>Supplier</th><th class="text-right">Amount</th></tr></thead>
                 <tbody>
-                  ${filteredPurchases.map(inv => `<tr><td class="border border-slate-400 p-1">${inv.invoiceDate}</td><td class="border border-slate-400 p-1">${inv.source}</td><td class="border border-slate-400 p-1 text-right">${inv.netPayable.toFixed(2)}</td></tr>`).join('')}
+                  ${filteredPurchases.map(inv => `<tr><td class="border border-slate-400 p-1">${inv.invoiceDate}</td><td class="border border-slate-400 p-1">${inv.source}</td><td class="border border-slate-400 p-1 text-right">${(inv.netPayable || 0).toFixed(2)}</td></tr>`).join('')}
                 </tbody>
                 <tfoot><tr class="font-bold"><td>Total</td><td></td><td class="text-right">৳${buyTotal.toFixed(2)}</td></tr></tfoot>
               </table>
@@ -687,7 +715,7 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
               <table class="w-full border-collapse border border-slate-400 text-[10px]">
                 <thead><tr class="bg-slate-100"><th>Date</th><th>Category</th><th class="text-right">Amount</th></tr></thead>
                 <tbody>
-                  ${filteredSales.map(inv => `<tr><td class="border border-slate-400 p-1">${inv.invoiceDate}</td><td class="border border-slate-400 p-1">Outdoor Sale</td><td class="border border-slate-400 p-1 text-right">${inv.netPayable.toFixed(2)}</td></tr>`).join('')}
+                  ${filteredSales.map(inv => `<tr><td class="border border-slate-400 p-1">${inv.invoiceDate}</td><td class="border border-slate-400 p-1">Outdoor Sale</td><td class="border border-slate-400 p-1 text-right">${(inv.netPayable || 0).toFixed(2)}</td></tr>`).join('')}
                 </tbody>
                 <tfoot><tr class="font-bold"><td>Total</td><td></td><td class="text-right">৳${saleTotal.toFixed(2)}</td></tr></tfoot>
               </table>
@@ -708,7 +736,7 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
     if(buyViewMode === 'list') return (
         <div className="space-y-4">
             <div className="flex justify-between items-center"><h2 className="text-2xl font-bold text-blue-400">Purchase Invoices</h2><button onClick={() => {const newId = `PUR-${Date.now()}`; setPurchaseFormData({invoiceId: newId, invoiceDate: new Date().toISOString().split('T')[0], source: '', items: [], totalAmount: 0, discount: 0, netPayable: 0, paidAmount: 0, dueAmount: 0, billCreatedBy: 'Admin', billPaidBy: '', receivedBy: '', status: 'Saved', createdDate: ''}); setBuyViewMode('add'); setErrors({}); setIsOpeningStock(false);}} className="bg-blue-600 text-white px-6 py-2.5 rounded-lg hover:bg-blue-500 font-bold shadow-lg transition-all">+ Add New Purchase</button></div>
-            <div className="overflow-x-auto rounded-xl border border-slate-700 shadow-2xl"><table className="w-full text-left border-collapse"><thead className="bg-slate-700 text-slate-100"><tr><th className="p-4 uppercase text-xs font-black">ID</th><th className="p-4 uppercase text-xs font-black">Date</th><th className="p-4 uppercase text-xs font-black">Supplier</th><th className="p-4 text-right uppercase text-xs font-black">Net Amount</th><th className="p-4 text-right uppercase text-xs font-black">Due</th><th className="p-4 text-center uppercase text-xs font-black">Status</th><th className="p-4 text-center uppercase text-xs font-black">Actions</th></tr></thead><tbody>{invoices.map(inv => (<tr key={inv.invoiceId} className={`bg-slate-800 border-b border-slate-700 hover:bg-slate-750 transition-colors ${inv.status==='Initial'?'opacity-70':''}`}><td className="p-4 text-slate-300 font-mono text-sm">{inv.invoiceId}</td><td className="p-4 text-slate-100 font-bold">{inv.invoiceDate}</td><td className="p-4 text-white font-black text-base">{inv.source}</td><td className="p-4 text-sky-400 text-right font-black">৳{inv.netPayable.toFixed(2)}</td><td className="p-4 text-red-500 text-right font-black">৳{inv.dueAmount.toFixed(2)}</td><td className="p-4 text-center"><span className={`text-[10px] font-black px-2 py-1 rounded ${inv.status==='Initial'?'bg-amber-600/20 text-amber-500':'bg-blue-600/20 text-blue-500'}`}>{inv.status || 'Posted'}</span></td><td className="p-4 text-center space-x-4"><button onClick={() => { setPurchaseFormData(inv); setBuyViewMode('edit'); setEditingPurchaseId(inv.invoiceId); setIsOpeningStock(inv.status === 'Initial'); setErrors({}); }} className="text-sky-400 hover:text-white text-sm font-bold underline">Edit</button><button onClick={() => handleReturnPurchase(inv)} className="text-rose-400 hover:text-rose-600 text-sm font-bold underline">Return/Del</button><button onClick={() => handlePrintPurchase(inv)} className="text-emerald-400 hover:text-white text-sm font-bold underline">Print</button></td></tr>))}</tbody></table></div>
+            <div className="overflow-x-auto rounded-xl border border-slate-700 shadow-2xl"><table className="w-full text-left border-collapse"><thead className="bg-slate-700 text-slate-100"><tr><th className="p-4 uppercase text-xs font-black">ID</th><th className="p-4 uppercase text-xs font-black">Date</th><th className="p-4 uppercase text-xs font-black">Supplier</th><th className="p-4 text-right uppercase text-xs font-black">Net Amount</th><th className="p-4 text-right uppercase text-xs font-black">Due</th><th className="p-4 text-center uppercase text-xs font-black">Status</th><th className="p-4 text-center uppercase text-xs font-black">Actions</th></tr></thead><tbody>{safeInvoices.map(inv => (<tr key={inv.invoiceId} className={`bg-slate-800 border-b border-slate-700 hover:bg-slate-750 transition-colors ${inv.status==='Initial'?'opacity-70':''}`}><td className="p-4 text-slate-300 font-mono text-sm">{inv.invoiceId}</td><td className="p-4 text-slate-100 font-bold">{inv.invoiceDate}</td><td className="p-4 text-white font-black text-base">{inv.source}</td><td className="p-4 text-sky-400 text-right font-black">৳{(inv.netPayable || 0).toFixed(2)}</td><td className="p-4 text-red-500 text-right font-black">৳{(inv.dueAmount || 0).toFixed(2)}</td><td className="p-4 text-center"><span className={`text-[10px] font-black px-2 py-1 rounded ${inv.status==='Initial'?'bg-amber-600/20 text-amber-500':'bg-blue-600/20 text-blue-500'}`}>{inv.status || 'Posted'}</span></td><td className="p-4 text-center space-x-4"><button onClick={() => { setPurchaseFormData(inv); setBuyViewMode('edit'); setEditingPurchaseId(inv.invoiceId); setIsOpeningStock(inv.status === 'Initial'); setErrors({}); }} className="text-sky-400 hover:text-white text-sm font-bold underline">Edit</button><button onClick={() => handleReturnPurchase(inv)} className="text-rose-400 hover:text-rose-600 text-sm font-bold underline">Return/Del</button><button onClick={() => handlePrintPurchase(inv)} className="text-emerald-400 hover:text-white text-sm font-bold underline">Print</button></td></tr>))}</tbody></table></div>
         </div>
     );
     return (
@@ -781,46 +809,54 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
   };
 
   const renderDuePaidTab = () => {
-    const dueInvoices = invoices.filter(i => i.dueAmount > 0.5);
+    const dueInvoices = safeInvoices.filter(i => i && (Number(i.dueAmount) || 0) > 0.5);
     return (
         <div className="space-y-6">
             <h2 className="text-2xl font-bold text-red-500 uppercase tracking-tighter border-b border-red-900/50 pb-2 flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-red-500 animate-pulse"></span> Pending Supplier Payments (Due)</h2>
-            <div className="overflow-x-auto rounded-xl border border-slate-700 shadow-2xl"><table className="w-full text-left border-collapse"><thead className="bg-slate-700 text-slate-100"><tr><th className="p-4 uppercase text-xs font-black">Inv-Date</th><th className="p-4 uppercase text-xs font-black">Supplier Name</th><th className="p-4 uppercase text-xs font-black text-right">Total Bill</th><th className="p-4 uppercase text-xs font-black text-right">Paid</th><th className="p-4 uppercase text-xs font-black text-right text-red-400">Current Due</th><th className="p-4 uppercase text-xs font-black text-center">Action</th></tr></thead><tbody className="divide-y divide-slate-700">{dueInvoices.map(inv => (<tr key={inv.invoiceId} className="bg-slate-800 hover:bg-slate-750 transition-colors"><td className="p-4 text-slate-300 font-bold">{inv.invoiceDate}</td><td className="p-4 text-white font-black text-base">{inv.source}</td><td className="p-4 text-right text-slate-300 font-bold">{inv.netPayable.toFixed(2)}</td><td className="p-4 text-right text-emerald-400 font-black">৳{inv.paidAmount.toFixed(2)}</td><td className="p-4 text-right text-red-500 font-black text-2xl">৳{inv.dueAmount.toFixed(2)}</td><td className="p-4 text-center"><button onClick={()=>{setPaymentData({invoiceId: inv.invoiceId, supplierName: inv.source, currentDue: inv.dueAmount, payAmount: ''}); setShowPaymentModal(true);}} className="bg-red-600 hover:bg-red-500 text-white px-6 py-2 rounded-lg font-black shadow-lg transition-all active:scale-95 uppercase text-xs tracking-widest">Pay Now</button></td></tr>))}</tbody></table>{dueInvoices.length === 0 && <div className="p-20 text-center text-slate-500 font-black text-2xl italic uppercase opacity-30">Clear! No Pending Supplier Dues.</div>}</div>
+            <div className="overflow-x-auto rounded-xl border border-slate-700 shadow-2xl"><table className="w-full text-left border-collapse"><thead className="bg-slate-700 text-slate-100"><tr><th className="p-4 uppercase text-xs font-black">Inv-Date</th><th className="p-4 uppercase text-xs font-black">Supplier Name</th><th className="p-4 uppercase text-xs font-black text-right">Total Bill</th><th className="p-4 uppercase text-xs font-black text-right">Paid</th><th className="p-4 uppercase text-xs font-black text-right text-red-400">Current Due</th><th className="p-4 uppercase text-xs font-black text-center">Action</th></tr></thead><tbody className="divide-y divide-slate-700">{dueInvoices.map(inv => (<tr key={inv.invoiceId} className="bg-slate-800 hover:bg-slate-750 transition-colors"><td className="p-4 text-slate-300 font-bold">{inv.invoiceDate}</td><td className="p-4 text-white font-black text-base">{inv.source}</td><td className="p-4 text-right text-slate-300 font-bold">{(inv.netPayable || 0).toFixed(2)}</td><td className="p-4 text-right text-emerald-400 font-black">৳{(inv.paidAmount || 0).toFixed(2)}</td><td className="p-4 text-right text-red-500 font-black text-2xl">৳{(inv.dueAmount || 0).toFixed(2)}</td><td className="p-4 text-center"><button onClick={()=>{setPaymentData({invoiceId: inv.invoiceId, supplierName: inv.source, currentDue: inv.dueAmount || 0, payAmount: ''}); setShowPaymentModal(true);}} className="bg-red-600 hover:bg-red-500 text-white px-6 py-2 rounded-lg font-black shadow-lg transition-all active:scale-95 uppercase text-xs tracking-widest">Pay Now</button></td></tr>))}</tbody></table>{dueInvoices.length === 0 && <div className="p-20 text-center text-slate-500 font-black text-2xl italic uppercase opacity-30">Clear! No Pending Supplier Dues.</div>}</div>
         </div>
     );
   };
 
   const renderSellTab = () => {
-    const filteredOutdoor = salesInvoices.filter(inv => {
-        const matchesName = inv.customerName.toLowerCase().includes(sellSearchName.toLowerCase());
-        const matchesDate = !sellSearchDate || inv.invoiceDate === sellSearchDate;
-        const [y, m] = inv.invoiceDate.split('-').map(Number);
-        const matchesMonth = sellSearchMonth === 'all' || (m - 1) === parseInt(sellSearchMonth);
-        const matchesYear = y === parseInt(sellSearchYear);
+    const filteredOutdoor = safeSalesInvoices.filter(inv => {
+        if (!inv) return false;
+        const matchesName = (inv.customerName || '').toLowerCase().includes(sellSearchName.toLowerCase());
+        const dateToUse = inv.invoiceDate || (inv as any).invoice_date || (inv as any).date || '';
+        const matchesDate = !sellSearchDate || dateToUse === sellSearchDate;
+        const parts = dateToUse.split('-');
+        let matchesMonth = true;
+        let matchesYear = true;
+        if (parts.length >= 2) {
+            const y = Number(parts[0]);
+            const m = Number(parts[1]);
+            matchesMonth = sellSearchMonth === 'all' || (m - 1) === parseInt(sellSearchMonth);
+            matchesYear = isNaN(y) ? true : y === parseInt(sellSearchYear);
+        }
         return matchesName && matchesDate && matchesMonth && matchesYear;
     });
 
-    const filteredIndoor = (Array.isArray(indoorInvoices) ? indoorInvoices : []).filter(inv => {
+    const filteredIndoor = safeIndoorInvoices.filter(inv => {
         if (!inv) return false;
         const items = Array.isArray(inv.items) ? inv.items : [];
-        const isMed = items.some(it => it && it.service_type === 'Medicine');
+        const isMed = items.some(it => it && (it.service_type === 'Medicine' || it.service_type === 'ঔষধ' || (it.service_type || '').toLowerCase().includes('med')));
         if (!isMed) return false;
         const matchesName = (inv.patient_name || '').toLowerCase().includes(sellSearchName.toLowerCase());
-        const dateToUse = inv.invoice_date || inv.admission_date;
+        const dateToUse = inv.invoice_date || inv.admission_date || (inv as any).date || '';
         if (!dateToUse || typeof dateToUse !== 'string') return false;
         const matchesDate = !sellSearchDate || dateToUse === sellSearchDate;
         const parts = dateToUse.split('-');
         if (parts.length < 2) return false;
         const [y, m] = parts.map(Number);
         const matchesMonth = sellSearchMonth === 'all' || (m - 1) === parseInt(sellSearchMonth);
-        const matchesYear = y === parseInt(sellSearchYear);
+        const matchesYear = isNaN(y) ? true : y === parseInt(sellSearchYear);
         return matchesName && matchesDate && matchesMonth && matchesYear;
     });
 
-    const totalOutdoor = filteredOutdoor.filter(inv => inv.status !== 'Cancelled' && inv.status !== 'Returned').reduce((sum, inv) => sum + inv.netPayable, 0);
+    const totalOutdoor = filteredOutdoor.filter(inv => inv.status !== 'Cancelled' && inv.status !== 'Returned').reduce((sum, inv) => sum + (Number(inv.netPayable) || 0), 0);
     const totalIndoor = filteredIndoor.filter(inv => inv && inv.status !== 'Cancelled' && inv.status !== 'Returned').reduce((sum, inv) => {
         const items = Array.isArray(inv.items) ? inv.items : [];
-        return sum + items.filter(it => it && it.service_type === 'Medicine').reduce((s, it) => s + (it.payable_amount || 0), 0);
+        return sum + items.filter(it => it && (it.service_type === 'Medicine' || it.service_type === 'ঔষধ' || (it.service_type || '').toLowerCase().includes('med'))).reduce((s, it) => s + (Number(it.payable_amount) || Number(it.line_total) || 0), 0);
     }, 0);
 
     if(sellViewMode === 'list') return (
@@ -979,32 +1015,40 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
   };
 
   const renderHishabTab = () => {
-    const filteredPurchases = invoices.filter(inv => {
-        if (!inv.invoiceDate || inv.status === 'Cancelled' || inv.status === 'Initial') return false;
-        const [y, m] = inv.invoiceDate.split('-').map(Number);
+    const filteredPurchases = safeInvoices.filter(inv => {
+        if (!inv || !inv.invoiceDate || inv.status === 'Cancelled' || inv.status === 'Initial' || inv.status === 'Deleted') return false;
+        const parts = (inv.invoiceDate || '').split('-');
+        if (parts.length < 2) return false;
+        const [y, m] = parts.map(Number);
         return (m - 1) === selectedMonth && y === selectedYear;
     });
-    const filteredSales = salesInvoices.filter(inv => {
-        if (!inv.invoiceDate || inv.status === 'Cancelled' || inv.status === 'Returned') return false;
-        const [y, m] = inv.invoiceDate.split('-').map(Number);
+    const filteredSales = safeSalesInvoices.filter(inv => {
+        if (!inv || !inv.invoiceDate || inv.status === 'Cancelled' || inv.status === 'Returned' || inv.status === 'Deleted') return false;
+        const parts = (inv.invoiceDate || '').split('-');
+        if (parts.length < 2) return false;
+        const [y, m] = parts.map(Number);
         return (m - 1) === selectedMonth && y === selectedYear;
     });
-    const buyTotals = filteredPurchases.reduce((acc, inv) => { acc.val += inv.netPayable; acc.paid += inv.paidAmount; return acc; }, { val: 0, paid: 0 });
+    const buyTotals = filteredPurchases.reduce((acc, inv) => { 
+        acc.val += (Number(inv.netPayable) || 0); 
+        acc.paid += (Number(inv.paidAmount) || 0); 
+        return acc; 
+    }, { val: 0, paid: 0 });
     
-    const indoorSalesTotal = (Array.isArray(indoorInvoices) ? indoorInvoices : []).filter(inv => {
+    const indoorSalesTotal = safeIndoorInvoices.filter(inv => {
         if (!inv) return false;
-        const dateToUse = inv.invoice_date || inv.admission_date;
-        if (!dateToUse || typeof dateToUse !== 'string' || inv.status === 'Cancelled' || inv.status === 'Returned') return false;
+        const dateToUse = inv.invoice_date || inv.admission_date || (inv as any).date || '';
+        if (!dateToUse || typeof dateToUse !== 'string' || inv.status === 'Cancelled' || inv.status === 'Returned' || inv.status === 'Deleted') return false;
         const parts = dateToUse.split('-');
         if (parts.length < 2) return false;
         const [y, m] = parts.map(Number);
         return (m - 1) === selectedMonth && y === selectedYear;
     }).reduce((sum, inv) => {
         const items = Array.isArray(inv.items) ? inv.items : [];
-        return sum + items.filter(it => it && it.service_type === 'Medicine').reduce((s, it) => s + (it.payable_amount || 0), 0);
+        return sum + items.filter(it => it && (it.service_type === 'Medicine' || it.service_type === 'ঔষধ' || (it.service_type || '').toLowerCase().includes('med'))).reduce((s, it) => s + (Number(it.payable_amount) || Number(it.line_total) || 0), 0);
     }, 0);
 
-    const saleTotals = { total: filteredSales.reduce((sum, inv) => sum + inv.netPayable, 0) + indoorSalesTotal };
+    const saleTotals = { total: filteredSales.reduce((sum, inv) => sum + (Number(inv.netPayable) || 0), 0) + indoorSalesTotal };
 
     return (
         <div className="space-y-8 animate-fade-in">

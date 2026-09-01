@@ -2351,6 +2351,19 @@ const IndoorInvoicePage: React.FC<{
         localStorage.setItem('ncd_ot_details_library', JSON.stringify(otDetailsLibrary));
     }, [otDetailsLibrary]);
 
+    // Check for pending edit invoice requested from Accounts or other pages
+    useEffect(() => {
+        const pendingInvoiceId = localStorage.getItem('ncd_pending_edit_invoice_id');
+        if (pendingInvoiceId && Array.isArray(indoorInvoices) && indoorInvoices.length > 0) {
+            const target = indoorInvoices.find(inv => inv && inv.daily_id === pendingInvoiceId);
+            if (target) {
+                handleLoadInvoice(target);
+                localStorage.removeItem('ncd_pending_edit_invoice_id');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+        }
+    }, [indoorInvoices]);
+
     const activeEmployees = useMemo(() => (Array.isArray(employees) ? employees : []).filter(e => e && e.status === 'Active'), [employees]);
 
     // Calculate Stats - Updated with Return logic and Hospital Net Balance formula
@@ -3455,7 +3468,8 @@ const IndoorInvoicePage: React.FC<{
                                             })()}
                                         </td>
                                         <td className="p-3 text-center"><span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase ${inv.status==='Returned'?'bg-rose-600 text-white':(inv.status==='Cancelled'||inv.status==='Deleted')?'bg-slate-700 text-slate-300':'bg-blue-600 text-white'}`}>{inv.status}</span></td>
-                                        <td className="p-3 text-center space-x-3" onClick={e=>e.stopPropagation()}>
+                                        <td className="p-3 text-center space-x-2" onClick={e=>e.stopPropagation()}>
+                                            <button onClick={(e) => { e.stopPropagation(); handleLoadInvoice(inv); }} className="text-emerald-600 hover:text-emerald-800 text-xs font-bold underline">Edit</button>
                                             <button onClick={(e) => { e.stopPropagation(); handlePrintInvoice(inv); }} className="text-sky-600 hover:text-sky-800 text-xs font-bold underline">Print</button>
                                             {inv.status !== 'Returned' && inv.status !== 'Cancelled' && inv.status !== 'Deleted' && (
                                                 <>
@@ -3841,7 +3855,12 @@ const ClinicPage: React.FC<ClinicPageProps> = ({
     onBack, patients, setPatients, doctors, setDoctors, referrars, setReferrars, employees, medicines, setMedicines, admissions, setAdmissions, indoorInvoices, setIndoorInvoices, detailedExpenses, performBlockingSync
 }) => {
     const [now] = useState(() => Date.now());
-    const [activeTab, setActiveTab] = useState<'admission' | 'invoice' | 'due_collection' | 'report_summary' | 'bed_status' | 'patient_info'>('admission');
+    const [activeTab, setActiveTab] = useState<'admission' | 'invoice' | 'due_collection' | 'report_summary' | 'bed_status' | 'patient_info'>(() => {
+        if (localStorage.getItem('ncd_pending_edit_invoice_id')) {
+            return 'invoice';
+        }
+        return 'admission';
+    });
     const [clinicDueCollections, setClinicDueCollections] = useState<ClinicDueCollection[]>([]);
     const [successMessage, setSuccessMessage] = useState('');
     const [drugDemands, setDrugDemands] = useState<RequestedDrug[]>([]);

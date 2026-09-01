@@ -347,9 +347,12 @@ const AppContent = () => {
               medicines={data.medicines} setMedicines={data.setMedicines}
               patients={data.patients} setPatients={data.setPatients}
               doctors={data.doctors} setDoctors={data.setDoctors}
+              employees={data.employees}
               clinicalDrugs={data.clinicalDrugs} setClinicalDrugs={data.setClinicalDrugs}
+              invoices={data.purchaseInvoices} setInvoices={data.setPurchaseInvoices}
               purchaseInvoices={data.purchaseInvoices} setPurchaseInvoices={data.setPurchaseInvoices}
               salesInvoices={data.salesInvoices} setSalesInvoices={data.setSalesInvoices}
+              indoorInvoices={data.indoorInvoices}
               detailedExpenses={data.detailedExpenses} setDetailedExpenses={data.setDetailedExpenses}
               performBlockingSync={data.performBlockingSync}
             />

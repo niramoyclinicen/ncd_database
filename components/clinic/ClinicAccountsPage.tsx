@@ -1,7 +1,8 @@
 
 import React, { useMemo, useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ExpenseItem, Employee, DueCollection, IndoorInvoice } from '../DiagnosticData';
-import { ClinicIcon, Activity, BackIcon, FileTextIcon, PrinterIcon, SearchIcon, AlertCircle } from '../Icons';
+import { ClinicIcon, Activity, BackIcon, FileTextIcon, PrinterIcon, SearchIcon, AlertCircle, EditIcon } from '../Icons';
 import { dbService } from '../../dbService';
 
 // --- Clinic Specific Categories ---
@@ -669,6 +670,7 @@ const ClinicAccountsPage: React.FC<any> = ({
     const [invoiceMonthSearch, setInvoiceMonthSearch] = useState<number | ''>('');
     const [invoiceYearSearch, setInvoiceYearSearch] = useState<number | ''>('');
 
+    const navigate = useNavigate();
     const [expSearch, setExpSearch] = useState('');
     const [expDateSearch, setExpDateSearch] = useState(selectedDate);
     const [expMonthSearch, setExpMonthSearch] = useState<number | ''>('');
@@ -677,6 +679,122 @@ const ClinicAccountsPage: React.FC<any> = ({
     
     const [ledgerHistoryItem, setLedgerHistoryItem] = useState<ExpenseItem | null>(null);
     const [editingItem, setEditingItem] = useState<ExpenseItem | null>(null);
+
+    // Printable Invoice Modal from Collection Report Double-Click
+    const [previewInvoice, setPreviewInvoice] = useState<any | null>(null);
+    const [showInvoicePreviewModal, setShowInvoicePreviewModal] = useState(false);
+
+    const handleOpenInvoicePreview = (inv: any) => {
+        if (!inv) return;
+        const fullInv = (Array.isArray(invoices) ? invoices : []).find((i: any) => i && i.daily_id === inv.daily_id) || inv;
+        setPreviewInvoice(fullInv);
+        setShowInvoicePreviewModal(true);
+    };
+
+    const handleEditInvoiceFromAccounts = (inv: any) => {
+        if (!inv || !inv.daily_id) return;
+        localStorage.setItem('ncd_pending_edit_invoice_id', inv.daily_id);
+        setShowInvoicePreviewModal(false);
+        navigate('/clinic');
+    };
+
+    const handlePrintFromPreview = (inv: any) => {
+        if (!inv) return;
+        const win = window.open('', '_blank');
+        if (!win) return;
+        const styles = `
+            <style>
+                @page { size: A4 portrait; margin: 12mm; }
+                body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1e293b; margin: 0; padding: 20px; line-height: 1.4; }
+                .header { text-align: center; border-bottom: 2px solid #0284c7; padding-bottom: 12px; margin-bottom: 20px; }
+                .h1 { font-size: 26px; font-weight: 900; color: #0f172a; margin: 0; text-transform: uppercase; letter-spacing: 1px; }
+                .sub { font-size: 11px; color: #64748b; margin-top: 4px; font-weight: 600; }
+                .badge { display: inline-block; background: #e0f2fe; color: #0369a1; padding: 3px 12px; border-radius: 20px; font-size: 11px; font-weight: 800; text-transform: uppercase; margin-top: 8px; }
+                .info-grid { display: flex; justify-content: space-between; background: #f8fafc; padding: 14px; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 20px; font-size: 12px; }
+                .info-col { line-height: 1.7; }
+                table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 12px; }
+                th { background: #0284c7; color: #ffffff; padding: 8px 10px; text-align: left; font-size: 11px; text-transform: uppercase; }
+                td { padding: 8px 10px; border-bottom: 1px solid #e2e8f0; }
+                tr:nth-child(even) td { background: #f8fafc; }
+                .total-container { display: flex; justify-content: flex-end; margin-top: 10px; }
+                .total-box { width: 280px; font-size: 13px; }
+                .total-row { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px dashed #cbd5e1; }
+                .total-row.grand { font-size: 16px; font-weight: 900; color: #0369a1; border-top: 2px solid #0284c7; border-bottom: 2px solid #0284c7; padding: 6px 0; margin-top: 4px; }
+                .signature-area { margin-top: 50px; display: flex; justify-content: space-between; padding: 0 40px; font-size: 12px; font-weight: bold; }
+                .status-stamp { color: #dc2626; text-align: center; border: 2px dashed #dc2626; padding: 8px; margin: 15px 0; font-weight: bold; border-radius: 6px; }
+            </style>
+        `;
+        const html = `
+            <html>
+            <head>
+                <title>Invoice #${inv.daily_id}</title>
+                ${styles}
+            </head>
+            <body>
+                <div class="header">
+                    <div class="h1">Niramoy Clinic & Diagnostic</div>
+                    <div class="sub">Enayetpur, Sirajgonj | Mobile: 01730 923007</div>
+                    <div class="badge">Inpatient Bill Invoice</div>
+                </div>
+                <div class="info-grid">
+                    <div class="info-col">
+                        <div><strong>Patient Name:</strong> ${inv.patient_name || '-'}</div>
+                        <div><strong>Patient ID:</strong> ${inv.patient_id || '-'}</div>
+                        <div><strong>Admission ID:</strong> ${inv.admission_id || '-'}</div>
+                        <div><strong>Indication / Service:</strong> ${inv.indication || inv.subCategory || '-'}</div>
+                    </div>
+                    <div class="info-col" style="text-align: right;">
+                        <div><strong>Invoice No:</strong> #${inv.daily_id || '-'}</div>
+                        <div><strong>Date:</strong> ${inv.invoice_date || inv.admission_date || '-'}</div>
+                        <div><strong>Consultant:</strong> ${inv.doctor_name || 'N/A'}</div>
+                        <div><strong>Status:</strong> <span style="text-transform: uppercase; font-weight: bold;">${inv.status || 'Active'}</span></div>
+                    </div>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 35px; text-align: center;">SL</th>
+                            <th>Service / Charge Item</th>
+                            <th>Provider / Doctor</th>
+                            <th style="text-align: right;">Charge (৳)</th>
+                            <th style="text-align: center;">Qty</th>
+                            <th style="text-align: right;">Total (৳)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${(Array.isArray(inv.items) && inv.items.length > 0 ? inv.items : [{ service_type: inv.subCategory || 'Clinic Service', payable_amount: inv.total_bill, service_charge: inv.total_bill, quantity: 1 }]).map((it: any, i: number) => `
+                            <tr>
+                                <td style="text-align: center; color: #64748b;">${i + 1}</td>
+                                <td><strong>${it.service_type || it.name || 'Service'}</strong></td>
+                                <td>${it.service_provider || '-'}</td>
+                                <td style="text-align: right;">${Number(it.service_charge || 0).toFixed(2)}</td>
+                                <td style="text-align: center;">${it.quantity || 1}</td>
+                                <td style="text-align: right; font-weight: bold;">${Number(it.payable_amount || (it.service_charge * (it.quantity || 1)) || 0).toFixed(2)}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+                <div class="total-container">
+                    <div class="total-box">
+                        <div class="total-row"><span>Gross Total:</span> <span>৳${Number(inv.total_bill || 0).toFixed(2)}</span></div>
+                        <div class="total-row"><span>Discount:</span> <span>৳${(Number(inv.total_discount || 0) + Number(inv.special_discount_amount || 0)).toFixed(2)}</span></div>
+                        <div class="total-row grand"><span>Net Payable:</span> <span>৳${Number(inv.net_payable || (inv.total_bill - (inv.total_discount || 0))).toFixed(2)}</span></div>
+                        <div class="total-row" style="color: #16a34a; font-weight: bold;"><span>Paid Amount:</span> <span>৳${Number(inv.paid_amount || 0).toFixed(2)}</span></div>
+                        <div class="total-row" style="color: #dc2626; font-weight: bold;"><span>Due Balance:</span> <span>৳${Number(inv.due_bill || 0).toFixed(2)}</span></div>
+                    </div>
+                </div>
+                ${inv.status === 'Returned' ? '<div class="status-stamp">INVOICE RETURNED / REFUNDED</div>' : ''}
+                <div class="signature-area">
+                    <div style="text-align: center; border-top: 1px solid #94a3b8; width: 140px; padding-top: 4px;">Accountant</div>
+                    <div style="text-align: center; border-top: 1px solid #94a3b8; width: 140px; padding-top: 4px;">Authorized Sign</div>
+                </div>
+            </body>
+            </html>
+        `;
+        win.document.write(html);
+        win.document.close();
+        win.print();
+    };
 
     const [successMsg, setSuccessMsg] = useState('');
     const [confirmModal, setConfirmModal] = useState<{
@@ -1800,15 +1918,21 @@ const ClinicAccountsPage: React.FC<any> = ({
                                             <th className="p-2 text-right bg-rose-900/10 text-rose-300 font-black border-l-2 border-rose-800/30">PC (Comm)</th>
                                             <th className="p-2 text-right bg-blue-900/10 text-sky-200 font-black border-l-2 border-blue-800/30">Clinic Net</th>
                                             <th className="p-2 text-center">Status</th>
+                                            <th className="p-2 text-center whitespace-nowrap">Action</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-800">
                                         {collectionReportData.length > 0 ? collectionReportData.map((inv: any, idx: number) => (
-                                            <tr key={inv.daily_id} className={`hover:bg-slate-700/30 transition-colors ${inv.status === 'Cancelled' || inv.status === 'Deleted' ? 'opacity-30 line-through grayscale' : inv.status === 'Returned' ? 'bg-rose-900/5' : ''}`}>
+                                            <tr 
+                                                key={inv.daily_id} 
+                                                onDoubleClick={() => handleOpenInvoicePreview(inv)}
+                                                title="ডাবল ক্লিক করুন ইনভয়েস দেখতে ও প্রিন্ট/এডিট করতে"
+                                                className={`cursor-pointer hover:bg-slate-700/50 hover:text-white transition-all ${inv.status === 'Cancelled' || inv.status === 'Deleted' ? 'opacity-30 line-through grayscale' : inv.status === 'Returned' ? 'bg-rose-900/10' : ''}`}
+                                            >
                                                 <td className="p-2 border-r border-slate-800/50 text-slate-500 font-mono">{idx + 1}</td>
-                                                <td className="p-2 font-mono text-sky-500 border-r border-slate-800/50">{inv.admission_id}</td>
+                                                <td className="p-2 font-mono text-sky-400 font-bold border-r border-slate-800/50">{inv.admission_id}</td>
                                                 <td className="p-2 border-r border-slate-800/50 whitespace-nowrap">{inv.invoice_date || inv.admission_date}</td>
-                                                <td className="p-2 font-black text-slate-200 border-r border-slate-800/50 uppercase whitespace-nowrap">{inv.patient_name}</td>
+                                                <td className="p-2 font-black text-slate-100 border-r border-slate-800/50 uppercase whitespace-nowrap">{inv.patient_name}</td>
                                                 <td className="p-2 text-sky-400 font-bold border-r border-slate-800/50 truncate max-w-[120px]" title={inv.subCategory}>{inv.subCategory || '-'}</td>
                                                 <td className="p-2 text-right border-r border-slate-800/50">৳{inv.admFeeCol.toLocaleString()}</td>
                                                 <td className="p-2 text-right border-r border-slate-800/50">৳{inv.lscsOtCol.toLocaleString()}</td>
@@ -1824,9 +1948,17 @@ const ClinicAccountsPage: React.FC<any> = ({
                                                 <td className="p-2 text-right font-black text-rose-400 bg-rose-900/10 border-l-2 border-rose-800/30">৳ {inv.pcCol.toLocaleString()}</td>
                                                 <td className="p-2 text-right font-black text-sky-300 bg-blue-900/10 border-l-2 border-blue-800/30">৳ {inv.netClinicCol.toLocaleString()}</td>
                                                 <td className="p-2 text-center"><span className="text-[7px] font-black uppercase px-1 rounded bg-slate-900">{inv.status}</span></td>
+                                                <td className="p-2 text-center" onClick={e => e.stopPropagation()}>
+                                                    <button 
+                                                        onClick={() => handleOpenInvoicePreview(inv)}
+                                                        className="px-2.5 py-1 bg-cyan-600/30 hover:bg-cyan-600 text-cyan-200 hover:text-white rounded-lg text-[9px] font-black uppercase tracking-wider transition-all"
+                                                    >
+                                                        ইনভয়েস / এডিট
+                                                    </button>
+                                                </td>
                                             </tr>
                                         )) : (
-                                            <tr><td colSpan={19} className="p-20 text-center text-slate-600 italic font-black uppercase opacity-30 text-xl tracking-[0.2em]">No Collection Records Found</td></tr>
+                                            <tr><td colSpan={20} className="p-20 text-center text-slate-600 italic font-black uppercase opacity-30 text-xl tracking-[0.2em]">No Collection Records Found</td></tr>
                                         )}
                                     </tbody>
                                     {collectionReportData.length > 0 && (
@@ -2057,6 +2189,187 @@ const ClinicAccountsPage: React.FC<any> = ({
                                     className="flex-1 px-6 py-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-lg shadow-emerald-900/40 transition-all active:scale-95 border border-emerald-400/30"
                                 >
                                     Yes, Confirm
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Printable White-Page Invoice Modal with Print & Edit Actions */}
+            {showInvoicePreviewModal && previewInvoice && (
+                <div className="fixed inset-0 bg-black/80 z-[11000] flex items-center justify-center p-4 md:p-8 backdrop-blur-md overflow-y-auto animate-in fade-in duration-200">
+                    <div className="bg-slate-900 border border-slate-700 w-full max-w-4xl rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
+                        {/* Top Action Header Bar */}
+                        <div className="px-6 py-4 bg-slate-950 border-b border-slate-800 flex justify-between items-center shrink-0">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-blue-500/10 rounded-xl text-cyan-400 border border-blue-500/20">
+                                    <FileTextIcon size={20} />
+                                </div>
+                                <div>
+                                    <h3 className="text-white font-black text-base flex items-center gap-2">
+                                        ইনভয়েস প্রিভিউ &amp; প্রিন্ট
+                                        <span className="text-[10px] bg-cyan-950 text-cyan-400 border border-cyan-800/60 px-2 py-0.5 rounded-full uppercase font-mono">
+                                            #{previewInvoice.daily_id}
+                                        </span>
+                                    </h3>
+                                    <p className="text-slate-400 text-xs font-medium">ডাবল-ক্লিক প্রিভিউ: এখান থেকেই সরাসরি প্রিন্ট অথবা এডিট করা যাবে</p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2.5">
+                                <button
+                                    onClick={() => handlePrintFromPreview(previewInvoice)}
+                                    className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 shadow-lg shadow-blue-900/30 transition-all active:scale-95 border border-blue-400/30"
+                                >
+                                    <PrinterIcon size={15} /> প্রিন্ট করুন
+                                </button>
+                                <button
+                                    onClick={() => handleEditInvoiceFromAccounts(previewInvoice)}
+                                    className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 shadow-lg shadow-emerald-900/30 transition-all active:scale-95 border border-emerald-400/30"
+                                >
+                                    <EditIcon size={15} /> এডিট করুন (ক্লিনিক ডিপার্টমেন্ট)
+                                </button>
+                                <button
+                                    onClick={() => setShowInvoicePreviewModal(false)}
+                                    className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-all"
+                                    title="Close"
+                                >
+                                    ✕
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* White Paper Invoice Sheet Container */}
+                        <div className="flex-1 overflow-y-auto p-4 md:p-8 bg-slate-900 flex justify-center">
+                            <div className="bg-white text-slate-800 w-full max-w-3xl rounded-xl shadow-2xl p-8 border border-slate-200 font-sans">
+                                {/* Hospital Header */}
+                                <div className="text-center border-b-2 border-sky-600 pb-4 mb-6">
+                                    <h1 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Niramoy Clinic &amp; Diagnostic</h1>
+                                    <p className="text-xs text-slate-600 font-medium mt-1">Enayetpur, Sirajgonj | Mobile: 01730 923007</p>
+                                    <p className="text-[10px] text-slate-500 font-bold uppercase mt-0.5">Govt. Reg No: HSM76710</p>
+                                    <div className="mt-3 inline-block bg-sky-100 text-sky-800 text-[11px] font-black uppercase px-4 py-1 rounded-full border border-sky-200">
+                                        INPATIENT / CLINIC BILL INVOICE
+                                    </div>
+                                </div>
+
+                                {/* Patient & Invoice Details Grid */}
+                                <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200 mb-6 text-xs">
+                                    <div className="space-y-1.5">
+                                        <div><span className="text-slate-500 font-bold">রোগীর নাম:</span> <strong className="text-slate-900 uppercase text-sm font-black">{previewInvoice.patient_name || '-'}</strong></div>
+                                        <div><span className="text-slate-500 font-bold">Patient ID:</span> <span className="font-mono font-bold text-slate-800">{previewInvoice.patient_id || '-'}</span></div>
+                                        <div><span className="text-slate-500 font-bold">Admission ID:</span> <span className="font-mono font-bold text-sky-700">{previewInvoice.admission_id || '-'}</span></div>
+                                        <div><span className="text-slate-500 font-bold">সার্ভিস / Indication:</span> <span className="font-bold text-slate-800">{previewInvoice.indication || previewInvoice.subCategory || '-'}</span></div>
+                                    </div>
+                                    <div className="space-y-1.5 text-right">
+                                        <div><span className="text-slate-500 font-bold">ইনভয়েস নং:</span> <strong className="font-mono font-black text-sm text-sky-800">#{previewInvoice.daily_id}</strong></div>
+                                        <div><span className="text-slate-500 font-bold">বিলিং তারিখ:</span> <span className="font-bold text-slate-800">{previewInvoice.invoice_date || previewInvoice.admission_date || '-'}</span></div>
+                                        <div><span className="text-slate-500 font-bold">কনসালট্যান্ট:</span> <span className="font-bold text-slate-800">{previewInvoice.doctor_name || 'N/A'}</span></div>
+                                        <div>
+                                            <span className="text-slate-500 font-bold">স্ট্যাটাস:</span> 
+                                            <span className={`ml-2 px-2 py-0.5 rounded text-[10px] font-black uppercase ${previewInvoice.status === 'Returned' ? 'bg-rose-100 text-rose-700 border border-rose-300' : previewInvoice.status === 'Cancelled' ? 'bg-slate-200 text-slate-600' : 'bg-emerald-100 text-emerald-800 border border-emerald-300'}`}>
+                                                {previewInvoice.status || 'Active'}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Items / Service Breakdown Table */}
+                                <div className="border border-slate-200 rounded-xl overflow-hidden mb-6">
+                                    <table className="w-full text-xs text-left">
+                                        <thead className="bg-sky-600 text-white font-black text-[11px] uppercase">
+                                            <tr>
+                                                <th className="p-2.5 text-center w-10">SL</th>
+                                                <th className="p-2.5">Service / Charge Item</th>
+                                                <th className="p-2.5">Provider / Doctor</th>
+                                                <th className="p-2.5 text-right">Rate (৳)</th>
+                                                <th className="p-2.5 text-center">Qty</th>
+                                                <th className="p-2.5 text-right">Total (৳)</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-200">
+                                            {(Array.isArray(previewInvoice.items) && previewInvoice.items.length > 0 ? previewInvoice.items : [{ service_type: previewInvoice.subCategory || 'Clinic Service', payable_amount: previewInvoice.total_bill, service_charge: previewInvoice.total_bill, quantity: 1 }]).map((it: any, i: number) => (
+                                                <tr key={i} className="hover:bg-slate-50">
+                                                    <td className="p-2.5 text-center text-slate-400 font-mono">{i + 1}</td>
+                                                    <td className="p-2.5 font-bold text-slate-800">{it.service_type || it.name || 'Service'}</td>
+                                                    <td className="p-2.5 text-slate-600">{it.service_provider || '-'}</td>
+                                                    <td className="p-2.5 text-right font-mono font-medium">৳{Number(it.service_charge || 0).toFixed(2)}</td>
+                                                    <td className="p-2.5 text-center font-mono font-bold">{it.quantity || 1}</td>
+                                                    <td className="p-2.5 text-right font-mono font-black text-slate-900">৳{Number(it.payable_amount || (it.service_charge * (it.quantity || 1)) || 0).toFixed(2)}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                {/* Financial Summary Totals Box */}
+                                <div className="flex justify-end mb-8">
+                                    <div className="w-72 bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs space-y-2">
+                                        <div className="flex justify-between text-slate-600">
+                                            <span>Gross Total:</span>
+                                            <span className="font-mono font-bold">৳{Number(previewInvoice.total_bill || 0).toFixed(2)}</span>
+                                        </div>
+                                        <div className="flex justify-between text-slate-600">
+                                            <span>Total Discount:</span>
+                                            <span className="font-mono font-bold text-rose-600">-৳{(Number(previewInvoice.total_discount || 0) + Number(previewInvoice.special_discount_amount || 0)).toFixed(2)}</span>
+                                        </div>
+                                        <div className="flex justify-between text-sm font-black text-sky-800 border-t border-b border-sky-300 py-1.5">
+                                            <span>Net Payable:</span>
+                                            <span className="font-mono">৳{Number(previewInvoice.net_payable || (previewInvoice.total_bill - (previewInvoice.total_discount || 0))).toFixed(2)}</span>
+                                        </div>
+                                        <div className="flex justify-between text-emerald-700 font-bold">
+                                            <span>Paid Amount:</span>
+                                            <span className="font-mono font-black">৳{Number(previewInvoice.paid_amount || 0).toFixed(2)}</span>
+                                        </div>
+                                        <div className="flex justify-between text-rose-600 font-bold">
+                                            <span>Due Balance:</span>
+                                            <span className="font-mono font-black">৳{Number(previewInvoice.due_bill || 0).toFixed(2)}</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {previewInvoice.status === 'Returned' && (
+                                    <div className="text-center py-2 px-4 bg-rose-50 border-2 border-dashed border-rose-400 text-rose-700 font-black rounded-lg mb-6 text-sm">
+                                        INVOICE RETURNED / REFUNDED
+                                    </div>
+                                )}
+
+                                {/* Signatures */}
+                                <div className="flex justify-between items-center pt-8 border-t border-slate-300 text-xs font-bold text-slate-600 px-4">
+                                    <div className="text-center">
+                                        <div className="w-32 border-t border-slate-700 mb-1"></div>
+                                        Accountant
+                                    </div>
+                                    <div className="text-center">
+                                        <div className="w-32 border-t border-slate-700 mb-1"></div>
+                                        Authorized Signature
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Modal Footer Controls */}
+                        <div className="px-6 py-4 bg-slate-950 border-t border-slate-800 flex justify-between items-center shrink-0">
+                            <span className="text-slate-500 text-xs font-medium">
+                                💡 টিপস: আপনি সরাসরি <strong className="text-cyan-400">এডিট করুন</strong> বাটনে ক্লিক করে ক্লিনিক ডিপার্টমেন্টে গিয়ে এই বিলটি সংশোধন করতে পারবেন।
+                            </span>
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={() => handleEditInvoiceFromAccounts(previewInvoice)}
+                                    className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 shadow-lg transition-all"
+                                >
+                                    <EditIcon size={16} /> এডিট করুন
+                                </button>
+                                <button
+                                    onClick={() => handlePrintFromPreview(previewInvoice)}
+                                    className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 shadow-lg transition-all"
+                                >
+                                    <PrinterIcon size={16} /> প্রিন্ট করুন
+                                </button>
+                                <button
+                                    onClick={() => setShowInvoicePreviewModal(false)}
+                                    className="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold uppercase transition-all"
+                                >
+                                    বন্ধ করুন
                                 </button>
                             </div>
                         </div>

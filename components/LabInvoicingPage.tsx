@@ -7,7 +7,7 @@ import PatientInfoPage from './PatientInfoPage';
 import DoctorInfoPage from './DoctorInfoPage';
 import ReferrerInfoPage from './ReferrerInfoPage';
 import TestInfoPage from './TestInfoPage';
-import { TrashIcon, DnaIcon, Activity } from './Icons';
+import { TrashIcon, DnaIcon, Activity, FileTextIcon } from './Icons';
 
 interface LabInvoicingPageProps {
   patients?: Patient[];
@@ -140,6 +140,35 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
   const currentPeriodKey = useMemo(() => {
     return (formData.invoice_date || todayDateString).substring(0, 7); // "YYYY-MM" format
   }, [formData.invoice_date, todayDateString]);
+
+  const employeeOptions = useMemo(() => {
+    const safeEmployees = Array.isArray(employees) ? employees : [];
+    const activeList = safeEmployees.filter(emp => emp && emp.status !== 'Released');
+    const listToUse = activeList.length > 0 ? activeList : safeEmployees;
+
+    const opts = listToUse.map(emp => {
+      const detailsArr = [];
+      if (emp.emp_id) detailsArr.push(`ID: ${emp.emp_id}`);
+      if (emp.job_position || emp.designation) detailsArr.push(emp.job_position || emp.designation);
+      if (emp.department) detailsArr.push(`Dept: ${emp.department}`);
+      if (emp.mobile) detailsArr.push(`📞 ${emp.mobile}`);
+      return {
+        id: emp.emp_name,
+        name: emp.emp_name,
+        details: detailsArr.join(' | ')
+      };
+    });
+
+    if (!opts.some(o => o.name.toLowerCase() === 'admin')) {
+      opts.unshift({
+        id: 'Admin',
+        name: 'Admin',
+        details: 'System Administrator / Admin'
+      });
+    }
+
+    return opts;
+  }, [employees]);
 
   const activeEmployees = useMemo(() => {
     const safeEmployees = Array.isArray(employees) ? employees : [];
@@ -511,11 +540,11 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
         alert(`Test "${selectedTest.test_name}" is currently unavailable due to insufficient reagent stock.`);
         return;
       }
-      const existingItem = formData.items.find(item => item.test_id === testId);
+      const existingItem = (formData.items || []).find(item => item && item.test_id === testId);
       if (existingItem) {
         setFormData(prev => ({
           ...prev,
-          items: prev.items.map(item => {
+          items: (prev.items || []).map(item => {
             if (item.test_id === testId) {
               const newQty = (item.quantity || 1) + 1;
               return {
@@ -541,7 +570,7 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
         extra_lab_fee: selectedTest.extra_lab_fee || 0,
         subtotal: selectedTest.price * 1,
       };
-      setFormData(prev => ({ ...prev, items: [...prev.items, newItem] }));
+      setFormData(prev => ({ ...prev, items: [...(prev.items || []), newItem] }));
       if (errors.items) setErrors(prev => ({...prev, items: false}));
       setShowNewTestForm(false);
     }
@@ -551,7 +580,7 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
     const qty = Math.max(1, isNaN(newQty) ? 1 : newQty);
     setFormData(prev => ({
       ...prev,
-      items: prev.items.map(item => {
+      items: (prev.items || []).map(item => {
         if (item.test_id === testId) {
           return {
             ...item,
@@ -565,7 +594,7 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
   };
 
   const handleRemoveItem = (testId: string) => {
-    setFormData(prev => ({ ...prev, items: prev.items.filter(item => item.test_id !== testId) }));
+    setFormData(prev => ({ ...prev, items: (prev.items || []).filter(item => item && item.test_id !== testId) }));
   };
   
   const handleSaveInvoice = (e: React.FormEvent) => {
@@ -576,7 +605,7 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
     if (!formData.patient_id) validationErrors.patient_id = true;
     if (!formData.doctor_id) validationErrors.doctor_id = true;
     if (!formData.referrar_id) validationErrors.referrar_id = true;
-    if (formData.items.length === 0) validationErrors.items = true;
+    if (!formData.items || formData.items.length === 0) validationErrors.items = true;
     if (!formData.bill_created_by) validationErrors.bill_created_by = true;
     if (!formData.bill_paid_by) validationErrors.bill_paid_by = true;
 
@@ -591,15 +620,17 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
     }
 
     if (!isEditing) {
-        const xrayTestsInInvoice = formData.items.filter(item => {
-            const testObj = tests.find(t => t.test_id === item.test_id);
+        const safeTestsList = Array.isArray(tests) ? tests : [];
+        const safeReagentsList = Array.isArray(reagents) ? reagents : [];
+        const xrayTestsInInvoice = (formData.items || []).filter(item => {
+            const testObj = safeTestsList.find(t => t && t.test_id === item.test_id);
             return testObj && testObj.test_category === 'X-Ray';
         });
 
         if (xrayTestsInInvoice.length > 0) {
-            const xrayFilmsAvailable = reagents.filter(r => r.linked_category === 'X-Ray' || r.reagent_name.toLowerCase().includes('film') || r.reagent_name.toLowerCase().includes('x-ray'));
+            const xrayFilmsAvailable = safeReagentsList.filter(r => r && (r.linked_category === 'X-Ray' || (r.reagent_name || '').toLowerCase().includes('film') || (r.reagent_name || '').toLowerCase().includes('x-ray')));
             if (xrayFilmsAvailable.length > 1) {
-                setPendingFilmSelections(xrayTestsInInvoice.map(t => ({ test_id: t.test_id, test_name: t.test_name, film_reagent_id: xrayFilmsAvailable[0].reagent_id })));
+                setPendingFilmSelections(xrayTestsInInvoice.map(t => ({ test_id: t.test_id, test_name: t.test_name, film_reagent_id: xrayFilmsAvailable[0]?.reagent_id || '' })));
                 return; // wait for modal
             }
         }
@@ -867,7 +898,6 @@ pdate the local state and reset form
   const handlePrintInvoice = (idToPrint?: string) => {
     const targetId = typeof idToPrint === "string" ? idToPrint : selectedInvoiceId;
     if (!targetId) return;
-    if (!targetId) return;
     const safeInvoices = Array.isArray(invoices) ? invoices : [];
     const safePatients = Array.isArray(patients) ? patients : [];
     const safeDoctors = Array.isArray(doctors) ? doctors : [];
@@ -876,12 +906,12 @@ pdate the local state and reset form
     const patient = safePatients.find(p => p && p.pt_id === inv.patient_id);
     const doctor = safeDoctors.find(d => d && d.doctor_id === inv.doctor_id);
 
-    const itemsHtml = inv.items.map((item, idx) => `
+    const itemsHtml = (Array.isArray(inv.items) ? inv.items : []).map((item, idx) => `
       <tr>
         <td style="border: 1px solid #000; padding: 4px; text-align: left;">${idx + 1}. ${item.test_name}</td>
-        <td style="border: 1px solid #000; padding: 4px; text-align: right;">${item.price.toFixed(2)}</td>
-        <td style="border: 1px solid #000; padding: 4px; text-align: center;">${item.quantity}</td>
-        <td style="border: 1px solid #000; padding: 4px; text-align: right; font-weight: bold;">${(item.price * item.quantity).toFixed(2)}</td>
+        <td style="border: 1px solid #000; padding: 4px; text-align: right;">${(item.price || 0).toFixed(2)}</td>
+        <td style="border: 1px solid #000; padding: 4px; text-align: center;">${item.quantity || 1}</td>
+        <td style="border: 1px solid #000; padding: 4px; text-align: right; font-weight: bold;">${((item.price || 0) * (item.quantity || 1)).toFixed(2)}</td>
       </tr>
     `).join('');
 
@@ -1564,7 +1594,7 @@ pdate the local state and reset form
              <SearchableSelect
                 theme="dark"
                 label="Patient"
-                options={patients.map(p => ({ id: p.pt_id, name: p.pt_name, details: `ID: ${p.pt_id} | ${p.gender}, ${p.ageY}Y | ${p.address} | ${p.mobile}` }))}
+                options={(Array.isArray(patients) ? patients : []).map(p => ({ id: p.pt_id, name: p.pt_name, details: `ID: ${p.pt_id} | ${p.gender}, ${p.ageY}Y | ${p.address} | ${p.mobile}` }))}
                 value={formData.patient_id}
                 onChange={handlePatientSelect}
                 onAddNew={() => openAdvancedPatientSearch('')}
@@ -1575,10 +1605,10 @@ pdate the local state and reset form
                 />
               {formData.patient_id && (
                 <p className="mt-1 text-[10px] text-sky-400 font-bold truncate leading-tight">
-                  {patients.find(p => p.pt_id === formData.patient_id)?.pt_name}, 
+                  {(Array.isArray(patients) ? patients : []).find(p => p && p.pt_id === formData.patient_id)?.pt_name}, 
                   <span className="ml-1 opacity-70 font-medium">
-                    {patients.find(p => p.pt_id === formData.patient_id)?.gender} ({patients.find(p => p.pt_id === formData.patient_id)?.ageY}Y), 
-                    Loc: {patients.find(p => p.pt_id === formData.patient_id)?.address}
+                    {(Array.isArray(patients) ? patients : []).find(p => p && p.pt_id === formData.patient_id)?.gender} ({(Array.isArray(patients) ? patients : []).find(p => p && p.pt_id === formData.patient_id)?.ageY}Y), 
+                    Loc: {(Array.isArray(patients) ? patients : []).find(p => p && p.pt_id === formData.patient_id)?.address}
                   </span>
                 </p>
               )}
@@ -1587,7 +1617,7 @@ pdate the local state and reset form
             <SearchableSelect
               theme="dark"
               label="Consulting Doctor"
-              options={doctors.map(d => ({ id: d.doctor_id, name: d.doctor_name, details: `${d.degree}${d.speciality ? ` - ${d.speciality}` : ''}` }))}
+              options={(Array.isArray(doctors) ? doctors : []).map(d => ({ id: d.doctor_id, name: d.doctor_name, details: `${d.degree}${d.speciality ? ` - ${d.speciality}` : ''}` }))}
               value={formData.doctor_id || ''}
               onChange={handleDoctorSelect}
               onAddNew={() => setShowNewDoctorForm(true)}
@@ -1597,8 +1627,8 @@ pdate the local state and reset form
             />
             {formData.doctor_id && (
               <p className="mt-1 text-[10px] text-sky-500 font-bold truncate leading-tight">
-                {doctors.find(d => d.doctor_id === formData.doctor_id)?.doctor_name}
-                <span className="ml-1 opacity-70 font-medium">({doctors.find(d => d.doctor_id === formData.doctor_id)?.degree})</span>
+                {(Array.isArray(doctors) ? doctors : []).find(d => d && d.doctor_id === formData.doctor_id)?.doctor_name}
+                <span className="ml-1 opacity-70 font-medium">({(Array.isArray(doctors) ? doctors : []).find(d => d && d.doctor_id === formData.doctor_id)?.degree})</span>
               </p>
             )}
           </div>
@@ -1606,7 +1636,7 @@ pdate the local state and reset form
             <SearchableSelect
               theme="dark"
               label="Referrar"
-              options={referrars.map(r => ({ id: r.ref_id, name: r.ref_name, details: `${r.ref_degrees}${r.area ? ` | ${r.area}` : ''}${r.address ? ` | ${r.address}` : ''}` }))}
+              options={(Array.isArray(referrars) ? referrars : []).map(r => ({ id: r.ref_id, name: r.ref_name, details: `${r.ref_degrees}${r.area ? ` | ${r.area}` : ''}${r.address ? ` | ${r.address}` : ''}` }))}
               value={formData.referrar_id || ''}
               onChange={handleReferrarSelect}
               onAddNew={() => setShowNewReferrarForm(true)}
@@ -1616,8 +1646,8 @@ pdate the local state and reset form
             />
             {formData.referrar_id && (
               <p className="mt-1 text-[10px] text-sky-500 font-bold truncate leading-tight">
-                {referrars.find(r => r.ref_id === formData.referrar_id)?.ref_name}
-                <span className="ml-1 opacity-70 font-medium">({referrars.find(r => r.ref_id === formData.referrar_id)?.ref_degrees})</span>
+                {(Array.isArray(referrars) ? referrars : []).find(r => r && r.ref_id === formData.referrar_id)?.ref_name}
+                <span className="ml-1 opacity-70 font-medium">({(Array.isArray(referrars) ? referrars : []).find(r => r && r.ref_id === formData.referrar_id)?.ref_degrees})</span>
               </p>
             )}
           </div>
@@ -1631,7 +1661,7 @@ pdate the local state and reset form
             <div className="flex flex-wrap items-center justify-between gap-y-2 mb-2">
                 <h3 className="text-base font-semibold text-sky-200">Add Test Items</h3>
                 <div className="flex flex-wrap gap-2">
-                    {['All', ...testCategories].map(category => (
+                    {['All', ...(Array.isArray(testCategories) ? testCategories : [])].map(category => (
                         <button key={category} type="button" onClick={() => setSelectedTestCategory(category)} className={`px-3 py-1 text-xs font-medium rounded-full transition-colors ${selectedTestCategory === category ? 'bg-blue-600 text-white shadow' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`}>{category}</button>
                     ))}
                 </div>
@@ -1639,7 +1669,7 @@ pdate the local state and reset form
              <div className="bg-slate-100 p-2 rounded-xl border border-gray-300 shadow-inner">
                 <SearchableSelect
                   theme="light" label=""
-                  options={filteredTestsForSelect.map(t => ({ id: t.test_id, name: t.test_name, details: `${t.category} - BDT ${t.price.toFixed(2)} ${!getTestAvailability(t, reagents) ? '(Unavailable)' : ''}` }))}
+                  options={(Array.isArray(filteredTestsForSelect) ? filteredTestsForSelect : []).map(t => ({ id: t.test_id, name: t.test_name, details: `${t.category} - BDT ${(t.price || 0).toFixed(2)} ${!getTestAvailability(t, reagents) ? '(Unavailable)' : ''}` }))}
                   value="" 
                   onChange={handleTestSelect}
                   onAddNew={() => setShowNewTestForm(true)}
@@ -1657,7 +1687,7 @@ pdate the local state and reset form
                 <label htmlFor="apply_pc" className="ml-2 text-sm font-medium text-sky-300">Apply PC</label>
               </div>
           </div>
-          {formData.items.length === 0 ? (
+          {(!formData.items || formData.items.length === 0) ? (
             <div className="text-center py-8 bg-slate-800 rounded-lg border border-slate-700"><p className="text-slate-500">No tests added yet.</p></div>
           ) : (
             <div className="overflow-x-auto border border-slate-700 rounded-lg bg-sky-950">
@@ -1674,7 +1704,7 @@ pdate the local state and reset form
                   </tr>
                 </thead>
                 <tbody className="bg-slate-900 divide-y divide-slate-700">
-                  {formData.items.map((item, idx) => (
+                  {(Array.isArray(formData.items) ? formData.items : []).map((item, idx) => (
                     <tr key={item.test_id}>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-400">{idx + 1}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-200 font-medium">{item.test_name}</td>
@@ -1721,43 +1751,34 @@ pdate the local state and reset form
           <div className="space-y-4">
              <div><label htmlFor="notes" className={commonLabelClasses}>Notes (Optional)</label><textarea id="notes" name="notes" rows={3} value={formData.notes} onChange={handleInputChange} className={commonInputClasses}></textarea></div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6">
-                {activeEmployees.length === 0 ? (
-                  <div className="col-span-2 mb-2 p-4 bg-rose-900/30 border border-rose-800 rounded-lg text-rose-300 text-xs font-bold text-center uppercase tracking-wider flex items-center justify-center gap-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                    </svg>
-                    বর্তমান মাসের কোন কর্মচারী সিলেক্ট করা নেই
-                  </div>
-                ) : (
-                  <>
-                    <div className={`rounded-md ${errors.bill_created_by ? 'ring-2 ring-red-500' : ''}`}>
-                      <SearchableSelect 
-                        theme="dark" 
-                        label="Bill Created By" 
-                        options={activeEmployees.map(emp => ({ id: emp.emp_name, name: emp.emp_name, details: emp.job_position }))} 
-                        value={formData.bill_created_by || ''} 
-                        onChange={(id, name) => handleEmployeeSelect('bill_created_by', id, name)} 
-                        onAddNew={() => onNavigateSubPage('employee_info' as DiagnosticSubPage)} 
-                        placeholder="Select Employee" 
-                        required
-                        inputHeightClass="h-10" 
-                      />
-                    </div>
-                    <div className={`rounded-md ${errors.bill_paid_by ? 'ring-2 ring-red-500' : ''}`}>
-                      <SearchableSelect 
-                        theme="dark" 
-                        label="Bill Paid By" 
-                        options={activeEmployees.map(emp => ({ id: emp.emp_name, name: emp.emp_name, details: emp.job_position }))} 
-                        value={formData.bill_paid_by || ''} 
-                        onChange={(id, name) => handleEmployeeSelect('bill_paid_by', id, name)} 
-                        onAddNew={() => onNavigateSubPage('employee_info' as DiagnosticSubPage)} 
-                        placeholder="Select Employee" 
-                        required
-                        inputHeightClass="h-10" 
-                      />
-                    </div>
-                  </>
-                )}
+                <div className={`rounded-md ${errors.bill_created_by ? 'ring-2 ring-red-500' : ''}`}>
+                  <SearchableSelect 
+                    theme="dark" 
+                    label="Bill Created By" 
+                    options={employeeOptions} 
+                    value={formData.bill_created_by || ''} 
+                    onChange={(id, name) => handleEmployeeSelect('bill_created_by', id, name)} 
+                    onAddNew={() => onNavigateSubPage('employee_info' as DiagnosticSubPage)} 
+                    placeholder="Search Employee / Admin" 
+                    required
+                    allowCustom={true}
+                    inputHeightClass="h-10" 
+                  />
+                </div>
+                <div className={`rounded-md ${errors.bill_paid_by ? 'ring-2 ring-red-500' : ''}`}>
+                  <SearchableSelect 
+                    theme="dark" 
+                    label="Bill Paid By" 
+                    options={employeeOptions} 
+                    value={formData.bill_paid_by || ''} 
+                    onChange={(id, name) => handleEmployeeSelect('bill_paid_by', id, name)} 
+                    onAddNew={() => onNavigateSubPage('employee_info' as DiagnosticSubPage)} 
+                    placeholder="Search Employee / Admin" 
+                    required
+                    allowCustom={true}
+                    inputHeightClass="h-10" 
+                  />
+                </div>
               </div>
              <div><label htmlFor="payment_method" className={commonLabelClasses}>Payment Method</label><select id="payment_method" name="payment_method" value={formData.payment_method} onChange={handleInputChange} className={commonInputClasses}><option value="Cash">Cash</option><option value="Card">Card</option><option value="Mobile Banking">Mobile Banking</option></select></div>
           </div>
@@ -1822,164 +1843,250 @@ pdate the local state and reset form
         </div>
       </div>
 
-      <div className="mt-8 pt-6 border-t border-slate-700">
-        <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
-            <h3 className="text-xl font-bold text-slate-100 flex items-center gap-3">
-                All Invoices
-            </h3>
+      {/* All Invoices Table Section with Distinct High-Contrast Styling */}
+      <div className="mt-8 p-6 rounded-2xl bg-gradient-to-b from-[#0b1329] via-[#0d1730] to-[#080d1e] border-2 border-cyan-900/50 shadow-2xl shadow-black/60">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4 border-b border-cyan-900/40 pb-4">
+            <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-cyan-950/80 rounded-xl text-cyan-400 border border-cyan-700/60 shadow-inner">
+                    <FileTextIcon size={20} />
+                </div>
+                <div>
+                    <h3 className="text-xl font-black text-white flex items-center gap-3 tracking-tight">
+                        All Invoices
+                        <span className="text-xs px-2.5 py-0.5 rounded-full bg-cyan-900/80 text-cyan-300 border border-cyan-600/60 font-mono font-bold">
+                          {(Array.isArray(filteredInvoices) ? filteredInvoices : []).length} Invoices
+                        </span>
+                    </h3>
+                    <p className="text-xs text-slate-400 font-medium mt-0.5">ল্যাব ইনভয়েস হিস্ট্রি তালিকা — ক্লিক করে বিস্তারিত দেখুন বা সংশোধন করুন</p>
+                </div>
+            </div>
             
             {/* TABLE FILTER CONTROLS */}
-            <div className="flex flex-wrap items-center justify-end gap-3 bg-slate-700/40 p-3 rounded-2xl border border-slate-600 shadow-inner no-print ml-auto">
-                <div className="w-40">
+            <div className="flex flex-wrap items-center justify-end gap-2.5 bg-[#0e1a38] p-2.5 rounded-xl border border-cyan-900/60 shadow-inner no-print w-full md:w-auto">
+                <div className="w-36">
                     <input 
                         type="text" 
                         placeholder="Search Patient..." 
                         value={tableFilterPatientName} 
                         onChange={(e) => setTableFilterPatientName(e.target.value)}
-                        className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-1.5 text-xs text-white font-bold outline-none focus:border-blue-500"
+                        className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 placeholder-slate-500 font-semibold outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 transition-all"
                     />
                 </div>
-                <div className="w-40">
+                <div className="w-36">
                     <select 
                         value={tableFilterDoctorId} 
                         onChange={(e) => setTableFilterDoctorId(e.target.value)}
-                        className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-1.5 text-xs text-white font-bold outline-none focus:border-blue-500"
+                        className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 font-semibold outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 transition-all"
                     >
-                        <option value="">Filter by Doctor...</option>
-                        {doctors.map(d => <option key={d.doctor_id} value={d.doctor_id}>{d.doctor_name}</option>)}
+                        <option value="">Filter Doctor...</option>
+                        {(Array.isArray(doctors) ? doctors : []).map(d => <option key={d.doctor_id} value={d.doctor_id}>{d.doctor_name}</option>)}
                     </select>
                 </div>
-                <div className="w-40">
+                <div className="w-36">
                     <select 
                         value={tableFilterReferrarId} 
                         onChange={(e) => setTableFilterReferrarId(e.target.value)}
-                        className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-1.5 text-xs text-white font-bold outline-none focus:border-blue-500"
+                        className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 font-semibold outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 transition-all"
                     >
-                        <option value="">Filter by Referrer...</option>
-                        {referrars.map(r => {
+                        <option value="">Filter Referrer...</option>
+                        {(Array.isArray(referrars) ? referrars : []).map(r => {
                           const refId = r.ref_id || (r as any).referrar_id || '';
                           const refName = r.ref_name || (r as any).referrar_name || '';
                           return <option key={refId} value={refId}>{refName}</option>;
                         })}
                     </select>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5">
                     <input 
                         type="date" 
                         value={tableFilterDate} 
                         onChange={(e) => { setTableFilterDate(e.target.value); setTableFilterMonth(''); setTableFilterYear(''); }}
-                        className="bg-slate-900 border border-slate-600 rounded-lg px-3 py-1.5 text-xs text-white font-bold outline-none focus:border-blue-500"
+                        className="bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 font-semibold outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 transition-all"
                         title="Filter by Specific Date"
                     />
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5">
                     <select 
                         value={tableFilterMonth} 
                         onChange={(e) => { setTableFilterMonth(e.target.value); setTableFilterDate(''); }}
-                        className="bg-slate-900 border border-slate-600 rounded-lg px-3 py-1.5 text-xs text-white font-bold outline-none focus:border-blue-500"
+                        className="bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 font-semibold outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 transition-all"
                     >
-                        <option value="">Select Month...</option>
+                        <option value="">Month...</option>
                         {monthOptions.map(m => <option key={m.value} value={m.value}>{m.name}</option>)}
                     </select>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5">
                     <select 
                         value={tableFilterYear} 
                         onChange={(e) => { setTableFilterYear(e.target.value); setTableFilterDate(''); }}
-                        className="bg-slate-900 border border-slate-600 rounded-lg px-3 py-1.5 text-xs text-white font-bold outline-none focus:border-blue-500"
+                        className="bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 font-semibold outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 transition-all"
                     >
-                        <option value="">Select Year...</option>
+                        <option value="">Year...</option>
                         {[2023, 2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
                     </select>
                 </div>
                 <button 
                   onClick={() => setTableFilterDueOnly(!tableFilterDueOnly)}
-                  className={`px-4 py-1.5 rounded-lg text-xs font-black uppercase transition-all flex items-center gap-2 border-2 ${tableFilterDueOnly ? 'bg-rose-600 text-white border-rose-400 shadow-[0_0_15px_rgba(225,29,72,0.4)]' : 'bg-slate-900 text-slate-400 border-slate-700 hover:border-rose-600'}`}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 border ${tableFilterDueOnly ? 'bg-rose-600 text-white border-rose-400 shadow-[0_0_12px_rgba(225,29,72,0.5)]' : 'bg-slate-950 text-slate-300 border-slate-700 hover:border-rose-500 hover:text-rose-400'}`}
                 >
-                    <div className={`w-2 h-2 rounded-full ${tableFilterDueOnly ? 'bg-white animate-pulse' : 'bg-slate-600'}`}></div>
+                    <div className={`w-2 h-2 rounded-full ${tableFilterDueOnly ? 'bg-white animate-pulse' : 'bg-rose-500'}`}></div>
                     Dues Invoices
                 </button>
                 <button 
                     onClick={resetTableFilters}
-                    className="px-4 py-1.5 bg-slate-900 border-2 border-slate-700 text-slate-400 hover:text-white hover:border-blue-500 rounded-lg flex items-center gap-2 text-xs font-black uppercase transition-all"
+                    className="px-3 py-1.5 bg-slate-950 border border-slate-700 text-slate-300 hover:text-white hover:border-cyan-500 rounded-lg flex items-center gap-1.5 text-xs font-black uppercase tracking-wider transition-all"
                     title="Clear All Table Filters"
                 >
                     <TrashIcon size={12} />
-                    Clear Filters
+                    Clear
                 </button>
             </div>
         </div>
 
-        <div className="overflow-x-auto border border-slate-700 rounded-lg bg-slate-900/20">
-          <table className="min-w-full divide-y divide-slate-700">
-            <thead className="bg-slate-700">
+        {/* Eye-Protective Table Canvas */}
+        <div className="overflow-x-auto rounded-xl border border-cyan-900/60 shadow-xl bg-[#080e1e]">
+          <table className="min-w-full divide-y divide-slate-700/70 font-sans">
+            <thead>
               {/* COLUMN-WISE TOTALS SUMMARY ROW */}
-              <tr className="bg-slate-800 border-b border-slate-700 no-print">
-                <th colSpan={6} className="px-3 py-2 text-right text-xs font-black text-slate-400 uppercase tracking-widest">Summary Totals:</th>
-                <th className="px-3 py-2 text-right text-xs sm:text-sm font-black text-white">{(tableTotals.total || 0).toFixed(2)}</th>
-                <th className="px-3 py-2 text-right text-xs sm:text-sm font-black text-emerald-400">{(tableTotals.paid || 0).toFixed(2)}</th>
-                <th className="px-3 py-2 text-right text-xs sm:text-sm font-black text-rose-400">{(tableTotals.due || 0).toFixed(2)}</th>
-                <th colSpan={2} className="px-3 py-2 text-left text-xs sm:text-sm font-black text-blue-400 border-l border-slate-700">
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mr-1">Income:</span>
-                    {(tableTotals.income || 0).toFixed(2)}
+              <tr className="bg-[#050a16] border-b-2 border-cyan-900/80 text-xs no-print">
+                <th colSpan={6} className="px-3 py-2.5 text-right text-[11px] font-black text-cyan-300 uppercase tracking-widest">
+                    Summary Totals:
+                </th>
+                <th className="px-3 py-2.5 text-right text-xs font-mono font-black text-slate-100 bg-[#0a1329] border-l border-slate-800">
+                    {(tableTotals.total || 0).toFixed(2)}
+                </th>
+                <th className="px-3 py-2.5 text-right text-xs font-mono font-black text-emerald-400 bg-emerald-950/30 border-l border-slate-800">
+                    {(tableTotals.paid || 0).toFixed(2)}
+                </th>
+                <th className="px-3 py-2.5 text-right text-xs font-mono font-black text-rose-400 bg-rose-900/30 border-l border-slate-800">
+                    {(tableTotals.due || 0).toFixed(2)}
+                </th>
+                <th colSpan={2} className="px-3 py-2.5 text-left text-xs font-black text-cyan-300 border-l border-slate-800 bg-[#0a1329]">
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mr-1.5">Net Income:</span>
+                    <span className="font-mono">{(tableTotals.income || 0).toFixed(2)}</span>
                 </th>
               </tr>
-              <tr>
-                <th scope="col" className="px-2.5 py-3 text-left text-[11px] font-bold text-slate-300 uppercase tracking-wider w-10">SL</th>
-                <th scope="col" className="px-3 py-3 text-left text-[11px] font-bold text-slate-300 uppercase tracking-wider">Invoice ID</th>
-                <th scope="col" className="px-3 py-3 text-left text-[11px] font-bold text-slate-300 uppercase tracking-wider">Date</th>
-                <th scope="col" className="px-3 py-3 text-left text-[11px] font-bold text-slate-300 uppercase tracking-wider">Patient Name</th>
-                <th scope="col" className="px-3 py-3 text-left text-[11px] font-bold text-slate-300 uppercase tracking-wider">Doctor</th>
-                <th scope="col" className="px-3 py-3 text-left text-[11px] font-bold text-slate-300 uppercase tracking-wider">Referrar</th>
-                <th scope="col" className="px-3 py-3 text-right text-[11px] font-bold text-slate-300 uppercase tracking-wider">Total (BDT)</th>
-                <th scope="col" className="px-3 py-3 text-right text-[11px] font-bold text-slate-300 uppercase tracking-wider">Paid (BDT)</th>
-                <th scope="col" className="px-3 py-3 text-right text-[11px] font-bold text-slate-300 uppercase tracking-wider">Due (BDT)</th>
-                <th scope="col" className="px-3 py-3 text-center text-[11px] font-bold text-slate-300 uppercase tracking-wider">Status</th>
-                <th scope="col" className="px-3 py-3 text-left text-[11px] font-bold text-slate-300 uppercase tracking-wider">Last Modified</th>
+              {/* MAIN COLUMN HEADERS */}
+              <tr className="bg-[#0d1935] border-b border-cyan-900 text-slate-200">
+                <th scope="col" className="px-2.5 py-3 text-center text-[11px] font-black text-cyan-400 uppercase tracking-wider w-10">SL</th>
+                <th scope="col" className="px-3 py-3 text-left text-[11px] font-black text-cyan-400 uppercase tracking-wider">Invoice ID</th>
+                <th scope="col" className="px-3 py-3 text-left text-[11px] font-black text-cyan-400 uppercase tracking-wider">Date</th>
+                <th scope="col" className="px-3 py-3 text-left text-[11px] font-black text-cyan-400 uppercase tracking-wider">Patient Name</th>
+                <th scope="col" className="px-3 py-3 text-left text-[11px] font-black text-cyan-400 uppercase tracking-wider">Doctor</th>
+                <th scope="col" className="px-3 py-3 text-left text-[11px] font-black text-cyan-400 uppercase tracking-wider">Referrar</th>
+                <th scope="col" className="px-3 py-3 text-right text-[11px] font-black text-cyan-400 uppercase tracking-wider">Total (৳)</th>
+                <th scope="col" className="px-3 py-3 text-right text-[11px] font-black text-emerald-400 uppercase tracking-wider">Paid (৳)</th>
+                <th scope="col" className="px-3 py-3 text-right text-[11px] font-black text-rose-400 uppercase tracking-wider">Due (৳)</th>
+                <th scope="col" className="px-3 py-3 text-center text-[11px] font-black text-cyan-400 uppercase tracking-wider">Status</th>
+                <th scope="col" className="px-3 py-3 text-left text-[11px] font-black text-slate-400 uppercase tracking-wider">Last Modified</th>
               </tr>
             </thead>
-            <tbody className="bg-slate-800 divide-y divide-slate-700">
-              {filteredInvoices.map((invoice, index) => (
-                <tr key={invoice.invoice_id} onClick={() => handleRowClick(invoice)} className={`cursor-pointer hover:bg-slate-700/50 ${selectedInvoiceId === invoice.invoice_id ? 'bg-blue-900/40' : ''}`} aria-selected={selectedInvoiceId === invoice.invoice_id} tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && handleRowClick(invoice)}>
-                  <td className="px-2.5 py-2.5 whitespace-nowrap text-xs text-slate-400 font-bold">{index + 1}</td>
-                  <td className="px-3 py-2.5 whitespace-nowrap text-xs text-slate-300 font-mono">{invoice.invoice_id}</td>
-                  <td className="px-3 py-2.5 whitespace-nowrap text-xs text-slate-300">{invoice.invoice_date}</td>
-                  <td className="px-3 py-2.5 whitespace-nowrap text-xs text-slate-100 uppercase">
-                    <div className="flex flex-col">
-                      <span className="font-bold">{invoice.patient_name}</span>
-                      <span className="text-[10px] text-slate-400 normal-case font-medium">
-                        {(() => {
-                          const p = patients.find(pt => pt.pt_id === invoice.patient_id);
-                          return p ? `${p.ageY}Y, ${p.address}` : 'N/A';
-                        })()}
+            <tbody className="divide-y divide-cyan-950/60">
+              {(Array.isArray(filteredInvoices) ? filteredInvoices : []).map((invoice, index) => {
+                const isSelected = selectedInvoiceId === invoice.invoice_id;
+                const isEven = index % 2 === 0;
+                return (
+                  <tr 
+                    key={invoice.invoice_id} 
+                    onClick={() => handleRowClick(invoice)} 
+                    className={`
+                      cursor-pointer transition-all duration-150 ease-in-out select-none
+                      ${isSelected 
+                        ? 'bg-cyan-950/90 border-l-4 border-l-cyan-400 shadow-md text-white' 
+                        : isEven 
+                          ? 'bg-[#0a1224] text-slate-200 hover:bg-[#132247] hover:text-white' 
+                          : 'bg-[#0e172e] text-slate-200 hover:bg-[#132247] hover:text-white'
+                      }
+                      hover:shadow-md hover:translate-x-0.5
+                    `} 
+                    aria-selected={isSelected} 
+                    tabIndex={0} 
+                    onKeyDown={(e) => e.key === 'Enter' && handleRowClick(invoice)}
+                  >
+                    <td className="px-2.5 py-2.5 whitespace-nowrap text-xs text-slate-400 font-mono font-bold text-center">
+                      {index + 1}
+                    </td>
+                    <td className="px-3 py-2.5 whitespace-nowrap">
+                      <span className="font-mono font-black text-xs text-sky-400 bg-sky-950/90 px-2 py-0.5 rounded border border-sky-800/60 shadow-sm inline-block">
+                        #{invoice.invoice_id}
                       </span>
-                    </div>
-                  </td>
-                  <td className="px-3 py-2.5 whitespace-nowrap text-xs text-slate-300 font-medium">{invoice.doctor_name || 'N/A'}</td>
-                  <td className="px-3 py-2.5 whitespace-nowrap text-xs text-slate-400 italic">{invoice.referrar_name || 'N/A'}</td>
-                  <td className="px-3 py-2.5 whitespace-nowrap text-xs text-slate-300 text-right font-medium">{(invoice.total_amount || 0).toFixed(2)}</td>
-                  <td className="px-3 py-2.5 whitespace-nowrap text-xs text-slate-300 text-right font-bold text-emerald-400">{(invoice.paid_amount || 0).toFixed(2)}</td>
-                  <td className="px-3 py-2.5 whitespace-nowrap text-xs text-slate-300 text-right font-bold text-rose-400">{(invoice.due_amount || 0).toFixed(2)}</td>
-                  <td className="px-3 py-2.5 whitespace-nowrap text-xs text-center"><span className={`px-2 py-0.5 inline-flex text-[10px] leading-4 font-black uppercase rounded-full ${invoice.status === 'Paid' ? 'bg-green-900/50 text-green-300' : invoice.status === 'Due' ? 'bg-orange-900/50 text-orange-300' : invoice.status === 'Returned' ? 'bg-blue-900/50 text-blue-300' : 'bg-red-900/50 text-red-300'}`}>{invoice.status}</span></td>
-                  <td className="px-3 py-2.5 whitespace-nowrap text-[11px] text-slate-400 font-mono">{invoice.last_modified}</td>
-                </tr>
-              ))}
+                    </td>
+                    <td className="px-3 py-2.5 whitespace-nowrap text-xs text-slate-300 font-medium">
+                      {invoice.invoice_date}
+                    </td>
+                    <td className="px-3 py-2.5 whitespace-nowrap">
+                      <div className="flex flex-col">
+                        <span className="font-black text-xs text-slate-100 uppercase tracking-tight">
+                          {invoice.patient_name}
+                        </span>
+                        <span className="text-[10px] text-slate-400 normal-case font-medium">
+                          {(() => {
+                            const p = patients.find(pt => pt.pt_id === invoice.patient_id);
+                            return p ? `${p.gender || ''} ${p.ageY ? `${p.ageY}Y` : ''} ${p.address ? `| ${p.address}` : ''}` : 'N/A';
+                          })()}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-3 py-2.5 whitespace-nowrap text-xs text-sky-200 font-medium">
+                      {invoice.doctor_name || 'Self/Walk-in'}
+                    </td>
+                    <td className="px-3 py-2.5 whitespace-nowrap text-xs text-slate-400 italic">
+                      {invoice.referrar_name || '-'}
+                    </td>
+                    <td className="px-3 py-2.5 whitespace-nowrap text-xs text-slate-100 text-right font-mono font-bold">
+                      ৳{(invoice.total_amount || 0).toFixed(2)}
+                    </td>
+                    <td className="px-3 py-2.5 whitespace-nowrap text-xs text-right font-mono font-black text-emerald-400">
+                      ৳{(invoice.paid_amount || 0).toFixed(2)}
+                    </td>
+                    <td className={`px-3 py-2.5 whitespace-nowrap text-xs text-right font-mono font-black ${invoice.due_amount > 0.01 ? 'text-rose-400' : 'text-slate-500'}`}>
+                      ৳{(invoice.due_amount || 0).toFixed(2)}
+                    </td>
+                    <td className="px-3 py-2.5 whitespace-nowrap text-xs text-center">
+                      <span className={`
+                        px-2.5 py-0.5 inline-flex text-[10px] leading-4 font-black uppercase rounded-full border shadow-sm
+                        ${invoice.status === 'Paid' 
+                          ? 'bg-emerald-950/80 text-emerald-300 border-emerald-700/60' 
+                          : invoice.status === 'Due' 
+                            ? 'bg-rose-950/80 text-rose-300 border-rose-700/60' 
+                            : invoice.status === 'Returned' 
+                              ? 'bg-blue-950/80 text-blue-300 border-blue-700/60' 
+                              : 'bg-slate-800 text-slate-400 border-slate-700'
+                        }
+                      `}>
+                        {invoice.status}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2.5 whitespace-nowrap text-[10px] text-slate-400 font-mono">
+                      {invoice.last_modified}
+                    </td>
+                  </tr>
+                );
+              })}
               {filteredInvoices.length === 0 && (
                 <tr>
-                    <td colSpan={11} className="px-6 py-12 text-center text-slate-500 italic uppercase font-black tracking-widest opacity-30">
-                        No Matching Invoices Found
+                    <td colSpan={11} className="px-6 py-16 text-center text-slate-500 italic uppercase font-black tracking-widest opacity-40 text-sm">
+                        কোন ইনভয়েস রেকর্ড পাওয়া যায়নি (No Invoices Found)
                     </td>
                 </tr>
               )}
             </tbody>
             {filteredInvoices.length > 0 && (
-              <tfoot className="bg-slate-700/80 border-t-2 border-slate-600">
+              <tfoot className="bg-slate-950 border-t-2 border-slate-700">
                 <tr>
-                  <td colSpan={6} className="px-3 py-3 text-right text-xs font-black text-slate-100 uppercase tracking-wider">Total:</td>
-                  <td className="px-3 py-3 whitespace-nowrap text-xs text-slate-100 text-right font-black border-l border-slate-600/50">{(tableTotals.total || 0).toFixed(2)}</td>
-                  <td className="px-3 py-3 whitespace-nowrap text-xs text-emerald-400 text-right font-black border-l border-slate-600/50">{(tableTotals.paid || 0).toFixed(2)}</td>
-                  <td className="px-3 py-3 whitespace-nowrap text-xs text-rose-400 text-right font-black border-l border-slate-600/50">{(tableTotals.due || 0).toFixed(2)}</td>
-                  <td colSpan={2} className="px-3 py-3 border-l border-slate-600/50"></td>
+                  <td colSpan={6} className="px-3 py-3 text-right text-xs font-black text-slate-300 uppercase tracking-wider">
+                    Total Summary:
+                  </td>
+                  <td className="px-3 py-3 whitespace-nowrap text-xs text-slate-100 text-right font-mono font-black border-l border-slate-800">
+                    ৳{(tableTotals.total || 0).toFixed(2)}
+                  </td>
+                  <td className="px-3 py-3 whitespace-nowrap text-xs text-emerald-400 text-right font-mono font-black border-l border-slate-800">
+                    ৳{(tableTotals.paid || 0).toFixed(2)}
+                  </td>
+                  <td className="px-3 py-3 whitespace-nowrap text-xs text-rose-400 text-right font-mono font-black border-l border-slate-800">
+                    ৳{(tableTotals.due || 0).toFixed(2)}
+                  </td>
+                  <td colSpan={2} className="px-3 py-3 border-l border-slate-800"></td>
                 </tr>
               </tfoot>
             )}

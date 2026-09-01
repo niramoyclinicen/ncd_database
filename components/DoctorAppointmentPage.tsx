@@ -315,14 +315,15 @@ const DoctorAppointmentPage: React.FC<DoctorAppointmentPageProps> = ({
     }
     
     let newAppointments;
+    const safeAppointments = Array.isArray(appointments) ? appointments : [];
     if (isEditing) {
-      newAppointments = appointments.map(a => a.appointment_id === formData.appointment_id ? formData : a);
+      newAppointments = safeAppointments.map(a => a.appointment_id === formData.appointment_id ? formData : a);
     } else {
-      if (appointments.some(a => a.appointment_id === formData.appointment_id)) {
+      if (safeAppointments.some(a => a.appointment_id === formData.appointment_id)) {
         alert('Error: Appointment ID already exists. Please get a new ID.');
         return;
       }
-      newAppointments = [formData, ...appointments];
+      newAppointments = [formData, ...safeAppointments];
     }
 
     if (performBlockingSync) {
@@ -339,7 +340,8 @@ const DoctorAppointmentPage: React.FC<DoctorAppointmentPageProps> = ({
 
   const handleEditAppointment = () => {
     if (!selectedAppointmentId) return alert("Please select an appointment.");
-    const appointmentToEdit = appointments.find(a => a.appointment_id === selectedAppointmentId);
+    const safeAppointments = Array.isArray(appointments) ? appointments : [];
+    const appointmentToEdit = safeAppointments.find(a => a.appointment_id === selectedAppointmentId);
     if (appointmentToEdit) {
       setFormData(appointmentToEdit);
       setIsEditing(true);
@@ -348,10 +350,11 @@ const DoctorAppointmentPage: React.FC<DoctorAppointmentPageProps> = ({
 
   const handleCancelAppointment = async () => {
     if (!selectedAppointmentId) return alert("Please select an appointment.");
-    const appointmentToCancel = appointments.find(a => a.appointment_id === selectedAppointmentId);
+    const safeAppointments = Array.isArray(appointments) ? appointments : [];
+    const appointmentToCancel = safeAppointments.find(a => a.appointment_id === selectedAppointmentId);
     if (appointmentToCancel && (appointmentToCancel.status === 'Scheduled' || appointmentToCancel.status === 'Completed')) {
       if (window.confirm(`Are you sure you want to cancel appointment ${appointmentToCancel.appointment_id}?`)) {
-        const newAppointments = appointments.map(a => a.appointment_id === selectedAppointmentId ? { ...a, status: 'Cancelled' } : a);
+        const newAppointments = safeAppointments.map(a => a.appointment_id === selectedAppointmentId ? { ...a, status: 'Cancelled' } : a);
         
         if (performBlockingSync) {
           const success = await performBlockingSync({ appointments: newAppointments });
@@ -367,10 +370,11 @@ const DoctorAppointmentPage: React.FC<DoctorAppointmentPageProps> = ({
 
   const handleReturnAppointment = async () => {
     if (!selectedAppointmentId) return alert("Please select an appointment.");
-    const appointmentToReturn = appointments.find(a => a.appointment_id === selectedAppointmentId);
+    const safeAppointments = Array.isArray(appointments) ? appointments : [];
+    const appointmentToReturn = safeAppointments.find(a => a.appointment_id === selectedAppointmentId);
     if (appointmentToReturn && appointmentToReturn.status !== 'Returned' && appointmentToReturn.status !== 'Cancelled') {
       if (window.confirm(`আপনি কি এই অ্যাপয়েন্টমেন্টের (${appointmentToReturn.appointment_id}) ফি রিফান্ড করতে চান? এটি আজকের হিসাব থেকে মাইনাস হবে।`)) {
-        const newAppointments = appointments.map(a => a.appointment_id === selectedAppointmentId ? { ...a, status: 'Returned', return_date: todayDateString } : a);
+        const newAppointments = safeAppointments.map(a => a.appointment_id === selectedAppointmentId ? { ...a, status: 'Returned', return_date: todayDateString } : a);
         
         if (performBlockingSync) {
           const success = await performBlockingSync({ appointments: newAppointments });
@@ -403,12 +407,13 @@ const DoctorAppointmentPage: React.FC<DoctorAppointmentPageProps> = ({
     const theadHtml = "<tr><th style='text-align:center; width:40px;'>SL</th><th>Date & Time</th><th>Patient Name</th><th>Consultant</th><th>Status</th><th style='text-align:right;'>Fee</th></tr>";
 
     let totalFees = 0;
-    const contentHtml = filteredAppointments.map((appt, index) => {
+    const safeList = Array.isArray(filteredAppointments) ? filteredAppointments : [];
+    const contentHtml = safeList.map((appt, index) => {
         totalFees += (appt.doctor_fee || 0);
         return "<tr><td style='text-align:center'>" + (index + 1) + "</td><td><b>" + appt.appointment_date + "</b><br/>" + appt.appointment_time + "</td><td><b>" + appt.patient_name + "</b><br/>" + (appt.reason || '') + "</td><td>" + (appt.doctor_name || '') + "</td><td>" + appt.status + "</td><td style='text-align:right'>৳" + (appt.doctor_fee || 0).toFixed(2) + "</td></tr>";
     }).join('');
 
-    const tfootHtml = "<tr><td colspan='5' style='text-align:right; font-weight:bold;'>Total (" + filteredAppointments.length + " Patients):</td><td style='text-align:right; font-weight:bold;'>৳" + totalFees.toFixed(2) + "</td></tr>";
+    const tfootHtml = "<tr><td colspan='5' style='text-align:right; font-weight:bold;'>Total (" + safeList.length + " Patients):</td><td style='text-align:right; font-weight:bold;'>৳" + totalFees.toFixed(2) + "</td></tr>";
 
     const printContent = "<!DOCTYPE html><html><head><meta charset='UTF-8'><title>Appointment List Print</title><style>@page { size: A4 portrait; margin: 15mm; } body { font-family: sans-serif; background: #fff; color: #000; margin: 0; padding: 0; } .header { text-align: center; margin-bottom: 20px; } .header h1 { margin: 0; font-size: 24px; font-weight: bold; } .header p { margin: 5px 0; font-size: 12px; } .header h2 { margin: 10px 0 5px 0; font-size: 18px; text-decoration: underline; } table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; } th, td { border: 1px solid #333; padding: 6px 8px; text-align: left; } th { background-color: #f0f0f0; font-weight: bold; } .footer { text-align: center; font-size: 10px; margin-top: 20px; color: #555; }</style></head><body><div class='header'><h1>Niramoy Clinic & Diagnostic</h1><p>Enayetpur, Sirajgonj | Mobile: 01730 923007</p><h2>" + reportTitle + "</h2><p style='font-weight:bold;'>" + subtitle + "</p></div><table><thead>" + theadHtml + "</thead><tbody>" + contentHtml + "</tbody><tfoot>" + tfootHtml + "</tfoot></table><div class='footer'>Printed on " + new Date().toLocaleString() + "</div><script>window.onload = function() { window.print(); window.close(); }</script></body></html>";
 
@@ -522,7 +527,7 @@ const DoctorAppointmentPage: React.FC<DoctorAppointmentPageProps> = ({
               <SearchableSelect 
                 theme="dark" 
                 label="Patient" 
-                options={patients.map(p => ({ id: p.pt_id, name: p.pt_name, details: `${p.gender}, ${p.ageY}Y, Add: ${p.address}, Mob: ${p.mobile}` }))} 
+                options={(Array.isArray(patients) ? patients : []).map(p => ({ id: p.pt_id, name: p.pt_name, details: `${p.gender}, ${p.ageY}Y, Add: ${p.address}, Mob: ${p.mobile}` }))} 
                 value={formData.patient_id} 
                 onChange={handlePatientSelect} 
                 onAddNew={() => openAdvancedPatientSearch('')} 
@@ -531,12 +536,12 @@ const DoctorAppointmentPage: React.FC<DoctorAppointmentPageProps> = ({
                 required 
               />
             </div>
-            <div><SearchableSelect theme="dark" label="Select Doctor" options={doctors.map(d => ({ id: d.doctor_id, name: d.doctor_name, details: d.degree }))} value={formData.doctor_id || ''} onChange={handleDoctorSelect} onAddNew={() => setShowNewDoctorForm(true)} placeholder="Search or add doctor" required /></div>
-            <div><SearchableSelect theme="dark" label="Referrar (Optional)" options={referrars.map(r => ({ id: r.ref_id, name: r.ref_name, details: r.ref_degrees }))} value={formData.referrar_id || ''} onChange={handleReferrarSelect} onAddNew={() => setShowNewReferrarForm(true)} placeholder="Search or add referrar" /></div>
+            <div><SearchableSelect theme="dark" label="Select Doctor" options={(Array.isArray(doctors) ? doctors : []).map(d => ({ id: d.doctor_id, name: d.doctor_name, details: d.degree }))} value={formData.doctor_id || ''} onChange={handleDoctorSelect} onAddNew={() => setShowNewDoctorForm(true)} placeholder="Search or add doctor" required /></div>
+            <div><SearchableSelect theme="dark" label="Referrar (Optional)" options={(Array.isArray(referrars) ? referrars : []).map(r => ({ id: r.ref_id, name: r.ref_name, details: r.ref_degrees }))} value={formData.referrar_id || ''} onChange={handleReferrarSelect} onAddNew={() => setShowNewReferrarForm(true)} placeholder="Search or add referrar" /></div>
             <div><label className={commonLabelClasses}>Appointment Date</label><input type="date" name="appointment_date" value={formData.appointment_date} onChange={handleInputChange} required className={commonInputClasses} /></div>
             <div><label className={commonLabelClasses}>Appointment Time</label><input type="time" name="appointment_time" value={formData.appointment_time} onChange={handleInputChange} required className={commonInputClasses} /></div>
             <div><label className={commonLabelClasses}>Doctor Fee (BDT)</label><input type="number" name="doctor_fee" value={formData.doctor_fee} onChange={handleInputChange} onFocus={handleFocusSelect} onBlur={handleDoctorFeeBlur} required min="0" className={commonInputClasses} /></div>
-            <div className="lg:col-span-1"><label className={commonLabelClasses}>Reason</label><input list="reasonOptions" name="reason" value={formData.reason} onChange={handleInputChange} required className={commonInputClasses} placeholder="Select reason..." /><datalist id="reasonOptions">{appointmentReasons.map(r => <option key={r} value={r} />)}</datalist></div>
+            <div className="lg:col-span-1"><label className={commonLabelClasses}>Reason</label><input list="reasonOptions" name="reason" value={formData.reason} onChange={handleInputChange} required className={commonInputClasses} placeholder="Select reason..." /><datalist id="reasonOptions">{(Array.isArray(appointmentReasons) ? appointmentReasons : []).map(r => <option key={r} value={r} />)}</datalist></div>
             <div className="lg:col-span-1"><label className={commonLabelClasses}>Status</label><select name="status" value={formData.status} onChange={handleInputChange} required className={commonInputClasses}><option value="Scheduled">Scheduled</option><option value="Completed">Completed</option><option value="Cancelled">Cancelled</option><option value="Returned">Returned</option></select></div>
             <div className="lg:col-span-1"><label className={commonLabelClasses}>Notes (Optional)</label><input type="text" name="notes" value={formData.notes} onChange={handleInputChange} className={commonInputClasses} placeholder="Any additional notes..." /></div>
             </div>
@@ -683,7 +688,7 @@ const DoctorAppointmentPage: React.FC<DoctorAppointmentPageProps> = ({
                     </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/50">
-                    {filteredAppointments.length > 0 ? filteredAppointments.map((appt, index) => (
+                    {(Array.isArray(filteredAppointments) ? filteredAppointments : []).length > 0 ? (Array.isArray(filteredAppointments) ? filteredAppointments : []).map((appt, index) => (
                         <tr 
                             key={appt.appointment_id} 
                             className={`hover:bg-slate-800/40 cursor-pointer transition-colors ${selectedAppointmentId === appt.appointment_id ? 'bg-blue-900/20 border-l-4 border-blue-500' : ''}`} 
@@ -826,9 +831,9 @@ const DoctorAppointmentPage: React.FC<DoctorAppointmentPageProps> = ({
 
             {/* Scrolling List */}
             <div className="flex-1 overflow-y-auto p-4 no-scrollbar bg-slate-900/20">
-              {filteredPatients.length > 0 ? (
+              {(Array.isArray(filteredPatients) ? filteredPatients : []).length > 0 ? (
                 <div className="grid grid-cols-1 gap-2">
-                  {filteredPatients.map(p => (
+                  {(Array.isArray(filteredPatients) ? filteredPatients : []).map(p => (
                     <div 
                       key={p.pt_id}
                       onClick={() => handlePatientSelect(p.pt_id, p.pt_name)}

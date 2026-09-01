@@ -713,17 +713,25 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
         const str = String(d).trim().split(/[T ]/)[0];
         if (str.includes('-')) {
             const parts = str.split('-');
-            if (parts[0].length === 4) {
-                return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
-            } else if (parts[2]?.length === 4) {
-                return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+            if (parts.length === 3) {
+                if (parts[0].length === 4) {
+                    return `${parts[0]}-${(parts[1] || '01').padStart(2, '0')}-${(parts[2] || '01').padStart(2, '0')}`;
+                } else if (parts[2].length === 4) {
+                    return `${parts[2]}-${(parts[1] || '01').padStart(2, '0')}-${(parts[0] || '01').padStart(2, '0')}`;
+                }
+            } else if (parts.length === 2 && parts[0].length === 4) {
+                return `${parts[0]}-${(parts[1] || '01').padStart(2, '0')}-01`;
             }
         } else if (str.includes('/')) {
             const parts = str.split('/');
-            if (parts[0].length === 4) {
-                return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
-            } else if (parts[2]?.length === 4) {
-                return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+            if (parts.length === 3) {
+                if (parts[0].length === 4) {
+                    return `${parts[0]}-${(parts[1] || '01').padStart(2, '0')}-${(parts[2] || '01').padStart(2, '0')}`;
+                } else if (parts[2].length === 4) {
+                    return `${parts[2]}-${(parts[1] || '01').padStart(2, '0')}-${(parts[0] || '01').padStart(2, '0')}`;
+                }
+            } else if (parts.length === 2 && parts[0].length === 4) {
+                return `${parts[0]}-${(parts[1] || '01').padStart(2, '0')}-01`;
             }
         }
         return str;
@@ -740,7 +748,11 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
             if (!dateStr) return false;
             try {
                 const norm = normalizeDateStr(dateStr);
-                const [y, m] = norm.split('-').map(Number);
+                const parts = norm.split('-');
+                if (parts.length < 2) return false;
+                const y = Number(parts[0]);
+                const m = Number(parts[1]);
+                if (isNaN(y) || isNaN(m)) return false;
                 return m - 1 === selectedMonth && y === selectedYear;
             } catch(e) { return false; }
         };
@@ -748,7 +760,11 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
             if (!dateStr) return false;
             try {
                 const norm = normalizeDateStr(dateStr);
-                const [y, m] = norm.split('-').map(Number);
+                const parts = norm.split('-');
+                if (parts.length < 2) return false;
+                const y = Number(parts[0]);
+                const m = Number(parts[1]);
+                if (isNaN(y) || isNaN(m)) return false;
                 return y < selectedYear || (y === selectedYear && m - 1 < selectedMonth);
             } catch(e) { return false; }
         };
@@ -780,6 +796,26 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
             return Math.max(0, cash - docPC - usgFee);
         };
 
+        const getInvDate = (inv: any) => {
+            if (!inv) return '';
+            return inv.invoiceDate || inv.invoice_date || inv.date || inv.createdDate || inv.created_date || '';
+        };
+
+        const getInvNet = (inv: any) => {
+            if (!inv) return 0;
+            if (typeof inv.netPayable === 'number' && !isNaN(inv.netPayable)) return inv.netPayable;
+            if (typeof inv.net_payable === 'number' && !isNaN(inv.net_payable)) return inv.net_payable;
+            if (typeof inv.paidAmount === 'number' && !isNaN(inv.paidAmount) && inv.paidAmount > 0) return inv.paidAmount;
+            if (typeof inv.paid_amount === 'number' && !isNaN(inv.paid_amount) && inv.paid_amount > 0) return inv.paid_amount;
+            const tot = Number(inv.totalAmount) || Number(inv.total_amount) || Number(inv.total_bill) || 0;
+            const disc = Number(inv.discount) || Number(inv.discount_amount) || Number(inv.total_discount) || 0;
+            if (tot > 0) return Math.max(0, tot - disc);
+            if (Array.isArray(inv.items)) {
+                return inv.items.reduce((sum: number, it: any) => sum + (Number(it.lineTotalSell) || Number(it.lineTotalBuy) || Number(it.payable_amount) || ((Number(it.unitPriceSell || it.unitPriceBuy || it.price || 0)) * (Number(it.qtySelling || it.qtyBuying || it.quantity || 1))) || 0), 0);
+            }
+            return 0;
+        };
+
         const calcNetPrev = () => {
             const prevLab = labInvoices.filter(inv => inv && isBeforeSelectedMonth(inv.invoice_date) && inv.status !== 'Cancelled' && inv.status !== 'Returned' && inv.status !== 'Deleted').reduce((s, i) => s + getNetDiagCash(i), 0);
             const prevConsolidatedLab = (consolidatedEntries || []).filter(e => e && isBeforeSelectedMonth(e.date)).reduce((s, e) => s + getConsolidatedNet(e), 0);
@@ -806,23 +842,26 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                 return !inv || !isSameDay(inv.invoice_date || inv.admission_date, dc.collection_date);
             }).reduce((s, dc) => s + dc.amount_collected, 0);
             
-            const prevMedSalesOutdoor = salesInvoices.filter(inv => inv && isBeforeSelectedMonth(inv.invoiceDate) && inv.status !== 'Cancelled' && inv.status !== 'Returned' && inv.status !== 'Deleted').reduce((s, i) => s + i.netPayable, 0);
-            const prevMedSalesIndoor = indoorInvoices.filter(inv => {
+            const safeSalesInvoices = Array.isArray(salesInvoices) ? salesInvoices : [];
+            const prevMedSalesOutdoor = safeSalesInvoices.filter(inv => inv && isBeforeSelectedMonth(getInvDate(inv)) && inv.status !== 'Cancelled' && inv.status !== 'Returned' && inv.status !== 'Deleted').reduce((s, i) => s + getInvNet(i), 0);
+            const safeIndoorInvoices = Array.isArray(indoorInvoices) ? indoorInvoices : [];
+            const prevMedSalesIndoor = safeIndoorInvoices.filter(inv => {
                 if (!inv) return false;
-                const dateToUse = inv.invoice_date || inv.admission_date;
+                const dateToUse = inv.invoice_date || inv.admission_date || (inv as any).date || (inv as any).created_date;
                 return isBeforeSelectedMonth(dateToUse) && inv.status !== 'Cancelled' && inv.status !== 'Returned' && inv.status !== 'Deleted';
             }).reduce((s, inv) => {
                 const items = Array.isArray(inv.items) ? inv.items : [];
-                return s + items.filter(it => it && it.service_type === 'Medicine').reduce((ss, it) => ss + (it.payable_amount || 0), 0);
+                return s + items.filter(it => it && (it.service_type === 'Medicine' || it.service_type === 'ঔষধ' || (it.service_type || '').toLowerCase().includes('med'))).reduce((ss, it) => ss + (Number(it.payable_amount) || Number(it.line_total) || ((Number(it.service_charge || 0)) * (Number(it.quantity || 1))) || 0), 0);
             }, 0);
             const prevMedSales = prevMedSalesOutdoor + prevMedSalesIndoor;
 
-            const prevMedPurch = purchaseInvoices.filter(inv => inv && isBeforeSelectedMonth(inv.invoiceDate) && inv.status !== 'Initial' && inv.status !== 'Cancelled').reduce((s, i) => s + i.netPayable, 0);
+            const safePurchaseInvoices = Array.isArray(purchaseInvoices) ? purchaseInvoices : [];
+            const prevMedPurch = safePurchaseInvoices.filter(inv => inv && isBeforeSelectedMonth(getInvDate(inv)) && inv.status !== 'Initial' && inv.status !== 'Cancelled' && inv.status !== 'Deleted').reduce((s, i) => s + getInvNet(i), 0);
             const prevCompany = companyCollections.filter(c => c && isBeforeSelectedMonth(c.date)).reduce((s, c) => s + c.amount, 0);
             let prevExp = 0;
             Object.entries(detailedExpenses).forEach(([date, items]) => {
                 if (isBeforeSelectedMonth(date)) (items as ExpenseItem[]).forEach(it => {
-                    if (it && !it.isDeleted) prevExp += it.paidAmount;
+                    if (it && !it.isDeleted) prevExp += (Number(it.paidAmount) || 0);
                 });
             });
 
@@ -857,7 +896,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
         Object.entries(detailedExpenses).forEach(([date, items]) => {
             if (isSelectedMonth(date)) (items as ExpenseItem[]).forEach(it => {
                 if (it && !it.isDeleted) {
-                    totalMonthlyOperatingExpenses += it.paidAmount;
+                    totalMonthlyOperatingExpenses += (Number(it.paidAmount) || 0);
                 }
             });
         });
@@ -868,9 +907,9 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
             return isSelectedMonth(dateToUse) && inv.status !== 'Cancelled' && inv.status !== 'Returned' && inv.status !== 'Deleted';
         }).reduce((acc, inv) => {
             const items = Array.isArray(inv.items) ? inv.items : [];
-            const netIncomeForInv = items.filter((it: any) => it && it.isClinicFund).reduce((s: number, i: any) => s + (i.payable_amount || 0), 0);
-            const pcAmount = (inv.commission_paid || 0) + (inv.special_commission || 0);
-            const specialDiscount = inv.special_discount_amount || 0;
+            const netIncomeForInv = items.filter((it: any) => it && it.isClinicFund).reduce((s: number, i: any) => s + (Number(i.payable_amount) || 0), 0);
+            const pcAmount = (Number(inv.commission_paid) || 0) + (Number(inv.special_commission) || 0);
+            const specialDiscount = Number(inv.special_discount_amount) || 0;
             return acc + (netIncomeForInv - pcAmount - specialDiscount);
         }, 0);
 
@@ -879,25 +918,28 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                 if (!dc || (dc.invoice_id || '').startsWith('INV')) return false;
                 const inv = indoorInvoices.find(i => i.invoice_id === dc.invoice_id);
                 return inv && isSelectedMonth(inv.invoice_date || inv.admission_date);
-            }).reduce((s, dc) => s + dc.amount_collected, 0);
+            }).reduce((s, dc) => s + (Number(dc.amount_collected) || 0), 0);
         const clinicDue = dueCollections.filter(dc => {
             if (!dc || !isSelectedMonth(dc.collection_date) || (dc.invoice_id || '').startsWith('INV')) return false;
             return true;
-        }).reduce((s, dc) => s + dc.amount_collected, 0);
+        }).reduce((s, dc) => s + (Number(dc.amount_collected) || 0), 0);
         
-        const medSalesOutdoor = salesInvoices.filter(inv => inv && isSelectedMonth(inv.invoiceDate) && inv.status !== 'Cancelled' && inv.status !== 'Returned' && inv.status !== 'Deleted').reduce((s, i) => s + i.netPayable, 0);
-        const medSalesIndoor = indoorInvoices.filter(inv => {
+        const safeSalesInvoices = Array.isArray(salesInvoices) ? salesInvoices : [];
+        const medSalesOutdoor = safeSalesInvoices.filter(inv => inv && isSelectedMonth(getInvDate(inv)) && inv.status !== 'Cancelled' && inv.status !== 'Returned' && inv.status !== 'Deleted').reduce((s, i) => s + getInvNet(i), 0);
+        const safeIndoorInvoices = Array.isArray(indoorInvoices) ? indoorInvoices : [];
+        const medSalesIndoor = safeIndoorInvoices.filter(inv => {
             if (!inv) return false;
-            const dateToUse = inv.invoice_date || inv.admission_date;
+            const dateToUse = inv.invoice_date || inv.admission_date || (inv as any).date || (inv as any).created_date;
             return isSelectedMonth(dateToUse) && inv.status !== 'Cancelled' && inv.status !== 'Returned' && inv.status !== 'Deleted';
         }).reduce((s, inv) => {
             const items = Array.isArray(inv.items) ? inv.items : [];
-            return s + items.filter(it => it && it.service_type === 'Medicine').reduce((ss, it) => ss + (it.payable_amount || 0), 0);
+            return s + items.filter(it => it && (it.service_type === 'Medicine' || it.service_type === 'ঔষধ' || (it.service_type || '').toLowerCase().includes('med'))).reduce((ss, it) => ss + (Number(it.payable_amount) || Number(it.line_total) || ((Number(it.service_charge || 0)) * (Number(it.quantity || 1))) || 0), 0);
         }, 0);
         const medSalesCurrent = medSalesOutdoor + medSalesIndoor;
 
-        const medPurchCurrent = purchaseInvoices.filter(inv => inv && isSelectedMonth(inv.invoiceDate) && inv.status !== 'Initial' && inv.status !== 'Cancelled').reduce((s, i) => s + i.netPayable, 0);
-        const companyCurrent = companyCollections.filter(c => c && isSelectedMonth(c.date)).reduce((s, c) => s + c.amount, 0);
+        const safePurchaseInvoices = Array.isArray(purchaseInvoices) ? purchaseInvoices : [];
+        const medPurchCurrent = safePurchaseInvoices.filter(inv => inv && isSelectedMonth(getInvDate(inv)) && inv.status !== 'Initial' && inv.status !== 'Cancelled' && inv.status !== 'Deleted').reduce((s, i) => s + getInvNet(i), 0);
+        const companyCurrent = companyCollections.filter(c => c && isSelectedMonth(c.date)).reduce((s, c) => s + (Number(c.amount) || 0), 0);
 
         const totalDiag = diagCurrent + diagDue;
         const totalClinic = clinicCurrent + clinicDue;

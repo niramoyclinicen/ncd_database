@@ -645,7 +645,28 @@ const filteredHistory = (() => {
                             </div>
                             <div><label className="text-xs text-slate-500 uppercase font-black">Amount to Pay (৳)</label><input type="number" value={collectionAmount === 0 ? '' : collectionAmount} onChange={e => setCollectionAmount(e.target.value ? parseFloat(e.target.value) : 0)} className="w-full bg-slate-900 border border-slate-700 p-3 rounded text-white text-xl font-bold" autoFocus /></div>
                             <div><label className="text-xs text-slate-500 uppercase font-black">Waive/Discount (মওকুফ) (৳)</label><input type="number" value={discountAmount === 0 ? '' : discountAmount} onChange={e => setDiscountAmount(e.target.value ? parseFloat(e.target.value) : 0)} className="w-full bg-slate-900 border border-slate-700 p-3 rounded text-white text-xl font-bold" /></div>
-                            <SearchableSelect label="Collected By" theme="dark" options={employees.filter(e=>e.is_current_month).map(e=>({id: e.emp_name, name: e.emp_name}))} value={collectedBy} onChange={(id, name)=>setCollectedBy(name)} />
+                            <SearchableSelect 
+                                label="Collected By" 
+                                theme="dark" 
+                                options={(() => {
+                                    const safeEmps = Array.isArray(employees) ? employees : [];
+                                    const filtered = safeEmps.filter(e => e && e.status !== 'Released');
+                                    const list = filtered.length > 0 ? filtered : safeEmps;
+                                    const opts = list.map(e => ({
+                                        id: e.emp_name, 
+                                        name: e.emp_name,
+                                        details: [e.job_position || e.designation, e.department, e.mobile ? `📞 ${e.mobile}` : ''].filter(Boolean).join(' | ')
+                                    }));
+                                    if (!opts.some(o => o.name === 'Admin')) {
+                                        opts.unshift({ id: 'Admin', name: 'Admin', details: 'System Administrator' });
+                                    }
+                                    return opts;
+                                })()} 
+                                value={collectedBy} 
+                                onChange={(id, name)=>setCollectedBy(name)} 
+                                allowCustom={true}
+                                placeholder="Select or search employee"
+                            />
                         </div>
                         <div className="mt-8 flex gap-3"><button onClick={() => setShowModal(false)} className="flex-1 py-2 bg-slate-700 rounded">বাতিল</button><button onClick={handleConfirmCollection} className="flex-1 py-2 bg-green-600 font-bold rounded">Confirm & Print</button></div>
                     </div>
