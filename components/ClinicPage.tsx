@@ -2311,12 +2311,18 @@ const IndoorInvoicePage: React.FC<{
                 (p?.mobile || '').includes(tableSearchTerm) ||
                 (p?.address || '').toLowerCase().includes(tableSearchTerm.toLowerCase());
             
-            const matchesDate = !tableDateFilter || inv.invoice_date === tableDateFilter;
-            const matchesMonth = !tableMonthFilter || (typeof inv.invoice_date === 'string' && inv.invoice_date.startsWith(tableMonthFilter));
+            const dateToUse = inv.admission_date || inv.invoice_date || '';
+            const matchesDate = !tableDateFilter || dateToUse === tableDateFilter;
+            const matchesMonth = !tableMonthFilter || (typeof dateToUse === 'string' && dateToUse.startsWith(tableMonthFilter));
 
             return matchesSearch && matchesDate && matchesMonth;
         });
     }, [indoorInvoices, tableSearchTerm, tableDateFilter, tableMonthFilter, patients]);
+
+    const hasDeletedInvoices = useMemo(() => {
+        const safe = Array.isArray(indoorInvoices) ? indoorInvoices : [];
+        return safe.some(i => i && (i.status === 'Deleted' || i.status === 'Cancelled'));
+    }, [indoorInvoices]);
 
     const tableTotals = useMemo(() => {
         return filteredInvoices.reduce((acc, inv) => {
@@ -2387,7 +2393,7 @@ const IndoorInvoicePage: React.FC<{
         return opts;
     }, [employees]);
 
-    // Calculate Stats - Updated with Return logic and Hospital Net Balance formula
+    // Calculate Stats - Updated with Admission Date as primary collection date & Hospital Net Balance formula
     const stats = useMemo(() => {
         const now = new Date();
         const todayStr = now.toISOString().split('T')[0];
@@ -2401,7 +2407,8 @@ const IndoorInvoicePage: React.FC<{
             const safeInvoices = Array.isArray(indoorInvoices) ? indoorInvoices : [];
             safeInvoices.forEach(inv => {
                 if (!inv) return;
-                const dateToUse = inv.invoice_date || inv.admission_date;
+                // Priority: Admission date as primary collection date for indoor admissions
+                const dateToUse = inv.admission_date || inv.invoice_date;
                 if (!dateToUse || typeof dateToUse !== 'string') return;
 
                 const isMatch = type === 'day' ? dateToUse === period 
@@ -2423,7 +2430,7 @@ const IndoorInvoicePage: React.FC<{
                 }
                 
                 if (inv.status === 'Returned') {
-                    const returnDate = inv.return_date;
+                    const returnDate = inv.return_date || dateToUse;
                     const isReturnMatch = type === 'day' ? returnDate === period 
                                         : type === 'month' ? (typeof returnDate === 'string' && returnDate.startsWith(period))
                                         : (typeof returnDate === 'string' && returnDate.startsWith(period));
@@ -2724,6 +2731,26 @@ const IndoorInvoicePage: React.FC<{
         }
     };
 
+    // Unique match checker to ensure actions affect ONLY one target invoice
+    const isTargetInvoice = (item: IndoorInvoice, target: IndoorInvoice) => {
+        if (!item || !target) return false;
+        // Match by valid non-empty daily_id
+        if (target.daily_id && item.daily_id && typeof target.daily_id === 'string' && target.daily_id.trim() && item.daily_id.trim()) {
+            return target.daily_id.trim() === item.daily_id.trim();
+        }
+        // Match by id
+        if ((target as any).id && (item as any).id) {
+            return (target as any).id === (item as any).id;
+        }
+        // Match by admission_id + patient_id + invoice_date
+        if (target.admission_id && item.admission_id && target.admission_id === item.admission_id) {
+            if (target.patient_id === item.patient_id && (target.invoice_date || '') === (item.invoice_date || '')) {
+                return true;
+            }
+        }
+        return false;
+    };
+
     const handleReturnInvoice = (inv: IndoorInvoice) => {
         if (inv.status === 'Returned') return alert("Already returned.");
         if (window.confirm(`আপনি কি এই ইনভয়েসটি রিটার্ন করতে চান? কনফার্ম করলে ইনভয়েসটি এডিট করার জন্য লোড হবে।`)) {
@@ -2732,10 +2759,76 @@ const IndoorInvoicePage: React.FC<{
         }
     };
 
-    const handleCancelInvoice = (inv: IndoorInvoice) => {
-        if (window.confirm(`ভুল এন্ট্রি হলে 'Cancel' করুন। এটি একাউন্টে কোনো প্রভাব ফেলবে না।`)) {
-            setIndoorInvoices((prev: IndoorInvoice[]) => (Array.isArray(prev) ? prev : []).map(item => item && item.daily_id === inv.daily_id ? { ...item, status: 'Cancelled' } : item));
-            setSuccessMessage("Invoice Cancelled!");
+    const handleCancelInvoice = async (inv: IndoorInvoice) => {
+        if (!window.confirm(`ভুল এন্ট্রি হলে 'Cancel' করুন। এটি একাউন্টে কোনো প্রভাব ফেলবে না (ক্যাশ ইন বা খরচ কোনোটাই পরিবর্তন হবে না)।`)) return;
+        setLoading(true);
+        try {
+            const safeInvoices = Array.isArray(indoorInvoices) ? indoorInvoices : [];
+            let matched = false;
+            const newInvoicesArr = safeInvoices.map(item => {
+                if (!matched && isTargetInvoice(item, inv)) {
+                    matched = true;
+                    return { ...item, status: 'Cancelled' as const };
+                }
+                return item;
+            });
+            if (performBlockingSync) {
+                await performBlockingSync({ indoorInvoices: newInvoicesArr });
+            }
+            setIndoorInvoices(newInvoicesArr);
+            setSuccessMessage("ইনভয়েস বাতিল (Cancelled) করা হয়েছে। একাউন্টসে কোনো প্রভাব পড়বে না।");
+        } catch (err) {
+            console.error("Cancel error:", err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleRestoreInvoice = async (inv: IndoorInvoice) => {
+        setLoading(true);
+        try {
+            const safeInvoices = Array.isArray(indoorInvoices) ? indoorInvoices : [];
+            let matched = false;
+            const newInvoicesArr = safeInvoices.map(item => {
+                if (!matched && isTargetInvoice(item, inv)) {
+                    matched = true;
+                    return { ...item, status: 'Posted' as const };
+                }
+                return item;
+            });
+            if (performBlockingSync) {
+                await performBlockingSync({ indoorInvoices: newInvoicesArr });
+            }
+            setIndoorInvoices(newInvoicesArr);
+            setSuccessMessage(`রোগী "${inv.patient_name}" এর ইনভয়েস সফলভাবে সচল (Restore) করা হয়েছে।`);
+        } catch (err) {
+            console.error("Restore error:", err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleRestoreAllDeletedInvoices = async () => {
+        if (!window.confirm("আপনি কি পূর্বে ভুলবশত ডিলিট/বাতিল হওয়া সকল ইনভয়েস পুনরায় সচল (Restore to Active) করতে চান?")) return;
+        setLoading(true);
+        try {
+            const safeInvoices = Array.isArray(indoorInvoices) ? indoorInvoices : [];
+            const newInvoicesArr = safeInvoices.map(i => {
+                if (i && (i.status === 'Deleted' || i.status === 'Cancelled')) {
+                    return { ...i, status: 'Posted' as const };
+                }
+                return i;
+            });
+            if (performBlockingSync) {
+                await performBlockingSync({ indoorInvoices: newInvoicesArr });
+            }
+            setIndoorInvoices(newInvoicesArr);
+            setSuccessMessage("সকল ডিলিট/বাতিল হওয়া ইনভয়েস সফলভাবে সচল (Restore) করা হয়েছে!");
+        } catch (err) {
+            console.error("Restore all error:", err);
+            alert("রিস্টোর করার সময় ত্রুটি হয়েছে।");
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -2822,14 +2915,21 @@ const IndoorInvoicePage: React.FC<{
         setConfirmModal(prev => ({ ...prev, isOpen: false }));
         setLoading(true);
         try {
-            const newInvoicesArr = (Array.isArray(indoorInvoices) ? indoorInvoices : [])
-                .map(i => (i && i.daily_id === inv.daily_id) ? { ...i, status: 'Deleted' } : i);
+            const safeInvoices = Array.isArray(indoorInvoices) ? indoorInvoices : [];
+            let matched = false;
+            const newInvoicesArr = safeInvoices.map((i) => {
+                if (!matched && isTargetInvoice(i, inv)) {
+                    matched = true; // Only match the exact ONE target item
+                    return { ...i, status: 'Deleted' as const };
+                }
+                return i;
+            });
             
             if (performBlockingSync) {
                 const success = await performBlockingSync({ indoorInvoices: newInvoicesArr });
                 if (success) {
                     setIndoorInvoices(newInvoicesArr);
-                    setSuccessMessage("ই্নভয়েস ডিলিট হয়েছে");
+                    setSuccessMessage("ইনভয়েস সফলভাবে ডিলিট করা হয়েছে।");
                 }
             } else {
                 setIndoorInvoices(newInvoicesArr);
@@ -3486,6 +3586,23 @@ const IndoorInvoicePage: React.FC<{
                 )}
                 
                 <div className="mt-8">
+                    {hasDeletedInvoices && (
+                        <div className="mb-4 bg-amber-500/10 border border-amber-500/30 rounded-xl p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm">
+                            <div className="flex items-center gap-2.5">
+                                <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
+                                <div>
+                                    <div className="text-xs font-black text-amber-900">ডিলিট/বাতিল হওয়া ইনভয়েস রয়েছে</div>
+                                    <div className="text-[11px] text-amber-700 font-medium">ভুলবশত ডিলিট হয়ে থাকা ইনভয়েসগুলো এক ক্লিকে পুনরায় সচল (Active) করতে পারবেন।</div>
+                                </div>
+                            </div>
+                            <button
+                                onClick={handleRestoreAllDeletedInvoices}
+                                className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-1.5 rounded-lg text-xs font-bold shadow transition-all shrink-0 cursor-pointer"
+                            >
+                                🔄 সব ইনভয়েস সচল করুন (Restore All)
+                            </button>
+                        </div>
+                    )}
                     <div className="flex flex-col md:flex-row items-start md:items-center gap-4 mb-4">
                         <h3 className="text-gray-500 font-black uppercase text-xs tracking-widest whitespace-nowrap flex items-center gap-2">
                             <DatabaseIcon size={14} className="text-blue-600" /> Master Journal: Saved Indoor Invoices
@@ -3523,14 +3640,14 @@ const IndoorInvoicePage: React.FC<{
                                     <tr>
                                         <th className="p-3 text-center w-12 font-black uppercase text-[10px]">SL</th>
                                         <th className="p-3 w-24 font-black uppercase text-[10px]">ID</th>
-                                        <th className="p-3 w-28 font-black uppercase text-[10px]">Date</th>
+                                        <th className="p-3 w-32 font-black uppercase text-[10px]">Admission / Date</th>
                                         <th className="p-3 font-black uppercase text-[10px]">Patient Details</th>
                                         <th className="p-3 text-right w-32 font-black uppercase text-[10px]">Total</th>
                                         <th className="p-3 text-right w-32 font-black uppercase text-[10px]">Paid</th>
                                         <th className="p-3 text-right w-32 font-black uppercase text-[10px]">Due</th>
                                         <th className="p-3 text-right w-32 font-black uppercase text-[10px] text-blue-700">Clinic Net Balance</th>
                                         <th className="p-3 text-center w-24 font-black uppercase text-[10px]">Status</th>
-                                        <th className="p-3 text-center w-40 font-black uppercase text-[10px]">Action</th>
+                                        <th className="p-3 text-center w-48 font-black uppercase text-[10px]">Action</th>
                                     </tr>
                                     <tr className="bg-blue-50/50 text-[10px] border-t border-gray-200">
                                         <th colSpan={4} className="p-2 text-right text-gray-500 font-black uppercase tracking-widest">Filtered Totals:</th>
@@ -3543,10 +3660,18 @@ const IndoorInvoicePage: React.FC<{
                                 </thead>
                                 <tbody className="divide-y divide-gray-100 bg-[#fdfcfb]">
                                     {filteredInvoices.map((inv, index) => (
-                                        <tr key={inv.daily_id} onClick={() => handleLoadInvoice(inv)} className={`cursor-pointer odd:bg-white even:bg-slate-50/50 hover:bg-blue-100/50 transition-all ${selectedInvoiceId === inv.daily_id ? 'bg-blue-100/70 border-l-4 border-blue-600' : ''} ${inv.status === 'Returned' ? 'bg-red-50' : inv.status === 'Cancelled' ? 'opacity-40 grayscale line-through' : ''}`}>
+                                        <tr key={inv.daily_id} onClick={() => handleLoadInvoice(inv)} className={`cursor-pointer odd:bg-white even:bg-slate-50/50 hover:bg-blue-100/50 transition-all ${selectedInvoiceId === inv.daily_id ? 'bg-blue-100/70 border-l-4 border-blue-600' : ''} ${inv.status === 'Returned' ? 'bg-red-50' : inv.status === 'Cancelled' || inv.status === 'Deleted' ? 'opacity-40 grayscale line-through' : ''}`}>
                                             <td className="p-3 text-center text-gray-400 font-mono text-[10px]">{index + 1}</td>
                                             <td className="p-3 font-black text-xs text-blue-600">{inv.daily_id}</td>
-                                            <td className="p-3 text-xs font-semibold text-gray-600">{inv.invoice_date}</td>
+                                            <td className="p-3 text-xs">
+                                                <div className="font-bold text-gray-800" title="ভর্তি তারিখ (হিসাবে যুক্ত হওয়ার তারিখ)">Adm: {inv.admission_date || inv.invoice_date}</div>
+                                                {inv.invoice_date && inv.invoice_date !== inv.admission_date && (
+                                                    <div className="text-[10px] text-gray-500">Inv: {inv.invoice_date}</div>
+                                                )}
+                                                {inv.discharge_date && (
+                                                    <div className="text-[10px] text-emerald-600 font-semibold">Disch: {inv.discharge_date}</div>
+                                                )}
+                                            </td>
                                         <td className="p-3">
                                             <div className="font-black uppercase text-gray-900 leading-tight">{inv.patient_name}</div>
                                             <div className="text-[9px] text-gray-500 mt-1 flex flex-wrap gap-x-3 gap-y-1">
@@ -3590,12 +3715,22 @@ const IndoorInvoicePage: React.FC<{
                                                 <EditIcon size={12} className="text-amber-600" /> Edit
                                             </button>
                                             <button onClick={(e) => { e.stopPropagation(); handlePrintInvoice(inv); }} className="text-sky-600 hover:text-sky-800 text-xs font-bold underline">Print</button>
-                                            {inv.status !== 'Returned' && inv.status !== 'Cancelled' && inv.status !== 'Deleted' && (
-                                                <>
-                                                    <button onClick={(e) => { e.stopPropagation(); handleReturnInvoice(inv); }} className="text-amber-600 hover:text-amber-800 text-xs font-bold underline">Return</button>
-                                                    <button onClick={(e) => { e.stopPropagation(); handleDeleteInvoice(inv); }} className="text-rose-600 hover:text-rose-800 text-xs font-bold underline">Delete</button>
-                                                    <button onClick={(e) => { e.stopPropagation(); handleCancelInvoice(inv); }} className="text-slate-400 hover:text-slate-600 text-xs font-bold underline">Cancel</button>
-                                                </>
+                                            {(inv.status === 'Cancelled' || inv.status === 'Deleted') ? (
+                                                <button 
+                                                    onClick={(e) => { e.stopPropagation(); handleRestoreInvoice(inv); }} 
+                                                    className="inline-flex items-center gap-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 hover:text-emerald-800 px-2 py-0.5 rounded text-xs font-bold border border-emerald-300 transition-all cursor-pointer"
+                                                    title="এই ইনভয়েসটি পুনরায় সচল (Active) করুন"
+                                                >
+                                                    🔄 Restore
+                                                </button>
+                                            ) : (
+                                                inv.status !== 'Returned' && (
+                                                    <>
+                                                        <button onClick={(e) => { e.stopPropagation(); handleReturnInvoice(inv); }} className="text-amber-600 hover:text-amber-800 text-xs font-bold underline">Return</button>
+                                                        <button onClick={(e) => { e.stopPropagation(); handleDeleteInvoice(inv); }} className="text-rose-600 hover:text-rose-800 text-xs font-bold underline">Delete</button>
+                                                        <button onClick={(e) => { e.stopPropagation(); handleCancelInvoice(inv); }} className="text-slate-400 hover:text-slate-600 text-xs font-bold underline">Cancel</button>
+                                                    </>
+                                                )
                                             )}
                                         </td>
                                     </tr>

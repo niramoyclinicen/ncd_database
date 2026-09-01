@@ -967,7 +967,7 @@ const ClinicAccountsPage: React.FC<any> = ({
         const safeInvoices = Array.isArray(invoices) ? invoices : [];
         const monthInvoices = safeInvoices.filter((inv:any) => {
             if (!inv) return false;
-            const dateToUse = inv.invoice_date || inv.admission_date;
+            const dateToUse = inv.admission_date || inv.invoice_date;
             if (!dateToUse || typeof dateToUse !== 'string') return false;
             const parts = dateToUse.split('-');
             if (parts.length < 2) return false;
@@ -1096,7 +1096,7 @@ const ClinicAccountsPage: React.FC<any> = ({
 
     const dailySummaryData = useMemo(() => {
         const safeInvoices = Array.isArray(invoices) ? invoices : [];
-        const dayInvoices = safeInvoices.filter((inv: any) => (inv.invoice_date || inv.admission_date) === selectedDate);
+        const dayInvoices = safeInvoices.filter((inv: any) => (inv.admission_date || inv.invoice_date) === selectedDate);
         
         const safeDueCollections = Array.isArray(dueCollections) ? dueCollections : [];
         const dayDueRecov = safeDueCollections.filter((dc: any) => {
@@ -1142,7 +1142,7 @@ const ClinicAccountsPage: React.FC<any> = ({
     const collectionReportData = useMemo(() => {
         const safeInvoices = Array.isArray(invoices) ? invoices : [];
         const filtered = safeInvoices.filter((inv: any) => {
-            const dateToUse = inv.invoice_date || inv.admission_date;
+            const dateToUse = inv.admission_date || inv.invoice_date;
             if (isTodayFilter) return dateToUse === selectedDate;
             if (!dateToUse) return false;
             const [y, m] = dateToUse.split('-').map(Number);
@@ -1175,7 +1175,7 @@ const ClinicAccountsPage: React.FC<any> = ({
     const indoorJournalData = useMemo(() => {
         const safeInvoices = Array.isArray(invoices) ? invoices : [];
         const filtered = safeInvoices.filter((inv: any) => {
-            const dateToUse = inv.invoice_date || inv.admission_date;
+            const dateToUse = inv.admission_date || inv.invoice_date;
             
             const matchesName = (inv.patient_name || '').toLowerCase().includes(invoiceSearch.toLowerCase()) || 
                                (inv.admission_id && inv.admission_id.toLowerCase().includes(invoiceSearch.toLowerCase()));
@@ -1319,7 +1319,7 @@ const ClinicAccountsPage: React.FC<any> = ({
                                 <tr class="${inv.status === 'Cancelled' || inv.status === 'Deleted' ? 'opacity-30 line-through' : inv.status === 'Returned' ? 'bg-red-50' : ''}">
                                     <td>${idx + 1}</td>
                                     <td>${inv.admission_id}</td>
-                                    <td>${inv.invoice_date || inv.admission_date}</td>
+                                    <td>${inv.admission_date || inv.invoice_date}</td>
                                     <td class="font-bold">${inv.patient_name}</td>
                                     <td>${inv.subCategory || '-'}</td>
                                     <td class="text-right">৳${inv.admFeeCol.toLocaleString()}</td>
@@ -1401,7 +1401,7 @@ const ClinicAccountsPage: React.FC<any> = ({
         if(!win) return;
         const date = selectedDate;
         const expenses = detailedExpenses[date] || [];
-        const dayInvoices = invoices.filter((inv: any) => (inv.invoice_date || inv.admission_date) === date);
+        const dayInvoices = invoices.filter((inv: any) => (inv.admission_date || inv.invoice_date) === date);
         const totalExp = expenses.reduce((s, i) => s + i.paidAmount, 0);
         const totalInvPaid = dayInvoices.filter(i => i.status !== 'Cancelled' && i.status !== 'Returned').reduce((s, i) => s + i.paid_amount, 0);
 
@@ -1931,7 +1931,7 @@ const ClinicAccountsPage: React.FC<any> = ({
                                             >
                                                 <td className="p-2 border-r border-slate-800/50 text-slate-500 font-mono">{idx + 1}</td>
                                                 <td className="p-2 font-mono text-sky-400 font-bold border-r border-slate-800/50">{inv.admission_id}</td>
-                                                <td className="p-2 border-r border-slate-800/50 whitespace-nowrap">{inv.invoice_date || inv.admission_date}</td>
+                                                <td className="p-2 border-r border-slate-800/50 whitespace-nowrap">{inv.admission_date || inv.invoice_date}</td>
                                                 <td className="p-2 font-black text-slate-100 border-r border-slate-800/50 uppercase whitespace-nowrap">{inv.patient_name}</td>
                                                 <td className="p-2 text-sky-400 font-bold border-r border-slate-800/50 truncate max-w-[120px]" title={inv.subCategory}>{inv.subCategory || '-'}</td>
                                                 <td className="p-2 text-right border-r border-slate-800/50">৳{inv.admFeeCol.toLocaleString()}</td>

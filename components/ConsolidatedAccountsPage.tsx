@@ -582,7 +582,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
 
             const clinicToday = indoorInvoices.filter(inv => {
                 if (!inv) return false;
-                const dateToUse = inv.invoice_date || inv.admission_date;
+                const dateToUse = inv.admission_date || inv.invoice_date;
                 return isSameDay(dateToUse, dateStr) && inv.status !== 'Cancelled' && inv.status !== 'Returned' && inv.status !== 'Deleted';
             }).reduce((s, inv) => {
                 const items = Array.isArray(inv.items) ? inv.items : [];
@@ -594,7 +594,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
             const clinicDue = dueCollections.filter(dc => {
                 if (!dc || !isSameDay(dc.collection_date, dateStr) || (dc.invoice_id || '').startsWith('INV')) return false;
                 const inv = indoorInvoices.find(i => i.invoice_id === dc.invoice_id);
-                return !inv || !isSameDay(inv.invoice_date || inv.admission_date || '', dc.collection_date);
+                return !inv || !isSameDay(inv.admission_date || inv.invoice_date || '', dc.collection_date);
             }).reduce((s, dc) => s + (Number(dc.amount_collected) || 0), 0);
             const clinicTotal = clinicToday + clinicDue;
             clinicUpto += clinicTotal;
@@ -826,7 +826,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
             
             const prevClinic = indoorInvoices.filter(inv => {
                 if (!inv) return false;
-                const dateToUse = inv.invoice_date || inv.admission_date;
+                const dateToUse = inv.admission_date || inv.invoice_date;
                 return isBeforeSelectedMonth(dateToUse) && inv.status !== 'Cancelled' && inv.status !== 'Returned' && inv.status !== 'Deleted';
             }).reduce((acc, inv) => {
                 const items = Array.isArray(inv.items) ? inv.items : [];
@@ -839,7 +839,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
             const prevClinicDue = dueCollections.filter(dc => {
                 if (!dc || !isBeforeSelectedMonth(dc.collection_date) || (dc.invoice_id || '').startsWith('INV')) return false;
                 const inv = indoorInvoices.find(i => i.invoice_id === dc.invoice_id);
-                return !inv || !isSameDay(inv.invoice_date || inv.admission_date, dc.collection_date);
+                return !inv || !isSameDay(inv.admission_date || inv.invoice_date, dc.collection_date);
             }).reduce((s, dc) => s + dc.amount_collected, 0);
             
             const safeSalesInvoices = Array.isArray(salesInvoices) ? salesInvoices : [];
@@ -847,7 +847,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
             const safeIndoorInvoices = Array.isArray(indoorInvoices) ? indoorInvoices : [];
             const prevMedSalesIndoor = safeIndoorInvoices.filter(inv => {
                 if (!inv) return false;
-                const dateToUse = inv.invoice_date || inv.admission_date || (inv as any).date || (inv as any).created_date;
+                const dateToUse = inv.admission_date || inv.invoice_date || (inv as any).date || (inv as any).created_date;
                 return isBeforeSelectedMonth(dateToUse) && inv.status !== 'Cancelled' && inv.status !== 'Returned' && inv.status !== 'Deleted';
             }).reduce((s, inv) => {
                 const items = Array.isArray(inv.items) ? inv.items : [];
@@ -903,7 +903,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
 
         const clinicRevenueCurrent = indoorInvoices.filter(inv => {
             if (!inv) return false;
-            const dateToUse = inv.invoice_date || inv.admission_date;
+            const dateToUse = inv.admission_date || inv.invoice_date;
             return isSelectedMonth(dateToUse) && inv.status !== 'Cancelled' && inv.status !== 'Returned' && inv.status !== 'Deleted';
         }).reduce((acc, inv) => {
             const items = Array.isArray(inv.items) ? inv.items : [];
@@ -917,7 +917,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
             dueCollections.filter(dc => {
                 if (!dc || (dc.invoice_id || '').startsWith('INV')) return false;
                 const inv = indoorInvoices.find(i => i.invoice_id === dc.invoice_id);
-                return inv && isSelectedMonth(inv.invoice_date || inv.admission_date);
+                return inv && isSelectedMonth(inv.admission_date || inv.invoice_date);
             }).reduce((s, dc) => s + (Number(dc.amount_collected) || 0), 0);
         const clinicDue = dueCollections.filter(dc => {
             if (!dc || !isSelectedMonth(dc.collection_date) || (dc.invoice_id || '').startsWith('INV')) return false;
@@ -929,7 +929,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
         const safeIndoorInvoices = Array.isArray(indoorInvoices) ? indoorInvoices : [];
         const medSalesIndoor = safeIndoorInvoices.filter(inv => {
             if (!inv) return false;
-            const dateToUse = inv.invoice_date || inv.admission_date || (inv as any).date || (inv as any).created_date;
+            const dateToUse = inv.admission_date || inv.invoice_date || (inv as any).date || (inv as any).created_date;
             return isSelectedMonth(dateToUse) && inv.status !== 'Cancelled' && inv.status !== 'Returned' && inv.status !== 'Deleted';
         }).reduce((s, inv) => {
             const items = Array.isArray(inv.items) ? inv.items : [];
