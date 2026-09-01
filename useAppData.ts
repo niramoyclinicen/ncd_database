@@ -211,6 +211,9 @@ export function useAppData() {
     setManualSyncError(null);
     
     // Merge overrides with current state if any, otherwise use current state
+    if (overrides?.consolidatedLabEntries) {
+      setConsolidatedLabEntries(overrides.consolidatedLabEntries);
+    }
     const now = new Date().toISOString();
     setLastSavedAt(now);
     lastSavedAtRef.current = now;

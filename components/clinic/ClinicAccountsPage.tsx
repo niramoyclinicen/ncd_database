@@ -172,7 +172,7 @@ const StaffSalaryHelperCard: React.FC<{
 
         for (let d = 1; d <= daysInMonth; d++) {
             const dStr = `${entryYear}-${String(entryMonthIndex + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-            const dayExpenses = allDetailedExpenses[dStr] || [];
+            const dayExpenses = (allDetailedExpenses && allDetailedExpenses[dStr]) || [];
             dayExpenses.forEach((ex: any) => {
                 if (ex.isDeleted) return;
                 const isMatch = ex.category === 'Stuff salary' && (
@@ -2067,4 +2067,68 @@ const ClinicAccountsPage: React.FC<any> = ({
     );
 };
 
-export default ClinicAccountsPage;
+class ClinicAccountsErrorBoundary extends React.Component<{ onBack?: () => void; children: React.ReactNode }, { hasError: boolean; error: Error | null }> {
+  constructor(props: any) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: any) {
+    console.error("ClinicAccountsPage Error caught by boundary:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col items-center justify-center p-6 text-center">
+          <div className="bg-slate-800 border border-slate-700 rounded-3xl p-8 max-w-lg shadow-2xl space-y-6">
+            <div className="w-16 h-16 bg-rose-500/20 text-rose-400 rounded-2xl flex items-center justify-center mx-auto text-3xl font-bold">
+              ⚠️
+            </div>
+            <h2 className="text-2xl font-bold text-white">ক্লিনিক হিসাব রেন্ডারিং সমস্যা</h2>
+            <p className="text-slate-300 text-sm">
+              সাময়িক একটি ত্রুটি ঘটেছে। অনুগ্রহ করে আবার চেষ্টা করুন অথবা মূল অ্যাকাউন্টিং পেজে ফিরে যান।
+            </p>
+            {this.state.error && (
+              <div className="p-3 bg-slate-950 rounded-xl text-left text-xs font-mono text-rose-300 overflow-x-auto max-h-32">
+                {this.state.error.toString()}
+              </div>
+            )}
+            <div className="flex justify-center gap-4 pt-2">
+              <button
+                onClick={() => this.setState({ hasError: false, error: null })}
+                className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold text-sm shadow-lg transition-all"
+              >
+                আবার চেষ্টা করুন
+              </button>
+              {this.props.onBack && (
+                <button
+                  onClick={this.props.onBack}
+                  className="px-6 py-2.5 bg-slate-700 hover:bg-slate-600 text-white rounded-xl font-bold text-sm transition-all"
+                >
+                  ফিরে যান
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+const ClinicAccountsPageWrapped: React.FC<any> = (props) => {
+  return (
+    <ClinicAccountsErrorBoundary onBack={props.onBack}>
+      <ClinicAccountsPage {...props} />
+    </ClinicAccountsErrorBoundary>
+  );
+};
+
+export default ClinicAccountsPageWrapped;
+export { ClinicAccountsPage };

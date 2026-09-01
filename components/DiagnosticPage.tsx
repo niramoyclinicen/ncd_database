@@ -58,6 +58,8 @@ interface DiagnosticPageProps {
   setMonthlyRoster?: React.Dispatch<React.SetStateAction<Record<string, string[]>>>;
   employeeReferrerMap?: Record<string, string[]>;
   setEmployeeReferrerMap?: React.Dispatch<React.SetStateAction<Record<string, string[]>>>;
+  consolidatedLabEntries?: DailyConsolidatedEntry[];
+  setConsolidatedLabEntries?: React.Dispatch<React.SetStateAction<DailyConsolidatedEntry[]>>;
   performBlockingSync?: (stateOverride?: any) => Promise<boolean>;
   currentUserEmail?: string;
 }
@@ -164,6 +166,7 @@ const DiagnosticPage: React.FC<DiagnosticPageProps> = ({
   appointments = [], setAppointments = () => {},
   monthlyRoster = {}, setMonthlyRoster = () => {},
   employeeReferrerMap = {}, setEmployeeReferrerMap = () => {},
+  consolidatedLabEntries, setConsolidatedLabEntries,
   performBlockingSync,
   currentUserEmail = 'Anonymous'
 }) => {
@@ -372,6 +375,8 @@ const DiagnosticPage: React.FC<DiagnosticPageProps> = ({
         return (
           <div className="animate-fade-in h-full flex flex-col">
             <DailyConsolidatedEntryPage 
+              consolidatedLabEntries={consolidatedLabEntries}
+              setConsolidatedLabEntries={setConsolidatedLabEntries}
               performBlockingSync={performBlockingSync}
               currentUserEmail={currentUserEmail}
             />

@@ -136,7 +136,7 @@ const SidebarLayout = ({ children, onLogout }: { children: React.ReactNode, onLo
       )}
 
       {/* Full-bleed Content View */}
-      <div className="flex-1 w-full h-full min-h-0 overflow-hidden flex flex-col">
+      <div className="flex-1 w-full h-full min-h-0 overflow-y-auto flex flex-col">
         {children}
       </div>
     </div>
@@ -299,6 +299,8 @@ const AppContent = () => {
               diagnosticSettings={data.diagnosticSettings} setDiagnosticSettings={data.setDiagnosticSettings}
               monthlyRoster={data.monthlyRoster} setMonthlyRoster={data.setMonthlyRoster}
               employeeReferrerMap={data.employeeReferrerMap} setEmployeeReferrerMap={data.setEmployeeReferrerMap}
+              consolidatedLabEntries={data.consolidatedLabEntries}
+              setConsolidatedLabEntries={data.setConsolidatedLabEntries}
               performBlockingSync={data.performBlockingSync}
               currentUserEmail={data.currentUserEmail}
             />
@@ -389,6 +391,8 @@ const AppContent = () => {
               tests={data.tests}
               diagnosticSettings={data.diagnosticSettings}
               setDiagnosticSettings={data.setDiagnosticSettings}
+              consolidatedLabEntries={data.consolidatedLabEntries}
+              setConsolidatedLabEntries={data.setConsolidatedLabEntries}
               performBlockingSync={data.performBlockingSync}
             />
           </RequireAuth>

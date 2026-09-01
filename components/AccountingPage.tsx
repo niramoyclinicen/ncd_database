@@ -54,24 +54,35 @@ interface AccountingButtonProps {
   colorClass: string;
 }
 
-const AccountingButton: React.FC<AccountingButtonProps> = ({ label, icon, onClick, isOval = false, colorClass }) => (
+const AccountingButton: React.FC<AccountingButtonProps> = ({ 
+  label, 
+  icon, 
+  onClick, 
+  isOval = false, 
+  colorClass 
+}) => (
   <button
-    onClick={onClick}
+    type="button"
+    onClick={(e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      onClick();
+    }}
     className={`
-      relative group flex flex-col items-center justify-center
-      transition-all duration-300 transform hover:scale-105 hover:shadow-2xl
-      border border-slate-700 bg-slate-800/80 backdrop-blur-sm
+      relative group flex flex-col items-center justify-center cursor-pointer select-none
+      transition-all duration-300 transform hover:scale-105 hover:shadow-2xl active:scale-95
+      border border-slate-700 bg-slate-800/90 backdrop-blur-md
       ${isOval 
-        ? 'w-80 h-48 rounded-[50%] z-20 shadow-[0_0_30px_rgba(0,0,0,0.5)] border-2' 
-        : 'w-full h-52 rounded-2xl z-10 p-6'
+        ? 'w-72 sm:w-80 h-44 sm:h-48 rounded-[50%] z-30 shadow-[0_0_30px_rgba(0,0,0,0.6)] border-2' 
+        : 'w-full h-48 sm:h-52 rounded-2xl z-10 p-6 shadow-lg'
       }
       ${colorClass}
     `}
   >
-    <div className={`mb-4 p-4 rounded-full bg-slate-700/50 text-slate-200 group-hover:scale-110 transition-transform duration-300`}>
+    <div className="mb-4 p-4 rounded-full bg-slate-700/50 text-slate-200 group-hover:scale-110 transition-transform duration-300 pointer-events-none">
        {React.cloneElement(icon as React.ReactElement<any>, { className: 'w-10 h-10' })}
     </div>
-    <div className="text-center group-hover:text-white transition-colors">
+    <div className="text-center group-hover:text-white transition-colors pointer-events-none">
         {label}
     </div>
   </button>
@@ -124,7 +135,8 @@ const AccountingPage: React.FC<AccountingPageProps> = ({
   purchaseInvoices = [], salesInvoices = [], indoorInvoices = [], medicines = [], tests = [], setReagents,
   attendanceLog = {}, setAttendanceLog, leaveLog = {}, setLeaveLog,
   monthlyRoster = {}, setMonthlyRoster, patients = [], doctors = [],
-  diagnosticSettings = {}, setDiagnosticSettings, performBlockingSync
+  diagnosticSettings = {}, setDiagnosticSettings, performBlockingSync,
+  consolidatedLabEntries = [], setConsolidatedLabEntries
 }) => {
   const [activeView, setActiveView] = useState<'main' | 'diagnostic' | 'clinic_accounts' | 'employee_info' | 'medicine_accounts' | 'consolidated'>('main');
 
@@ -218,7 +230,7 @@ const AccountingPage: React.FC<AccountingPageProps> = ({
   }
 
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col relative overflow-hidden">
+    <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col relative">
         <BackgroundGraphic />
         <header className="bg-slate-800 shadow-xl border-b border-slate-700 z-20 relative pt-14 md:pt-0">
           <div className="max-w-7xl mx-auto py-6 px-6">
@@ -268,12 +280,12 @@ const AccountingPage: React.FC<AccountingPageProps> = ({
        </div>
 
        <div className="flex-1 flex items-center justify-center relative w-full px-4 sm:px-8 pb-16 z-10">
-          <div className="relative w-full max-w-5xl flex items-center justify-center">
-              <div className="flex absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-30">
+          <div className="relative w-full max-w-5xl flex items-center justify-center min-h-[460px]">
+              <div className="flex absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-30 pointer-events-auto">
                  <AccountingButton 
                     label={
                         <>
-                          <span className="block text-xl font-bold text-amber-200">সকল হিসাব একত্রে</span>
+                          <span className="block text-xl font-bold text-amber-200 font-bengali">সকল হিসাব একত্রে</span>
                           <span className="block text-sm font-normal text-amber-400/80 mt-1">Consolidated Report</span>
                         </>
                     } 
@@ -284,12 +296,12 @@ const AccountingPage: React.FC<AccountingPageProps> = ({
                  />
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-32 w-full">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-32 w-full z-10">
                  <div className="flex justify-center md:justify-end">
                      <AccountingButton 
                         label={
                             <>
-                              <span className="block text-xl font-bold text-cyan-200">ডায়াগনষ্টিক হিসাব</span>
+                              <span className="block text-xl font-bold text-cyan-200 font-bengali">ডায়াগনষ্টিক হিসাব</span>
                               <span className="block text-sm font-normal text-cyan-400/80 mt-1">Diagnostic Accounts</span>
                             </>
                         } 
@@ -303,7 +315,7 @@ const AccountingPage: React.FC<AccountingPageProps> = ({
                      <AccountingButton 
                         label={
                             <>
-                              <span className="block text-xl font-bold text-emerald-200">ক্লিনিক হিসাব</span>
+                              <span className="block text-xl font-bold text-emerald-200 font-bengali">ক্লিনিক হিসাব</span>
                               <span className="block text-sm font-normal text-emerald-400/80 mt-1">Clinic Accounts</span>
                             </>
                         } 
@@ -317,7 +329,7 @@ const AccountingPage: React.FC<AccountingPageProps> = ({
                      <AccountingButton 
                         label={
                             <>
-                              <span className="block text-xl font-bold text-rose-200">মেডিসিন হিসাব</span>
+                              <span className="block text-xl font-bold text-rose-200 font-bengali">মেডিসিন হিসাব</span>
                               <span className="block text-sm font-normal text-rose-400/80 mt-1">Medicine Accounts</span>
                             </>
                         } 
@@ -331,7 +343,7 @@ const AccountingPage: React.FC<AccountingPageProps> = ({
                      <AccountingButton 
                         label={
                             <>
-                              <span className="block text-xl font-bold text-violet-200">কর্মচারী বেতন</span>
+                              <span className="block text-xl font-bold text-violet-200 font-bengali">কর্মচারী বেতন</span>
                               <span className="block text-sm font-normal text-violet-400/80 mt-1">Employee Salary</span>
                             </>
                         } 

@@ -17,13 +17,17 @@ const monthOptions = [
 ];
 
 const MedicineAccountsPage: React.FC<MedicineAccountsPageProps> = ({ 
-  onBack, purchaseInvoices, salesInvoices, indoorInvoices 
+  onBack, purchaseInvoices = [], salesInvoices = [], indoorInvoices = [] 
 }) => {
     const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth());
     const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
     const [manualProfitDistAmount, setManualProfitDistAmount] = useState<number>(0); 
 
     const stats = useMemo(() => {
+        const safePurchases = Array.isArray(purchaseInvoices) ? purchaseInvoices : [];
+        const safeSales = Array.isArray(salesInvoices) ? salesInvoices : [];
+        const safeIndoor = Array.isArray(indoorInvoices) ? indoorInvoices : [];
+
         const isSelectedMonth = (dateStr: string) => {
             if (!dateStr) return false;
             const [y, m] = dateStr.split('-').map(Number);
@@ -38,55 +42,55 @@ const MedicineAccountsPage: React.FC<MedicineAccountsPageProps> = ({
 
         // Calculate Current Month Stats
         // Exclude 'Initial' status from current expenses (Opening stock fix)
-        const currentInvoices = purchaseInvoices.filter(inv => {
+        const currentInvoices = safePurchases.filter(inv => {
             if (inv.status === 'Initial' || inv.status === 'Cancelled') return false;
             return isSelectedMonth(inv.invoiceDate);
         });
 
-        const currentOutdoorSales = salesInvoices.filter(inv => {
+        const currentOutdoorSales = safeSales.filter(inv => {
             // @ts-expect-error - status might exist even if not in type
             if (inv.status === 'Cancelled' || inv.status === 'Returned') return false;
             return isSelectedMonth(inv.invoiceDate);
         });
 
-        const currentIndoorSales = indoorInvoices.filter(inv => {
+        const currentIndoorSales = safeIndoor.filter(inv => {
             if (inv.status === 'Cancelled' || inv.status === 'Returned') return false;
             const dateToUse = inv.invoice_date || inv.admission_date;
             return isSelectedMonth(dateToUse);
         });
 
         // Summing values
-        const totalBuyCurrent = currentInvoices.reduce((sum, inv) => sum + inv.netPayable, 0);
-        const totalSellOutdoor = currentOutdoorSales.reduce((sum, inv) => sum + inv.netPayable, 0);
+        const totalBuyCurrent = currentInvoices.reduce((sum, inv) => sum + (inv.netPayable || 0), 0);
+        const totalSellOutdoor = currentOutdoorSales.reduce((sum, inv) => sum + (inv.netPayable || 0), 0);
         const totalSellIndoor = currentIndoorSales.reduce((sum, inv) => {
-            const medItemsTotal = inv.items
-                .filter(it => it.service_type === 'Medicine')
-                .reduce((s, it) => s + it.payable_amount, 0);
+            const medItemsTotal = (inv.items || [])
+                .filter(it => it && it.service_type === 'Medicine')
+                .reduce((s, it) => s + (it.payable_amount || 0), 0);
             return sum + medItemsTotal;
         }, 0);
 
         const totalSellCurrent = totalSellOutdoor + totalSellIndoor;
 
         // Cumulative Stats (Previous Months)
-        const prevPurchaseTotal = purchaseInvoices.filter(inv => {
+        const prevPurchaseTotal = safePurchases.filter(inv => {
             if (inv.status === 'Cancelled' || inv.status === 'Initial') return false;
             return isBeforeSelectedMonth(inv.invoiceDate);
-        }).reduce((sum, inv) => sum + inv.netPayable, 0);
+        }).reduce((sum, inv) => sum + (inv.netPayable || 0), 0);
 
-        const prevOutdoorTotal = salesInvoices.filter(inv => {
+        const prevOutdoorTotal = safeSales.filter(inv => {
             // @ts-expect-error - status property is missing in SalesInvoice type but present in runtime data
             if (inv.status === 'Cancelled' || inv.status === 'Returned') return false;
             return isBeforeSelectedMonth(inv.invoiceDate);
-        }).reduce((sum, inv) => sum + inv.netPayable, 0);
+        }).reduce((sum, inv) => sum + (inv.netPayable || 0), 0);
 
-        const prevIndoorTotal = indoorInvoices.filter(inv => {
+        const prevIndoorTotal = safeIndoor.filter(inv => {
             if (inv.status === 'Cancelled' || inv.status === 'Returned') return false;
             const dateToUse = inv.invoice_date || inv.admission_date;
             return isBeforeSelectedMonth(dateToUse);
         }).reduce((sum, inv) => {
-             const medItemsTotal = inv.items
-                .filter(it => it.service_type === 'Medicine')
-                .reduce((s, it) => s + it.payable_amount, 0);
+             const medItemsTotal = (inv.items || [])
+                .filter(it => it && it.service_type === 'Medicine')
+                .reduce((s, it) => s + (it.payable_amount || 0), 0);
             return sum + medItemsTotal;
         }, 0);
 
@@ -98,33 +102,34 @@ const MedicineAccountsPage: React.FC<MedicineAccountsPageProps> = ({
 
         // Monthly List Generation for Chart
         const monthlyData: Record<string, { buy: number, sell: number }> = {};
-        purchaseInvoices.forEach(inv => {
-            if (inv.status === 'Cancelled' || inv.status === 'Initial') return;
+        safePurchases.forEach(inv => {
+            if (inv.status === 'Cancelled' || inv.status === 'Initial' || !inv.invoiceDate) return;
             const [y, m] = inv.invoiceDate.split('-').map(Number);
-            if (y === selectedYear) {
-                const monthName = monthOptions[m - 1].name;
+            if (y === selectedYear && m >= 1 && m <= 12) {
+                const monthName = monthOptions[m - 1]?.name || `Month ${m}`;
                 if (!monthlyData[monthName]) monthlyData[monthName] = { buy: 0, sell: 0 };
-                monthlyData[monthName].buy += inv.netPayable;
+                monthlyData[monthName].buy += (inv.netPayable || 0);
             }
         });
-        salesInvoices.forEach(inv => {
+        safeSales.forEach(inv => {
             // @ts-expect-error - status property is missing in SalesInvoice type but present in runtime data
-            if (inv.status === 'Cancelled' || inv.status === 'Returned') return;
+            if (inv.status === 'Cancelled' || inv.status === 'Returned' || !inv.invoiceDate) return;
             const [y, m] = inv.invoiceDate.split('-').map(Number);
-            if (y === selectedYear) {
-                const monthName = monthOptions[m - 1].name;
+            if (y === selectedYear && m >= 1 && m <= 12) {
+                const monthName = monthOptions[m - 1]?.name || `Month ${m}`;
                 if (!monthlyData[monthName]) monthlyData[monthName] = { buy: 0, sell: 0 };
-                monthlyData[monthName].sell += inv.netPayable;
+                monthlyData[monthName].sell += (inv.netPayable || 0);
             }
         });
-        indoorInvoices.forEach(inv => {
+        safeIndoor.forEach(inv => {
             if (inv.status === 'Cancelled' || inv.status === 'Returned') return;
             const dateToUse = inv.invoice_date || inv.admission_date;
+            if (!dateToUse) return;
             const [y, m] = dateToUse.split('-').map(Number);
-            if (y === selectedYear) {
-                const monthName = monthOptions[m - 1].name;
+            if (y === selectedYear && m >= 1 && m <= 12) {
+                const monthName = monthOptions[m - 1]?.name || `Month ${m}`;
                 if (!monthlyData[monthName]) monthlyData[monthName] = { buy: 0, sell: 0 };
-                monthlyData[monthName].sell += inv.items.filter(it => it.service_type === 'Medicine').reduce((s, it) => s + it.payable_amount, 0);
+                monthlyData[monthName].sell += (inv.items || []).filter(it => it && it.service_type === 'Medicine').reduce((s, it) => s + (it.payable_amount || 0), 0);
             }
         });
 
@@ -307,4 +312,68 @@ const MedicineAccountsPage: React.FC<MedicineAccountsPageProps> = ({
     );
 };
 
-export default MedicineAccountsPage;
+class MedicineAccountsErrorBoundary extends React.Component<{ onBack?: () => void; children: React.ReactNode }, { hasError: boolean; error: Error | null }> {
+  constructor(props: any) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: any) {
+    console.error("MedicineAccountsPage Error caught by boundary:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col items-center justify-center p-6 text-center">
+          <div className="bg-slate-800 border border-slate-700 rounded-3xl p-8 max-w-lg shadow-2xl space-y-6">
+            <div className="w-16 h-16 bg-rose-500/20 text-rose-400 rounded-2xl flex items-center justify-center mx-auto text-3xl font-bold">
+              ⚠️
+            </div>
+            <h2 className="text-2xl font-bold text-white">মেডিসিন হিসাব রেন্ডারিং সমস্যা</h2>
+            <p className="text-slate-300 text-sm">
+              সাময়িক একটি ত্রুটি ঘটেছে। অনুগ্রহ করে আবার চেষ্টা করুন অথবা মূল অ্যাকাউন্টিং পেজে ফিরে যান।
+            </p>
+            {this.state.error && (
+              <div className="p-3 bg-slate-950 rounded-xl text-left text-xs font-mono text-rose-300 overflow-x-auto max-h-32">
+                {this.state.error.toString()}
+              </div>
+            )}
+            <div className="flex justify-center gap-4 pt-2">
+              <button
+                onClick={() => this.setState({ hasError: false, error: null })}
+                className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold text-sm shadow-lg transition-all"
+              >
+                আবার চেষ্টা করুন
+              </button>
+              {this.props.onBack && (
+                <button
+                  onClick={this.props.onBack}
+                  className="px-6 py-2.5 bg-slate-700 hover:bg-slate-600 text-white rounded-xl font-bold text-sm transition-all"
+                >
+                  ফিরে যান
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+const MedicineAccountsPageWrapped: React.FC<MedicineAccountsPageProps> = (props) => {
+  return (
+    <MedicineAccountsErrorBoundary onBack={props.onBack}>
+      <MedicineAccountsPage {...props} />
+    </MedicineAccountsErrorBoundary>
+  );
+};
+
+export default MedicineAccountsPageWrapped;
+export { MedicineAccountsPage };

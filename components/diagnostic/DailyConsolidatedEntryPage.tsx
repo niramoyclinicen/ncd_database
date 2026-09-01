@@ -8,14 +8,22 @@ interface DailyConsolidatedEntryPageProps {
   performBlockingSync?: (stateOverride?: any) => Promise<boolean>;
   currentUserEmail?: string;
   onPostToAccounts?: (entry: DailyConsolidatedEntry) => void;
+  consolidatedLabEntries?: DailyConsolidatedEntry[];
+  setConsolidatedLabEntries?: React.Dispatch<React.SetStateAction<DailyConsolidatedEntry[]>>;
 }
 
 export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProps> = ({
   onBack,
   performBlockingSync,
-  currentUserEmail = 'Admin'
+  currentUserEmail = 'Admin',
+  consolidatedLabEntries,
+  setConsolidatedLabEntries
 }) => {
-  const [entries, setEntries] = useState<DailyConsolidatedEntry[]>([]);
+  const [entries, setEntries] = useState<DailyConsolidatedEntry[]>(() => {
+    return (consolidatedLabEntries && consolidatedLabEntries.length > 0)
+      ? consolidatedLabEntries
+      : dbService.getConsolidatedEntries();
+  });
   const [clinicProfile, setClinicProfile] = useState<ClinicProfile>(dbService.getClinicProfile());
   const [isSaving, setIsSaving] = useState(false);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -23,6 +31,15 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
   const [searchDate, setSearchDate] = useState('');
   const [filterShift, setFilterShift] = useState<string>('all');
   const [printingEntry, setPrintingEntry] = useState<DailyConsolidatedEntry | null>(null);
+
+  // Sync entries if parent prop updates
+  useEffect(() => {
+    if (consolidatedLabEntries && consolidatedLabEntries.length > 0) {
+      setEntries(consolidatedLabEntries);
+    } else {
+      setEntries(dbService.getConsolidatedEntries());
+    }
+  }, [consolidatedLabEntries]);
 
   // Form State
   const [formData, setFormData] = useState<Partial<DailyConsolidatedEntry>>({
@@ -82,12 +99,13 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
         const gross = breakdownSum;
         const discount = Number(prev.discountAmount) || 0;
         const net = Math.max(0, gross - discount);
-        const cash = Number(prev.cashCollected) || 0;
+        const cash = prev.cashCollected !== undefined && prev.cashCollected !== 0 ? Number(prev.cashCollected) : net;
         const due = Math.max(0, net - cash);
         return {
           ...prev,
           grossAmount: gross,
           netPayable: net,
+          cashCollected: cash,
           dueAmount: due
         };
       });
@@ -95,11 +113,11 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
   }, [breakdownSum, useDepartmentBreakdown]);
 
   // Recalculate Net & Due on direct field changes
-  const handleGrossOrDiscountChange = (gross: number, discount: number, cash: number) => {
+  const handleGrossOrDiscountChange = (gross: number, discount: number, cash?: number) => {
     const g = Number(gross) || 0;
     const d = Number(discount) || 0;
     const net = Math.max(0, g - d);
-    const c = Number(cash) || 0;
+    const c = cash !== undefined ? Number(cash) : net;
     const due = Math.max(0, net - c);
     setFormData(prev => ({
       ...prev,
@@ -119,7 +137,7 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
     const sum = Object.values(updatedBreakdown).reduce((acc, curr) => acc + (Number(curr) || 0), 0);
     const discount = Number(formData.discountAmount) || 0;
     const net = Math.max(0, sum - discount);
-    const cash = Number(formData.cashCollected) || 0;
+    const cash = formData.cashCollected !== undefined && formData.cashCollected !== 0 ? Number(formData.cashCollected) : net;
     const due = Math.max(0, net - cash);
 
     setFormData(prev => ({
@@ -127,6 +145,7 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
       breakdown: updatedBreakdown,
       grossAmount: sum,
       netPayable: net,
+      cashCollected: cash,
       dueAmount: due
     }));
   };
@@ -145,9 +164,22 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
       alert('অনুগ্রহ করে তারিখ নির্বাচন করুন!');
       return;
     }
-    if ((Number(formData.grossAmount) || 0) <= 0) {
+    const gross = Number(formData.grossAmount) || 0;
+    if (gross <= 0) {
       alert('মোট গ্রস বিল এর পরিমাণ ০ এর চেয়ে বেশি হতে হবে!');
       return;
+    }
+
+    const discount = Number(formData.discountAmount) || 0;
+    const net = Number(formData.netPayable) || Math.max(0, gross - discount);
+    let cash = Number(formData.cashCollected) || 0;
+    let due = Number(formData.dueAmount) || 0;
+
+    if (cash === 0 && due === 0 && net > 0) {
+      cash = net;
+      due = 0;
+    } else if (cash > 0 && due === 0 && cash < net) {
+      due = net - cash;
     }
 
     setIsSaving(true);
@@ -160,11 +192,11 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
         operatorName: formData.operatorName || 'Cashier',
         totalPatients: Number(formData.totalPatients) || 0,
         totalTests: Number(formData.totalTests) || 0,
-        grossAmount: Number(formData.grossAmount) || 0,
-        discountAmount: Number(formData.discountAmount) || 0,
-        netPayable: Number(formData.netPayable) || 0,
-        cashCollected: Number(formData.cashCollected) || 0,
-        dueAmount: Number(formData.dueAmount) || 0,
+        grossAmount: gross,
+        discountAmount: discount,
+        netPayable: net,
+        cashCollected: cash,
+        dueAmount: due,
         doctorCommissionPaid: Number(formData.doctorCommissionPaid) || 0,
         usgDoctorFeePaid: Number(formData.usgDoctorFeePaid) || 0,
         breakdown: formData.breakdown || { pathology: 0, usg: 0, xray: 0, ecg: 0, hormone: 0, others: 0 },
@@ -175,6 +207,9 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
       dbService.saveSingleConsolidatedEntry(newRecord);
       const updatedList = dbService.getConsolidatedEntries();
       setEntries(updatedList);
+      if (setConsolidatedLabEntries) {
+        setConsolidatedLabEntries(updatedList);
+      }
 
       if (performBlockingSync) {
         await performBlockingSync({ consolidatedLabEntries: updatedList });
@@ -223,6 +258,9 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
     dbService.deleteConsolidatedEntry(id);
     const updatedList = dbService.getConsolidatedEntries();
     setEntries(updatedList);
+    if (setConsolidatedLabEntries) {
+      setConsolidatedLabEntries(updatedList);
+    }
     if (performBlockingSync) {
       await performBlockingSync({ consolidatedLabEntries: updatedList });
     }

@@ -2,7 +2,8 @@ import React from 'react';
 import DashboardButton from './DashboardButton';
 import { 
   DiagnosticIcon, ClinicIcon, MedicineIcon, AccountingIcon, MapPinIcon, 
-  StethoscopeIcon, SyringeIcon, WheelchairIcon, PhoneIcon, UsersIcon, FileTextIcon, SettingsIcon
+  StethoscopeIcon, SyringeIcon, WheelchairIcon, PhoneIcon, UsersIcon, FileTextIcon, SettingsIcon,
+  TrendingUpIcon
 } from './Icons';
 import { ViewState } from '../types';
 
@@ -115,115 +116,147 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onNavigate }) => {
           <BackgroundRose />
       </div>
 
-      {/* Main Content Wrapper (Uses flex to stretch and center) */}
-      <div className="flex-1 flex flex-col w-full max-w-7xl mx-auto px-4 py-6 md:px-8 md:py-8 z-10 justify-between min-h-[100dvh]">
+      {/* Main Content Wrapper (Uses flex to stretch and center within viewport - No Scroll) */}
+      <div className="flex-1 flex flex-col w-full max-w-7xl mx-auto px-4 py-2 sm:py-3 md:px-6 md:py-3 z-10 justify-between h-[100dvh] max-h-[100dvh] overflow-hidden">
           
           {/* HEADER - Compact margins to keep it high up */}
-          <header className="flex-none flex flex-col lg:flex-row items-center justify-between gap-2 lg:gap-6 w-full animate-fade-in-down mb-6 md:mb-10 lg:mb-4">
-              <div className="flex-shrink-0 hover:scale-105 transition-transform duration-500 origin-center lg:origin-left -mt-4 md:-mt-6 lg:mt-0">
+          <header className="flex-none flex flex-col lg:flex-row items-center justify-between gap-1 lg:gap-6 w-full animate-fade-in-down">
+              <div className="flex-shrink-0 hover:scale-105 transition-transform duration-500 origin-center lg:origin-left">
                  <MedicalHexLogo />
               </div>
               <div className="flex flex-col items-center lg:items-end justify-center text-center lg:text-right w-full">
-                  <h1 className="text-[1.2rem] sm:text-3xl md:text-4xl lg:text-[2.5rem] font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-sky-400 via-cyan-200 to-blue-500 mb-2 md:mb-3 lg:mb-2 drop-shadow-[0_0_15px_rgba(56,189,248,0.6)] font-sans tracking-tight">
+                  <h1 className="text-[1.2rem] sm:text-2xl md:text-3xl lg:text-[2.2rem] font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-sky-400 via-cyan-200 to-blue-500 mb-0.5 drop-shadow-[0_0_15px_rgba(56,189,248,0.6)] font-sans tracking-tight">
                       Niramoy Clinic & Diagnostic
                   </h1>
-                  <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-end gap-1.5 sm:gap-3 lg:gap-4 text-teal-100 text-sm md:text-base lg:text-lg font-medium tracking-wider mb-1 lg:mb-0">
+                  <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-end gap-1.5 sm:gap-3 lg:gap-4 text-teal-100 text-xs sm:text-sm md:text-base font-medium tracking-wider">
                       <div className="flex items-center gap-1.5">
-                        <MapPinIcon className="w-4 h-4 lg:w-5 lg:h-5 text-teal-400" />
+                        <MapPinIcon className="w-4 h-4 text-teal-400" />
                         <span>এনায়েতপুর মন্ডলপাড়া, সিরাজগঞ্জ</span>
                       </div>
                       <div className="hidden sm:block text-teal-500/50">|</div>
-                      <div className="flex items-center gap-1.5 text-cyan-300 font-bold tracking-[0.15em] lg:tracking-[0.25em]">
-                        <PhoneIcon className="w-4 h-4 lg:w-5 lg:h-5 text-cyan-400" />
+                      <div className="flex items-center gap-1.5 text-cyan-300 font-bold tracking-[0.15em] lg:tracking-[0.2em]">
+                        <PhoneIcon className="w-4 h-4 text-cyan-400" />
                         <span>০১৩২৪-৪১৪০৯৯</span>
                       </div>
                   </div>
-                  <div className="hidden lg:block w-full max-w-2xl h-[2px] bg-gradient-to-r from-transparent via-cyan-500 to-transparent mt-3 opacity-70 ml-auto"></div>
+                  <div className="hidden lg:block w-full max-w-2xl h-[1.5px] bg-gradient-to-r from-transparent via-cyan-500 to-transparent mt-1.5 opacity-70 ml-auto"></div>
               </div>
           </header>
 
-          {/* GRID SECTION - Centered vertically */}
-          <main className="flex-1 flex flex-col items-center justify-center w-full max-w-5xl mx-auto relative py-2 md:py-4">
-              {/* 2x2 Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6 lg:gap-10 w-full relative z-10">
-                <DashboardButton 
-                  label={
-                      <>
-                          <span className="block text-xl sm:text-2xl lg:text-3xl font-extrabold text-white mb-1 drop-shadow-sm tracking-normal">ডায়াগনস্টিক ম্যানেজমেন্ট</span>
-                          <span className="block text-[10px] sm:text-xs lg:text-sm font-semibold text-cyan-200 mt-1.5 lg:mt-2 tracking-widest uppercase">Diagnostic Management</span>
-                      </>
-                  } 
-                  icon={<DiagnosticIcon />} 
-                  onClick={() => onNavigate(ViewState.DIAGNOSTIC)} 
-                  colorFrom="from-cyan-500/40"
-                  colorTo="to-blue-600/40"
-                  borderColor="border-slate-700 hover:border-cyan-400"
-                  delay="100ms"
-                />
-                <DashboardButton 
-                  label={
-                      <>
-                          <span className="block text-xl sm:text-2xl lg:text-3xl font-extrabold text-white mb-1 drop-shadow-sm tracking-normal">ক্লিনিক ম্যানেজমেন্ট</span>
-                          <span className="block text-[10px] sm:text-xs lg:text-sm font-semibold text-emerald-200 mt-1.5 lg:mt-2 tracking-widest uppercase">Clinic Management</span>
-                      </>
-                  } 
-                  icon={<ClinicIcon />} 
-                  onClick={() => onNavigate(ViewState.CLINIC)} 
-                  colorFrom="from-emerald-500/40"
-                  colorTo="to-teal-600/40"
-                  borderColor="border-slate-700 hover:border-emerald-400"
-                  delay="200ms"
-                />
-                <DashboardButton 
-                  label={
-                      <>
-                          <span className="block text-xl sm:text-2xl lg:text-3xl font-extrabold text-white mb-1 drop-shadow-sm tracking-normal">মেডিসিন ম্যানেজমেন্ট</span>
-                          <span className="block text-[10px] sm:text-xs lg:text-sm font-semibold text-rose-200 mt-1.5 lg:mt-2 tracking-widest uppercase">Medicine Management</span>
-                      </>
-                  } 
-                  icon={<MedicineIcon />} 
-                  onClick={() => onNavigate(ViewState.MEDICINE)} 
-                  colorFrom="from-rose-500/40"
-                  colorTo="to-pink-600/40"
-                  borderColor="border-slate-700 hover:border-rose-400"
-                  delay="300ms"
-                />
-                <DashboardButton 
-                  label={
-                      <>
-                          <span className="block text-xl sm:text-2xl lg:text-3xl font-extrabold text-white mb-1 drop-shadow-sm tracking-normal">অ্যাকাউন্টিং ম্যানেজমেন্ট</span>
-                          <span className="block text-[10px] sm:text-xs lg:text-sm font-semibold text-amber-200 mt-1.5 lg:mt-2 tracking-widest uppercase">Accounting Management</span>
-                      </>
-                  } 
-                  icon={<AccountingIcon />} 
-                  onClick={() => onNavigate(ViewState.ACCOUNTING)} 
-                  colorFrom="from-amber-500/30"
-                  colorTo="to-orange-600/30"
-                  borderColor="border-slate-700 hover:border-amber-400"
-                  delay="400ms"
-                />
+          {/* GRID SECTION - Centered vertically in static view, stretched outwards horizontally and vertically */}
+          <main className="flex-1 flex flex-col items-center justify-center w-full max-w-7xl mx-auto relative my-auto py-1">
+              
+              {/* 2x2 Grid Container with Dead-Center Floating Marketing Management Badge */}
+              <div className="relative w-full px-1 sm:px-2 md:px-4">
+                
+                {/* 2x2 Grid with balanced spacing so center badge does not cover card contents and boxes stretch wide and tall */}
+                <div className="grid grid-cols-2 gap-x-8 sm:gap-x-16 md:gap-x-24 lg:gap-x-32 gap-y-8 sm:gap-y-12 md:gap-y-16 lg:gap-y-20 w-full relative z-10">
+                  <DashboardButton 
+                    label={
+                        <>
+                            <span className="block text-base sm:text-xl lg:text-2xl font-extrabold text-white mb-0.5 drop-shadow-sm tracking-normal">ডায়াগনস্টিক ম্যানেজমেন্ট</span>
+                            <span className="block text-[9px] sm:text-xs lg:text-sm font-semibold text-cyan-200 mt-0.5 lg:mt-1 tracking-widest uppercase">Diagnostic Management</span>
+                        </>
+                    } 
+                    icon={<DiagnosticIcon />} 
+                    onClick={() => onNavigate(ViewState.DIAGNOSTIC)} 
+                    colorFrom="from-cyan-500/40"
+                    colorTo="to-blue-600/40"
+                    borderColor="border-slate-700 hover:border-cyan-400"
+                    delay="100ms"
+                  />
+                  <DashboardButton 
+                    label={
+                        <>
+                            <span className="block text-base sm:text-xl lg:text-2xl font-extrabold text-white mb-0.5 drop-shadow-sm tracking-normal">ক্লিনিক ম্যানেজমেন্ট</span>
+                            <span className="block text-[9px] sm:text-xs lg:text-sm font-semibold text-emerald-200 mt-0.5 lg:mt-1 tracking-widest uppercase">Clinic Management</span>
+                        </>
+                    } 
+                    icon={<ClinicIcon />} 
+                    onClick={() => onNavigate(ViewState.CLINIC)} 
+                    colorFrom="from-emerald-500/40"
+                    colorTo="to-teal-600/40"
+                    borderColor="border-slate-700 hover:border-emerald-400"
+                    delay="200ms"
+                  />
+                  <DashboardButton 
+                    label={
+                        <>
+                            <span className="block text-base sm:text-xl lg:text-2xl font-extrabold text-white mb-0.5 drop-shadow-sm tracking-normal">মেডিসিন ম্যানেজমেন্ট</span>
+                            <span className="block text-[9px] sm:text-xs lg:text-sm font-semibold text-rose-200 mt-0.5 lg:mt-1 tracking-widest uppercase">Medicine Management</span>
+                        </>
+                    } 
+                    icon={<MedicineIcon />} 
+                    onClick={() => onNavigate(ViewState.MEDICINE)} 
+                    colorFrom="from-rose-500/40"
+                    colorTo="to-pink-600/40"
+                    borderColor="border-slate-700 hover:border-rose-400"
+                    delay="300ms"
+                  />
+                  <DashboardButton 
+                    label={
+                        <>
+                            <span className="block text-base sm:text-xl lg:text-2xl font-extrabold text-white mb-0.5 drop-shadow-sm tracking-normal">অ্যাকাউন্টিং ম্যানেজমেন্ট</span>
+                            <span className="block text-[9px] sm:text-xs lg:text-sm font-semibold text-amber-200 mt-0.5 lg:mt-1 tracking-widest uppercase">Accounting Management</span>
+                        </>
+                    } 
+                    icon={<AccountingIcon />} 
+                    onClick={() => onNavigate(ViewState.ACCOUNTING)} 
+                    colorFrom="from-amber-500/30"
+                    colorTo="to-orange-600/30"
+                    borderColor="border-slate-700 hover:border-amber-400"
+                    delay="400ms"
+                  />
+                </div>
+
+                {/* Exact Dead-Center Badge placed right in the intersection of the 4 boxes, sized up so it floats gracefully overlapping edges */}
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-30 animate-fade-in-up" style={{ animationDelay: '250ms' }}>
+                  <button 
+                    onClick={() => onNavigate(ViewState.MARKETING)}
+                    className="pointer-events-auto group relative flex items-center justify-center gap-2.5 sm:gap-4 md:gap-5 px-5 py-2.5 sm:px-8 sm:py-4 md:px-11 md:py-5 rounded-full border-2 border-purple-400/90 hover:border-purple-300 bg-gradient-to-r from-slate-950/95 via-purple-950/95 to-slate-950/95 backdrop-blur-2xl shadow-[0_0_35px_rgba(168,85,247,0.8),0_10px_30px_rgba(0,0,0,0.6)] hover:shadow-[0_0_55px_rgba(168,85,247,1),0_15px_40px_rgba(0,0,0,0.8)] hover:scale-105 active:scale-95 transition-all duration-300 cursor-pointer"
+                    title="মার্কেটিং ম্যানেজমেন্ট (Marketing Management)"
+                  >
+                    <div className="p-2 sm:p-3 md:p-3.5 rounded-full bg-purple-500/30 text-purple-300 border border-purple-400/60 group-hover:scale-110 group-hover:bg-purple-500 group-hover:text-white transition-all duration-300 shadow-inner">
+                      <TrendingUpIcon className="w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7" />
+                    </div>
+                    <div className="text-left">
+                      <span className="block text-base sm:text-lg md:text-2xl font-extrabold text-white tracking-wide drop-shadow-md group-hover:text-purple-200 transition-colors whitespace-nowrap">
+                        মার্কেটিং ম্যানেজমেন্ট
+                      </span>
+                      <span className="block text-[9px] sm:text-xs md:text-sm font-bold text-purple-300 tracking-wider uppercase whitespace-nowrap">
+                        Marketing Management
+                      </span>
+                    </div>
+                    <div className="hidden sm:flex items-center pl-1.5 text-purple-400 group-hover:translate-x-1 transition-transform">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 sm:w-6 sm:h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                      </svg>
+                    </div>
+                  </button>
+                </div>
+
               </div>
           </main>
 
           {/* FOOTER BAR (Buttons & Settings align properly at the bottom) */}
-          <footer className="flex-none flex flex-col items-center justify-center mt-8 pt-4 pb-2 z-20 w-full relative">
+          <footer className="flex-none flex flex-col items-center justify-center pt-2 pb-1 z-20 w-full relative">
               
-              <div className="flex flex-wrap justify-center gap-3 sm:gap-4 md:gap-6 animate-fade-in-up w-full px-2" style={{ animationDelay: '550ms' }}>
-                <button onClick={() => onNavigate(ViewState.DOCTOR_LOGIN)} className="group relative px-4 py-2.5 sm:px-6 sm:py-3 lg:px-8 rounded-full bg-slate-900/80 border border-blue-500/50 text-blue-300 font-bold transition-all duration-300 hover:border-blue-500 hover:bg-blue-500/20 hover:text-white shadow-md active:scale-95 backdrop-blur-md">
+              <div className="flex flex-wrap justify-center gap-2.5 sm:gap-4 md:gap-5 animate-fade-in-up w-full px-2" style={{ animationDelay: '550ms' }}>
+                <button onClick={() => onNavigate(ViewState.DOCTOR_LOGIN)} className="group relative px-4 py-2 sm:px-5 sm:py-2.5 lg:px-7 rounded-full bg-slate-900/80 border border-blue-500/50 text-blue-300 font-bold transition-all duration-300 hover:border-blue-500 hover:bg-blue-500/20 hover:text-white shadow-md active:scale-95 backdrop-blur-md">
                   <span className="relative z-10 flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm lg:text-base whitespace-nowrap"><StethoscopeIcon className="h-4 w-4 sm:h-5 sm:w-5" />Doctor Portal</span>
                 </button>
                 
-                <button onClick={() => onNavigate(ViewState.LAB_LOGIN)} className="group relative px-4 py-2.5 sm:px-6 sm:py-3 lg:px-8 rounded-full bg-slate-900/80 border border-cyan-500/50 text-cyan-300 font-bold transition-all duration-300 hover:border-cyan-500 hover:bg-cyan-500/20 hover:text-white shadow-md active:scale-95 backdrop-blur-md">
+                <button onClick={() => onNavigate(ViewState.LAB_LOGIN)} className="group relative px-4 py-2 sm:px-5 sm:py-2.5 lg:px-7 rounded-full bg-slate-900/80 border border-cyan-500/50 text-cyan-300 font-bold transition-all duration-300 hover:border-cyan-500 hover:bg-cyan-500/20 hover:text-white shadow-md active:scale-95 backdrop-blur-md">
                   <span className="relative z-10 flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm lg:text-base whitespace-nowrap"><FileTextIcon className="h-4 w-4 sm:h-5 sm:w-5" />Lab Reporting</span>
                 </button>
 
-                <button onClick={() => onNavigate(ViewState.ADMIN_SETTINGS)} className="group relative px-4 py-2.5 sm:px-6 sm:py-3 lg:px-8 rounded-full bg-slate-900/80 border border-slate-700 text-slate-300 font-bold transition-all duration-300 hover:border-indigo-500/50 hover:bg-indigo-500/20 hover:text-indigo-400 shadow-md active:scale-95 backdrop-blur-md">
-        <span className="relative z-10 flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm lg:text-base whitespace-nowrap">
-            <SettingsIcon className="h-4 w-4 sm:h-5 sm:w-5" />
-            Settings
-        </span>
-    </button>
-    <button onClick={onLogout} className="group relative px-4 py-2.5 sm:px-6 sm:py-3 lg:px-8 rounded-full bg-slate-900/80 border border-slate-700 text-slate-300 font-bold transition-all duration-300 hover:border-rose-500/50 hover:bg-rose-500/20 hover:text-rose-400 shadow-md active:scale-95 backdrop-blur-md">
+                <button onClick={() => onNavigate(ViewState.ADMIN_SETTINGS)} className="group relative px-4 py-2 sm:px-5 sm:py-2.5 lg:px-7 rounded-full bg-slate-900/80 border border-slate-700 text-slate-300 font-bold transition-all duration-300 hover:border-indigo-500/50 hover:bg-indigo-500/20 hover:text-indigo-400 shadow-md active:scale-95 backdrop-blur-md">
+                  <span className="relative z-10 flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm lg:text-base whitespace-nowrap">
+                      <SettingsIcon className="h-4 w-4 sm:h-5 sm:w-5" />
+                      Settings
+                  </span>
+                </button>
+                <button onClick={onLogout} className="group relative px-4 py-2 sm:px-5 sm:py-2.5 lg:px-7 rounded-full bg-slate-900/80 border border-slate-700 text-slate-300 font-bold transition-all duration-300 hover:border-rose-500/50 hover:bg-rose-500/20 hover:text-rose-400 shadow-md active:scale-95 backdrop-blur-md">
                   <span className="relative z-10 flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm lg:text-base whitespace-nowrap">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 sm:h-5 sm:w-5 transition-transform group-hover:-translate-x-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
                     Admin Logout
@@ -231,11 +264,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onNavigate }) => {
                 </button>
               </div>
 
-              {/* Setting button is now part of the natural flow, pinned to bottom right of screen using fixed, 
-                  but we give bottom padding so it never overlaps text */}
-
-
-              <div className="mt-6 md:mt-8 text-center text-slate-500/60 text-[10px] md:text-xs font-medium tracking-wide">
+              <div className="mt-3 md:mt-4 text-center text-slate-500/60 text-[10px] md:text-xs font-medium tracking-wide">
                  &copy; 2024 NiramoyClinic. All rights reserved.
               </div>
           </footer>

@@ -2918,28 +2918,28 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
   };
 
   return (
-    <div className="bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200 min-h-screen flex flex-col font-sans relative overflow-y-auto">
+    <div className="bg-slate-900 text-slate-100 min-h-screen flex flex-col font-sans relative">
       {successMessage && <div className="fixed bottom-12 right-12 z-[500] bg-emerald-600 border border-white text-white px-10 py-4 rounded-2xl shadow-2xl font-black animate-fade-in-up flex items-center gap-4 text-base">✅ {successMessage}</div>}
-      <header className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 p-8 pt-16 md:pt-8 shrink-0 shadow-sm z-20 relative no-print">
+      <header className="bg-slate-800 border-b border-slate-700 p-6 md:p-8 shrink-0 shadow-sm z-20 relative no-print">
         <div className="container mx-auto flex flex-col md:flex-row items-center justify-between">
             <div className="flex items-center gap-6">
-                {onBack && <button onClick={onBack} className="p-3 bg-slate-100 dark:bg-slate-800 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-all border border-slate-200 dark:border-slate-700"><BackIcon className="w-6 h-6 text-slate-600 dark:text-slate-300" /></button>}
+                {onBack && <button onClick={onBack} className="p-3 bg-slate-700 rounded-xl hover:bg-slate-600 transition-all border border-slate-600"><BackIcon className="w-6 h-6 text-slate-200" /></button>}
                 <div className="flex flex-col">
-                    <h1 className="text-xl md:text-2xl font-bold text-slate-800 dark:text-white uppercase leading-none tracking-tight">Niramoy Clinic and Diagnostic</h1>
-                    <p className="text-[9px] text-slate-500 font-bold uppercase tracking-[0.4em] mt-2 opacity-70">Unified HR & Attendance System</p>
+                    <h1 className="text-xl md:text-2xl font-bold text-white uppercase leading-none tracking-tight">Niramoy Clinic and Diagnostic</h1>
+                    <p className="text-[9px] text-slate-400 font-bold uppercase tracking-[0.4em] mt-2 opacity-70">Unified HR & Attendance System</p>
                 </div>
             </div>
-            <div className="flex items-center mt-6 md:mt-0 bg-slate-50 dark:bg-slate-800/40 px-8 py-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-inner group transition-all">
-                <EmployeeInfoIcon className="w-8 h-8 text-blue-600 dark:text-blue-400 mr-4 group-hover:scale-110 transition-transform" />
+            <div className="flex items-center mt-6 md:mt-0 bg-slate-800/60 px-8 py-4 rounded-2xl border border-slate-700 shadow-inner group transition-all">
+                <EmployeeInfoIcon className="w-8 h-8 text-blue-400 mr-4 group-hover:scale-110 transition-transform" />
                 <div className="flex flex-col items-end">
-                    <h2 className="text-xl font-bold text-slate-800 dark:text-blue-400 font-bengali leading-none uppercase">কর্মচারী ব্যবস্থাপনা</h2>
+                    <h2 className="text-xl font-bold text-blue-400 font-bengali leading-none uppercase">কর্মচারী ব্যবস্থাপনা</h2>
                     <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mt-1">Version 10.0 Updated</p>
                 </div>
             </div>
         </div>
       </header>
-      <div className="container mx-auto px-6 py-10 space-y-12 flex-1 relative z-10">
-        <div className="bg-white dark:bg-slate-900/60 backdrop-blur-xl p-2 rounded-[2rem] border border-slate-200 dark:border-slate-800 no-print shadow-xl max-w-6xl mx-auto flex gap-2 overflow-x-auto">
+      <div className="container mx-auto px-4 sm:px-6 py-8 sm:py-10 space-y-10 flex-1 relative z-10">
+        <div className="bg-slate-800/80 backdrop-blur-xl p-2 rounded-[2rem] border border-slate-700 no-print shadow-xl max-w-6xl mx-auto flex gap-2 overflow-x-auto">
             {[ 
               { id: 'data_entry', label: 'Global Profiles' }, 
               { id: 'monthly_roster', label: 'Monthly Roster' }, 
@@ -2948,7 +2948,7 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
               { id: 'salary_sheet', label: 'Salary Sheet' },
               { id: 'monthly_report', label: 'Monthly Report' }
             ].map(item => (
-                <button key={item.id} onClick={() => setActiveTab(item.id as EmployeeTab)} className={`flex-1 py-4 px-6 rounded-2xl font-bold text-[10px] uppercase tracking-wider transition-all duration-300 whitespace-nowrap ${activeTab === item.id ? 'bg-blue-600 text-white shadow-lg transform scale-[1.02]' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800/50 hover:text-slate-700 dark:hover:text-slate-300'}`}>{item.label}</button>
+                <button key={item.id} onClick={() => setActiveTab(item.id as EmployeeTab)} className={`flex-1 py-4 px-6 rounded-2xl font-bold text-[10px] uppercase tracking-wider transition-all duration-300 whitespace-nowrap ${activeTab === item.id ? 'bg-blue-600 text-white shadow-lg transform scale-[1.02]' : 'text-slate-400 hover:bg-slate-700/50 hover:text-white'}`}>{item.label}</button>
             ))}
         </div>
         <div className="flex-1 transition-all duration-500">

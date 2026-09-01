@@ -2205,12 +2205,13 @@ const DiagnosticAccountsPage: React.FC<any> = ({
             
             // Logic Change: Only show what was written in the 'Commission Paid' box
             const totalPC = isReturned ? 0 : (inv.commission_paid || 0);
+            const invItems = Array.isArray(inv.items) ? inv.items : [];
             
-            const usgFee = isReturned ? 0 : inv.items.reduce((s: number, i: any) => s + ((i.usg_exam_charge || 0) * (i.quantity || 1)), 0);
-            const labFee = isReturned ? 0 : inv.items.reduce((s: number, i: any) => s + ((i.extra_lab_fee || 0) * (i.quantity || 1)), 0);
-            const paid = isReturned ? 0 : inv.paid_amount;
-            const bill = isReturned ? 0 : inv.total_amount;
-            const disc = isReturned ? 0 : inv.discount_amount;
+            const usgFee = isReturned ? 0 : invItems.reduce((s: number, i: any) => s + ((i.usg_exam_charge || 0) * (i.quantity || 1)), 0);
+            const labFee = isReturned ? 0 : invItems.reduce((s: number, i: any) => s + ((i.extra_lab_fee || 0) * (i.quantity || 1)), 0);
+            const paid = isReturned ? 0 : (inv.paid_amount || 0);
+            const bill = isReturned ? 0 : (inv.total_amount || 0);
+            const disc = isReturned ? 0 : (inv.discount_amount || 0);
             
             return { 
                 ...inv, 
@@ -2815,10 +2816,10 @@ const DiagnosticAccountsPage: React.FC<any> = ({
     };
 
     return (
-        <div className="min-h-screen bg-slate-950 flex flex-col font-sans">
+        <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
             <header className="bg-slate-900 border-b border-slate-800 p-6 flex flex-col md:flex-row justify-between items-center gap-4 shadow-xl no-print">
                 <div className="flex items-center gap-4">
-                    <button onClick={onBack} className="p-3 bg-slate-800 rounded-full hover:bg-slate-700 transition-all"><BackIcon className="w-6 h-6" /></button>
+                    <button onClick={onBack} className="p-3 bg-slate-800 rounded-full hover:bg-slate-700 transition-all"><BackIcon className="w-6 h-6 text-slate-300" /></button>
                     <h2 className="text-2xl font-black text-white uppercase tracking-tighter">Diagnostic Accounts Console</h2>
                 </div>
                 <div className="flex bg-slate-800 rounded-2xl p-1 shadow-inner border border-slate-700 overflow-x-auto max-w-full">
@@ -2845,7 +2846,7 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                 </div>
             )}
 
-            <main className="flex-1 p-8 space-y-10 container mx-auto overflow-y-auto">
+            <main className="flex-1 p-4 sm:p-6 lg:p-8 space-y-10 w-full max-w-7xl mx-auto">
                 {activeTab === 'entry' && (
                     <div className="animate-fade-in space-y-10">
                         <DailyExpenseForm 
@@ -3359,4 +3360,68 @@ const DiagnosticAccountsPage: React.FC<any> = ({
     );
 };
 
-export default DiagnosticAccountsPage;
+class DiagnosticAccountsErrorBoundary extends React.Component<{ onBack?: () => void; children: React.ReactNode }, { hasError: boolean; error: Error | null }> {
+  constructor(props: any) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: any) {
+    console.error("DiagnosticAccountsPage Error caught by boundary:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center p-6 text-center">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-8 max-w-lg shadow-2xl space-y-6">
+            <div className="w-16 h-16 bg-rose-500/20 text-rose-400 rounded-2xl flex items-center justify-center mx-auto text-3xl font-bold">
+              ⚠️
+            </div>
+            <h2 className="text-2xl font-bold text-white">ডায়াগনস্টিক হিসাব রেন্ডারিং সমস্যা</h2>
+            <p className="text-slate-300 text-sm">
+              সাময়িক একটি ত্রুটি ঘটেছে। অনুগ্রহ করে আবার চেষ্টা করুন অথবা মূল অ্যাকাউন্টিং পেজে ফিরে যান।
+            </p>
+            {this.state.error && (
+              <div className="p-3 bg-slate-950 rounded-xl text-left text-xs font-mono text-rose-300 overflow-x-auto max-h-32">
+                {this.state.error.toString()}
+              </div>
+            )}
+            <div className="flex justify-center gap-4 pt-2">
+              <button
+                onClick={() => this.setState({ hasError: false, error: null })}
+                className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold text-sm shadow-lg transition-all"
+              >
+                আবার চেষ্টা করুন
+              </button>
+              {this.props.onBack && (
+                <button
+                  onClick={this.props.onBack}
+                  className="px-6 py-2.5 bg-slate-700 hover:bg-slate-600 text-white rounded-xl font-bold text-sm transition-all"
+                >
+                  ফিরে যান
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+const DiagnosticAccountsPageWrapped: React.FC<any> = (props) => {
+  return (
+    <DiagnosticAccountsErrorBoundary onBack={props.onBack}>
+      <DiagnosticAccountsPage {...props} />
+    </DiagnosticAccountsErrorBoundary>
+  );
+};
+
+export default DiagnosticAccountsPageWrapped;
+export { DiagnosticAccountsPage };
