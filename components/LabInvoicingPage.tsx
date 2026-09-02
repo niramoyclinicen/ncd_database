@@ -190,17 +190,22 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
 
   const todayInvoiceCount = useMemo(() => {
     const safeInvs = Array.isArray(invoices) ? invoices : [];
-    return safeInvs.filter(inv => inv && inv.invoice_date === todayDateString && inv.status !== 'Cancelled').length;
+    const repParts = getNormalizedDateParts(todayDateString);
+    return safeInvs.filter(inv => {
+      if (!inv || inv.status === 'Cancelled') return false;
+      const invParts = getNormalizedDateParts(inv.invoice_date || (inv as any).date);
+      return invParts.isoDate === repParts.isoDate || inv.invoice_date === todayDateString;
+    }).length;
   }, [invoices, todayDateString]);
 
   const monthlyInvoiceCount = useMemo(() => {
     const safeInvs = Array.isArray(invoices) ? invoices : [];
-    const currentMonth = today.getMonth();
+    const currentMonth = today.getMonth() + 1;
     const currentYear = today.getFullYear();
     return safeInvs.filter(inv => {
-      if (!inv || !inv.invoice_date) return false;
-      const invDate = new Date(inv.invoice_date);
-      return invDate.getMonth() === currentMonth && invDate.getFullYear() === currentYear && inv.status !== 'Cancelled';
+      if (!inv || inv.status === 'Cancelled') return false;
+      const invParts = getNormalizedDateParts(inv.invoice_date || (inv as any).date);
+      return invParts.m === currentMonth && invParts.y === currentYear;
     }).length;
   }, [invoices, today]);
 
@@ -295,8 +300,9 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
         (invoice.doctor_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
         (invoice.referrar_name || '').toLowerCase().includes(searchTerm.toLowerCase());
 
-      const invDateParts = getNormalizedDateParts(invoice.invoice_date);
-      const matchesDate = !tableFilterDate || invDateParts.isoDate === tableFilterDate || invoice.invoice_date === tableFilterDate;
+      const invDateStr = invoice.invoice_date || (invoice as any).date || (invoice as any).invoiceDate || '';
+      const invDateParts = getNormalizedDateParts(invDateStr);
+      const matchesDate = !tableFilterDate || invDateParts.isoDate === tableFilterDate || invDateStr === tableFilterDate;
       
       const matchesMonth = !tableFilterMonth || String(invDateParts.m).padStart(2, '0') === tableFilterMonth;
       const matchesYear = !tableFilterYear || String(invDateParts.y) === tableFilterYear;
@@ -2012,7 +2018,7 @@ pdate the local state and reset form
                       </span>
                     </td>
                     <td className="px-3 py-2.5 whitespace-nowrap text-xs text-slate-300 font-medium">
-                      {invoice.invoice_date}
+                      {invoice.invoice_date || (invoice as any).date || (invoice as any).invoiceDate || '-'}
                     </td>
                     <td className="px-3 py-2.5 whitespace-nowrap">
                       <div className="flex flex-col">

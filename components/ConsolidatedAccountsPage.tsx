@@ -509,17 +509,25 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
         const str = String(d).trim().split(/[T ]/)[0];
         if (str.includes('-')) {
             const parts = str.split('-');
-            if (parts[0].length === 4) {
-                return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
-            } else if (parts[2]?.length === 4) {
-                return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+            if (parts.length === 3) {
+                if (parts[0].length === 4) {
+                    return `${parts[0]}-${(parts[1] || '01').padStart(2, '0')}-${(parts[2] || '01').padStart(2, '0')}`;
+                } else if (parts[2].length === 4) {
+                    return `${parts[2]}-${(parts[1] || '01').padStart(2, '0')}-${(parts[0] || '01').padStart(2, '0')}`;
+                }
+            } else if (parts.length === 2 && parts[0].length === 4) {
+                return `${parts[0]}-${(parts[1] || '01').padStart(2, '0')}-01`;
             }
         } else if (str.includes('/')) {
             const parts = str.split('/');
-            if (parts[0].length === 4) {
-                return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
-            } else if (parts[2]?.length === 4) {
-                return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+            if (parts.length === 3) {
+                if (parts[0].length === 4) {
+                    return `${parts[0]}-${(parts[1] || '01').padStart(2, '0')}-${(parts[2] || '01').padStart(2, '0')}`;
+                } else if (parts[2].length === 4) {
+                    return `${parts[2]}-${(parts[1] || '01').padStart(2, '0')}-${(parts[0] || '01').padStart(2, '0')}`;
+                }
+            } else if (parts.length === 2 && parts[0].length === 4) {
+                return `${parts[0]}-${(parts[1] || '01').padStart(2, '0')}-01`;
             }
         }
         return str;
@@ -530,6 +538,17 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
         const n1 = normalizeDateStr(d1);
         const n2 = normalizeDateStr(d2);
         return Boolean(n1 && n2 && n1 === n2);
+    };
+
+    const getLabInvDate = (inv: any): string => {
+        if (!inv) return '';
+        return inv.invoice_date || inv.date || inv.invoiceDate || inv.created_date || inv.created_at || '';
+    };
+
+    const isDiagDue = (dc: any) => {
+        if (!dc) return false;
+        const invId = (dc.invoice_id || '').toUpperCase();
+        return !invId.startsWith('IND') && !invId.startsWith('CLIN');
     };
 
         const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
@@ -546,7 +565,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
             const commPaid = Number(inv.commission_paid) || 0;
             const totalPaid = Number(inv.paid_amount) || 0;
             const subsequentDues = dueCollections.filter(dc => dc && dc.invoice_id === inv.invoice_id).reduce((s, dc) => s + (Number(dc.amount_collected) || 0), 0);
-            const initialPaid = totalPaid >= subsequentDues ? totalPaid - subsequentDues : totalPaid;
+            const initialPaid = Math.max(0, totalPaid - subsequentDues);
             return Math.max(0, initialPaid - usgFee - labFee - commPaid);
         };
 
@@ -569,12 +588,16 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
             const dayStr = String(d).padStart(2, '0');
             const dateStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${dayStr}`;
             
-            const diagInvToday = labInvoices.filter(inv => inv && isSameDay(inv.invoice_date, dateStr) && inv.status !== 'Cancelled' && inv.status !== 'Returned' && inv.status !== 'Deleted').reduce((s, inv) => s + getNetDiagCash(inv), 0);
+            const diagInvToday = (labInvoices || []).filter(inv => {
+                if (!inv || inv.status === 'Cancelled' || inv.status === 'Returned' || inv.status === 'Deleted') return false;
+                const invDate = getLabInvDate(inv);
+                return isSameDay(invDate, dateStr);
+            }).reduce((s, inv) => s + getNetDiagCash(inv), 0);
             const diagConsolidatedToday = (consolidatedEntries || []).filter(e => e && isSameDay(e.date, dateStr)).reduce((s, e) => s + getConsolidatedNet(e), 0);
             const diagToday = diagInvToday + diagConsolidatedToday;
 
             const diagDue = dueCollections.filter(dc => {
-                if (!dc || !isSameDay(dc.collection_date, dateStr) || !(dc.invoice_id || '').startsWith('INV')) return false;
+                if (!dc || !isSameDay(dc.collection_date, dateStr) || !isDiagDue(dc)) return false;
                 return true;
             }).reduce((s, dc) => s + (Number(dc.amount_collected) || 0), 0);
             const diagTotal = diagToday + diagDue;
@@ -737,6 +760,17 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
         return str;
     };
 
+    const getLabInvDate = (inv: any): string => {
+        if (!inv) return '';
+        return inv.invoice_date || inv.date || inv.invoiceDate || inv.created_date || inv.created_at || '';
+    };
+
+    const isDiagDue = (dc: any) => {
+        if (!dc) return false;
+        const invId = (dc.invoice_id || '').toUpperCase();
+        return !invId.startsWith('IND') && !invId.startsWith('CLIN');
+    };
+
     const isSameDay = (d1: any, d2: any) => {
         if (!d1 || !d2) return false;
         const n1 = normalizeDateStr(d1);
@@ -777,7 +811,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
             const commPaid = Number(inv.commission_paid) || 0;
             const totalPaid = Number(inv.paid_amount) || 0;
             const subsequentDues = dueCollections.filter(dc => dc && dc.invoice_id === inv.invoice_id).reduce((s, dc) => s + (Number(dc.amount_collected) || 0), 0);
-            const initialPaid = totalPaid >= subsequentDues ? totalPaid - subsequentDues : totalPaid;
+            const initialPaid = Math.max(0, totalPaid - subsequentDues);
             return Math.max(0, initialPaid - usgFee - labFee - commPaid);
         };
 
@@ -817,10 +851,14 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
         };
 
         const calcNetPrev = () => {
-            const prevLab = labInvoices.filter(inv => inv && isBeforeSelectedMonth(inv.invoice_date) && inv.status !== 'Cancelled' && inv.status !== 'Returned' && inv.status !== 'Deleted').reduce((s, i) => s + getNetDiagCash(i), 0);
+            const prevLab = (labInvoices || []).filter(inv => {
+                if (!inv || inv.status === 'Cancelled' || inv.status === 'Returned' || inv.status === 'Deleted') return false;
+                const invDate = getLabInvDate(inv);
+                return isBeforeSelectedMonth(invDate);
+            }).reduce((s, i) => s + getNetDiagCash(i), 0);
             const prevConsolidatedLab = (consolidatedEntries || []).filter(e => e && isBeforeSelectedMonth(e.date)).reduce((s, e) => s + getConsolidatedNet(e), 0);
             const prevLabDue = dueCollections.filter(dc => {
-                if (!dc || !isBeforeSelectedMonth(dc.collection_date) || !(dc.invoice_id || '').startsWith('INV')) return false;
+                if (!dc || !isBeforeSelectedMonth(dc.collection_date) || !isDiagDue(dc)) return false;
                 return true;
             }).reduce((s, dc) => s + dc.amount_collected, 0);
             
@@ -884,11 +922,15 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
         };
 
         const prevJer = calcNetPrev();
-        const diagInvCurrent = labInvoices.filter(inv => inv && isSelectedMonth(inv.invoice_date) && inv.status !== 'Cancelled' && inv.status !== 'Returned' && inv.status !== 'Deleted').reduce((s, inv) => s + getNetDiagCash(inv), 0);
+        const diagInvCurrent = (labInvoices || []).filter(inv => {
+            if (!inv || inv.status === 'Cancelled' || inv.status === 'Returned' || inv.status === 'Deleted') return false;
+            const invDate = getLabInvDate(inv);
+            return isSelectedMonth(invDate);
+        }).reduce((s, inv) => s + getNetDiagCash(inv), 0);
         const diagConsolidatedCurrent = (consolidatedEntries || []).filter(e => e && isSelectedMonth(e.date)).reduce((s, e) => s + getConsolidatedNet(e), 0);
         const diagCurrent = diagInvCurrent + diagConsolidatedCurrent;
         const diagDue = dueCollections.filter(dc => {
-            if (!dc || !isSelectedMonth(dc.collection_date) || !(dc.invoice_id || '').startsWith('INV')) return false;
+            if (!dc || !isSelectedMonth(dc.collection_date) || !isDiagDue(dc)) return false;
             return true;
         }).reduce((s, dc) => s + dc.amount_collected, 0);
         
