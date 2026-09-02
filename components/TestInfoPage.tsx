@@ -384,7 +384,7 @@ const TestInfoPage: React.FC<Props> = ({ reagents, tests, setTests, isEmbedded =
                             <td className="px-8 py-5 text-lg text-white font-black text-right">৳{test.price.toFixed(2)}</td>
                             <td className="px-8 py-5 text-sm text-slate-400 text-right font-bold">৳{test.test_commission.toFixed(2)}</td>
                             <td className="px-8 py-5 text-sm text-amber-400 text-right font-bold">৳{test.usg_exam_charge.toFixed(2)}</td>
-                            <td className="px-8 py-5 text-sm text-emerald-400 text-right font-bold">৳{(test.extra_lab_fee || 0).toFixed(2)}</td>
+                            <td className="px-8 py-5 text-sm text-emerald-400 text-right font-bold">৳{Number(test.extra_lab_fee || 0).toFixed(2)}</td>
                         </tr>
                         ))}
                     </tbody>

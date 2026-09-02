@@ -254,7 +254,7 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
   }, [formData, applyPC]);
   
   // Helper for resilient date parsing and matching across all date formats
-  const getNormalizedDateParts = (rawDate: any) => {
+  function getNormalizedDateParts(rawDate: any) {
     if (!rawDate) return { y: 0, m: 0, d: 0, isoDate: '' };
     const str = String(rawDate).trim();
     const dateOnly = str.split(/[T ]/)[0];
@@ -288,7 +288,7 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
       return { y, m, d, isoDate: `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}` };
     }
     return { y: 0, m: 0, d: 0, isoDate: dateOnly };
-  };
+  }
 
   // Filter invoices when search term or invoices state changes
   const filteredInvoices = useMemo(() => {
@@ -1819,31 +1819,31 @@ pdate the local state and reset form
           <div className="bg-white text-gray-800 rounded-lg p-5 shadow-md border border-gray-200">
             <div className="flex justify-center items-center mb-3"><input type="date" value={reportDate} onChange={(e) => setReportDate(e.target.value)} className="py-1 px-2 border border-gray-300 rounded-md shadow-sm sm:text-sm bg-gray-50 text-gray-900" /></div>
             <div className="space-y-2">
-                <div className="flex justify-between items-center"><span className="font-medium text-gray-600">Total Bill:</span> <span className="font-bold">{(dailyReport.totalBill || 0).toFixed(2)}</span></div>
-                <div className="flex justify-between items-center"><span className="font-medium text-gray-600">Total Discount:</span> <span className="font-bold">{(dailyReport.totalDiscount || 0).toFixed(2)}</span></div>
-                <div className="flex justify-between items-center"><span className="font-medium text-gray-600">Net Payable:</span> <span className="font-bold">{(dailyReport.netPayable || 0).toFixed(2)}</span></div>
-                <div className="flex justify-between items-center"><span className="font-medium text-green-600">Paid Amount:</span> <span className="font-bold text-green-600">{(dailyReport.paidAmount || 0).toFixed(2)}</span></div>
-                <div className="flex justify-between items-center"><span className="font-medium text-red-600">Due Amount:</span> <span className="font-bold text-red-600">{(dailyReport.dueAmount || 0).toFixed(2)}</span></div>
+                <div className="flex justify-between items-center"><span className="font-medium text-gray-600">Total Bill:</span> <span className="font-bold">{Number(dailyReport.totalBill || 0).toFixed(2)}</span></div>
+                <div className="flex justify-between items-center"><span className="font-medium text-gray-600">Total Discount:</span> <span className="font-bold">{Number(dailyReport.totalDiscount || 0).toFixed(2)}</span></div>
+                <div className="flex justify-between items-center"><span className="font-medium text-gray-600">Net Payable:</span> <span className="font-bold">{Number(dailyReport.netPayable || 0).toFixed(2)}</span></div>
+                <div className="flex justify-between items-center"><span className="font-medium text-green-600">Paid Amount:</span> <span className="font-bold text-green-600">{Number(dailyReport.paidAmount || 0).toFixed(2)}</span></div>
+                <div className="flex justify-between items-center"><span className="font-medium text-red-600">Due Amount:</span> <span className="font-bold text-red-600">{Number(dailyReport.dueAmount || 0).toFixed(2)}</span></div>
             </div>
           </div>
           <div className="bg-white text-gray-800 rounded-lg p-5 shadow-md border border-gray-200">
             <p className="text-base font-semibold text-gray-700 mb-3 text-center">For {new Date().toLocaleString('default', { month: 'long', year: 'numeric' })}</p>
             <div className="space-y-2">
-                <div className="flex justify-between items-center"><span className="font-medium text-gray-600">Total Bill:</span> <span className="font-bold">{(monthlyReport.totalBill || 0).toFixed(2)}</span></div>
-                <div className="flex justify-between items-center"><span className="font-medium text-gray-600">Total Discount:</span> <span className="font-bold">{(monthlyReport.totalDiscount || 0).toFixed(2)}</span></div>
-                <div className="flex justify-between items-center"><span className="font-medium text-gray-600">Net Payable:</span> <span className="font-bold">{(monthlyReport.netPayable || 0).toFixed(2)}</span></div>
-                <div className="flex justify-between items-center"><span className="font-medium text-green-600">Paid Amount:</span> <span className="font-bold text-green-600">{(monthlyReport.paidAmount || 0).toFixed(2)}</span></div>
-                <div className="flex justify-between items-center"><span className="font-medium text-red-600">Due Amount:</span> <span className="font-bold text-red-600">{(monthlyReport.dueAmount || 0).toFixed(2)}</span></div>
+                <div className="flex justify-between items-center"><span className="font-medium text-gray-600">Total Bill:</span> <span className="font-bold">{Number(monthlyReport.totalBill || 0).toFixed(2)}</span></div>
+                <div className="flex justify-between items-center"><span className="font-medium text-gray-600">Total Discount:</span> <span className="font-bold">{Number(monthlyReport.totalDiscount || 0).toFixed(2)}</span></div>
+                <div className="flex justify-between items-center"><span className="font-medium text-gray-600">Net Payable:</span> <span className="font-bold">{Number(monthlyReport.netPayable || 0).toFixed(2)}</span></div>
+                <div className="flex justify-between items-center"><span className="font-medium text-green-600">Paid Amount:</span> <span className="font-bold text-green-600">{Number(monthlyReport.paidAmount || 0).toFixed(2)}</span></div>
+                <div className="flex justify-between items-center"><span className="font-medium text-red-600">Due Amount:</span> <span className="font-bold text-red-600">{Number(monthlyReport.dueAmount || 0).toFixed(2)}</span></div>
             </div>
           </div>
           <div className="bg-white text-gray-800 rounded-lg p-5 shadow-md border border-gray-200">
             <p className="text-base font-semibold text-gray-700 mb-3 text-center">For {new Date().getFullYear()}</p>
             <div className="space-y-2">
-                <div className="flex justify-between items-center"><span className="font-medium text-gray-600">Total Bill:</span> <span className="font-bold">{(yearlyReport.totalBill || 0).toFixed(2)}</span></div>
-                <div className="flex justify-between items-center"><span className="font-medium text-gray-600">Total Discount:</span> <span className="font-bold">{(yearlyReport.totalDiscount || 0).toFixed(2)}</span></div>
-                <div className="flex justify-between items-center"><span className="font-medium text-gray-600">Net Payable:</span> <span className="font-bold">{(yearlyReport.netPayable || 0).toFixed(2)}</span></div>
-                <div className="flex justify-between items-center"><span className="font-medium text-green-600">Paid Amount:</span> <span className="font-bold text-green-600">{(yearlyReport.paidAmount || 0).toFixed(2)}</span></div>
-                <div className="flex justify-between items-center"><span className="font-medium text-red-600">Due Amount:</span> <span className="font-bold text-red-600">{(yearlyReport.dueAmount || 0).toFixed(2)}</span></div>
+                <div className="flex justify-between items-center"><span className="font-medium text-gray-600">Total Bill:</span> <span className="font-bold">{Number(yearlyReport.totalBill || 0).toFixed(2)}</span></div>
+                <div className="flex justify-between items-center"><span className="font-medium text-gray-600">Total Discount:</span> <span className="font-bold">{Number(yearlyReport.totalDiscount || 0).toFixed(2)}</span></div>
+                <div className="flex justify-between items-center"><span className="font-medium text-gray-600">Net Payable:</span> <span className="font-bold">{Number(yearlyReport.netPayable || 0).toFixed(2)}</span></div>
+                <div className="flex justify-between items-center"><span className="font-medium text-green-600">Paid Amount:</span> <span className="font-bold text-green-600">{Number(yearlyReport.paidAmount || 0).toFixed(2)}</span></div>
+                <div className="flex justify-between items-center"><span className="font-medium text-red-600">Due Amount:</span> <span className="font-bold text-red-600">{Number(yearlyReport.dueAmount || 0).toFixed(2)}</span></div>
             </div>
           </div>
         </div>
@@ -1959,17 +1959,17 @@ pdate the local state and reset form
                     Summary Totals:
                 </th>
                 <th className="px-3 py-2.5 text-right text-xs font-mono font-black text-slate-100 bg-[#0a1329] border-l border-slate-800">
-                    {(tableTotals.total || 0).toFixed(2)}
+                    {Number(tableTotals.total || 0).toFixed(2)}
                 </th>
                 <th className="px-3 py-2.5 text-right text-xs font-mono font-black text-emerald-400 bg-emerald-950/30 border-l border-slate-800">
-                    {(tableTotals.paid || 0).toFixed(2)}
+                    {Number(tableTotals.paid || 0).toFixed(2)}
                 </th>
                 <th className="px-3 py-2.5 text-right text-xs font-mono font-black text-rose-400 bg-rose-900/30 border-l border-slate-800">
-                    {(tableTotals.due || 0).toFixed(2)}
+                    {Number(tableTotals.due || 0).toFixed(2)}
                 </th>
                 <th colSpan={2} className="px-3 py-2.5 text-left text-xs font-black text-cyan-300 border-l border-slate-800 bg-[#0a1329]">
                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mr-1.5">Net Income:</span>
-                    <span className="font-mono">{(tableTotals.income || 0).toFixed(2)}</span>
+                    <span className="font-mono">{Number(tableTotals.income || 0).toFixed(2)}</span>
                 </th>
               </tr>
               {/* MAIN COLUMN HEADERS */}
@@ -2040,13 +2040,13 @@ pdate the local state and reset form
                       {invoice.referrar_name || '-'}
                     </td>
                     <td className="px-3 py-2.5 whitespace-nowrap text-xs text-slate-100 text-right font-mono font-bold">
-                      ৳{(invoice.total_amount || 0).toFixed(2)}
+                      ৳{Number(invoice.total_amount || 0).toFixed(2)}
                     </td>
                     <td className="px-3 py-2.5 whitespace-nowrap text-xs text-right font-mono font-black text-emerald-400">
-                      ৳{(invoice.paid_amount || 0).toFixed(2)}
+                      ৳{Number(invoice.paid_amount || 0).toFixed(2)}
                     </td>
-                    <td className={`px-3 py-2.5 whitespace-nowrap text-xs text-right font-mono font-black ${invoice.due_amount > 0.01 ? 'text-rose-400' : 'text-slate-500'}`}>
-                      ৳{(invoice.due_amount || 0).toFixed(2)}
+                    <td className={`px-3 py-2.5 whitespace-nowrap text-xs text-right font-mono font-black ${Number(invoice.due_amount) > 0.01 ? 'text-rose-400' : 'text-slate-500'}`}>
+                      ৳{Number(invoice.due_amount || 0).toFixed(2)}
                     </td>
                     <td className="px-3 py-2.5 whitespace-nowrap text-xs text-center">
                       <span className={`
@@ -2084,13 +2084,13 @@ pdate the local state and reset form
                     Total Summary:
                   </td>
                   <td className="px-3 py-3 whitespace-nowrap text-xs text-slate-100 text-right font-mono font-black border-l border-slate-800">
-                    ৳{(tableTotals.total || 0).toFixed(2)}
+                    ৳{Number(tableTotals.total || 0).toFixed(2)}
                   </td>
                   <td className="px-3 py-3 whitespace-nowrap text-xs text-emerald-400 text-right font-mono font-black border-l border-slate-800">
-                    ৳{(tableTotals.paid || 0).toFixed(2)}
+                    ৳{Number(tableTotals.paid || 0).toFixed(2)}
                   </td>
                   <td className="px-3 py-3 whitespace-nowrap text-xs text-rose-400 text-right font-mono font-black border-l border-slate-800">
-                    ৳{(tableTotals.due || 0).toFixed(2)}
+                    ৳{Number(tableTotals.due || 0).toFixed(2)}
                   </td>
                   <td colSpan={2} className="px-3 py-3 border-l border-slate-800"></td>
                 </tr>

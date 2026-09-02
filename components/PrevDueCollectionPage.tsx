@@ -114,7 +114,7 @@ const PrevDueCollectionPage: React.FC<Props> = ({
                         <td>${patientInfo}</td>
                         <td style="text-align:right; font-weight:bold;">৳${netPayable.toFixed(2)}${discountText}</td>
                         ${paymentCols}
-                        <td style="text-align:right; font-weight:bold; color:red;">৳${(inv.due_amount || 0).toFixed(2)}</td>
+                        <td style="text-align:right; font-weight:bold; color:red;">৳${Number(inv.due_amount || 0).toFixed(2)}</td>
                     </tr>
                 `;
             }).join('');
@@ -168,7 +168,7 @@ const PrevDueCollectionPage: React.FC<Props> = ({
                         <td>${inv ? inv.patient_name : 'Unknown'}</td>
                         <td style="text-align:right">৳${totalBill.toFixed(2)}</td>
                         <td style="white-space:nowrap">${dc.collection_date}</td>
-                        <td style="text-align:right; font-weight:bold; color:green;">৳${(dc.amount_collected || 0).toFixed(2)}</td>
+                        <td style="text-align:right; font-weight:bold; color:green;">৳${Number(dc.amount_collected || 0).toFixed(2)}</td>
                         <td style="text-align:right; font-weight:bold; color:red;">৳${remainingDue.toFixed(2)}</td>
                     </tr>
                 `;
@@ -320,7 +320,7 @@ const filteredHistory = (() => {
             `<tr>
                 <td>${it.test_name}</td>
                 <td style="text-align:center">${it.quantity}</td>
-                <td style="text-align:right">৳${(it.price * it.quantity).toFixed(2)}</td>
+                <td style="text-align:right">৳${Number(it.price * it.quantity).toFixed(2)}</td>
             </tr>`
         ).join('');
 
@@ -349,12 +349,12 @@ const filteredHistory = (() => {
             </table>
             
             <table class="summary-table" style="width: 280px; float: right; margin-top: 15px;">
-                <tr><td><b>Total Amount:</b></td><td style="text-align:right">৳${(invoice.total_amount || 0).toFixed(2)}</td></tr>
-                <tr><td><b>Discount:</b></td><td style="text-align:right">৳${(invoice.discount_amount || 0).toFixed(2)}</td></tr>
+                <tr><td><b>Total Amount:</b></td><td style="text-align:right">৳${Number(invoice.total_amount || 0).toFixed(2)}</td></tr>
+                <tr><td><b>Discount:</b></td><td style="text-align:right">৳${Number(invoice.discount_amount || 0).toFixed(2)}</td></tr>
                 <tr><td><b>Net Payable:</b></td><td style="text-align:right">৳${((invoice.total_amount || 0) - (invoice.discount_amount || 0)).toFixed(2)}</td></tr>
-                <tr><td><b>Previously Paid:</b></td><td style="text-align:right">৳${(invoice.paid_amount || 0).toFixed(2)}</td></tr>
+                <tr><td><b>Previously Paid:</b></td><td style="text-align:right">৳${Number(invoice.paid_amount || 0).toFixed(2)}</td></tr>
                 <tr><td><b>Current Payment:</b></td><td style="text-align:right; font-size:16px; font-weight:bold">৳${collectedAmt.toFixed(2)}</td></tr>
-                <tr><td><b>Remaining Due:</b></td><td style="text-align:right; color:red; font-weight:bold;">৳${(invoice.due_amount - collectedAmt).toFixed(2)}</td></tr>
+                <tr><td><b>Remaining Due:</b></td><td style="text-align:right; color:red; font-weight:bold;">৳${Number(invoice.due_amount - collectedAmt).toFixed(2)}</td></tr>
             </table>
             <div style="clear: both;"></div>
             <div style="margin-top:40px; display: flex; justify-content: space-between;">
@@ -556,7 +556,7 @@ const filteredHistory = (() => {
                                                     }
                                                     return <td key={i} className="p-4 text-right"></td>;
                                                 })}
-                                                <td className="p-4 text-right text-red-500 font-black">৳{(inv.due_amount || 0).toFixed(2)}</td>
+                                                <td className="p-4 text-right text-red-500 font-black">৳{Number(inv.due_amount || 0).toFixed(2)}</td>
                                                 <td className="p-4 text-center">
                                                     <button onClick={(e) => { e.stopPropagation(); setSelectedInvoice(inv); setShowModal(true); setCollectionAmount(0); setDiscountAmount(0); }} className="bg-green-600 px-4 py-1.5 rounded-md text-xs font-bold text-white hover:bg-green-500 transition-colors shadow-lg shadow-green-900/20">Collect</button>
                                                 </td>
@@ -611,7 +611,7 @@ const filteredHistory = (() => {
                                     <td className="p-4 font-mono text-sky-400">{dc.invoice_id}</td>
                                     <td className="p-4 font-bold">{inv ? inv.patient_name : 'Unknown'}</td>
                                     <td className="p-4 text-sm">{dc.collected_by}</td>
-                                    <td className="p-4 text-right text-green-400 font-black">৳{(dc.amount_collected || 0).toFixed(2)}</td>
+                                    <td className="p-4 text-right text-green-400 font-black">৳{Number(dc.amount_collected || 0).toFixed(2)}</td>
                                     <td className="p-4 text-center">
                                         <button 
                                             onClick={() => inv && handlePrintReceipt(inv, dc.amount_collected, dc.collection_date)} 
@@ -632,7 +632,7 @@ const filteredHistory = (() => {
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
                     <div className="bg-slate-800 border border-slate-700 rounded-xl w-full max-w-md p-6">
                         <h3 className="text-xl font-bold mb-4">বকেয়া টাকা আদায়</h3>
-                        <div className="bg-slate-900 p-4 rounded mb-6 flex justify-between items-center"><span className="text-slate-400">Current Due:</span><span className="text-red-400 text-2xl font-black">৳{(selectedInvoice.due_amount || 0).toFixed(2)}</span></div>
+                        <div className="bg-slate-900 p-4 rounded mb-6 flex justify-between items-center"><span className="text-slate-400">Current Due:</span><span className="text-red-400 text-2xl font-black">৳{Number(selectedInvoice.due_amount || 0).toFixed(2)}</span></div>
                         <div className="space-y-4">
                             <div>
                                 <label className="text-xs text-slate-500 uppercase font-black">Date</label>
