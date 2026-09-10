@@ -498,7 +498,7 @@ const filteredHistory = (() => {
                 </div>
             </div>
             {activeTab === 'pending' && (
-            <div className="overflow-x-auto rounded-lg border border-slate-700">
+            <div className="overflow-x-auto rounded-lg border border-slate-700 shadow-xl bg-slate-900">
                 <table className="w-full text-left">
                     {(() => {
                         let totalBillSum = 0;
@@ -507,16 +507,16 @@ const filteredHistory = (() => {
                         
                         return (
                             <>
-                                <thead className="bg-slate-800 text-slate-400 text-xs uppercase font-black">
+                                <thead className="bg-slate-800 text-sky-200 text-xs uppercase font-bold tracking-wider border-b border-slate-700">
                                     <tr>
                                         <th className="p-4 w-12 text-center">SL</th>
                                         <th className="p-4">Invoice ID</th>
                                         <th className="p-4">Patient Name & Address</th>
-                                        <th className="p-4 text-right whitespace-nowrap">Total <br/><span className="text-[9px] font-normal opacity-70">(After Disc)</span></th>
+                                        <th className="p-4 text-right whitespace-nowrap">Total <br/><span className="text-[10px] font-medium text-slate-300">(After Disc)</span></th>
                                         {Array.from({length: detailedPendingData.maxPayments}).map((_, i) => (
                                             <th key={i} className="p-4 text-right">Paid_{String(i+1).padStart(2, '0')}</th>
                                         ))}
-                                        <th className="p-4 text-right text-red-400">Due</th>
+                                        <th className="p-4 text-right text-rose-300">Due</th>
                                         <th className="p-4 text-center">Action</th>
                                     </tr>
                                 </thead>
@@ -530,18 +530,18 @@ const filteredHistory = (() => {
                                             <tr 
                                                 key={inv.invoice_id} 
                                                 onDoubleClick={() => onViewInvoice && onViewInvoice(inv.invoice_id)}
-                                                className="hover:bg-slate-800/50 transition-colors cursor-pointer group"
+                                                className="hover:bg-slate-800/80 even:bg-slate-900/70 odd:bg-slate-850/40 transition-colors cursor-pointer group"
                                                 title="Double click to view invoice details"
                                             >
-                                                <td className="p-4 text-center font-bold text-slate-500">{index + 1}</td>
-                                                <td className="p-4 font-mono text-sky-400 whitespace-nowrap">{inv.invoice_id}</td>
+                                                <td className="p-4 text-center font-bold text-slate-300">{index + 1}</td>
+                                                <td className="p-4 font-mono text-sky-300 font-bold whitespace-nowrap">{inv.invoice_id}</td>
                                                 <td className="p-4">
-                                                    <div className="font-bold text-slate-200">{inv.patient_name}</div>
-                                                    {inv.addressStr && <div className="text-xs text-slate-500 mt-0.5">{inv.addressStr}</div>}
+                                                    <div className="font-bold text-white">{inv.patient_name}</div>
+                                                    {inv.addressStr && <div className="text-xs text-slate-300 font-medium mt-0.5">{inv.addressStr}</div>}
                                                 </td>
                                                 <td className="p-4 text-right">
-                                                    <div className="font-bold">৳{netPayable.toFixed(2)}</div>
-                                                    {inv.discount_amount > 0 && <div className="text-[10px] text-slate-500">(Disc: ৳{inv.discount_amount.toFixed(2)})</div>}
+                                                    <div className="font-bold text-white">৳{netPayable.toFixed(2)}</div>
+                                                    {inv.discount_amount > 0 && <div className="text-xs text-amber-300 font-medium">(Disc: ৳{inv.discount_amount.toFixed(2)})</div>}
                                                 </td>
                                                 {Array.from({length: detailedPendingData.maxPayments}).map((_, i) => {
                                                     const p = inv.payments[i];
@@ -549,28 +549,28 @@ const filteredHistory = (() => {
                                                         paymentsSum[i] += p.amount;
                                                         return (
                                                             <td key={i} className="p-4 text-right">
-                                                                <div className="text-xs text-slate-400 mb-0.5 whitespace-nowrap">{p.date}</div>
-                                                                <div className="font-bold text-green-400">৳{p.amount.toFixed(2)}</div>
+                                                                <div className="text-xs text-slate-300 mb-0.5 whitespace-nowrap font-medium">{p.date}</div>
+                                                                <div className="font-bold text-emerald-400">৳{p.amount.toFixed(2)}</div>
                                                             </td>
                                                         );
                                                     }
                                                     return <td key={i} className="p-4 text-right"></td>;
                                                 })}
-                                                <td className="p-4 text-right text-red-500 font-black">৳{Number(inv.due_amount || 0).toFixed(2)}</td>
+                                                <td className="p-4 text-right text-rose-400 font-black">৳{Number(inv.due_amount || 0).toFixed(2)}</td>
                                                 <td className="p-4 text-center">
-                                                    <button onClick={(e) => { e.stopPropagation(); setSelectedInvoice(inv); setShowModal(true); setCollectionAmount(0); setDiscountAmount(0); }} className="bg-green-600 px-4 py-1.5 rounded-md text-xs font-bold text-white hover:bg-green-500 transition-colors shadow-lg shadow-green-900/20">Collect</button>
+                                                    <button onClick={(e) => { e.stopPropagation(); setSelectedInvoice(inv); setShowModal(true); setCollectionAmount(0); setDiscountAmount(0); }} className="bg-emerald-600 px-4 py-1.5 rounded-md text-xs font-bold text-white hover:bg-emerald-500 transition-colors shadow-lg shadow-emerald-900/20">Collect</button>
                                                 </td>
                                             </tr>
                                         );
                                     })}
                                     {detailedPendingData.items.length > 0 && (
-                                        <tr className="bg-slate-800/80 font-black uppercase text-xs">
-                                            <td colSpan={3} className="p-4 text-right text-slate-300">Total:</td>
-                                            <td className="p-4 text-right text-white">৳{totalBillSum.toFixed(2)}</td>
+                                        <tr className="bg-slate-800 border-t-2 border-slate-600 font-bold uppercase text-xs">
+                                            <td colSpan={3} className="p-4 text-right text-slate-200">Total:</td>
+                                            <td className="p-4 text-right text-white font-bold">৳{totalBillSum.toFixed(2)}</td>
                                             {Array.from({length: detailedPendingData.maxPayments}).map((_, i) => (
-                                                <td key={i} className="p-4 text-right text-green-400">৳{paymentsSum[i].toFixed(2)}</td>
+                                                <td key={i} className="p-4 text-right text-emerald-300 font-bold">৳{paymentsSum[i].toFixed(2)}</td>
                                             ))}
-                                            <td className="p-4 text-right text-red-400 text-sm">৳{totalDueSum.toFixed(2)}</td>
+                                            <td className="p-4 text-right text-rose-300 font-black text-sm">৳{totalDueSum.toFixed(2)}</td>
                                             <td></td>
                                         </tr>
                                     )}
@@ -583,16 +583,16 @@ const filteredHistory = (() => {
             )}
             
             {activeTab === 'history' && (
-            <div className="overflow-x-auto rounded-lg border border-slate-700">
+            <div className="overflow-x-auto rounded-lg border border-slate-700 shadow-xl bg-slate-900">
                 <table className="w-full text-left">
-                    <thead className="bg-slate-800 text-slate-400 text-xs uppercase font-black">
+                    <thead className="bg-slate-800 text-sky-200 text-xs uppercase font-bold tracking-wider border-b border-slate-700">
                         <tr>
                             <th className="p-4 w-12 text-center">SL</th>
                             <th className="p-4">Collection Date</th>
                             <th className="p-4">Invoice ID</th>
                             <th className="p-4">Patient Name</th>
                             <th className="p-4">Collected By</th>
-                            <th className="p-4 text-right text-green-400">Amount Collected</th>
+                            <th className="p-4 text-right text-emerald-300">Amount Collected</th>
                             <th className="p-4 text-center">Action</th>
                         </tr>
                     </thead>
@@ -604,14 +604,14 @@ const filteredHistory = (() => {
                                 return (
                                 <tr 
                                     key={dc.collection_id}
-                                    className="hover:bg-slate-800/50 transition-colors"
+                                    className="hover:bg-slate-800/80 even:bg-slate-900/70 odd:bg-slate-850/40 transition-colors"
                                 >
-                                    <td className="p-4 text-center font-bold text-slate-500">{index + 1}</td>
-                                    <td className="p-4 text-sm">{dc.collection_date}</td>
-                                    <td className="p-4 font-mono text-sky-400">{dc.invoice_id}</td>
-                                    <td className="p-4 font-bold">{inv ? inv.patient_name : 'Unknown'}</td>
-                                    <td className="p-4 text-sm">{dc.collected_by}</td>
-                                    <td className="p-4 text-right text-green-400 font-black">৳{Number(dc.amount_collected || 0).toFixed(2)}</td>
+                                    <td className="p-4 text-center font-bold text-slate-300">{index + 1}</td>
+                                    <td className="p-4 text-sm text-slate-200 font-medium">{dc.collection_date}</td>
+                                    <td className="p-4 font-mono text-sky-300 font-bold">{dc.invoice_id}</td>
+                                    <td className="p-4 font-bold text-white">{inv ? inv.patient_name : 'Unknown'}</td>
+                                    <td className="p-4 text-sm text-slate-200 font-medium">{dc.collected_by}</td>
+                                    <td className="p-4 text-right text-emerald-400 font-black">৳{Number(dc.amount_collected || 0).toFixed(2)}</td>
                                     <td className="p-4 text-center">
                                         <button 
                                             onClick={() => inv && handlePrintReceipt(inv, dc.amount_collected, dc.collection_date)} 

@@ -961,7 +961,7 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
             </div>
 
             <table className="min-w-full divide-y divide-slate-100 dark:divide-slate-800">
-                <thead className="bg-slate-50 dark:bg-slate-800/50 text-slate-400 uppercase font-bold text-[10px] tracking-widest font-bengali">
+                <thead className="bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-sky-200 uppercase font-bold text-xs tracking-wider font-bengali border-b border-slate-300 dark:border-slate-700">
                     <tr>
                         <th className="p-4 text-center w-16">সিরিয়াল নং</th>
                         <th className="p-4 text-left">আইডি ও মেশিন</th>
@@ -984,33 +984,33 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
                         <tr 
                             key={e.emp_id} 
                             onClick={() => handleRowClick(e)} 
-                            className={`cursor-pointer hover:bg-slate-50 dark:hover:bg-blue-900/10 transition-all ${selectedEmployeeId === e.emp_id ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}
+                            className={`cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/80 even:bg-transparent odd:bg-slate-50/50 dark:odd:bg-slate-850/30 transition-all ${selectedEmployeeId === e.emp_id ? 'bg-blue-50 dark:bg-blue-900/30' : ''}`}
                         >
-                            <td className="p-4 text-center font-mono text-xs font-bold text-slate-400">
+                            <td className="p-4 text-center font-mono text-xs font-bold text-slate-500 dark:text-slate-300">
                                 {index + 1}
                             </td>
-                            <td className="p-4 font-mono text-xs text-blue-600 dark:text-blue-400 font-bold whitespace-nowrap">
+                            <td className="p-4 font-mono text-xs text-blue-600 dark:text-sky-300 font-bold whitespace-nowrap">
                                 #{e.emp_id}
-                                <div className="text-[10px] text-amber-600 dark:text-amber-400 font-bold mt-0.5">
+                                <div className="text-[10px] text-amber-600 dark:text-amber-300 font-bold mt-0.5">
                                     HID: {e.machine_id || '---'}
                                 </div>
                             </td>
-                            <td className="p-4 font-bold text-slate-700 dark:text-slate-200 text-sm">
+                            <td className="p-4 font-bold text-slate-800 dark:text-white text-sm">
                                 {e.emp_name}
-                                <div className="text-[10px] text-slate-400 font-medium uppercase mt-0.5">
+                                <div className="text-[11px] text-slate-500 dark:text-slate-300 font-medium uppercase mt-0.5">
                                     {e.mobile || 'No Mobile'} {e.gender ? `| ${e.gender}` : ''}
                                 </div>
                             </td>
-                            <td className="p-4 text-xs text-slate-700 dark:text-slate-300 font-bold tracking-tight">
+                            <td className="p-4 text-xs text-slate-800 dark:text-slate-200 font-bold tracking-tight">
                                 {e.job_position || e.designation || 'Staff'}
-                                <div className="text-[10px] text-slate-400 font-medium mt-0.5">
+                                <div className="text-[11px] text-slate-500 dark:text-slate-300 font-medium mt-0.5">
                                     {e.department || 'General'} {e.degree ? `| ${e.degree}` : ''}
                                 </div>
                             </td>
-                            <td className="p-4 text-xs text-slate-600 dark:text-slate-400 font-medium max-w-xs truncate" title={e.address || ''}>
+                            <td className="p-4 text-xs text-slate-700 dark:text-slate-200 font-medium max-w-xs truncate" title={e.address || ''}>
                                 {e.address || '---'}
                             </td>
-                            <td className="p-4 text-right font-bold text-slate-800 dark:text-slate-100 text-base font-mono whitespace-nowrap">
+                            <td className="p-4 text-right font-black text-slate-900 dark:text-white text-base font-mono whitespace-nowrap">
                                 ৳{(e.salary || 0).toLocaleString()}
                             </td>
                             <td className="p-4 text-center whitespace-nowrap">
@@ -1133,7 +1133,7 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
                   </div>
                 ) : (
                   <table className="w-full text-left text-sm border-collapse">
-                    <thead className="bg-slate-50 dark:bg-slate-950 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                    <thead className="bg-slate-100 dark:bg-slate-800 text-xs font-bold text-slate-800 dark:text-sky-200 uppercase tracking-wider border-b border-slate-300 dark:border-slate-700">
                         <tr>
                             <th className="p-3 text-center w-16">Active</th>
                             <th className="p-3">Staff Member</th>
@@ -1642,7 +1642,7 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
           {/* Excel Centered Grid Table */}
           <div className="overflow-x-auto rounded-xl border border-slate-300 dark:border-slate-700 shadow-sm">
               <table className="w-full text-center border-collapse text-xs">
-                  <thead className="bg-slate-100 dark:bg-slate-950 text-slate-800 dark:text-sky-300 font-bold border-b border-slate-300 dark:border-slate-700">
+                  <thead className="bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-sky-200 font-bold border-b border-slate-300 dark:border-slate-700">
                       <tr>
                         <th className="p-3 border-r border-slate-300 dark:border-slate-700 w-12">সিরিয়াল</th>
                         <th className="p-3 border-r border-slate-300 dark:border-slate-700 text-left">কর্মচারীর নাম / তারিখ</th>
@@ -2133,7 +2133,7 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
             {/* Day by Day Log Table */}
             <div className="overflow-x-auto rounded-xl border border-slate-300 dark:border-slate-700 shadow-sm">
               <table className="w-full text-center border-collapse text-xs font-sans">
-                <thead className="bg-slate-100 dark:bg-slate-950 text-slate-800 dark:text-sky-300 font-bold border-b border-slate-300 dark:border-slate-700">
+                <thead className="bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-sky-200 font-bold border-b border-slate-300 dark:border-slate-700">
                   <tr>
                     <th className="p-3 border-r border-slate-300 dark:border-slate-700 w-12">তারিখ</th>
                     <th className="p-3 border-r border-slate-300 dark:border-slate-700 w-24">বার</th>
@@ -2189,7 +2189,7 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
           /* VIEW 2: All Employees Monthly Overview Grid Table */
           <div className="overflow-x-auto rounded-xl border border-slate-300 dark:border-slate-700 shadow-sm">
             <table className="w-full text-center border-collapse text-xs font-sans">
-              <thead className="bg-slate-100 dark:bg-slate-950 text-slate-800 dark:text-sky-300 font-bold border-b border-slate-300 dark:border-slate-700">
+              <thead className="bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-sky-200 font-bold border-b border-slate-300 dark:border-slate-700">
                 <tr>
                   <th className="p-3 border-r border-slate-300 dark:border-slate-700 w-12">সিরিয়াল</th>
                   <th className="p-3 border-r border-slate-300 dark:border-slate-700 text-left">কর্মচারীর নাম</th>
@@ -2379,7 +2379,7 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
           {/* Table with Compact Column Totals Above Column Names */}
           <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
               <table className="w-full text-xs text-left border-collapse">
-                  <thead className="bg-slate-100 dark:bg-slate-950 text-slate-700 dark:text-slate-300 font-bold border-b border-slate-200 dark:border-slate-800">
+                  <thead className="bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-sky-200 font-bold border-b border-slate-300 dark:border-slate-700">
                       <tr>
                           <th className="p-3 text-center w-12 border-r border-slate-200 dark:border-slate-800">
                             <div className="text-[10px] text-slate-400 font-bold">#</div>
@@ -2714,7 +2714,7 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
             <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xl overflow-hidden">
                 <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800">
                     <table className="w-full text-xs text-left border-collapse">
-                        <thead className="bg-slate-100 dark:bg-slate-950 text-slate-700 dark:text-slate-200 font-bold border-b border-slate-200 dark:border-slate-800">
+                        <thead className="bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-sky-200 font-bold border-b border-slate-300 dark:border-slate-700">
                             <tr>
                                 <th className="p-3 text-center w-12 border-r border-slate-200 dark:border-slate-800">
                                   <div className="text-[10px] text-slate-400 font-bold">#</div>

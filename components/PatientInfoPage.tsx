@@ -406,8 +406,8 @@ const PatientInfoPage: React.FC<PatientInfoPageProps> = ({
       setSuccessMessage('Patient deleted successfully.');
   };
 
-  const inputBaseClasses = "block w-full border border-slate-800 rounded-md shadow-sm text-sm sm:text-base lg:text-lg font-medium bg-slate-900 text-slate-200 placeholder-slate-600 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-shadow";
-  const labelBaseClasses = "block text-xs sm:text-sm font-semibold text-slate-400 mb-1.5";
+  const inputBaseClasses = "block w-full border border-slate-700 rounded-md shadow-sm text-sm sm:text-base lg:text-lg font-semibold bg-slate-800 text-white placeholder-slate-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-400 outline-none transition-shadow";
+  const labelBaseClasses = "block text-xs sm:text-sm font-bold text-slate-200 mb-1.5";
   const actionButtonClasses = "px-3 sm:px-5 py-2 sm:py-2.5 text-sm font-semibold rounded-md flex justify-center items-center focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 transition-all active:scale-95";
 
   return (
@@ -671,49 +671,49 @@ const PatientInfoPage: React.FC<PatientInfoPageProps> = ({
       </div>
 
       {!isEmbedded && (
-        <div className="border border-slate-800 rounded-xl shadow-xl bg-slate-900 overflow-hidden mt-2">
+        <div className="border border-slate-700 rounded-xl shadow-xl bg-slate-900 overflow-hidden mt-2">
             {/* Desktop Table (Hidden on smaller screens) */}
             <div className="hidden md:block overflow-x-auto">
-                <table className="min-w-full divide-y divide-slate-800/80">
-                  <thead className="bg-slate-950/80">
+                <table className="min-w-full divide-y divide-slate-700">
+                  <thead className="bg-slate-800 border-b border-slate-700">
                     <tr>
-                      <th className="px-4 py-3.5 text-left text-[11px] font-bold text-slate-400 uppercase tracking-wider whitespace-nowrap">Barcode</th>
-                      <th className="px-4 py-3.5 text-left text-[11px] font-bold text-slate-400 uppercase tracking-wider whitespace-nowrap">Pt_ID</th>
-                      <th className="px-4 py-3.5 text-left text-[11px] font-bold text-slate-400 uppercase tracking-wider whitespace-nowrap">Name</th>
-                      <th className="px-4 py-3.5 text-left text-[11px] font-bold text-slate-400 uppercase tracking-wider whitespace-nowrap">Gender/Age</th>
-                      <th className="px-4 py-3.5 text-left text-[11px] font-bold text-slate-400 uppercase tracking-wider whitespace-nowrap">Mobile</th>
-                      <th className="px-4 py-3.5 text-left text-[11px] font-bold text-slate-400 uppercase tracking-wider whitespace-nowrap">Address</th>
-                      <th className="px-4 py-3.5 text-left text-[11px] font-bold text-slate-400 uppercase tracking-wider whitespace-nowrap">Thana/District</th>
+                      <th className="px-4 py-3.5 text-left text-xs font-bold text-sky-200 uppercase tracking-wider whitespace-nowrap">Barcode</th>
+                      <th className="px-4 py-3.5 text-left text-xs font-bold text-sky-200 uppercase tracking-wider whitespace-nowrap">Pt_ID</th>
+                      <th className="px-4 py-3.5 text-left text-xs font-bold text-sky-200 uppercase tracking-wider whitespace-nowrap">Name</th>
+                      <th className="px-4 py-3.5 text-left text-xs font-bold text-sky-200 uppercase tracking-wider whitespace-nowrap">Gender/Age</th>
+                      <th className="px-4 py-3.5 text-left text-xs font-bold text-sky-200 uppercase tracking-wider whitespace-nowrap">Mobile</th>
+                      <th className="px-4 py-3.5 text-left text-xs font-bold text-sky-200 uppercase tracking-wider whitespace-nowrap">Address</th>
+                      <th className="px-4 py-3.5 text-left text-xs font-bold text-sky-200 uppercase tracking-wider whitespace-nowrap">Thana/District</th>
                     </tr>
                   </thead>
-                  <tbody className="bg-slate-900 divide-y divide-slate-800/50">
+                  <tbody className="bg-slate-900 divide-y divide-slate-800">
                     {filteredPatients.length === 0 ? (
-                        <tr><td colSpan={7} className="px-6 py-8 text-center text-slate-500 text-sm">No patients found.</td></tr>
+                        <tr><td colSpan={7} className="px-6 py-8 text-center text-slate-400 text-sm font-semibold">No patients found.</td></tr>
                     ) : (
                         filteredPatients.slice(0, 100).map((patient) => (
                           <tr
                             key={patient.pt_id}
                             onClick={() => { setFormData(patient); setSelectedPatientId(patient.pt_id); setIsEditing(false); window.scrollTo({top: 0, behavior: 'smooth'}); }}
-                            className={`cursor-pointer transition-colors ${selectedPatientId === patient.pt_id ? 'bg-blue-900/30 border-l-2 border-l-blue-500' : 'hover:bg-slate-800/50 border-l-2 border-l-transparent'}`}
+                            className={`cursor-pointer transition-colors ${selectedPatientId === patient.pt_id ? 'bg-blue-900/40 border-l-2 border-l-blue-400' : 'hover:bg-slate-800/80 even:bg-slate-900/70 odd:bg-slate-850/40 border-l-2 border-l-transparent'}`}
                           >
                             <td className="px-4 py-3 whitespace-nowrap">
                                 <img 
                                     src={`https://bwipjs-api.metafloor.com/?bcid=code128&text=${encodeURIComponent(patient.pt_id)}&scale=1&height=5&incltext=false`} 
                                     alt="Barcode" 
-                                    className="h-6 invert opacity-50 mix-blend-screen" 
+                                    className="h-6 invert opacity-85 contrast-125 mix-blend-screen" 
                                 />
                             </td>
-                            <td className="px-4 py-3 whitespace-nowrap text-xs text-blue-400 font-mono tracking-tight">{patient.pt_id}</td>
-                            <td className="px-4 py-3 whitespace-nowrap text-sm text-slate-200 font-bold">{patient.pt_name}</td>
-                            <td className="px-4 py-3 whitespace-nowrap text-xs text-slate-300">
+                            <td className="px-4 py-3 whitespace-nowrap text-xs text-sky-300 font-mono tracking-tight font-bold">{patient.pt_id}</td>
+                            <td className="px-4 py-3 whitespace-nowrap text-sm text-white font-bold">{patient.pt_name}</td>
+                            <td className="px-4 py-3 whitespace-nowrap text-xs text-slate-200">
                                 {patient.gender && <span>{patient.gender}, </span>}
-                                <span className="font-medium text-slate-100">{patient.ageY}Y</span>
+                                <span className="font-bold text-amber-300">{patient.ageY}Y</span>
                             </td>
-                            <td className="px-4 py-3 whitespace-nowrap text-xs text-slate-300 font-mono">{patient.mobile}</td>
-                            <td className="px-4 py-3 whitespace-nowrap text-xs text-slate-300 font-medium truncate max-w-[150px]">{patient.address}</td>
-                            <td className="px-4 py-3 whitespace-nowrap text-xs text-slate-400">
+                            <td className="px-4 py-3 whitespace-nowrap text-xs text-emerald-300 font-mono font-bold">{patient.mobile}</td>
+                            <td className="px-4 py-3 whitespace-nowrap text-xs text-slate-200 font-medium truncate max-w-[150px]">{patient.address}</td>
+                            <td className="px-4 py-3 whitespace-nowrap text-xs text-slate-300 font-medium">
                                 {patient.thana}
-                                {patient.district && <span className="opacity-60">, {patient.district}</span>}
+                                {patient.district && <span className="text-slate-400">, {patient.district}</span>}
                             </td>
                           </tr>
                         ))
@@ -721,50 +721,50 @@ const PatientInfoPage: React.FC<PatientInfoPageProps> = ({
                   </tbody>
                 </table>
                 {filteredPatients.length > 100 && (
-                    <div className="p-3 text-center text-xs text-slate-500 bg-slate-950/50 border-t border-slate-800">
+                    <div className="p-3 text-center text-xs text-slate-400 bg-slate-950/70 border-t border-slate-700 font-medium">
                         Showing first 100 results. Please refine your search.
                     </div>
                 )}
             </div>
             
             {/* Mobile List View (Cards) */}
-            <div className="md:hidden divide-y divide-slate-800/80 bg-slate-900">
+            <div className="md:hidden divide-y divide-slate-800 bg-slate-900">
                 {filteredPatients.length === 0 ? (
-                    <div className="p-8 text-center text-slate-500 text-sm">No patients found.</div>
+                    <div className="p-8 text-center text-slate-400 text-sm font-medium">No patients found.</div>
                 ) : (
                     filteredPatients.slice(0, 50).map((patient) => (
                         <div 
                             key={patient.pt_id}
                             onClick={() => { setFormData(patient); setSelectedPatientId(patient.pt_id); setIsEditing(false); window.scrollTo({top: 0, behavior: 'smooth'}); }}
-                            className={`p-4 cursor-pointer transition-colors ${selectedPatientId === patient.pt_id ? 'bg-blue-900/30 border-l-4 border-l-blue-500' : 'hover:bg-slate-800/50 border-l-4 border-l-transparent'}`}
+                            className={`p-4 cursor-pointer transition-colors ${selectedPatientId === patient.pt_id ? 'bg-blue-900/40 border-l-4 border-l-blue-400' : 'hover:bg-slate-800/80 border-l-4 border-l-transparent'}`}
                         >
                             <div className="flex justify-between items-start mb-1.5 gap-2">
-                                <h4 className="text-base font-bold text-slate-100 leading-tight">{patient.pt_name}</h4>
-                                <div className="text-xs font-mono text-blue-400 shrink-0 bg-blue-900/20 px-1.5 py-0.5 rounded border border-blue-800/50">{patient.pt_id}</div>
+                                <h4 className="text-base font-bold text-white leading-tight">{patient.pt_name}</h4>
+                                <div className="text-xs font-mono font-bold text-sky-300 shrink-0 bg-sky-950/80 px-2 py-0.5 rounded border border-sky-700/60">{patient.pt_id}</div>
                             </div>
                             
                             <div className="flex justify-between items-center mb-2">
-                                <div className="text-xs font-medium text-slate-300 bg-slate-800 px-2 py-0.5 rounded-full">
+                                <div className="text-xs font-bold text-slate-200 bg-slate-800 px-2.5 py-0.5 rounded-full border border-slate-700">
                                     {patient.gender ? `${patient.gender}, ` : ''}{patient.ageY}Y
                                 </div>
-                                <div className="text-sm font-mono text-emerald-400 font-medium">
+                                <div className="text-sm font-mono text-emerald-300 font-bold">
                                     {patient.mobile}
                                 </div>
                             </div>
                             
-                            <div className="text-[13px] text-slate-400 flex flex-wrap gap-x-1.5 leading-snug mt-2 pt-2 border-t border-slate-800/50">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 shrink-0 mt-0.5 text-slate-500" viewBox="0 0 20 20" fill="currentColor">
+                            <div className="text-[13px] text-slate-300 flex flex-wrap gap-x-1.5 leading-snug mt-2 pt-2 border-t border-slate-800">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 shrink-0 mt-0.5 text-sky-400" viewBox="0 0 20 20" fill="currentColor">
                                   <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
                                 </svg>
                                 <span>{patient.address}</span>
                                 {patient.thana && <span>• {patient.thana}</span>}
-                                {patient.district && <span className="opacity-70">• {patient.district}</span>}
+                                {patient.district && <span className="opacity-80">• {patient.district}</span>}
                             </div>
                         </div>
                     ))
                 )}
                 {filteredPatients.length > 50 && (
-                    <div className="p-4 text-center text-xs text-slate-500 bg-slate-950/50 border-t border-slate-800">
+                    <div className="p-4 text-center text-xs text-slate-400 bg-slate-950/70 border-t border-slate-700 font-medium">
                         Showing first 50 results. Use search for more.
                     </div>
                 )}

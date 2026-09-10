@@ -669,6 +669,7 @@ const ClinicAccountsPage: React.FC<any> = ({
     const [invoiceDateSearch, setInvoiceDateSearch] = useState('');
     const [invoiceMonthSearch, setInvoiceMonthSearch] = useState<number | ''>('');
     const [invoiceYearSearch, setInvoiceYearSearch] = useState<number | ''>('');
+    const [pcFilter, setPcFilter] = useState<'all' | 'with_pc' | 'without_pc'>('all');
 
     const navigate = useNavigate();
     const [expSearch, setExpSearch] = useState('');
@@ -781,6 +782,10 @@ const ClinicAccountsPage: React.FC<any> = ({
                         <div class="total-row grand"><span>Net Payable:</span> <span>৳${Number(inv.net_payable || (inv.total_bill - (inv.total_discount || 0))).toFixed(2)}</span></div>
                         <div class="total-row" style="color: #16a34a; font-weight: bold;"><span>Paid Amount:</span> <span>৳${Number(inv.paid_amount || 0).toFixed(2)}</span></div>
                         <div class="total-row" style="color: #dc2626; font-weight: bold;"><span>Due Balance:</span> <span>৳${Number(inv.due_bill || 0).toFixed(2)}</span></div>
+                        ${((Number(inv.special_commission) || 0) + (Number(inv.commission_paid) || 0)) > 0 ? `
+                        <div class="total-row" style="color: #b45309; font-weight: bold; border-top: 1px dashed #cbd5e1; padding-top: 4px; margin-top: 4px;">
+                            <span>PC (Commission):</span> <span>৳${Number((Number(inv.special_commission) || 0) + (Number(inv.commission_paid) || 0)).toFixed(2)}</span>
+                        </div>` : ''}
                     </div>
                 </div>
                 ${inv.status === 'Returned' ? '<div class="status-stamp">INVOICE RETURNED / REFUNDED</div>' : ''}
@@ -1139,20 +1144,38 @@ const ClinicAccountsPage: React.FC<any> = ({
         return { totalCollection, collectionByCategory, dayDueRecov, totalExpense, expensesByCategory, balance: totalCollection - totalExpense };
     }, [selectedDate, invoices, dueCollections, detailedExpenses, categorizeInvoiceData]);
 
+    const totalWithPcInPeriod = useMemo(() => {
+        const safeInvoices = Array.isArray(invoices) ? invoices : [];
+        return safeInvoices.filter((inv: any) => {
+            if (!inv || inv.status === 'Cancelled' || inv.status === 'Returned' || inv.status === 'Deleted') return false;
+            const dateToUse = inv.admission_date || inv.invoice_date;
+            if (isTodayFilter) {
+                if (dateToUse !== selectedDate) return false;
+            } else {
+                if (!dateToUse || typeof dateToUse !== 'string') return false;
+                const parts = dateToUse.split('-');
+                if (parts.length < 2) return false;
+                const [y, m] = parts.map(Number);
+                if ((m - 1) !== selectedMonth || y !== selectedYear) return false;
+            }
+            return ((Number(inv.special_commission) || 0) + (Number(inv.commission_paid) || 0)) > 0;
+        }).length;
+    }, [invoices, isTodayFilter, selectedDate, selectedMonth, selectedYear]);
+
     const collectionReportData = useMemo(() => {
         const safeInvoices = Array.isArray(invoices) ? invoices : [];
-        const filtered = safeInvoices.filter((inv: any) => {
+        const rawFiltered = safeInvoices.filter((inv: any) => {
+            if (!inv) return false;
             const dateToUse = inv.admission_date || inv.invoice_date;
             if (isTodayFilter) return dateToUse === selectedDate;
-            if (!dateToUse) return false;
-            const [y, m] = dateToUse.split('-').map(Number);
+            if (!dateToUse || typeof dateToUse !== 'string') return false;
+            const parts = dateToUse.split('-');
+            if (parts.length < 2) return false;
+            const [y, m] = parts.map(Number);
             return (m - 1) === selectedMonth && y === selectedYear;
-        }).filter((inv: any) => 
-            (inv.patient_name || '').toLowerCase().includes(invoiceSearch.toLowerCase()) || 
-            (inv.admission_id && inv.admission_id.toLowerCase().includes(invoiceSearch.toLowerCase()))
-        );
+        });
 
-        return filtered.map((inv: any) => {
+        const mapped = rawFiltered.map((inv: any) => {
             const catData = categorizeInvoiceData(inv);
             return {
                 ...inv,
@@ -1170,7 +1193,69 @@ const ClinicAccountsPage: React.FC<any> = ({
                 netClinicCol: catData.clinicNet
             };
         });
-    }, [invoices, isTodayFilter, selectedDate, selectedMonth, selectedYear, invoiceSearch, categorizeInvoiceData]);
+
+        // 1. PC filter (All vs With PC vs Without PC)
+        const pcFiltered = mapped.filter((inv: any) => {
+            if (pcFilter === 'with_pc') return inv.pcCol > 0;
+            if (pcFilter === 'without_pc') return inv.pcCol === 0;
+            return true;
+        });
+
+        // 2. Comprehensive Search:
+        // Patient Name, Patient ID, Admission ID, Invoice Daily ID,
+        // Operation Name, SubCategory, Indication, Items, Service Providers, Referrers,
+        // and PC search ("pc", "পিসি", "has pc", "with pc", or exact PC amount like "500")
+        const query = invoiceSearch.trim().toLowerCase();
+        if (!query) return pcFiltered;
+
+        return pcFiltered.filter((inv: any) => {
+            // Check PC query keywords
+            if (query === 'pc' || query === 'পিসি' || query === 'has pc' || query === 'with pc' || query === 'has_pc') {
+                return inv.pcCol > 0;
+            }
+            if (query === 'no pc' || query === 'without pc') {
+                return inv.pcCol === 0;
+            }
+            if (query.startsWith('pc:') || query.startsWith('pc ')) {
+                const targetAmt = parseFloat(query.replace(/^pc[:\s]+/, ''));
+                if (!isNaN(targetAmt)) return inv.pcCol === targetAmt;
+            }
+
+            // Numeric check for PC amount
+            if (/^\d+$/.test(query) && inv.pcCol === Number(query)) {
+                return true;
+            }
+
+            // Patient Name & ID
+            if ((inv.patient_name || '').toLowerCase().includes(query)) return true;
+            if ((inv.patient_id && String(inv.patient_id).toLowerCase().includes(query))) return true;
+
+            // Admission ID & Daily ID
+            if ((inv.admission_id && String(inv.admission_id).toLowerCase().includes(query))) return true;
+            if ((inv.daily_id && String(inv.daily_id).toLowerCase().includes(query))) return true;
+
+            // Operation / Procedure / SubCategory / Indication / Service
+            if ((inv.subCategory || '').toLowerCase().includes(query)) return true;
+            if ((inv.indication || '').toLowerCase().includes(query)) return true;
+            if ((inv.serviceCategory || '').toLowerCase().includes(query)) return true;
+            if ((inv.ot_details || '').toLowerCase().includes(query)) return true;
+
+            // Referrer Name & Doctor Name
+            if ((inv.referrar_name || '').toLowerCase().includes(query)) return true;
+            if ((inv.doctor_name || '').toLowerCase().includes(query)) return true;
+
+            // Service items
+            if (Array.isArray(inv.items) && inv.items.some((it: any) => 
+                (it.service_type || '').toLowerCase().includes(query) ||
+                (it.name || '').toLowerCase().includes(query) ||
+                (it.service_provider || '').toLowerCase().includes(query)
+            )) {
+                return true;
+            }
+
+            return false;
+        });
+    }, [invoices, isTodayFilter, selectedDate, selectedMonth, selectedYear, invoiceSearch, pcFilter, categorizeInvoiceData]);
 
     const indoorJournalData = useMemo(() => {
         const safeInvoices = Array.isArray(invoices) ? invoices : [];
@@ -1888,12 +1973,72 @@ const ClinicAccountsPage: React.FC<any> = ({
                                             <select value={selectedYear} onChange={e => setSelectedYear(parseInt(e.target.value))} className="bg-slate-900 border border-slate-700 p-2 rounded text-white text-xs font-bold">{[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}</select>
                                         </div>
                                     )}
-                                    <div className="relative w-64">
-                                        <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
-                                        <input type="text" placeholder="Search Patient/Admission ID..." value={invoiceSearch} onChange={e => setInvoiceSearch(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-full pl-10 pr-4 py-2 text-xs text-white focus:border-blue-500 outline-none" />
+
+                                    {/* PC Filter Toggle Buttons */}
+                                    <div className="flex items-center bg-slate-900 p-1 rounded-xl border border-slate-700 shadow-inner">
+                                        <button 
+                                            type="button" 
+                                            onClick={() => setPcFilter('all')} 
+                                            className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all ${pcFilter === 'all' ? 'bg-slate-700 text-white shadow' : 'text-slate-400 hover:text-white'}`}
+                                        >
+                                            সকল (All)
+                                        </button>
+                                        <button 
+                                            type="button" 
+                                            onClick={() => setPcFilter(prev => prev === 'with_pc' ? 'all' : 'with_pc')} 
+                                            className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all flex items-center gap-1.5 ${pcFilter === 'with_pc' ? 'bg-rose-600 text-white shadow-lg shadow-rose-900/50 ring-1 ring-rose-300' : 'text-rose-300 hover:bg-slate-800'}`}
+                                            title="যেসব ইনভয়েসে পিসি দেওয়া হয়েছে সেগুলো ফিল্টার করতে ক্লিক করুন"
+                                        >
+                                            <span className={`w-2 h-2 rounded-full ${pcFilter === 'with_pc' ? 'bg-white animate-ping' : 'bg-rose-400'}`}></span>
+                                            শুধু PC ({totalWithPcInPeriod})
+                                        </button>
+                                    </div>
+
+                                    {/* Enhanced Search Input */}
+                                    <div className="relative w-64 md:w-72">
+                                        <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                                        <input 
+                                            type="text" 
+                                            placeholder="রোগীর নাম, আইডি, অপারেশন বা 'PC'..." 
+                                            value={invoiceSearch} 
+                                            onChange={e => setInvoiceSearch(e.target.value)} 
+                                            className="w-full bg-slate-950 border border-slate-700 rounded-full pl-9 pr-8 py-2 text-xs text-white placeholder:text-slate-500 focus:border-blue-500 outline-none" 
+                                        />
+                                        {invoiceSearch && (
+                                            <button 
+                                                type="button" 
+                                                onClick={() => setInvoiceSearch('')} 
+                                                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white font-bold text-xs"
+                                                title="Clear search"
+                                            >
+                                                ✕
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
                             </div>
+
+                            {/* Active Filter Indicators */}
+                            {(pcFilter === 'with_pc' || invoiceSearch) && (
+                                <div className="flex flex-wrap items-center gap-2 mb-3 px-1 text-xs">
+                                    <span className="text-slate-400 font-medium text-[11px]">ফিল্টার অ্যাক্টিভ:</span>
+                                    {pcFilter === 'with_pc' && (
+                                        <span className="bg-rose-950 text-rose-300 border border-rose-700/60 px-2.5 py-0.5 rounded-full text-[10px] font-black flex items-center gap-1.5 shadow-sm">
+                                            শুধু পিসি (PC) যুক্ত রোগী
+                                            <button type="button" onClick={() => setPcFilter('all')} className="hover:text-white font-bold ml-0.5">✕</button>
+                                        </span>
+                                    )}
+                                    {invoiceSearch && (
+                                        <span className="bg-blue-950 text-sky-300 border border-blue-700/60 px-2.5 py-0.5 rounded-full text-[10px] font-black flex items-center gap-1.5 shadow-sm">
+                                            সার্চ: "{invoiceSearch}"
+                                            <button type="button" onClick={() => setInvoiceSearch('')} className="hover:text-white font-bold ml-0.5">✕</button>
+                                        </span>
+                                    )}
+                                    <span className="text-slate-400 text-[10px] ml-auto font-bold">
+                                        মোট পাওয়া গেছে: <strong className="text-emerald-400 font-mono text-xs">{collectionReportData.length}</strong> টি রেকর্ড
+                                    </span>
+                                </div>
+                            )}
 
                             <div className="overflow-x-auto min-h-[650px] border border-slate-700 rounded-xl bg-slate-950/20 shadow-inner w-full">
                                 <table className="w-full text-left text-[11px] border-collapse min-w-[1500px]">
@@ -1945,7 +2090,15 @@ const ClinicAccountsPage: React.FC<any> = ({
                                                 <td className="p-2 text-right border-r border-slate-800/50">৳{inv.dressCol.toLocaleString()}</td>
                                                 <td className="p-2 text-right border-r border-slate-800/50">৳{inv.othersCol.toLocaleString()}</td>
                                                 <td className="p-2 text-right font-black text-emerald-400 bg-emerald-900/10">৳ {(inv.status === 'Cancelled' || inv.status === 'Returned' || inv.status === 'Deleted') ? '0' : inv.paid_amount.toLocaleString()}</td>
-                                                <td className="p-2 text-right font-black text-rose-400 bg-rose-900/10 border-l-2 border-rose-800/30">৳ {inv.pcCol.toLocaleString()}</td>
+                                                <td className="p-2 text-right font-black bg-rose-900/10 border-l-2 border-rose-800/30">
+                                                    {inv.pcCol > 0 ? (
+                                                        <span className="inline-block px-2 py-0.5 rounded bg-rose-950 text-rose-300 border border-rose-700 font-mono font-black text-[11px] shadow-sm">
+                                                            ৳ {inv.pcCol.toLocaleString()}
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-slate-500 font-mono">৳ 0</span>
+                                                    )}
+                                                </td>
                                                 <td className="p-2 text-right font-black text-sky-300 bg-blue-900/10 border-l-2 border-blue-800/30">৳ {inv.netClinicCol.toLocaleString()}</td>
                                                 <td className="p-2 text-center"><span className="text-[7px] font-black uppercase px-1 rounded bg-slate-900">{inv.status}</span></td>
                                                 <td className="p-2 text-center" onClick={e => e.stopPropagation()}>
@@ -2324,6 +2477,12 @@ const ClinicAccountsPage: React.FC<any> = ({
                                             <span>Due Balance:</span>
                                             <span className="font-mono font-black">৳{Number(previewInvoice.due_bill || 0).toFixed(2)}</span>
                                         </div>
+                                        {((Number(previewInvoice.special_commission) || 0) + (Number(previewInvoice.commission_paid) || 0)) > 0 && (
+                                            <div className="flex justify-between text-amber-700 font-bold border-t border-dashed border-slate-300 pt-1">
+                                                <span>PC (Commission):</span>
+                                                <span className="font-mono font-black">৳{Number((Number(previewInvoice.special_commission) || 0) + (Number(previewInvoice.commission_paid) || 0)).toFixed(2)}</span>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
 

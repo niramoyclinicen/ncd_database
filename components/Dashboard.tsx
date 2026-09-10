@@ -33,7 +33,7 @@ const HexCell = ({ content, isCenter = false, hexStyle }: { content: React.React
   </div>
 );
 
-const MedicalHexLogo = () => {
+const MedicalHexLogo = ({ isMobile = false }: { isMobile?: boolean }) => {
   const hexStyle: React.CSSProperties = {
     width: '60px',
     height: '60px',
@@ -44,8 +44,8 @@ const MedicalHexLogo = () => {
     transition: '0.3s',
   };
   return (
-    <div className="relative w-40 h-40 md:w-48 md:h-48 flex items-center justify-center origin-left scale-75 md:scale-90 lg:scale-100">
-      <div className="absolute bottom-4 w-40 h-20 bg-[radial-gradient(circle,rgba(0,150,255,0.4),transparent)] rounded-[100%_100%_40%_40%] blur-xl animate-pulse" /> 
+    <div className={`relative w-20 h-20 md:w-20 md:h-20 lg:w-44 lg:h-44 flex items-center justify-center ${isMobile ? 'origin-center scale-[0.6]' : 'origin-center scale-[0.54] md:scale-[0.56] lg:scale-100'} transition-all duration-300`}>
+      <div className="absolute bottom-2 w-32 h-16 bg-[radial-gradient(circle,rgba(0,150,255,0.4),transparent)] rounded-[100%_100%_40%_40%] blur-xl animate-pulse" /> 
       
       <svg viewBox="0 0 100 60" className="absolute bottom-8 w-40 h-24 opacity-80 pointer-events-none z-0">
           <defs>
@@ -87,6 +87,104 @@ const MedicalHexLogo = () => {
   );
 };
 
+const MiniMedicalHexLogo = () => {
+  const hexClip = 'polygon(25% 5%, 75% 5%, 100% 50%, 75% 95%, 25% 95%, 0% 50%)';
+  return (
+    <div className="relative flex items-center justify-center shrink-0 w-8 h-8 group">
+      <div 
+        className="w-8 h-8 bg-gradient-to-br from-blue-600 via-cyan-500 to-teal-500 shadow-[0_0_12px_rgba(34,211,238,0.85)] flex items-center justify-center border border-white/50 animate-pulse"
+        style={{ clipPath: hexClip }}
+      >
+        <span className="text-[10.5px] font-black text-white tracking-tight font-sans drop-shadow-sm">NcD</span>
+      </div>
+    </div>
+  );
+};
+
+// Tablet-Exclusive Circular / Round Shape Logo (Perfect 1:1 Aspect Ratio, Zero Elongation)
+const TabletMedicalRoundLogo = () => {
+  return (
+    <div className="relative w-16 h-16 md:w-20 md:h-20 rounded-full flex items-center justify-center group transition-transform duration-300">
+      {/* Outer Glow Aura */}
+      <div className="absolute -inset-1 rounded-full bg-gradient-to-tr from-cyan-500/30 via-blue-500/30 to-teal-400/30 blur-md pointer-events-none" />
+      
+      {/* Outer Circular Frame with high-contrast gradient and cyan border */}
+      <div className="absolute inset-0 rounded-full bg-gradient-to-br from-slate-900 via-sky-950 to-slate-950 border-2 border-cyan-400/60 shadow-[0_0_20px_rgba(6,182,212,0.45)] flex items-center justify-center overflow-hidden">
+        {/* Subtle radial sheen */}
+        <div className="absolute inset-0 rounded-full bg-[radial-gradient(circle_at_center,rgba(34,211,238,0.25),transparent_70%)] animate-pulse" />
+      </div>
+
+      {/* Rotating Dashed Orbital Border */}
+      <div 
+        className="absolute -inset-0.5 rounded-full border border-dashed border-cyan-400/40 pointer-events-none animate-spin-slow" 
+        style={{ animationDuration: '45s' }} 
+      />
+
+      {/* 6 Circular Medical Satellite Bubbles in a Mathematically Perfect Circle around the center (Radius = 36%) */}
+      {/* 0° Top */}
+      <div 
+        className="absolute z-20 w-4 h-4 rounded-full bg-slate-900/90 border border-cyan-400/60 flex items-center justify-center shadow-[0_0_6px_rgba(6,182,212,0.4)]"
+        style={{ top: '14%', left: '50%', transform: 'translate(-50%, -50%)' }}
+        title="Stethoscope"
+      >
+        <StethoscopeIcon className="w-2.5 h-2.5 text-cyan-300" />
+      </div>
+
+      {/* 60° Top-Right */}
+      <div 
+        className="absolute z-20 w-4 h-4 rounded-full bg-slate-900/90 border border-emerald-400/60 flex items-center justify-center shadow-[0_0_6px_rgba(16,185,129,0.4)]"
+        style={{ top: '32%', left: '81%', transform: 'translate(-50%, -50%)' }}
+        title="Medicine"
+      >
+        <MedicineIcon className="w-2.5 h-2.5 text-emerald-300" />
+      </div>
+
+      {/* 120° Bottom-Right */}
+      <div 
+        className="absolute z-20 w-4 h-4 rounded-full bg-slate-900/90 border border-sky-400/60 flex items-center justify-center shadow-[0_0_6px_rgba(56,189,248,0.4)]"
+        style={{ top: '68%', left: '81%', transform: 'translate(-50%, -50%)' }}
+        title="Wheelchair"
+      >
+        <WheelchairIcon className="w-2.5 h-2.5 text-sky-300" />
+      </div>
+
+      {/* 180° Bottom */}
+      <div 
+        className="absolute z-20 w-4 h-4 rounded-full bg-slate-900/90 border border-teal-400/60 flex items-center justify-center shadow-[0_0_6px_rgba(20,184,166,0.4)]"
+        style={{ top: '86%', left: '50%', transform: 'translate(-50%, -50%)' }}
+        title="Clinic"
+      >
+        <ClinicIcon className="w-2.5 h-2.5 text-teal-300" />
+      </div>
+
+      {/* 240° Bottom-Left */}
+      <div 
+        className="absolute z-20 w-4 h-4 rounded-full bg-slate-900/90 border border-indigo-400/60 flex items-center justify-center shadow-[0_0_6px_rgba(129,140,248,0.4)]"
+        style={{ top: '68%', left: '19%', transform: 'translate(-50%, -50%)' }}
+        title="Syringe"
+      >
+        <SyringeIcon className="w-2.5 h-2.5 text-indigo-300" />
+      </div>
+
+      {/* 300° Top-Left */}
+      <div 
+        className="absolute z-20 w-4 h-4 rounded-full bg-slate-900/90 border border-cyan-400/60 flex items-center justify-center shadow-[0_0_6px_rgba(6,182,212,0.4)]"
+        style={{ top: '32%', left: '19%', transform: 'translate(-50%, -50%)' }}
+        title="Diagnostic"
+      >
+        <DiagnosticIcon className="w-2.5 h-2.5 text-cyan-300" />
+      </div>
+
+      {/* Center "NcD" Circular Core */}
+      <div className="relative z-30 w-8 h-8 md:w-9 md:h-9 rounded-full bg-gradient-to-tr from-cyan-600 via-sky-500 to-blue-600 flex items-center justify-center shadow-[0_0_12px_rgba(34,211,238,0.85)] border-2 border-white/80 group-hover:scale-105 transition-transform duration-300">
+        <span className="text-[11px] md:text-[12px] font-black text-white font-sans tracking-tight drop-shadow-sm">
+          NcD
+        </span>
+      </div>
+    </div>
+  );
+};
+
 const BackgroundRose = () => (
   <div className="absolute inset-0 pointer-events-none overflow-hidden flex items-center justify-center opacity-10">
     <svg viewBox="0 0 500 500" className="w-[150%] h-[150%] text-rose-500 animate-spin-slow-reverse" style={{ animationDuration: '60s' }}>
@@ -105,7 +203,7 @@ const BackgroundRose = () => (
 
 const Dashboard: React.FC<DashboardProps> = ({ onLogout, onNavigate }) => {
   return (
-    <div className="min-h-[100dvh] w-full flex flex-col relative overflow-x-hidden overflow-y-auto bg-slate-950">
+    <div className="h-full max-h-full w-full flex flex-col relative overflow-hidden bg-slate-950">
       
       {/* Background Layer */}
       <div className="absolute inset-0 w-full h-full pointer-events-none z-0">
@@ -116,119 +214,134 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onNavigate }) => {
           <BackgroundRose />
       </div>
 
-      {/* Main Content Wrapper (Uses flex to stretch and center within viewport - No Scroll) */}
-      <div className="flex-1 flex flex-col w-full max-w-7xl mx-auto px-4 py-2 sm:py-3 md:px-6 md:py-3 z-10 justify-between h-[100dvh] max-h-[100dvh] overflow-hidden">
+      {/* DESKTOP & TABLET VIEW - Single Cohesive Screen (Zero Scrolling), All Elements Visible at Once */}
+      <div className="hidden md:flex flex-1 flex-col w-full max-w-6xl mx-auto px-4 md:px-6 pt-5 md:pt-7 pb-3 md:pb-4 z-10 h-full max-h-full overflow-hidden justify-start lg:justify-between">
           
-          {/* HEADER - Compact margins to keep it high up */}
-          <header className="flex-none flex flex-col lg:flex-row items-center justify-between gap-1 lg:gap-6 w-full animate-fade-in-down">
-              <div className="flex-shrink-0 hover:scale-105 transition-transform duration-500 origin-center lg:origin-left">
-                 <MedicalHexLogo />
+          {/* HEADER - Compact horizontal row with 3-line stacked info, comfortably padded from top */}
+          <header className="flex-none flex flex-row items-center justify-between gap-3 md:gap-4 lg:gap-6 w-full animate-fade-in-down pt-1 pb-1">
+              <div className="flex-shrink-0 hover:scale-105 transition-transform duration-500 origin-left flex items-center">
+                 {/* Tablet View: Dedicated Round Shape Logo */}
+                 <div className="hidden md:flex lg:hidden">
+                   <TabletMedicalRoundLogo />
+                 </div>
+                 {/* Desktop View: Original Hex Logo (Untouched) */}
+                 <div className="hidden lg:flex">
+                   <MedicalHexLogo />
+                 </div>
               </div>
-              <div className="flex flex-col items-center lg:items-end justify-center text-center lg:text-right w-full">
-                  <h1 className="text-[1.2rem] sm:text-2xl md:text-3xl lg:text-[2.2rem] font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-sky-400 via-cyan-200 to-blue-500 mb-0.5 drop-shadow-[0_0_15px_rgba(56,189,248,0.6)] font-sans tracking-tight">
+              <div className="flex flex-col items-end justify-center text-right">
+                  {/* Line 1: Clinic Name in English */}
+                  <h1 className="text-base sm:text-lg md:text-xl lg:text-[2.2rem] font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-sky-400 via-cyan-200 to-blue-500 drop-shadow-[0_0_15px_rgba(56,189,248,0.6)] font-sans tracking-tight leading-tight">
                       Niramoy Clinic & Diagnostic
                   </h1>
-                  <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-end gap-1.5 sm:gap-3 lg:gap-4 text-teal-100 text-xs sm:text-sm md:text-base font-medium tracking-wider">
-                      <div className="flex items-center gap-1.5">
-                        <MapPinIcon className="w-4 h-4 text-teal-400" />
-                        <span>এনায়েতপুর মন্ডলপাড়া, সিরাজগঞ্জ</span>
-                      </div>
-                      <div className="hidden sm:block text-teal-500/50">|</div>
-                      <div className="flex items-center gap-1.5 text-cyan-300 font-bold tracking-[0.15em] lg:tracking-[0.2em]">
-                        <PhoneIcon className="w-4 h-4 text-cyan-400" />
-                        <span>০১৩২৪-৪১৪০৯৯</span>
-                      </div>
+
+                  {/* Line 2: Address */}
+                  <div className="flex items-center gap-1.5 text-teal-100 text-[11px] sm:text-xs md:text-xs lg:text-base font-medium tracking-wide mt-0.5">
+                    <MapPinIcon className="w-3.5 h-3.5 md:w-3.5 md:h-3.5 text-teal-400 shrink-0" />
+                    <span>এনায়েতপুর মন্ডলপাড়া, সিরাজগঞ্জ</span>
                   </div>
-                  <div className="hidden lg:block w-full max-w-2xl h-[1.5px] bg-gradient-to-r from-transparent via-cyan-500 to-transparent mt-1.5 opacity-70 ml-auto"></div>
+
+                  {/* Line 3: Mobile Number */}
+                  <div className="flex items-center mt-0.5">
+                    <a 
+                      href="tel:01730923007" 
+                      className="inline-flex items-center gap-1.5 text-cyan-300 font-bold tracking-wider hover:text-cyan-200 transition-colors text-[11px] sm:text-xs md:text-xs lg:text-base px-2.5 py-0.5 rounded-full bg-cyan-950/60 border border-cyan-500/40 hover:border-cyan-300"
+                    >
+                      <PhoneIcon className="w-3.5 h-3.5 text-cyan-400 shrink-0 animate-pulse" />
+                      <span>01730-923007</span>
+                    </a>
+                  </div>
+
+                  <div className="w-full max-w-xl h-[1px] bg-gradient-to-r from-transparent via-cyan-500/60 to-transparent mt-0.5 opacity-70 ml-auto" />
               </div>
           </header>
 
-          {/* GRID SECTION - Centered vertically in static view, stretched outwards horizontally and vertically */}
-          <main className="flex-1 flex flex-col items-center justify-center w-full max-w-7xl mx-auto relative my-auto py-1">
+          {/* GRID SECTION - Spacious, comfortable distance from header and balanced layout */}
+          <main className="flex-none flex flex-col items-center justify-center w-full max-w-5xl mx-auto relative mt-8 sm:mt-10 md:mt-14 lg:my-auto">
               
               {/* 2x2 Grid Container with Dead-Center Floating Marketing Management Badge */}
               <div className="relative w-full px-1 sm:px-2 md:px-4">
                 
-                {/* 2x2 Grid with balanced spacing so center badge does not cover card contents and boxes stretch wide and tall */}
-                <div className="grid grid-cols-2 gap-x-8 sm:gap-x-16 md:gap-x-24 lg:gap-x-32 gap-y-8 sm:gap-y-12 md:gap-y-16 lg:gap-y-20 w-full relative z-10">
+                {/* 2x2 Grid with generous vertical gap between top and bottom boxes to clear the center badge */}
+                <div className="grid grid-cols-2 gap-x-6 sm:gap-x-10 md:gap-x-8 lg:gap-x-32 gap-y-6 sm:gap-y-8 md:gap-y-16 lg:gap-y-20 xl:gap-y-24 w-full relative z-10">
                   <DashboardButton 
                     label={
                         <>
-                            <span className="block text-base sm:text-xl lg:text-2xl font-extrabold text-white mb-0.5 drop-shadow-sm tracking-normal">ডায়াগনস্টিক ম্যানেজমেন্ট</span>
-                            <span className="block text-[9px] sm:text-xs lg:text-sm font-semibold text-cyan-200 mt-0.5 lg:mt-1 tracking-widest uppercase">Diagnostic Management</span>
+                            <span className="block text-base sm:text-xl lg:text-2xl font-extrabold text-white mb-0.5 tracking-normal transition-colors duration-300 group-hover:text-cyan-200">ডায়াগনস্টিক ম্যানেজমেন্ট</span>
+                            <span className="block text-[9px] sm:text-xs lg:text-sm font-bold text-cyan-400 mt-0.5 lg:mt-1 tracking-wider uppercase transition-colors duration-300 group-hover:text-cyan-300">Diagnostic Management</span>
                         </>
                     } 
                     icon={<DiagnosticIcon />} 
                     onClick={() => onNavigate(ViewState.DIAGNOSTIC)} 
-                    colorFrom="from-cyan-500/40"
-                    colorTo="to-blue-600/40"
-                    borderColor="border-slate-700 hover:border-cyan-400"
+                    glowGradient="from-cyan-500 via-sky-500 to-blue-600"
+                    borderColor="border-slate-700/80 group-hover:border-cyan-400"
+                    iconBgColor="group-hover:bg-cyan-500/20 group-hover:border-cyan-400/60 group-hover:text-cyan-300"
                     delay="100ms"
                   />
                   <DashboardButton 
                     label={
                         <>
-                            <span className="block text-base sm:text-xl lg:text-2xl font-extrabold text-white mb-0.5 drop-shadow-sm tracking-normal">ক্লিনিক ম্যানেজমেন্ট</span>
-                            <span className="block text-[9px] sm:text-xs lg:text-sm font-semibold text-emerald-200 mt-0.5 lg:mt-1 tracking-widest uppercase">Clinic Management</span>
+                            <span className="block text-base sm:text-xl lg:text-2xl font-extrabold text-white mb-0.5 tracking-normal transition-colors duration-300 group-hover:text-emerald-200">ক্লিনিক ম্যানেজমেন্ট</span>
+                            <span className="block text-[9px] sm:text-xs lg:text-sm font-bold text-emerald-400 mt-0.5 lg:mt-1 tracking-wider uppercase transition-colors duration-300 group-hover:text-emerald-300">Clinic Management</span>
                         </>
                     } 
                     icon={<ClinicIcon />} 
                     onClick={() => onNavigate(ViewState.CLINIC)} 
-                    colorFrom="from-emerald-500/40"
-                    colorTo="to-teal-600/40"
-                    borderColor="border-slate-700 hover:border-emerald-400"
+                    glowGradient="from-emerald-500 via-teal-500 to-green-600"
+                    borderColor="border-slate-700/80 group-hover:border-emerald-400"
+                    iconBgColor="group-hover:bg-emerald-500/20 group-hover:border-emerald-400/60 group-hover:text-emerald-300"
                     delay="200ms"
                   />
                   <DashboardButton 
                     label={
                         <>
-                            <span className="block text-base sm:text-xl lg:text-2xl font-extrabold text-white mb-0.5 drop-shadow-sm tracking-normal">মেডিসিন ম্যানেজমেন্ট</span>
-                            <span className="block text-[9px] sm:text-xs lg:text-sm font-semibold text-rose-200 mt-0.5 lg:mt-1 tracking-widest uppercase">Medicine Management</span>
+                            <span className="block text-base sm:text-xl lg:text-2xl font-extrabold text-white mb-0.5 tracking-normal transition-colors duration-300 group-hover:text-rose-200">মেডিসিন ম্যানেজমেন্ট</span>
+                            <span className="block text-[9px] sm:text-xs lg:text-sm font-bold text-rose-400 mt-0.5 lg:mt-1 tracking-wider uppercase transition-colors duration-300 group-hover:text-rose-300">Medicine Management</span>
                         </>
                     } 
                     icon={<MedicineIcon />} 
                     onClick={() => onNavigate(ViewState.MEDICINE)} 
-                    colorFrom="from-rose-500/40"
-                    colorTo="to-pink-600/40"
-                    borderColor="border-slate-700 hover:border-rose-400"
+                    glowGradient="from-rose-500 via-pink-500 to-red-600"
+                    borderColor="border-slate-700/80 group-hover:border-rose-400"
+                    iconBgColor="group-hover:bg-rose-500/20 group-hover:border-rose-400/60 group-hover:text-rose-300"
                     delay="300ms"
                   />
                   <DashboardButton 
                     label={
                         <>
-                            <span className="block text-base sm:text-xl lg:text-2xl font-extrabold text-white mb-0.5 drop-shadow-sm tracking-normal">অ্যাকাউন্টিং ম্যানেজমেন্ট</span>
-                            <span className="block text-[9px] sm:text-xs lg:text-sm font-semibold text-amber-200 mt-0.5 lg:mt-1 tracking-widest uppercase">Accounting Management</span>
+                            <span className="block text-base sm:text-xl lg:text-2xl font-extrabold text-white mb-0.5 tracking-normal transition-colors duration-300 group-hover:text-amber-200">অ্যাকাউন্টিং ম্যানেজমেন্ট</span>
+                            <span className="block text-[9px] sm:text-xs lg:text-sm font-bold text-amber-400 mt-0.5 lg:mt-1 tracking-wider uppercase transition-colors duration-300 group-hover:text-amber-300">Accounting Management</span>
                         </>
                     } 
                     icon={<AccountingIcon />} 
                     onClick={() => onNavigate(ViewState.ACCOUNTING)} 
-                    colorFrom="from-amber-500/30"
-                    colorTo="to-orange-600/30"
-                    borderColor="border-slate-700 hover:border-amber-400"
+                    glowGradient="from-amber-500 via-orange-500 to-yellow-600"
+                    borderColor="border-slate-700/80 group-hover:border-amber-400"
+                    iconBgColor="group-hover:bg-amber-500/20 group-hover:border-amber-400/60 group-hover:text-amber-300"
                     delay="400ms"
                   />
                 </div>
 
-                {/* Exact Dead-Center Badge placed right in the intersection of the 4 boxes, sized up so it floats gracefully overlapping edges */}
+                {/* Exact Dead-Center Badge placed right in the intersection of the 4 boxes */}
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-30 animate-fade-in-up" style={{ animationDelay: '250ms' }}>
                   <button 
                     onClick={() => onNavigate(ViewState.MARKETING)}
-                    className="pointer-events-auto group relative flex items-center justify-center gap-2.5 sm:gap-4 md:gap-5 px-5 py-2.5 sm:px-8 sm:py-4 md:px-11 md:py-5 rounded-full border-2 border-purple-400/90 hover:border-purple-300 bg-gradient-to-r from-slate-950/95 via-purple-950/95 to-slate-950/95 backdrop-blur-2xl shadow-[0_0_35px_rgba(168,85,247,0.8),0_10px_30px_rgba(0,0,0,0.6)] hover:shadow-[0_0_55px_rgba(168,85,247,1),0_15px_40px_rgba(0,0,0,0.8)] hover:scale-105 active:scale-95 transition-all duration-300 cursor-pointer"
+                    className="pointer-events-auto group relative flex items-center justify-center gap-2 sm:gap-3 md:gap-3 lg:gap-5 px-3.5 py-1.5 sm:px-5 sm:py-2.5 md:px-5 md:py-2 lg:px-11 lg:py-5 rounded-full border-2 border-purple-400/90 hover:border-purple-300 bg-gradient-to-r from-slate-950/95 via-purple-950/95 to-slate-950/95 backdrop-blur-2xl shadow-[0_0_35px_rgba(168,85,247,0.8),0_10px_30px_rgba(0,0,0,0.6)] hover:shadow-[0_0_55px_rgba(168,85,247,1),0_15px_40px_rgba(0,0,0,0.8)] hover:scale-105 active:scale-95 transition-all duration-300 cursor-pointer"
                     title="মার্কেটিং ম্যানেজমেন্ট (Marketing Management)"
                   >
-                    <div className="p-2 sm:p-3 md:p-3.5 rounded-full bg-purple-500/30 text-purple-300 border border-purple-400/60 group-hover:scale-110 group-hover:bg-purple-500 group-hover:text-white transition-all duration-300 shadow-inner">
-                      <TrendingUpIcon className="w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7" />
+                    <div className="p-1.5 sm:p-2 md:p-2.5 lg:p-3.5 rounded-full bg-purple-500/30 text-purple-300 border border-purple-400/60 group-hover:scale-110 group-hover:bg-purple-500 group-hover:text-white transition-all duration-300 shadow-inner">
+                      <TrendingUpIcon className="w-4 h-4 sm:w-5 sm:h-5 md:w-5 md:h-5 lg:w-7 lg:h-7" />
                     </div>
                     <div className="text-left">
-                      <span className="block text-base sm:text-lg md:text-2xl font-extrabold text-white tracking-wide drop-shadow-md group-hover:text-purple-200 transition-colors whitespace-nowrap">
+                      <span className="block text-xs sm:text-sm md:text-lg lg:text-2xl font-extrabold text-white tracking-wide drop-shadow-md group-hover:text-purple-200 transition-colors whitespace-nowrap">
                         মার্কেটিং ম্যানেজমেন্ট
                       </span>
-                      <span className="block text-[9px] sm:text-xs md:text-sm font-bold text-purple-300 tracking-wider uppercase whitespace-nowrap">
+                      <span className="block text-[7.5px] sm:text-[9px] md:text-[11px] lg:text-sm font-bold text-purple-300 tracking-wider uppercase whitespace-nowrap">
                         Marketing Management
                       </span>
                     </div>
-                    <div className="hidden sm:flex items-center pl-1.5 text-purple-400 group-hover:translate-x-1 transition-transform">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 sm:w-6 sm:h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                    <div className="hidden sm:flex items-center pl-1 text-purple-400 group-hover:translate-x-1 transition-transform">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 sm:w-5 sm:h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
                         <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
                       </svg>
                     </div>
@@ -238,36 +351,291 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onNavigate }) => {
               </div>
           </main>
 
-          {/* FOOTER BAR (Buttons & Settings align properly at the bottom) */}
-          <footer className="flex-none flex flex-col items-center justify-center pt-2 pb-1 z-20 w-full relative">
+          {/* FOOTER BAR - Symmetrically spaced exactly like the header-to-grid distance */}
+          <footer className="flex-none flex flex-col items-center justify-center mt-8 sm:mt-10 md:mt-14 lg:mt-auto pt-1 pb-2 z-20 w-full relative">
               
-              <div className="flex flex-wrap justify-center gap-2.5 sm:gap-4 md:gap-5 animate-fade-in-up w-full px-2" style={{ animationDelay: '550ms' }}>
-                <button onClick={() => onNavigate(ViewState.DOCTOR_LOGIN)} className="group relative px-4 py-2 sm:px-5 sm:py-2.5 lg:px-7 rounded-full bg-slate-900/80 border border-blue-500/50 text-blue-300 font-bold transition-all duration-300 hover:border-blue-500 hover:bg-blue-500/20 hover:text-white shadow-md active:scale-95 backdrop-blur-md">
-                  <span className="relative z-10 flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm lg:text-base whitespace-nowrap"><StethoscopeIcon className="h-4 w-4 sm:h-5 sm:w-5" />Doctor Portal</span>
-                </button>
-                
-                <button onClick={() => onNavigate(ViewState.LAB_LOGIN)} className="group relative px-4 py-2 sm:px-5 sm:py-2.5 lg:px-7 rounded-full bg-slate-900/80 border border-cyan-500/50 text-cyan-300 font-bold transition-all duration-300 hover:border-cyan-500 hover:bg-cyan-500/20 hover:text-white shadow-md active:scale-95 backdrop-blur-md">
-                  <span className="relative z-10 flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm lg:text-base whitespace-nowrap"><FileTextIcon className="h-4 w-4 sm:h-5 sm:w-5" />Lab Reporting</span>
-                </button>
-
-                <button onClick={() => onNavigate(ViewState.ADMIN_SETTINGS)} className="group relative px-4 py-2 sm:px-5 sm:py-2.5 lg:px-7 rounded-full bg-slate-900/80 border border-slate-700 text-slate-300 font-bold transition-all duration-300 hover:border-indigo-500/50 hover:bg-indigo-500/20 hover:text-indigo-400 shadow-md active:scale-95 backdrop-blur-md">
+              <div className="flex flex-wrap justify-center gap-2 sm:gap-2.5 md:gap-3 lg:gap-5 w-full px-2">
+                {/* Doctor Portal */}
+                <button 
+                  onClick={() => onNavigate(ViewState.DOCTOR_LOGIN)} 
+                  className="group relative px-3 py-1.5 sm:px-3.5 sm:py-1.5 md:px-3.5 md:py-1.5 lg:px-6 lg:py-2.5 rounded-full bg-slate-900/90 border border-blue-500/40 text-blue-300 font-bold transition-all duration-300 hover:border-blue-400 hover:bg-gradient-to-r hover:from-blue-950/80 hover:to-blue-900/60 hover:text-white hover:shadow-[0_4px_25px_rgba(59,130,246,0.35)] hover:scale-105 active:scale-95 backdrop-blur-md cursor-pointer"
+                >
                   <span className="relative z-10 flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm lg:text-base whitespace-nowrap">
-                      <SettingsIcon className="h-4 w-4 sm:h-5 sm:w-5" />
-                      Settings
+                    <span className="p-1 rounded-full bg-blue-500/20 text-blue-400 border border-blue-400/30 group-hover:bg-blue-500 group-hover:text-white transition-all duration-300 shadow-inner">
+                      <StethoscopeIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                    </span>
+                    <span>Doctor Portal</span>
                   </span>
                 </button>
-                <button onClick={onLogout} className="group relative px-4 py-2 sm:px-5 sm:py-2.5 lg:px-7 rounded-full bg-slate-900/80 border border-slate-700 text-slate-300 font-bold transition-all duration-300 hover:border-rose-500/50 hover:bg-rose-500/20 hover:text-rose-400 shadow-md active:scale-95 backdrop-blur-md">
+                
+                {/* Lab Reporting */}
+                <button 
+                  onClick={() => onNavigate(ViewState.LAB_LOGIN)} 
+                  className="group relative px-3 py-1.5 sm:px-3.5 sm:py-1.5 md:px-3.5 md:py-1.5 lg:px-6 lg:py-2.5 rounded-full bg-slate-900/90 border border-cyan-500/40 text-cyan-300 font-bold transition-all duration-300 hover:border-cyan-400 hover:bg-gradient-to-r hover:from-cyan-950/80 hover:to-cyan-900/60 hover:text-white hover:shadow-[0_4px_25px_rgba(6,182,212,0.35)] hover:scale-105 active:scale-95 backdrop-blur-md cursor-pointer"
+                >
                   <span className="relative z-10 flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm lg:text-base whitespace-nowrap">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 sm:h-5 sm:w-5 transition-transform group-hover:-translate-x-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
-                    Admin Logout
+                    <span className="p-1 rounded-full bg-cyan-500/20 text-cyan-400 border border-cyan-400/30 group-hover:bg-cyan-500 group-hover:text-white transition-all duration-300 shadow-inner">
+                      <FileTextIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                    </span>
+                    <span>Lab Reporting</span>
+                  </span>
+                </button>
+
+                {/* Settings */}
+                <button 
+                  onClick={() => onNavigate(ViewState.ADMIN_SETTINGS)} 
+                  className="group relative px-3 py-1.5 sm:px-3.5 sm:py-1.5 md:px-3.5 md:py-1.5 lg:px-6 lg:py-2.5 rounded-full bg-slate-900/90 border border-slate-700/80 text-slate-300 font-bold transition-all duration-300 hover:border-purple-400/70 hover:bg-gradient-to-r hover:from-purple-950/80 hover:to-slate-900/80 hover:text-purple-200 hover:shadow-[0_4px_25px_rgba(168,85,247,0.3)] hover:scale-105 active:scale-95 backdrop-blur-md cursor-pointer"
+                >
+                  <span className="relative z-10 flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm lg:text-base whitespace-nowrap">
+                    <span className="p-1 rounded-full bg-slate-800 text-slate-400 border border-slate-700/60 group-hover:bg-purple-500/30 group-hover:text-purple-300 group-hover:rotate-90 transition-all duration-500 shadow-inner">
+                      <SettingsIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                    </span>
+                    <span>Settings</span>
+                  </span>
+                </button>
+
+                {/* Admin Logout */}
+                <button 
+                  onClick={onLogout} 
+                  className="group relative px-3 py-1.5 sm:px-3.5 sm:py-1.5 md:px-3.5 md:py-1.5 lg:px-6 lg:py-2.5 rounded-full bg-slate-900/90 border border-slate-700/80 text-slate-300 font-bold transition-all duration-300 hover:border-rose-500/70 hover:bg-gradient-to-r hover:from-rose-950/80 hover:to-slate-900/80 hover:text-rose-200 hover:shadow-[0_4px_25px_rgba(244,63,94,0.3)] hover:scale-105 active:scale-95 backdrop-blur-md cursor-pointer"
+                >
+                  <span className="relative z-10 flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm lg:text-base whitespace-nowrap">
+                    <span className="p-1 rounded-full bg-slate-800 text-rose-400 border border-slate-700/60 group-hover:bg-rose-500/30 group-hover:text-rose-300 group-hover:-translate-x-0.5 transition-all duration-300 shadow-inner">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 sm:h-4 sm:w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                        <polyline points="16 17 21 12 16 7"></polyline>
+                        <line x1="21" y1="12" x2="9" y2="12"></line>
+                      </svg>
+                    </span>
+                    <span>Admin Logout</span>
                   </span>
                 </button>
               </div>
 
-              <div className="mt-3 md:mt-4 text-center text-slate-500/60 text-[10px] md:text-xs font-medium tracking-wide">
+              <div className="mt-1 md:mt-1.5 lg:mt-3 text-center text-slate-500/60 text-[10px] md:text-xs font-medium tracking-wide">
                  &copy; 2024 NiramoyClinic. All rights reserved.
               </div>
           </footer>
+      </div>
+
+      {/* DEDICATED MOBILE VIEW (< md screens: Smartphones) - Single Static View (No Scrolling), Full Feature & Design Fidelity */}
+      <div className="flex md:hidden flex-1 flex-col w-full max-w-md mx-auto px-3 pt-3 pb-2 xs:pt-3.5 xs:pb-2.5 z-10 justify-between h-[100dvh] max-h-[100dvh] overflow-hidden">
+        
+        {/* MOBILE HEADER - 3-Line Stacked Structure with Compact Logo */}
+        <header className="flex-none flex flex-col items-center justify-center w-full animate-fade-in-down pt-0.5">
+          {/* Minimized Logo on top */}
+          <div className="mb-0.5 flex items-center justify-center">
+            <MiniMedicalHexLogo />
+          </div>
+
+          {/* Line 1: Clinic Name in English */}
+          <h1 className="text-[1.2rem] xs:text-[1.35rem] font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-sky-400 via-cyan-200 to-blue-500 drop-shadow-[0_0_12px_rgba(56,189,248,0.5)] font-sans tracking-tight text-center leading-tight">
+            Niramoy Clinic & Diagnostic
+          </h1>
+          
+          {/* Line 2: Address */}
+          <div className="flex items-center justify-center gap-1.5 text-teal-200/90 text-[11.5px] xs:text-xs font-medium mt-0.5">
+            <MapPinIcon className="w-3.5 h-3.5 text-teal-400 shrink-0" />
+            <span className="text-[11.5px] xs:text-xs">এনায়েতপুর মন্ডলপাড়া, সিরাজগঞ্জ</span>
+          </div>
+
+          {/* Line 3: Phone Number */}
+          <div className="flex items-center justify-center mt-0.5">
+            <a 
+              href="tel:01730923007" 
+              className="inline-flex items-center gap-1.5 text-cyan-300 font-bold tracking-wider px-3 py-0.5 rounded-full bg-cyan-950/70 border border-cyan-500/40 hover:border-cyan-300 active:border-cyan-300 hover:bg-cyan-900/60 active:bg-cyan-900/80 hover:shadow-[0_0_15px_rgba(6,182,212,0.4)] hover:scale-105 active:scale-95 transition-all duration-300 text-xs"
+            >
+              <PhoneIcon className="w-3 h-3 text-cyan-400 shrink-0 animate-pulse" />
+              <span>01730-923007</span>
+            </a>
+          </div>
+
+          <div className="w-24 h-[1px] bg-gradient-to-r from-transparent via-cyan-500/60 to-transparent mx-auto mt-1 opacity-80" />
+        </header>
+
+        {/* MOBILE CORE 5 MANAGEMENT MODULES - 2x2 with balanced vertical centering */}
+        <main className="flex-1 flex flex-col justify-center items-center w-full py-0 my-auto animate-fade-in-up" style={{ animationDelay: '150ms' }}>
+          <div className="relative w-full max-w-sm mx-auto flex items-center justify-center">
+            
+            {/* 2x2 Management Grid with gap-y-11 xs:gap-y-12 to clearly separate top two and bottom two boxes */}
+            <div className="grid grid-cols-2 gap-x-2.5 xs:gap-x-3 gap-y-11 xs:gap-y-12 w-full">
+              {/* Diagnostic Management */}
+              <DashboardButton 
+                label={
+                  <>
+                    <span className="block text-[12px] xs:text-[13px] font-extrabold text-white mb-0.5 tracking-normal transition-colors duration-300 group-hover:text-cyan-200 group-active:text-cyan-200">
+                      ডায়াগনস্টিক ম্যানেজমেন্ট
+                    </span>
+                    <span className="block text-[8px] xs:text-[8.5px] font-bold text-cyan-400 mt-0.5 tracking-wider uppercase transition-colors duration-300 group-hover:text-cyan-300 group-active:text-cyan-300">
+                      Diagnostic Management
+                    </span>
+                  </>
+                } 
+                icon={<DiagnosticIcon />} 
+                onClick={() => onNavigate(ViewState.DIAGNOSTIC)} 
+                glowGradient="from-sky-500 via-cyan-500 to-blue-600"
+                borderColor="border-slate-700/80 group-hover:border-cyan-400 group-active:border-cyan-400"
+                iconBgColor="group-hover:bg-cyan-500/20 group-hover:border-cyan-400/60 group-hover:text-cyan-300 group-active:bg-cyan-500/20 group-active:border-cyan-400/60 group-active:text-cyan-300"
+                delay="100ms"
+              />
+
+              {/* Clinic Management */}
+              <DashboardButton 
+                label={
+                  <>
+                    <span className="block text-[12px] xs:text-[13px] font-extrabold text-white mb-0.5 tracking-normal transition-colors duration-300 group-hover:text-emerald-200 group-active:text-emerald-200">
+                      ক্লিনিক ম্যানেজমেন্ট
+                    </span>
+                    <span className="block text-[8px] xs:text-[8.5px] font-bold text-emerald-400 mt-0.5 tracking-wider uppercase transition-colors duration-300 group-hover:text-emerald-300 group-active:text-emerald-300">
+                      Clinic Management
+                    </span>
+                  </>
+                } 
+                icon={<ClinicIcon />} 
+                onClick={() => onNavigate(ViewState.CLINIC)} 
+                glowGradient="from-emerald-500 via-teal-500 to-green-600"
+                borderColor="border-slate-700/80 group-hover:border-emerald-400 group-active:border-emerald-400"
+                iconBgColor="group-hover:bg-emerald-500/20 group-hover:border-emerald-400/60 group-hover:text-emerald-300 group-active:bg-emerald-500/20 group-active:border-emerald-400/60 group-active:text-emerald-300"
+                delay="200ms"
+              />
+
+              {/* Medicine Management */}
+              <DashboardButton 
+                label={
+                  <>
+                    <span className="block text-[12px] xs:text-[13px] font-extrabold text-white mb-0.5 tracking-normal transition-colors duration-300 group-hover:text-rose-200 group-active:text-rose-200">
+                      মেডিসিন ম্যানেজমেন্ট
+                    </span>
+                    <span className="block text-[8px] xs:text-[8.5px] font-bold text-rose-400 mt-0.5 tracking-wider uppercase transition-colors duration-300 group-hover:text-rose-300 group-active:text-rose-300">
+                      Medicine Management
+                    </span>
+                  </>
+                } 
+                icon={<MedicineIcon />} 
+                onClick={() => onNavigate(ViewState.MEDICINE)} 
+                glowGradient="from-rose-500 via-pink-500 to-red-600"
+                borderColor="border-slate-700/80 group-hover:border-rose-400 group-active:border-rose-400"
+                iconBgColor="group-hover:bg-rose-500/20 group-hover:border-rose-400/60 group-hover:text-rose-300 group-active:bg-rose-500/20 group-active:border-rose-400/60 group-active:text-rose-300"
+                delay="300ms"
+              />
+
+              {/* Accounting Management */}
+              <DashboardButton 
+                label={
+                  <>
+                    <span className="block text-[12px] xs:text-[13px] font-extrabold text-white mb-0.5 tracking-normal transition-colors duration-300 group-hover:text-amber-200 group-active:text-amber-200">
+                      অ্যাকাউন্টিং ম্যানেজমেন্ট
+                    </span>
+                    <span className="block text-[8px] xs:text-[8.5px] font-bold text-amber-400 mt-0.5 tracking-wider uppercase transition-colors duration-300 group-hover:text-amber-300 group-active:text-amber-300">
+                      Accounting Management
+                    </span>
+                  </>
+                } 
+                icon={<AccountingIcon />} 
+                onClick={() => onNavigate(ViewState.ACCOUNTING)} 
+                glowGradient="from-amber-500 via-orange-500 to-yellow-600"
+                borderColor="border-slate-700/80 group-hover:border-amber-400 group-active:border-amber-400"
+                iconBgColor="group-hover:bg-amber-500/20 group-hover:border-amber-400/60 group-hover:text-amber-300 group-active:bg-amber-500/20 group-active:border-amber-400/60 group-active:text-amber-300"
+                delay="400ms"
+              />
+            </div>
+
+            {/* Exact Dead-Center Badge placed right in the intersection of the 4 boxes */}
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-30 animate-fade-in-up" style={{ animationDelay: '250ms' }}>
+              <button 
+                onClick={() => onNavigate(ViewState.MARKETING)}
+                className="pointer-events-auto group relative flex items-center justify-center gap-2 px-3.5 py-1.5 xs:px-4.5 xs:py-2 rounded-full border-2 border-purple-400/90 hover:border-purple-300 active:border-purple-300 bg-gradient-to-r from-slate-950/95 via-purple-950/95 to-slate-950/95 backdrop-blur-2xl shadow-[0_0_28px_rgba(168,85,247,0.9),0_8px_20px_rgba(0,0,0,0.7)] hover:shadow-[0_0_45px_rgba(168,85,247,1)] active:shadow-[0_0_35px_rgba(168,85,247,0.9)] hover:scale-105 active:scale-95 transition-all duration-300 cursor-pointer"
+                title="মার্কেটিং ম্যানেজমেন্ট (Marketing Management)"
+              >
+                {/* Perimeter Glow Aura */}
+                <div className="absolute -inset-1 rounded-full bg-gradient-to-r from-purple-600 via-fuchsia-500 to-pink-600 opacity-0 group-hover:opacity-90 group-active:opacity-90 blur-md transition-all duration-300 -z-10 pointer-events-none" />
+
+                <div className="p-1.5 rounded-full bg-purple-500/30 text-purple-300 border border-purple-400/60 group-hover:scale-110 group-active:scale-110 group-hover:bg-purple-500 group-active:bg-purple-500 group-hover:text-white group-active:text-white transition-all duration-300 shadow-inner">
+                  <TrendingUpIcon className="w-4 h-4 xs:w-4.5 xs:h-4.5" />
+                </div>
+                <div className="text-left">
+                  <span className="block text-[11.5px] xs:text-xs font-extrabold text-white tracking-tight drop-shadow-md group-hover:text-purple-200 group-active:text-purple-200 transition-colors whitespace-nowrap">
+                    মার্কেটিং ম্যানেজমেন্ট
+                  </span>
+                  <span className="block text-[7.5px] xs:text-[8px] font-bold text-purple-300 tracking-wider uppercase whitespace-nowrap">
+                    Marketing Management
+                  </span>
+                </div>
+                <div className="flex items-center text-purple-400 group-hover:translate-x-0.5 group-active:translate-x-0.5 transition-transform pl-0.5">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                  </svg>
+                </div>
+              </button>
+            </div>
+
+          </div>
+        </main>
+
+        {/* MOBILE QUICK PORTALS & SYSTEM - Compact for Single Static View */}
+        <footer className="flex-none w-full pt-1.5 pb-0.5 z-20 animate-fade-in-up" style={{ animationDelay: '300ms' }}>
+          <div className="flex items-center justify-center gap-2 mb-1">
+            <div className="h-[1px] bg-slate-800/80 flex-1" />
+            <span className="text-[9px] font-black uppercase tracking-widest text-slate-400/80">
+              Quick Portals & System
+            </span>
+            <div className="h-[1px] bg-slate-800/80 flex-1" />
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 w-full">
+            {/* Doctor Portal */}
+            <button 
+              onClick={() => onNavigate(ViewState.DOCTOR_LOGIN)} 
+              className="group relative flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-xl bg-slate-900/90 border border-blue-500/40 text-blue-300 font-bold transition-all duration-300 hover:border-blue-400 active:border-blue-400 hover:bg-gradient-to-r hover:from-blue-950/80 hover:to-blue-900/60 active:bg-blue-950/80 hover:text-white active:text-white hover:shadow-[0_4px_20px_rgba(59,130,246,0.35)] active:shadow-[0_4px_15px_rgba(59,130,246,0.35)] hover:scale-105 active:scale-95 backdrop-blur-md cursor-pointer"
+            >
+              <span className="p-1 rounded-full bg-blue-500/20 text-blue-400 border border-blue-400/30 group-hover:bg-blue-500 group-active:bg-blue-500 group-hover:text-white group-active:text-white transition-all duration-300 shadow-inner">
+                <StethoscopeIcon className="w-3.5 h-3.5" />
+              </span>
+              <span className="text-[11px] xs:text-xs font-bold whitespace-nowrap">Doctor Portal</span>
+            </button>
+
+            {/* Lab Reporting */}
+            <button 
+              onClick={() => onNavigate(ViewState.LAB_LOGIN)} 
+              className="group relative flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-xl bg-slate-900/90 border border-cyan-500/40 text-cyan-300 font-bold transition-all duration-300 hover:border-cyan-400 active:border-cyan-400 hover:bg-gradient-to-r hover:from-cyan-950/80 hover:to-cyan-900/60 active:bg-cyan-950/80 hover:text-white active:text-white hover:shadow-[0_4px_20px_rgba(6,182,212,0.35)] active:shadow-[0_4px_15px_rgba(6,182,212,0.35)] hover:scale-105 active:scale-95 backdrop-blur-md cursor-pointer"
+            >
+              <span className="p-1 rounded-full bg-cyan-500/20 text-cyan-400 border border-cyan-400/30 group-hover:bg-cyan-500 group-active:bg-cyan-500 group-hover:text-white group-active:text-white transition-all duration-300 shadow-inner">
+                <FileTextIcon className="w-3.5 h-3.5" />
+              </span>
+              <span className="text-[11px] xs:text-xs font-bold whitespace-nowrap">Lab Reporting</span>
+            </button>
+
+            {/* Settings */}
+            <button 
+              onClick={() => onNavigate(ViewState.ADMIN_SETTINGS)} 
+              className="group relative flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-xl bg-slate-900/90 border border-slate-700/80 text-slate-300 font-bold transition-all duration-300 hover:border-purple-400/70 active:border-purple-400/70 hover:bg-gradient-to-r hover:from-purple-950/80 hover:to-slate-900/80 active:bg-purple-950/80 hover:text-purple-200 active:text-purple-200 hover:shadow-[0_4px_20px_rgba(168,85,247,0.3)] active:shadow-[0_4px_15px_rgba(168,85,247,0.3)] hover:scale-105 active:scale-95 backdrop-blur-md cursor-pointer"
+            >
+              <span className="p-1 rounded-full bg-slate-800 text-slate-400 border border-slate-700/60 group-hover:bg-purple-500/30 group-active:bg-purple-500/30 group-hover:text-purple-300 group-active:text-purple-300 group-hover:rotate-90 group-active:rotate-90 transition-all duration-500 shadow-inner">
+                <SettingsIcon className="w-3.5 h-3.5" />
+              </span>
+              <span className="text-[11px] xs:text-xs font-bold whitespace-nowrap">Settings</span>
+            </button>
+
+            {/* Admin Logout */}
+            <button 
+              onClick={onLogout} 
+              className="group relative flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-xl bg-slate-900/90 border border-slate-700/80 text-slate-300 font-bold transition-all duration-300 hover:border-rose-500/70 active:border-rose-500/70 hover:bg-gradient-to-r hover:from-rose-950/80 hover:to-slate-900/80 active:bg-rose-950/80 hover:text-rose-200 active:text-rose-200 hover:shadow-[0_4px_20px_rgba(244,63,94,0.3)] active:shadow-[0_4px_15px_rgba(244,63,94,0.3)] hover:scale-105 active:scale-95 backdrop-blur-md cursor-pointer"
+            >
+              <span className="p-1 rounded-full bg-slate-800 text-rose-400 border border-slate-700/60 group-hover:bg-rose-500/30 group-active:bg-rose-500/30 group-hover:text-rose-300 group-active:text-rose-300 group-hover:-translate-x-0.5 group-active:-translate-x-0.5 transition-all duration-300 shadow-inner">
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                  <polyline points="16 17 21 12 16 7"></polyline>
+                  <line x1="21" y1="12" x2="9" y2="12"></line>
+                </svg>
+              </span>
+              <span className="text-[11px] xs:text-xs font-bold whitespace-nowrap">Admin Logout</span>
+            </button>
+          </div>
+
+          <div className="mt-1 text-center text-slate-500/60 text-[9px] font-medium tracking-wide">
+            &copy; 2024 NiramoyClinic. All rights reserved.
+          </div>
+        </footer>
       </div>
     </div>
   );

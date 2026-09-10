@@ -2654,8 +2654,13 @@ const IndoorInvoicePage: React.FC<{
         try {
             const safeInvoices = Array.isArray(indoorInvoices) ? indoorInvoices : [];
             // Check if date has changed for an existing invoice
-            const finalInvoice = { ...formData };
-            const oldInvoice = selectedInvoiceId ? safeInvoices.find(inv => inv && inv.daily_id === selectedInvoiceId) : null;
+            const pcAmountToSave = applyPC ? (Number(formData.special_commission) || 0) : 0;
+            const finalInvoice = { 
+                ...formData,
+                special_commission: pcAmountToSave,
+                commission_paid: 0 // clear duplicate legacy commission_paid so there is no double-counting
+            };
+            const oldInvoice = selectedInvoiceId ? safeInvoices.find(inv => inv && (inv.daily_id === selectedInvoiceId || (inv as any).id === selectedInvoiceId)) : null;
             const isDateChanged = selectedInvoiceId && formData.invoice_date !== oldInvoice?.invoice_date;
 
             if (isDateChanged) {
@@ -2686,16 +2691,22 @@ const IndoorInvoicePage: React.FC<{
             let newInvoicesArr = [...(Array.isArray(indoorInvoices) ? indoorInvoices : [])];
             if (selectedInvoiceId) {
                 if (isDateChanged) {
-                    newInvoicesArr = newInvoicesArr.filter(inv => inv.daily_id !== selectedInvoiceId);
+                    newInvoicesArr = newInvoicesArr.filter(inv => inv.daily_id !== selectedInvoiceId && (inv as any).id !== selectedInvoiceId);
                     const newInvoice = { ...finalInvoice, created_at: now, last_modified: now, edit_history: [] };
                     newInvoicesArr.push(newInvoice);
                 } else {
-                    const idx = newInvoicesArr.findIndex(inv => inv.daily_id === selectedInvoiceId);
+                    const idx = newInvoicesArr.findIndex(inv => 
+                        (inv.daily_id && inv.daily_id === selectedInvoiceId) ||
+                        ((inv as any).id && (inv as any).id === selectedInvoiceId) ||
+                        (finalInvoice.admission_id && inv.admission_id === finalInvoice.admission_id && inv.patient_id === finalInvoice.patient_id)
+                    );
                     if (idx >= 0) {
                         const { edit_history: oldHistory, ...invoiceSnapshot } = newInvoicesArr[idx];
                         const historyEntry = { ...invoiceSnapshot, snapshot_date: now, modified_by: finalInvoice.bill_created_by || 'System' };
                         const updatedHistory = [...(Array.isArray(oldHistory) ? oldHistory : []), historyEntry].slice(-5);
                         newInvoicesArr[idx] = { ...finalInvoice, last_modified: now, edit_history: updatedHistory };
+                    } else {
+                        newInvoicesArr.push({ ...finalInvoice, created_at: now, last_modified: now, edit_history: [] });
                     }
                 }
             } else {
@@ -2712,6 +2723,7 @@ const IndoorInvoicePage: React.FC<{
                     setFormData(emptyIndoorInvoice);
                     setSelectedAdmission(null);
                     setSelectedInvoiceId(null);
+                    setApplyPC(false);
                 } else {
                     alert("সার্ভারে ডাটা সেভ করতে ব্যর্থ হয়েছে। দয়া করে আপনার ইন্টারনেট চেক করুন।");
                 }
@@ -2722,6 +2734,7 @@ const IndoorInvoicePage: React.FC<{
                 setFormData(emptyIndoorInvoice);
                 setSelectedAdmission(null);
                 setSelectedInvoiceId(null);
+                setApplyPC(false);
             }
         } catch (error) {
             console.error("Error saving invoice:", error);
@@ -2948,6 +2961,7 @@ const IndoorInvoicePage: React.FC<{
         const safePatients = Array.isArray(patients) ? patients : [];
         const patient = safePatients.find(p => p && p.pt_id === inv.patient_id);
         const invDailyId = inv.daily_id || (inv as any).id || `CLIN-${inv.invoice_date || new Date().toISOString().split('T')[0]}-001`;
+        const existingPC = Number(inv.special_commission || 0) || Number(inv.commission_paid || 0);
         
         const cleanedInv: IndoorInvoice = {
             ...emptyIndoorInvoice,
@@ -2977,7 +2991,8 @@ const IndoorInvoicePage: React.FC<{
             due_bill: Number(inv.due_bill) || 0,
             net_payable: Number(inv.net_payable) || 0,
             special_discount_amount: Number(inv.special_discount_amount) || 0,
-            special_commission: Number(inv.special_commission) || 0,
+            special_commission: existingPC,
+            commission_paid: 0,
             bill_created_by: inv.bill_created_by || 'Admin',
             payment_method: inv.payment_method || 'Cash',
             status: inv.status || 'Posted'
@@ -2985,7 +3000,7 @@ const IndoorInvoicePage: React.FC<{
 
         setFormData(cleanedInv);
         setSelectedInvoiceId(invDailyId);
-        setApplyPC(Number(inv.special_commission || 0) > 0);
+        setApplyPC(existingPC > 0);
         
         const adm = (Array.isArray(admissions) ? admissions : []).find(a => a && a.admission_id === inv.admission_id);
         if (adm) setSelectedAdmission(adm);
@@ -3157,14 +3172,17 @@ const IndoorInvoicePage: React.FC<{
                                 const safeAdmissions = Array.isArray(admissions) ? admissions : [];
                                 const adm = safeAdmissions.find(a => a && a.admission_id === id); 
                                 setSelectedAdmission(adm || null); 
-                                if(adm) setFormData({
-                                    ...emptyIndoorInvoice, 
-                                    admission_id: adm.admission_id || '', 
-                                    patient_id: adm.patient_id || '', 
-                                    patient_name: adm.patient_name || '', 
-                                    admission_date: adm.admission_date || '', 
-                                    status: 'Posted'
-                                }); 
+                                if(adm) {
+                                    setFormData({
+                                        ...emptyIndoorInvoice, 
+                                        admission_id: adm.admission_id || '', 
+                                        patient_id: adm.patient_id || '', 
+                                        patient_name: adm.patient_name || '', 
+                                        admission_date: adm.admission_date || '', 
+                                        status: 'Posted'
+                                    });
+                                    setApplyPC(false);
+                                }
                             }} 
                         />
                     </div>
@@ -3192,6 +3210,7 @@ const IndoorInvoicePage: React.FC<{
                                         status: 'Posted',
                                         indication: 'Outdoor Service'
                                     });
+                                    setApplyPC(false);
                                 }
                             }} 
                         />
@@ -3213,6 +3232,7 @@ const IndoorInvoicePage: React.FC<{
                                     setFormData(emptyIndoorInvoice); 
                                     setSelectedAdmission(null); 
                                     setSelectedInvoiceId(null); 
+                                    setApplyPC(false);
                                 }} 
                                 className="bg-slate-800 hover:bg-slate-750 text-slate-400 px-6 py-3 rounded-xl font-black uppercase text-[10px] tracking-widest transition-all border border-slate-700 h-[46px]"
                             >
@@ -3276,9 +3296,30 @@ const IndoorInvoicePage: React.FC<{
                             <div className="flex flex-col justify-center items-center bg-slate-900 rounded-xl border border-slate-800 p-3">
                                 <label className="block text-[10px] text-blue-400/70 font-black uppercase tracking-widest mb-2">PC (Apply?)</label>
                                 <div className="flex gap-2 items-center">
-                                    <button type="button" onClick={() => setApplyPC(true)} className={`px-4 py-1.5 rounded-lg text-[10px] font-black transition-all ${applyPC ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/40' : 'bg-slate-800 text-slate-500'}`}>YES</button>
-                                    <button type="button" onClick={() => { setApplyPC(false); setFormData(prev => ({ ...prev, special_commission: 0 })); }} className={`px-4 py-1.5 rounded-lg text-[10px] font-black transition-all ${!applyPC ? 'bg-rose-600 text-white shadow-lg shadow-rose-900/40' : 'bg-slate-800 text-slate-500'}`}>NO</button>
-                                    {applyPC && <input type="number" value={formData.special_commission} onChange={e => setFormData(prev => ({...prev, special_commission: parseFloat(e.target.value) || 0}))} className="w-24 p-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-200 text-xs focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Amount"/>}
+                                    <button 
+                                        type="button" 
+                                        onClick={() => setApplyPC(true)} 
+                                        className={`px-4 py-1.5 rounded-lg text-[10px] font-black transition-all ${applyPC ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/40 ring-2 ring-emerald-400' : 'bg-slate-800 text-slate-400 hover:text-white'}`}
+                                    >
+                                        YES
+                                    </button>
+                                    <button 
+                                        type="button" 
+                                        onClick={() => { setApplyPC(false); setFormData(prev => ({ ...prev, special_commission: 0, commission_paid: 0 })); }} 
+                                        className={`px-4 py-1.5 rounded-lg text-[10px] font-black transition-all ${!applyPC ? 'bg-rose-600 text-white shadow-lg shadow-rose-900/40 ring-2 ring-rose-400' : 'bg-slate-800 text-slate-400 hover:text-white'}`}
+                                    >
+                                        NO
+                                    </button>
+                                    {applyPC && (
+                                        <input 
+                                            type="number" 
+                                            value={formData.special_commission === 0 ? '' : formData.special_commission} 
+                                            onChange={e => setFormData(prev => ({...prev, special_commission: parseFloat(e.target.value) || 0}))} 
+                                            onFocus={e => e.target.select()}
+                                            className="w-24 p-2 bg-slate-950 border border-emerald-500/60 rounded-lg text-emerald-300 font-mono font-bold text-xs focus:ring-2 focus:ring-emerald-500 outline-none" 
+                                            placeholder="PC টাকা"
+                                        />
+                                    )}
                                 </div>
                             </div>
                             <div><label className="block text-[10px] text-blue-400/70 font-black uppercase tracking-widest mb-1.5">Category</label><select name="serviceCategory" value={formData.serviceCategory || ''} onChange={handleInputChange} className="w-full p-3 bg-slate-900 border border-slate-800 rounded-xl text-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium">{(Array.isArray(serviceCategoriesList) ? serviceCategoriesList : []).map(c => <option key={c} value={c} className="bg-slate-900">{c}</option>)}</select></div>

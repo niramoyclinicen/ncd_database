@@ -134,16 +134,16 @@ const expenseMapSequence = [
 
 const diagExpenseCategories = [
     'House rent', 'Electricity bill', 'Stuff salary', 'Reagent buy', 'Marketing', 'Motorcycle', 'Doctor donation & Vehicle service',
-    'Instruments buy/ repair', 'Diagnostic development', 'Maintenance', 'License cost', 
+    'Instruments buy/ repair', 'Diagnostic development', 'Maintenance', 'License cost',
     'X-ray Film buy', 'Mobile buy/ Flexiload', 'Press Cost', 'Food/Meal Cost', 'Paper / Dish / Wifi Bill',
     'Electrical and Electronics',
     'Others',
 ];
 
 const clinicExpenseCategories = [
-    'Stuff salary', 'Generator', 'Motorcycle', 'Marketing', 'Clinic development', 
-    'House rent', 'Stationery', 'Food/Refreshment', 
-    'Doctor donation', 'Repair/Instruments', 'Press', 'License/Official', 
+    'Stuff salary', 'Generator', 'Motorcycle', 'Marketing', 'Clinic development',
+    'House rent', 'Stationery', 'Food/Refreshment',
+    'Doctor donation', 'Repair/Instruments', 'Press', 'License/Official',
     'Bank/NGO Installment', 'Mobile', 'Interest/Loan', 'Others', 'Old Loan Repay'
 ];
 
@@ -173,16 +173,16 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
     const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth());
     const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
     const [deptFilter, setDeptFilter] = useState<'All' | 'Diagnostic' | 'Clinic'>('All');
-    
+
     const [dynamicShareholders, setDynamicShareholders] = useState<Shareholder[]>(() => {
         const saved = localStorage.getItem('ncd_shareholders');
         if (saved) return JSON.parse(saved);
         // Add default values for original data if field is missing
-        return initialShareholders.map(s => ({ 
-            ...s, 
-            address: 'Enayetpur, Sirajganj', 
-            phone: 'N/A', 
-            joinDate: '2024-01-01' 
+        return initialShareholders.map(s => ({
+            ...s,
+            address: 'Enayetpur, Sirajganj',
+            phone: 'N/A',
+            joinDate: '2024-01-01'
         }));
     });
     const [shareholderLogs, setShareholderLogs] = useState<ShareholderLog[]>(() => JSON.parse(localStorage.getItem('ncd_shareholder_logs') || '[]'));
@@ -193,7 +193,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
     const [repayments, setRepayments] = useState<RepaymentRecord[]>(() => JSON.parse(localStorage.getItem('ncd_loan_repayments') || '[]'));
     const [futurePlans, setFuturePlans] = useState<FuturePlan[]>(() => JSON.parse(localStorage.getItem('ncd_future_plans') || '[]'));
     const [companyCollections, setCompanyCollections] = useState<CompanyCollection[]>(() => JSON.parse(localStorage.getItem('ncd_company_collections') || '[]'));
-    
+
     const [showSaveConfirm, setShowSaveConfirm] = useState(false);
     const [saveSuccess, setSaveSuccess] = useState(false);
 
@@ -374,7 +374,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
 
     const handleAddOrUpdatePartner = (partner: Partial<Shareholder>) => {
         if (!partner.name || !partner.shares) return alert("নাম এবং শেয়ার সংখ্যা দিন।");
-        
+
         if (editingShareholder) {
             if (!confirm("আপনি কি এই তথ্যগুলো পরিবর্তন করতে চান?")) return;
             const updated = dynamicShareholders.map(s => s.id === editingShareholder.id ? { ...s, ...partner, updatedAt: new Date().toISOString() } as Shareholder : s);
@@ -409,13 +409,13 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
 
     const addFuturePlan = () => {
         if (!newPlan.title) return alert("শিরোনাম দিন।");
-        const plan: FuturePlan = { 
-            id: `FP-${Date.now()}`, 
-            title: newPlan.title, 
-            description: '', 
-            estimatedCost: newPlan.estimatedCost || 0, 
-            targetDate: newPlan.targetDate || new Date().toISOString().split('T')[0], 
-            status: 'Pending' 
+        const plan: FuturePlan = {
+            id: `FP-${Date.now()}`,
+            title: newPlan.title,
+            description: '',
+            estimatedCost: newPlan.estimatedCost || 0,
+            targetDate: newPlan.targetDate || new Date().toISOString().split('T')[0],
+            status: 'Pending'
         };
         setFuturePlans([plan, ...futurePlans]);
         setNewPlan({ title: '', estimatedCost: 0, status: 'Pending', targetDate: '' });
@@ -435,7 +435,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
 
     const deletePlan = (id: string) => { if(confirm("পরিকল্পনাটি মুছে ফেলতে চান?")) setFuturePlans(futurePlans.filter(p => p.id !== id)); };
     const updatePlan = (id: string, field: keyof FuturePlan, val: any) => { setFuturePlans(prev => prev.map(p => p.id === id ? { ...p, [field]: val } : p)); };
-    
+
     const expenseSheetData = useMemo(() => { try {
         const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
         const rows = [];
@@ -449,7 +449,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                 }
                 if (deptFilter === 'Clinic') {
                     // For Clinic, we include it if it's tagged Clinic OR if it's untagged and in clinic categories
-                    // To avoid double counting untagged shared categories, we could prioritize one, 
+                    // To avoid double counting untagged shared categories, we could prioritize one,
                     // but usually these were separate in the user's mind even if categories overlapped.
                     return ex.dept === 'Clinic' || (!ex.dept && clinicExpenseCategories.includes(ex.category));
                 }
@@ -464,9 +464,9 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                 // However, 'expenseSheetData' seems to be a combined ledger.
                 // If the user wants to see ONLY Clinic expenses in a "Monthly Clinic Expense Sheet",
                 // we should check how this data is used.
-                
+
                 let catName = exp.category;
-                
+
                 // Mapping Diagnostic & Clinic categories to Consolidated keys
                 if (catName === 'Clinic development' || catName === 'Diagnostic development') catName = 'Clinic_Dev';
                 if (catName === 'Electricity bill' || catName === 'Paper / Dish / Wifi Bill') catName = 'Bills';
@@ -587,7 +587,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
         for (let d = 1; d <= daysInMonth; d++) {
             const dayStr = String(d).padStart(2, '0');
             const dateStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${dayStr}`;
-            
+
             const diagInvToday = (labInvoices || []).filter(inv => {
                 if (!inv || inv.status === 'Cancelled' || inv.status === 'Returned' || inv.status === 'Deleted') return false;
                 const invDate = getLabInvDate(inv);
@@ -628,10 +628,10 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
 
             const shortMonth = monthOptions[selectedMonth].name.substring(0, 3);
             const displayDate = `${dayStr}-${shortMonth}`;
-            rawRows.push({ 
-                date: displayDate, 
-                diag: { today: diagToday, due: diagDue, total: diagTotal, upto: diagUpto }, 
-                clinic: { today: clinicToday, due: clinicDue, total: clinicTotal, upto: clinicUpto } 
+            rawRows.push({
+                date: displayDate,
+                diag: { today: diagToday, due: diagDue, total: diagTotal, upto: diagUpto },
+                clinic: { today: clinicToday, due: clinicDue, total: clinicTotal, upto: clinicUpto }
             });
         }
 
@@ -653,7 +653,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
         for (let d = 1; d <= daysInMonth; d++) {
             const dateStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
             const dailyExps = detailedExpenses[dateStr] || [];
-            
+
             let diagToday = 0;
             let clinicToday = 0;
 
@@ -661,7 +661,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                 if (ex.isDeleted) return;
                 let cat = ex.category;
                 if (cat === 'House rent') cat = 'House rent';
-                
+
                 const isClinic = ex.dept === 'Clinic' || (!ex.dept && clinicExpenseCategories.includes(cat) && !diagExpenseCategories.includes(cat));
                 // default to diag if not clinic explicitly
                 const isDiag = !isClinic;
@@ -689,7 +689,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                 total: diagToday + clinicToday
             });
         }
-        
+
         return rawRows.map((row, idx) => {
             if (idx > lastDayWithData) {
                 return { ...row, diag: { ...row.diag, upto: null }, clinic: { ...row.clinic, upto: null } };
@@ -703,20 +703,20 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
     const statusReportData = useMemo(() => { try {
         return dailyCollectionData.map((collRow, idx) => {
             const expRow = dailyExpenseReportData[idx] || { diag: { today: 0 }, clinic: { today: 0 }, total: 0 };
-            
+
             const diagColl = collRow.diag?.total || 0;
             const clinicColl = collRow.clinic?.total || 0;
             const totalColl = diagColl + clinicColl;
-            
+
             const diagExp = expRow.diag?.today || 0;
             const clinicExp = expRow.clinic?.today || 0;
             const totalExp = expRow.total || 0;
-            
+
             let balance = null;
             if (totalColl > 0 || totalExp > 0 || diagColl > 0 || clinicColl > 0 || diagExp > 0 || clinicExp > 0) {
                 balance = totalColl - totalExp;
             }
-            
+
             return {
                 date: collRow.date,
                 diagColl,
@@ -802,7 +802,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                 return y < selectedYear || (y === selectedYear && m - 1 < selectedMonth);
             } catch(e) { return false; }
         };
-        
+
         const getNetDiagCash = (inv: LabInvoice) => {
             if (!inv) return 0;
             const items = Array.isArray(inv.items) ? inv.items : [];
@@ -861,7 +861,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                 if (!dc || !isBeforeSelectedMonth(dc.collection_date) || !isDiagDue(dc)) return false;
                 return true;
             }).reduce((s, dc) => s + dc.amount_collected, 0);
-            
+
             const prevClinic = indoorInvoices.filter(inv => {
                 if (!inv) return false;
                 const dateToUse = inv.admission_date || inv.invoice_date;
@@ -879,7 +879,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                 const inv = indoorInvoices.find(i => i.invoice_id === dc.invoice_id);
                 return !inv || !isSameDay(inv.admission_date || inv.invoice_date, dc.collection_date);
             }).reduce((s, dc) => s + dc.amount_collected, 0);
-            
+
             const safeSalesInvoices = Array.isArray(salesInvoices) ? salesInvoices : [];
             const prevMedSalesOutdoor = safeSalesInvoices.filter(inv => inv && isBeforeSelectedMonth(getInvDate(inv)) && inv.status !== 'Cancelled' && inv.status !== 'Returned' && inv.status !== 'Deleted').reduce((s, i) => s + getInvNet(i), 0);
             const safeIndoorInvoices = Array.isArray(indoorInvoices) ? indoorInvoices : [];
@@ -933,7 +933,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
             if (!dc || !isSelectedMonth(dc.collection_date) || !isDiagDue(dc)) return false;
             return true;
         }).reduce((s, dc) => s + dc.amount_collected, 0);
-        
+
         let totalMonthlyOperatingExpenses = 0;
         Object.entries(detailedExpenses).forEach(([date, items]) => {
             if (isSelectedMonth(date)) (items as ExpenseItem[]).forEach(it => {
@@ -955,7 +955,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
             return acc + (netIncomeForInv - pcAmount - specialDiscount);
         }, 0);
 
-        const clinicCurrent = clinicRevenueCurrent - 
+        const clinicCurrent = clinicRevenueCurrent -
             dueCollections.filter(dc => {
                 if (!dc || (dc.invoice_id || '').startsWith('INV')) return false;
                 const inv = indoorInvoices.find(i => i.invoice_id === dc.invoice_id);
@@ -965,7 +965,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
             if (!dc || !isSelectedMonth(dc.collection_date) || (dc.invoice_id || '').startsWith('INV')) return false;
             return true;
         }).reduce((s, dc) => s + (Number(dc.amount_collected) || 0), 0);
-        
+
         const safeSalesInvoices = Array.isArray(salesInvoices) ? salesInvoices : [];
         const medSalesOutdoor = safeSalesInvoices.filter(inv => inv && isSelectedMonth(getInvDate(inv)) && inv.status !== 'Cancelled' && inv.status !== 'Returned' && inv.status !== 'Deleted').reduce((s, i) => s + getInvNet(i), 0);
         const safeIndoorInvoices = Array.isArray(indoorInvoices) ? indoorInvoices : [];
@@ -986,16 +986,16 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
         const totalDiag = diagCurrent + diagDue;
         const totalClinic = clinicCurrent + clinicDue;
         const totalMedNet = medSalesCurrent - medPurchCurrent;
-        
+
         const grandTotalCollection = totalDiag + totalClinic + totalMedNet + companyCurrent + prevJer - (safeNum(adj.houseRent));
-        
+
         const groupedExp: Record<string, number> = {};
         expenseMapSequence.forEach(e => groupedExp[e.key] = 0);
         Object.entries(detailedExpenses).forEach(([date, items]) => {
             if (isSelectedMonth(date)) (items as ExpenseItem[]).forEach(it => {
                 if (it.isDeleted) return;
                 let catName = it.category;
-                
+
                 // Mapping Diagnostic categories to Consolidated keys
                 if (catName === 'Clinic development' || catName === 'Diagnostic development') catName = 'Clinic_Dev';
                 if (catName === 'Electricity bill' || catName === 'Paper / Dish / Wifi Bill') catName = 'Bills';
@@ -1030,7 +1030,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
         const finalClosingJer = netProfit - (safeNum(adj.profitDist));
         const totalShares = dynamicShareholders.reduce((s, h) => s + h.shares, 0);
         const profitPerShare = totalShares > 0 ? (safeNum(adj.profitDist)) / totalShares : 0;
-        
+
         return { prevJer: safeNum(prevJer), diagCurrent: safeNum(diagCurrent), diagDue: safeNum(diagDue), totalDiag: safeNum(totalDiag), clinicCurrent: safeNum(clinicCurrent), clinicDue: safeNum(clinicDue), totalClinic: safeNum(totalClinic), medSalesCurrent: safeNum(medSalesCurrent), medPurchCurrent: safeNum(medPurchCurrent), totalMedNet: safeNum(totalMedNet), companyCurrent: safeNum(companyCurrent), grandTotalCollection: safeNum(grandTotalCollection), groupedExp, totalExpense: safeNum(totalExpenseTableOnly), netProfit: safeNum(netProfit), finalClosingJer: safeNum(finalClosingJer), profitPerShare: safeNum(profitPerShare), totalShares: safeNum(totalShares) }; } catch(e) { console.error('summary error:', e); return { prevJer: 0, diagCurrent: 0, diagDue: 0, totalDiag: 0, clinicCurrent: 0, clinicDue: 0, totalClinic: 0, medSalesCurrent: 0, medPurchCurrent: 0, totalMedNet: 0, companyCurrent: 0, grandTotalCollection: 0, groupedExp: {}, totalExpense: 0, netProfit: 0, finalClosingJer: 0, profitPerShare: 0, totalShares: 0 }; } }, [labInvoices, dueCollections, indoorInvoices, salesInvoices, purchaseInvoices, companyCollections, detailedExpenses, consolidatedEntries, selectedMonth, selectedYear, monthlyAdjustments, dynamicShareholders, repayments, adj.houseRent, adj.loanInstallment, adj.profitDist]);
 
     const handlePrintSpecific = (elementId: string) => {
@@ -1046,15 +1046,15 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
         const isDailyExpense = elementId === 'section-daily-expense';
         const html = `<html><head><title>Print Report</title><script src="https://cdn.tailwindcss.com"></script><style>
             @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700;800&family=Hind+Siliguri:wght@400;500;600;700&family=Noto+Serif+Bengali:wght@400;600;700;800;900&family=Tiro+Bangla&display=swap');
-            @page { size: A4 ${isLandscape ? 'landscape' : 'portrait'}; margin: ${isPartnerList ? '8mm' : (isProfitShare ? '4mm' : (isLandscape ? '5mm' : (isAccounts ? '6mm 7mm 6mm 7mm' : (isDailyCollection || isDailyExpense ? '5mm 5mm 5mm 5mm' : '15mm'))))} ; } 
-            html, body { background: white; font-family: 'SolaimanLipi', 'Kalpurush', 'Noto Serif Bengali', 'Hind Siliguri', 'Inter', sans-serif; padding: 0; margin: 0; color: black; box-sizing: border-box; -webkit-print-color-adjust: exact; width: 100%; height: auto !important; min-height: 0 !important; } 
+            @page { size: A4 ${isLandscape ? 'landscape' : 'portrait'}; margin: ${isPartnerList ? '8mm' : (isProfitShare ? '4mm' : (isLandscape ? '5mm' : (isAccounts ? '6mm 7mm 6mm 7mm' : (isDailyCollection || isDailyExpense ? '5mm 5mm 5mm 5mm' : '15mm'))))} ; }
+            html, body { background: white; font-family: 'SolaimanLipi', 'Kalpurush', 'Noto Serif Bengali', 'Hind Siliguri', 'Inter', sans-serif; padding: 0; margin: 0; color: black; box-sizing: border-box; -webkit-print-color-adjust: exact; width: 100%; height: auto !important; min-height: 0 !important; }
             main { width: 100% !important; max-width: none !important; margin: 0 !important; padding: ${isLandscape ? '0.5mm' : (isAccounts ? '0mm' : (isProfitShare ? '1mm' : (isDailyCollection || isDailyExpense ? '1mm' : '5mm')))} 0 !important; border: none !important; box-shadow: none !important; height: auto !important; min-height: 0 !important; display: flex; flex-direction: column; }
-            .print-table { width: 100% !important; border-collapse: collapse !important; border: 2px solid #000 !important; table-layout: fixed; margin-bottom: 0 !important; } 
-            th, td { border: 1.5px solid #000 !important; padding: ${isPartnerList ? '2px 4px' : (isAccounts ? '2px 3px' : (isDailyCollection || isDailyExpense ? '2px 1.5px' : '2px 1.5px'))}; text-align: center; overflow: visible; font-size: ${isPartnerList ? '10.5pt' : (isLandscape ? '8.75pt' : (isAccounts ? '10pt' : (isDailyCollection || isDailyExpense ? '8pt' : '9.5pt')))}; line-height: 1.25; word-break: normal; } 
-            .no-print { display: none !important; } 
-            .font-bengali { font-family: 'SolaimanLipi', 'Kalpurush', 'Noto Serif Bengali', 'Hind Siliguri', sans-serif !important; } 
+            .print-table { width: 100% !important; border-collapse: collapse !important; border: 2px solid #000 !important; table-layout: fixed; margin-bottom: 0 !important; }
+            th, td { border: 1.5px solid #000 !important; padding: ${isPartnerList ? '2px 4px' : (isAccounts ? '2px 3px' : (isDailyCollection || isDailyExpense ? '2px 1.5px' : '2px 1.5px'))}; text-align: center; overflow: visible; font-size: ${isPartnerList ? '10.5pt' : (isLandscape ? '8.75pt' : (isAccounts ? '10pt' : (isDailyCollection || isDailyExpense ? '8pt' : '9.5pt')))}; line-height: 1.25; word-break: normal; }
+            .no-print { display: none !important; }
+            .font-bengali { font-family: 'SolaimanLipi', 'Kalpurush', 'Noto Serif Bengali', 'Hind Siliguri', sans-serif !important; }
             .font-mono { font-family: 'JetBrains Mono', monospace !important; }
-            h1 { font-size: ${isLandscape ? '14pt' : (isAccounts ? '20pt' : '18pt')} !important; margin: 0 !important; font-weight: 900 !important; line-height: 1.1; } 
+            h1 { font-size: ${isLandscape ? '14pt' : (isAccounts ? '20pt' : '18pt')} !important; margin: 0 !important; font-weight: 900 !important; line-height: 1.1; }
             p { font-size: ${isLandscape ? '9.5pt' : (isAccounts ? '10.5pt' : '10pt')} !important; margin: 0 !important; line-height: 1.2; }
             .print-border-b { border-bottom: 2px solid black !important; }
             ${isAccounts ? `
@@ -1091,8 +1091,8 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
         <div className="min-h-screen bg-slate-100 flex flex-col font-['Inter']">
             <header className="bg-slate-800 p-4 border-b border-slate-700 sticky top-0 z-[100] no-print flex flex-col md:flex-row justify-between items-center text-white gap-4 pt-16 md:pt-4 shadow-xl">
                 <div className="flex items-center gap-3">
-                    <button 
-                        onClick={onBack} 
+                    <button
+                        onClick={onBack}
                         className="p-2 bg-slate-700/90 hover:bg-slate-600 rounded-full text-yellow-400 hover:text-yellow-300 transition-all shadow-md active:scale-95 flex items-center justify-center"
                         title="Back"
                     >
@@ -1116,9 +1116,9 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                 </div>
                 <div className="flex items-center gap-2 bg-slate-900/80 px-3 py-1.5 rounded-xl border border-slate-700 shadow-inner">
                     <span className="text-[11px] font-bold text-amber-400 whitespace-nowrap">📅 মাস/বছর:</span>
-                    <select 
-                        value={selectedMonth} 
-                        onChange={e => setSelectedMonth(parseInt(e.target.value))} 
+                    <select
+                        value={selectedMonth}
+                        onChange={e => setSelectedMonth(parseInt(e.target.value))}
                         className="bg-slate-800 border border-slate-600 rounded px-2 py-1 text-white text-xs font-bold focus:ring-2 focus:ring-amber-400 outline-none"
                     >
                         {monthOptions.map(m => (
@@ -1127,9 +1127,9 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                             </option>
                         ))}
                     </select>
-                    <select 
-                        value={selectedYear} 
-                        onChange={e => setSelectedYear(parseInt(e.target.value))} 
+                    <select
+                        value={selectedYear}
+                        onChange={e => setSelectedYear(parseInt(e.target.value))}
                         className="bg-slate-800 border border-slate-600 rounded px-2 py-1 text-white text-xs font-bold focus:ring-2 focus:ring-amber-400 outline-none font-mono"
                     >
                         {[2023, 2024, 2025, 2026, 2027, 2028, 2029, 2030].map(y => (
@@ -1140,16 +1140,16 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
             </header>
 
             <div className="flex-1 overflow-y-auto p-4 md:p-8 bg-slate-200">
-                
+
                 {/* 1. Monthly Expense Sheet */}
                 {activeTab === 'monthly_expense_sheet' && (
                     <div id="section-monthly-expense" className="animate-fade-in w-full">
                         <main className="relative p-2 print:p-0 w-full max-w-[98%] lg:max-w-[none] mx-auto bg-white text-black shadow-2xl flex flex-col border border-gray-300 font-['Inter'] overflow-x-auto min-h-0">
-                            <button 
-                                onClick={() => handlePrintSpecific('section-monthly-expense')} 
+                            <button
+                                onClick={() => handlePrintSpecific('section-monthly-expense')}
                                 className="no-print absolute top-1.5 right-1.5 px-3 py-1.5 bg-emerald-600 text-white rounded-lg shadow-lg hover:bg-emerald-500 transition-all flex items-center gap-2 active:scale-95 z-[60]"
                             >
-                                <PrinterIcon size={14} /> 
+                                <PrinterIcon size={14} />
                                 <span className="text-[9px] font-bold uppercase tracking-wider">Print Landscape</span>
                             </button>
                             <div className="flex justify-between items-center mb-1 border-b-2 border-black pb-0.5 shrink-0 px-1 print:mb-0.5 print:pb-0.5">
@@ -1394,21 +1394,21 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                                         <div className="flex justify-between items-center w-full">
                                                             <span className="whitespace-nowrap font-bold text-slate-800 text-xs">বাড়ী ভাড়া কর্তন</span>
                                                             <div className="no-print flex items-center gap-1">
-                                                                <input 
-                                                                    type="number" 
+                                                                <input
+                                                                    type="number"
                                                                     min="0"
                                                                     placeholder="0"
-                                                                    value={adj.houseRent === 0 ? '' : adj.houseRent} 
+                                                                    value={adj.houseRent === 0 ? '' : adj.houseRent}
                                                                     onChange={e => {
                                                                         const v = e.target.value === '' ? 0 : parseFloat(e.target.value);
                                                                         updateAdjustment('houseRent', isNaN(v) ? 0 : v);
-                                                                    }} 
-                                                                    className="w-20 sm:w-24 px-1.5 py-0.5 text-right border border-gray-400 bg-white rounded text-xs font-bold font-['JetBrains_Mono'] focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-sm shrink-0" 
+                                                                    }}
+                                                                    className="w-20 sm:w-24 px-1.5 py-0.5 text-right border border-gray-400 bg-white rounded text-xs font-bold font-['JetBrains_Mono'] focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-sm shrink-0"
                                                                 />
-                                                                <button 
+                                                                <button
                                                                     type="button"
-                                                                    onClick={() => setShowSaveConfirm(true)} 
-                                                                    className="p-1 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors shadow-sm active:scale-95 flex items-center shrink-0" 
+                                                                    onClick={() => setShowSaveConfirm(true)}
+                                                                    className="p-1 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors shadow-sm active:scale-95 flex items-center shrink-0"
                                                                     title="Save"
                                                                 >
                                                                     <SaveIcon className="w-3.5 h-3.5" />
@@ -1432,28 +1432,28 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                                     </td>
                                                     <td className={`${collectionAmtCellClass} text-sm font-black border-l-2 border-black relative z-10`}>{safeNum(summary.grandTotalCollection).toLocaleString()}</td>
                                                 </tr>
-                                                
+
                                                 <tr className="bg-rose-50/30 h-8.5"><td colSpan={2} className={`${collectionTableCellClass} text-slate-900 text-xs`}>মোট খরচ (B)</td><td className={`${collectionAmtCellClass} text-slate-900`}>{safeNum(summary.totalExpense).toLocaleString()}</td></tr>
                                                 <tr className="bg-amber-50/40 h-8.5">
                                                     <td colSpan={2} className={`${collectionTableCellClass} !text-left !p-1.5 text-amber-900`}>
                                                         <div className="flex justify-between items-center w-full">
                                                             <span className="whitespace-nowrap font-bold text-amber-950 text-xs">লভ্যাংশ বন্টন</span>
                                                             <div className="no-print flex items-center gap-1">
-                                                                <input 
-                                                                    type="number" 
+                                                                <input
+                                                                    type="number"
                                                                     min="0"
                                                                     placeholder="0"
-                                                                    value={adj.profitDist === 0 ? '' : adj.profitDist} 
+                                                                    value={adj.profitDist === 0 ? '' : adj.profitDist}
                                                                     onChange={e => {
                                                                         const v = e.target.value === '' ? 0 : parseFloat(e.target.value);
                                                                         updateAdjustment('profitDist', isNaN(v) ? 0 : v);
-                                                                    }} 
-                                                                    className="w-20 sm:w-24 px-1.5 py-0.5 text-right border border-amber-400 bg-white rounded text-xs font-bold text-amber-950 font-['JetBrains_Mono'] focus:outline-none focus:ring-1 focus:ring-amber-500 shadow-sm shrink-0" 
+                                                                    }}
+                                                                    className="w-20 sm:w-24 px-1.5 py-0.5 text-right border border-amber-400 bg-white rounded text-xs font-bold text-amber-950 font-['JetBrains_Mono'] focus:outline-none focus:ring-1 focus:ring-amber-500 shadow-sm shrink-0"
                                                                 />
-                                                                <button 
+                                                                <button
                                                                     type="button"
-                                                                    onClick={() => setShowSaveConfirm(true)} 
-                                                                    className="p-1 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors shadow-sm active:scale-95 flex items-center shrink-0" 
+                                                                    onClick={() => setShowSaveConfirm(true)}
+                                                                    className="p-1 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors shadow-sm active:scale-95 flex items-center shrink-0"
                                                                     title="Save"
                                                                 >
                                                                     <SaveIcon className="w-3.5 h-3.5" />
@@ -1517,7 +1517,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                     <div id="section-status" className="relative animate-fade-in h-full">
                         <button onClick={() => handlePrintSpecific('section-status')} className="no-print absolute top-2 right-2 p-2 bg-amber-600 text-white rounded-full shadow-lg flex items-center gap-2"><PrinterIcon size={18} /><span className="text-xs font-bold">Print A4 Portrait</span></button>
                         <main className="p-4 sm:p-5 max-w-[210mm] mx-auto w-full bg-white text-black shadow-2xl flex flex-col border border-gray-300 font-['Inter'] min-h-0 print:min-h-0">
-                            
+
                             {/* COMPACT HEADER */}
                             <div className="flex justify-between items-start mb-1 border-b-2 border-black pb-0.5 shrink-0">
                                 <div className="text-left flex-1">
@@ -1535,7 +1535,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                             <table className="w-full border-collapse border-2 border-black text-[8.2pt] font-['Inter']">
                                 <thead>
                                     <tr className="h-6.5 print:h-[7mm]">
-                                        <th className="border-2 border-black w-[80px]"></th> 
+                                        <th className="border-2 border-black w-[80px]"></th>
                                         <th className="border-2 border-black text-purple-700 font-black uppercase text-xs py-0.5 font-['Inter']" colSpan={3}>Collection</th>
                                         <th className="border-2 border-black text-fuchsia-700 font-black uppercase text-xs py-0.5 font-['Inter']" colSpan={3}>Expense</th>
                                         <th className="border-2 border-black text-fuchsia-600 font-black uppercase text-xs py-0.5 font-['Inter']">Balance</th>
@@ -1548,7 +1548,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                         <th className="border-2 border-black text-blue-700">Diagnostic</th>
                                         <th className="border-2 border-black text-blue-700">Clinic</th>
                                         <th className="border-2 border-black text-blue-700">Total Expense</th>
-                                        <th className="border-2 border-black text-blue-700"></th> 
+                                        <th className="border-2 border-black text-blue-700"></th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -1591,7 +1591,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                     <input placeholder="Source (e.g. Bank Asia)" className="p-3 bg-slate-50 border border-slate-300 rounded-xl font-bold" id="loan_src"/>
                                     <input type="number" placeholder="Amount" className="p-3 bg-slate-50 border border-slate-300 rounded-xl font-black" id="loan_amt"/>
                                 </div>
-                                <button onClick={() => { 
+                                <button onClick={() => {
                                     const src = (document.getElementById('loan_src') as HTMLInputElement).value;
                                     const amt = parseFloat((document.getElementById('loan_amt') as HTMLInputElement).value);
                                     if(src && amt) setLoans([...loans, {id:`L-${Date.now()}`, source:src, amount:amt, date:new Date().toISOString().split('T')[0], type:'Capital'}]);
@@ -1672,8 +1672,8 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                 }} className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-xl font-black uppercase text-[11px] shadow-lg transition-all active:scale-95 flex items-center gap-2 font-['Inter']">
                                     <PlusIcon size={14} /> নতুন অংশীদার
                                 </button>
-                                <button 
-                                    onClick={() => handlePrintSpecific('print-shareholder-list')} 
+                                <button
+                                    onClick={() => handlePrintSpecific('print-shareholder-list')}
                                     className="px-5 py-2 bg-indigo-600 text-white rounded-xl shadow-lg hover:bg-indigo-500 transition-all flex items-center gap-2 active:scale-95 font-['Inter']"
                                 >
                                     <PrinterIcon size={14} />
@@ -1709,7 +1709,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                         <span>Total Shares: {dynamicShareholders.filter(s => !s.isDeleted).reduce((sum, s) => sum + s.shares, 0)}</span>
                                     </div>
                                 </div>
-                                
+
                                 <table className="print-table w-full text-left border-collapse border-slate-200 table-fixed border">
                                     <thead className="bg-slate-800 text-white font-black uppercase text-[10px] tracking-widest print:bg-gray-100 print:text-black">
                                         <tr>
@@ -1751,19 +1751,19 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                                 <td className="p-1 border border-slate-300 hidden print:table-cell"></td>
                                                 <td className="p-1 border border-slate-300 text-center print:hidden">
                                                     <div className="flex items-center justify-center gap-2">
-                                                        <button 
+                                                        <button
                                                             onClick={() => {
                                                                 setEditingShareholder(s);
                                                                 setIsAddPartnerModalOpen(true);
-                                                            }} 
+                                                            }}
                                                             className="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-600 hover:text-white transition-all"
                                                             title="Edit"
                                                         >
                                                             <EditIcon className="w-3.5 h-3.5" />
                                                         </button>
                                                         <div className="w-px h-4 bg-slate-300"></div>
-                                                        <button 
-                                                            onClick={() => handleDeletePartner(s.id)} 
+                                                        <button
+                                                            onClick={() => handleDeletePartner(s.id)}
                                                             className="p-1.5 bg-rose-50 text-rose-600 rounded-lg hover:bg-rose-600 hover:text-white transition-all"
                                                             title="Delete"
                                                         >
@@ -1836,7 +1836,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                 <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-1">Please fill out all required information</p>
                                 <button type="button" onClick={() => setIsAddPartnerModalOpen(false)} className="absolute top-8 right-8 text-white/50 hover:text-white transition-all"><XIcon size={24}/></button>
                             </div>
-                            
+
                             <form onSubmit={(e) => {
                                 e.preventDefault();
                                 const formData = new FormData(e.currentTarget);
@@ -1852,71 +1852,71 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                 <div className="grid grid-cols-2 gap-5">
                                     <div className="col-span-2">
                                         <label className="text-[11px] font-black text-slate-500 uppercase ml-2 mb-1 block">পূর্ণ নাম (Full Name)*</label>
-                                        <input 
-                                            name="name" 
-                                            required 
-                                            defaultValue={editingShareholder?.name || ''} 
-                                            placeholder="অংশীদারের পুরো নাম লিখুন..." 
-                                            className="w-full p-4 bg-slate-50 border border-slate-300 rounded-2xl font-black text-slate-800 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all" 
+                                        <input
+                                            name="name"
+                                            required
+                                            defaultValue={editingShareholder?.name || ''}
+                                            placeholder="অংশীদারের পুরো নাম লিখুন..."
+                                            className="w-full p-4 bg-slate-50 border border-slate-300 rounded-2xl font-black text-slate-800 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all"
                                         />
                                     </div>
                                     <div>
                                         <label className="text-[11px] font-black text-slate-500 uppercase ml-2 mb-1 block">শেয়ার সংখ্যা (Shares Ratio)*</label>
-                                        <input 
-                                            name="shares" 
-                                            type="number" 
-                                            step="0.01" 
-                                            required 
-                                            defaultValue={editingShareholder?.shares || ''} 
-                                            className="w-full p-4 bg-slate-50 border border-slate-300 rounded-2xl font-black text-slate-800 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all" 
+                                        <input
+                                            name="shares"
+                                            type="number"
+                                            step="0.01"
+                                            required
+                                            defaultValue={editingShareholder?.shares || ''}
+                                            className="w-full p-4 bg-slate-50 border border-slate-300 rounded-2xl font-black text-slate-800 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all"
                                         />
                                     </div>
                                     <div>
                                         <label className="text-[11px] font-black text-slate-500 uppercase ml-2 mb-1 block">মোবাইল নাম্বার (Phone)</label>
-                                        <input 
-                                            name="phone" 
-                                            type="tel" 
-                                            defaultValue={editingShareholder?.phone || ''} 
-                                            className="w-full p-4 bg-slate-50 border border-slate-300 rounded-2xl font-black text-slate-800 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all" 
+                                        <input
+                                            name="phone"
+                                            type="tel"
+                                            defaultValue={editingShareholder?.phone || ''}
+                                            className="w-full p-4 bg-slate-50 border border-slate-300 rounded-2xl font-black text-slate-800 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all"
                                         />
                                     </div>
                                     <div className="col-span-2">
                                         <label className="text-[11px] font-black text-slate-500 uppercase ml-2 mb-1 block">ঠিকানা (Address)</label>
-                                        <input 
-                                            name="address" 
-                                            defaultValue={editingShareholder?.address || ''} 
-                                            className="w-full p-4 bg-slate-50 border border-slate-300 rounded-2xl font-black text-slate-800 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all" 
+                                        <input
+                                            name="address"
+                                            defaultValue={editingShareholder?.address || ''}
+                                            className="w-full p-4 bg-slate-50 border border-slate-300 rounded-2xl font-black text-slate-800 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all"
                                         />
                                     </div>
                                     <div>
                                         <label className="text-[11px] font-black text-slate-500 uppercase ml-2 mb-1 block">যোগদানের তারিখ (Join Date)</label>
-                                        <input 
-                                            name="joinDate" 
-                                            type="date" 
-                                            defaultValue={editingShareholder?.joinDate || new Date().toISOString().split('T')[0]} 
-                                            className="w-full p-4 bg-slate-50 border border-slate-300 rounded-2xl font-black font-mono text-slate-800 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all" 
+                                        <input
+                                            name="joinDate"
+                                            type="date"
+                                            defaultValue={editingShareholder?.joinDate || new Date().toISOString().split('T')[0]}
+                                            className="w-full p-4 bg-slate-50 border border-slate-300 rounded-2xl font-black font-mono text-slate-800 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all"
                                         />
                                     </div>
                                     <div>
                                         <label className="text-[11px] font-black text-slate-500 uppercase ml-2 mb-1 block">বিবরণ (Description)</label>
-                                        <input 
-                                            name="description" 
-                                            defaultValue={editingShareholder?.description || ''} 
-                                            className="w-full p-4 bg-slate-50 border border-slate-300 rounded-2xl font-black text-slate-800 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all" 
+                                        <input
+                                            name="description"
+                                            defaultValue={editingShareholder?.description || ''}
+                                            className="w-full p-4 bg-slate-50 border border-slate-300 rounded-2xl font-black text-slate-800 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all"
                                         />
                                     </div>
                                 </div>
-                                
+
                                 <div className="flex gap-4 mt-8">
-                                    <button 
-                                        type="button" 
-                                        onClick={() => setIsAddPartnerModalOpen(false)} 
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsAddPartnerModalOpen(false)}
                                         className="flex-1 py-4 text-slate-500 font-black uppercase text-sm hover:bg-slate-100 rounded-2xl transition-all"
                                     >
                                         বাতিল (Cancel)
                                     </button>
-                                    <button 
-                                        type="submit" 
+                                    <button
+                                        type="submit"
                                         className={`flex-1 py-4 ${editingShareholder ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-emerald-600 hover:bg-emerald-700'} text-white font-black uppercase text-sm rounded-2xl shadow-xl transition-all active:scale-95`}
                                     >
                                         {editingShareholder ? 'পরিবর্তন সেভ করুন' : 'অংশীদার সেভ করুন'}
@@ -2000,18 +2000,18 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                         {profitShareReportType === 'monthly' ? (
                                             <>
                                                 <span className="text-lg font-black text-blue-900 no-print">৳</span>
-                                                <input 
-                                                    type="number" 
+                                                <input
+                                                    type="number"
                                                     min="0"
                                                     placeholder="0"
-                                                    value={profitShareAdj.profitDist === 0 ? '' : profitShareAdj.profitDist} 
+                                                    value={profitShareAdj.profitDist === 0 ? '' : profitShareAdj.profitDist}
                                                     onChange={e => {
                                                         const v = e.target.value === '' ? 0 : parseFloat(e.target.value);
                                                         updateProfitShareAdjustment('profitDist', isNaN(v) ? 0 : v);
-                                                    }} 
-                                                    className="w-36 sm:w-44 bg-white/90 border-2 border-blue-400 rounded-xl px-3 py-1 text-center text-xl sm:text-2xl font-black text-blue-900 outline-none focus:ring-2 focus:ring-blue-500 no-print shadow-sm font-['JetBrains_Mono']" 
+                                                    }}
+                                                    className="w-36 sm:w-44 bg-white/90 border-2 border-blue-400 rounded-xl px-3 py-1 text-center text-xl sm:text-2xl font-black text-blue-900 outline-none focus:ring-2 focus:ring-blue-500 no-print shadow-sm font-['JetBrains_Mono']"
                                                 />
-                                                <button 
+                                                <button
                                                     type="button"
                                                     onClick={() => setShowSaveConfirm(true)}
                                                     className="no-print p-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-colors shadow-md active:scale-95 flex items-center gap-1"
@@ -2068,7 +2068,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                     </tfoot>
                                 </table>
                             </div>
-                            
+
                             <div className="mt-12 pt-8 flex justify-between px-10 text-slate-400 font-black uppercase text-[10px] tracking-widest print:mt-12 print:pt-4 print:text-black">
                                 <div className="text-center w-48 border-t border-slate-200 pt-2">Accountant Signature</div>
                                 <div className="text-center w-48 border-t border-slate-200 pt-2">Managing Director</div>
@@ -2088,18 +2088,18 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                         <h3 className="text-xl font-black text-slate-800 text-center mb-2 font-['Hind_Siliguri']">সেভ নিশ্চিত করুন</h3>
                         <p className="text-slate-500 text-center mb-8 font-medium">আপনি কি এই ডাটা সেভ করতে চান?</p>
                         <div className="flex gap-4">
-                            <button 
-                                onClick={() => setShowSaveConfirm(false)} 
+                            <button
+                                onClick={() => setShowSaveConfirm(false)}
                                 className="flex-1 py-3 text-slate-500 font-black uppercase text-xs hover:bg-slate-100 rounded-2xl transition-all"
                             >
                                 না
                             </button>
-                            <button 
+                            <button
                                 onClick={() => {
                                     setShowSaveConfirm(false);
                                     setSaveSuccess(true);
                                     setTimeout(() => setSaveSuccess(false), 3000);
-                                }} 
+                                }}
                                 className="flex-1 py-3 bg-emerald-600 text-white font-black uppercase text-xs rounded-2xl hover:bg-emerald-700 shadow-lg shadow-emerald-200 transition-all active:scale-95"
                             >
                                 হ্যাঁ, সেভ করুন

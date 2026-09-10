@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { 
-  AccountingIcon, 
-  ClinicIcon, 
-  DiagnosticIcon, 
-  EmployeeInfoIcon, 
+import {
+  AccountingIcon,
+  ClinicIcon,
+  DiagnosticIcon,
+  EmployeeInfoIcon,
   MedicineIcon,
   BackIcon,
   MapPinIcon,
@@ -54,12 +54,12 @@ interface AccountingButtonProps {
   colorClass: string;
 }
 
-const AccountingButton: React.FC<AccountingButtonProps> = ({ 
-  label, 
-  icon, 
-  onClick, 
-  isOval = false, 
-  colorClass 
+const AccountingButton: React.FC<AccountingButtonProps> = ({
+  label,
+  icon,
+  onClick,
+  isOval = false,
+  colorClass
 }) => (
   <button
     type="button"
@@ -71,15 +71,15 @@ const AccountingButton: React.FC<AccountingButtonProps> = ({
     className={`
       relative group flex flex-col items-center justify-center cursor-pointer select-none
       transition-all duration-300 transform hover:scale-105 hover:shadow-2xl active:scale-95
-      border border-slate-700 bg-slate-800/90 backdrop-blur-md
-      ${isOval 
-        ? 'w-72 sm:w-80 h-44 sm:h-48 rounded-[50%] z-30 shadow-[0_0_30px_rgba(0,0,0,0.6)] border-2' 
+      border border-slate-600 bg-slate-800/95 backdrop-blur-md shadow-lg shadow-slate-950/40
+      ${isOval
+        ? 'w-72 sm:w-80 h-44 sm:h-48 rounded-[50%] z-30 shadow-[0_0_30px_rgba(0,0,0,0.6)] border-2'
         : 'w-full h-48 sm:h-52 rounded-2xl z-10 p-6 shadow-lg'
       }
       ${colorClass}
     `}
   >
-    <div className="mb-4 p-4 rounded-full bg-slate-700/50 text-slate-200 group-hover:scale-110 transition-transform duration-300 pointer-events-none">
+    <div className="mb-4 p-4 rounded-full bg-slate-700/70 text-slate-100 group-hover:scale-110 transition-transform duration-300 pointer-events-none">
        {React.cloneElement(icon as React.ReactElement<any>, { className: 'w-10 h-10' })}
     </div>
     <div className="text-center group-hover:text-white transition-colors pointer-events-none">
@@ -130,7 +130,7 @@ const BackgroundGraphic = () => (
   </div>
 );
 
-const AccountingPage: React.FC<AccountingPageProps> = ({ 
+const AccountingPage: React.FC<AccountingPageProps> = ({
   onBack, invoices = [], dueCollections = [], detailedExpenses = {}, setDetailedExpenses, employees = [], setEmployees, reagents = [],
   purchaseInvoices = [], salesInvoices = [], indoorInvoices = [], medicines = [], tests = [], setReagents,
   attendanceLog = {}, setAttendanceLog, leaveLog = {}, setLeaveLog,
@@ -142,14 +142,14 @@ const AccountingPage: React.FC<AccountingPageProps> = ({
 
   if (activeView === 'diagnostic') {
     return (
-        <DiagnosticAccountsPage 
-            onBack={() => setActiveView('main')} 
-            invoices={invoices} 
-            dueCollections={dueCollections} 
-            employees={employees} 
-            detailedExpenses={detailedExpenses} 
+        <DiagnosticAccountsPage
+            onBack={() => setActiveView('main')}
+            invoices={invoices}
+            dueCollections={dueCollections}
+            employees={employees}
+            detailedExpenses={detailedExpenses}
             setDetailedExpenses={setDetailedExpenses}
-            setReagents={setReagents} 
+            setReagents={setReagents}
             reagents={reagents}
             availableTests={tests}
             monthlyRoster={monthlyRoster}
@@ -167,13 +167,13 @@ const AccountingPage: React.FC<AccountingPageProps> = ({
 
   if (activeView === 'clinic_accounts') {
     return (
-        <ClinicAccountsPage 
-            onBack={() => setActiveView('main')} 
-            invoices={indoorInvoices} 
-            dueCollections={dueCollections} 
-            employees={employees} 
-            detailedExpenses={detailedExpenses} 
-            setDetailedExpenses={setDetailedExpenses} 
+        <ClinicAccountsPage
+            onBack={() => setActiveView('main')}
+            invoices={indoorInvoices}
+            dueCollections={dueCollections}
+            employees={employees}
+            detailedExpenses={detailedExpenses}
+            setDetailedExpenses={setDetailedExpenses}
             performBlockingSync={performBlockingSync}
             attendanceLog={attendanceLog}
             leaveLog={leaveLog}
@@ -184,9 +184,9 @@ const AccountingPage: React.FC<AccountingPageProps> = ({
 
   if (activeView === 'employee_info') {
     return (
-        <EmployeeInfoPage 
-            employees={employees || []} 
-            setEmployees={setEmployees} 
+        <EmployeeInfoPage
+            employees={employees || []}
+            setEmployees={setEmployees}
             detailedExpenses={detailedExpenses || {}}
             onBack={() => setActiveView('main')}
             attendanceLog={attendanceLog || {}}
@@ -202,18 +202,18 @@ const AccountingPage: React.FC<AccountingPageProps> = ({
 
   if (activeView === 'medicine_accounts') {
     return (
-        <MedicineAccountsPage 
-            onBack={() => setActiveView('main')} 
-            purchaseInvoices={purchaseInvoices} 
-            salesInvoices={salesInvoices} 
-            indoorInvoices={indoorInvoices} 
+        <MedicineAccountsPage
+            onBack={() => setActiveView('main')}
+            purchaseInvoices={purchaseInvoices}
+            salesInvoices={salesInvoices}
+            indoorInvoices={indoorInvoices}
         />
     );
   }
 
   if (activeView === 'consolidated') {
     return (
-        <ConsolidatedAccountsPage 
+        <ConsolidatedAccountsPage
             onBack={() => setActiveView('main')}
             labInvoices={invoices}
             dueCollections={dueCollections}
@@ -282,15 +282,15 @@ const AccountingPage: React.FC<AccountingPageProps> = ({
        <div className="flex-1 flex items-center justify-center relative w-full px-4 sm:px-8 pb-16 z-10">
           <div className="relative w-full max-w-5xl flex items-center justify-center min-h-[460px]">
               <div className="flex absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-30 pointer-events-auto">
-                 <AccountingButton 
+                 <AccountingButton
                     label={
                         <>
-                          <span className="block text-xl font-bold text-amber-200 font-bengali">সকল হিসাব একত্রে</span>
-                          <span className="block text-sm font-normal text-amber-400/80 mt-1">Consolidated Report</span>
+                           <span className="block text-xl font-bold text-amber-200 font-bengali">সকল হিসাব একত্রে</span>
+                           <span className="block text-sm font-semibold text-amber-300 mt-1">Consolidated Report</span>
                         </>
-                    } 
-                    icon={<AccountingIcon />} 
-                    colorClass="hover:border-amber-400 hover:shadow-amber-500/20 bg-slate-900"
+                    }
+                    icon={<AccountingIcon />}
+                    colorClass="hover:border-amber-400 hover:shadow-amber-500/20 bg-slate-900 border-slate-600"
                     isOval={true}
                     onClick={() => setActiveView('consolidated')}
                  />
@@ -298,57 +298,57 @@ const AccountingPage: React.FC<AccountingPageProps> = ({
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-32 w-full z-10">
                  <div className="flex justify-center md:justify-end">
-                     <AccountingButton 
+                     <AccountingButton
                         label={
                             <>
                               <span className="block text-xl font-bold text-cyan-200 font-bengali">ডায়াগনষ্টিক হিসাব</span>
-                              <span className="block text-sm font-normal text-cyan-400/80 mt-1">Diagnostic Accounts</span>
+                              <span className="block text-sm font-semibold text-cyan-300 mt-1">Diagnostic Accounts</span>
                             </>
-                        } 
-                        icon={<DiagnosticIcon />} 
-                        colorClass="hover:border-cyan-500 hover:shadow-cyan-500/20"
+                        }
+                        icon={<DiagnosticIcon />}
+                        colorClass="hover:border-cyan-400 hover:shadow-cyan-500/20 border-slate-600"
                         onClick={() => setActiveView('diagnostic')}
                      />
                  </div>
-                 
+
                  <div className="flex justify-center md:justify-start">
-                     <AccountingButton 
+                     <AccountingButton
                         label={
                             <>
                               <span className="block text-xl font-bold text-emerald-200 font-bengali">ক্লিনিক হিসাব</span>
-                              <span className="block text-sm font-normal text-emerald-400/80 mt-1">Clinic Accounts</span>
+                              <span className="block text-sm font-semibold text-emerald-300 mt-1">Clinic Accounts</span>
                             </>
-                        } 
-                        icon={<ClinicIcon />} 
-                        colorClass="hover:border-emerald-500 hover:shadow-emerald-500/20"
+                        }
+                        icon={<ClinicIcon />}
+                        colorClass="hover:border-emerald-400 hover:shadow-emerald-500/20 border-slate-600"
                         onClick={() => setActiveView('clinic_accounts')}
                      />
                  </div>
 
                  <div className="flex justify-center md:justify-end">
-                     <AccountingButton 
+                     <AccountingButton
                         label={
                             <>
                               <span className="block text-xl font-bold text-rose-200 font-bengali">মেডিসিন হিসাব</span>
-                              <span className="block text-sm font-normal text-rose-400/80 mt-1">Medicine Accounts</span>
+                              <span className="block text-sm font-semibold text-rose-300 mt-1">Medicine Accounts</span>
                             </>
-                        } 
-                        icon={<MedicineIcon />} 
-                        colorClass="hover:border-rose-500 hover:shadow-rose-500/20"
+                        }
+                        icon={<MedicineIcon />}
+                        colorClass="hover:border-rose-400 hover:shadow-rose-500/20 border-slate-600"
                         onClick={() => setActiveView('medicine_accounts')}
                      />
                  </div>
 
                  <div className="flex justify-center md:justify-start">
-                     <AccountingButton 
+                     <AccountingButton
                         label={
                             <>
                               <span className="block text-xl font-bold text-violet-200 font-bengali">কর্মচারী বেতন</span>
-                              <span className="block text-sm font-normal text-violet-400/80 mt-1">Employee Salary</span>
+                              <span className="block text-sm font-semibold text-violet-300 mt-1">Employee Salary</span>
                             </>
-                        } 
-                        icon={<EmployeeInfoIcon />} 
-                        colorClass="hover:border-violet-500 hover:shadow-violet-500/20"
+                        }
+                        icon={<EmployeeInfoIcon />}
+                        colorClass="hover:border-violet-400 hover:shadow-violet-500/20 border-slate-600"
                         onClick={() => setActiveView('employee_info')}
                      />
                  </div>

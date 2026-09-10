@@ -577,46 +577,46 @@ const ReagentInfoPage: React.FC<ReagentInfoPageProps> = ({ reagents, setReagents
                     </div>
                     <div className="overflow-x-auto min-h-[400px]">
                         <table className="w-full text-left border-collapse text-xs">
-                            <thead className="bg-slate-950 text-[10px] uppercase font-black text-slate-500 tracking-widest border-b border-slate-800">
+                            <thead className="bg-slate-800 text-xs uppercase font-bold text-sky-200 tracking-wider border-b border-slate-700">
                                 <tr>
-                                    {viewMode === 'requisition' && <th className="p-5 text-center w-16">Sel</th>}
-                                    <th className="p-5">Reagent Description</th>
-                                    <th className="p-5">Company / Brand</th>
-                                    <th className="p-5 text-center">Quantity</th>
-                                    <th className="p-5">Expiry Date</th>
-                                    <th className="p-5 text-center">Status</th>
+                                    {viewMode === 'requisition' && <th className="p-4 text-center w-16">Sel</th>}
+                                    <th className="p-4">Reagent Description</th>
+                                    <th className="p-4">Company / Brand</th>
+                                    <th className="p-4 text-center">Quantity</th>
+                                    <th className="p-4">Expiry Date</th>
+                                    <th className="p-4 text-center">Status</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-800">
                                 {filteredReagents.map((r) => (
-                                    <tr key={r.reagent_id} onClick={() => viewMode === 'inventory' && handleEditClick(r)} className={`cursor-pointer hover:bg-slate-800/40 transition-colors group ${requisitionItems.includes(r.reagent_id) ? 'bg-emerald-900/10' : ''}`}>
+                                    <tr key={r.reagent_id} onClick={() => viewMode === 'inventory' && handleEditClick(r)} className={`cursor-pointer hover:bg-slate-800/80 even:bg-slate-900/70 odd:bg-slate-850/40 transition-colors group ${requisitionItems.includes(r.reagent_id) ? 'bg-emerald-900/20' : ''}`}>
                                         {viewMode === 'requisition' && (
-                                            <td className="p-5 text-center">
-                                                <input type="checkbox" checked={requisitionItems.includes(r.reagent_id)} onChange={()=>toggleRequisition(r.reagent_id)} className="w-5 h-5 rounded border-slate-700 bg-slate-950 text-emerald-600" />
+                                            <td className="p-4 text-center">
+                                                <input type="checkbox" checked={requisitionItems.includes(r.reagent_id)} onChange={()=>toggleRequisition(r.reagent_id)} className="w-5 h-5 rounded border-slate-600 bg-slate-800 text-emerald-500" />
                                             </td>
                                         )}
-                                        <td className="p-5">
-                                            <div className="font-black text-white text-base uppercase tracking-tighter">{r.reagent_name}</div>
-                                            <div className="text-[10px] text-slate-500 font-bold uppercase mt-1">ID: {r.reagent_id} | Unit: {r.unit}</div>
-                                            <div className="text-[10px] text-emerald-400 font-bold uppercase mt-0.5">Count Start Date: {r.usage_start_date || 'N/A'}</div>
+                                        <td className="p-4">
+                                            <div className="font-bold text-white text-base uppercase tracking-tight">{r.reagent_name}</div>
+                                            <div className="text-xs text-slate-300 font-semibold mt-1">ID: <span className="text-sky-300 font-mono">{r.reagent_id}</span> | Unit: <span className="text-slate-200">{r.unit}</span></div>
+                                            <div className="text-xs text-emerald-300 font-medium mt-0.5">Count Start Date: {r.usage_start_date || 'N/A'}</div>
                                         </td>
-                                        <td className="p-5 font-black text-sky-400 uppercase italic">{r.company || 'Generic'}</td>
-                                        <td className="p-5 text-center">
-                                            <div className={`text-xl font-black ${r.quantity < 5 ? 'text-red-500' : 'text-emerald-400'}`}>{r.quantity}</div>
-                                            <div className="text-[9px] text-slate-500 font-bold uppercase">Stored Units</div>
+                                        <td className="p-4 font-bold text-sky-300 uppercase">{r.company || 'Generic'}</td>
+                                        <td className="p-4 text-center">
+                                            <div className={`text-xl font-black ${r.quantity < 5 ? 'text-red-400' : 'text-emerald-300'}`}>{r.quantity}</div>
+                                            <div className="text-[10px] text-slate-300 font-semibold uppercase">Stored Units</div>
                                         </td>
-                                        <td className={`p-5 text-sm font-mono ${getExpiryClass(r.expiry_date)}`}>
+                                        <td className={`p-4 text-sm font-mono font-bold ${getExpiryClass(r.expiry_date)}`}>
                                             {r.expiry_date || 'N/A'}
                                         </td>
-                                        <td className="p-5 text-center">
-                                            <span className={`px-4 py-1.5 rounded-xl text-[9px] font-black uppercase border ${r.quantity < 5 ? 'bg-rose-900/20 text-rose-500 border-rose-800' : 'bg-emerald-900/20 text-emerald-500 border-emerald-800'}`}>
+                                        <td className="p-4 text-center">
+                                            <span className={`px-4 py-1.5 rounded-xl text-[10px] font-bold uppercase border ${r.quantity < 5 ? 'bg-rose-900/30 text-rose-300 border-rose-700' : 'bg-emerald-900/30 text-emerald-300 border-emerald-700'}`}>
                                                 {r.quantity < 5 ? 'Low Stock' : 'Good'}
                                             </span>
                                         </td>
                                     </tr>
                                 ))}
                                 {filteredReagents.length === 0 && (
-                                    <tr><td colSpan={6} className="p-40 text-center text-slate-700 italic font-black uppercase opacity-20 text-2xl tracking-[0.4em]">Inventory Empty</td></tr>
+                                    <tr><td colSpan={6} className="p-40 text-center text-slate-400 italic font-bold uppercase text-xl tracking-wider">Inventory Empty</td></tr>
                                 )}
                             </tbody>
                         </table>
@@ -693,35 +693,35 @@ const ReagentInfoPage: React.FC<ReagentInfoPageProps> = ({ reagents, setReagents
                             </div>
                             <div className="overflow-x-auto min-h-[400px]">
                                 <table className="w-full text-left border-collapse text-xs print:text-black print:border-black print:border">
-                                    <thead className="bg-slate-950 text-[10px] uppercase font-black text-slate-500 tracking-widest border-b border-slate-800 print:bg-gray-100 print:text-black">
+                                    <thead className="bg-slate-800 text-xs uppercase font-bold text-sky-200 tracking-wider border-b border-slate-700 print:bg-gray-100 print:text-black">
                                         <tr>
                                             <th className="p-4 print:border print:border-black w-10 text-center">SL</th>
                                             <th className="p-4 print:border print:border-black">Test Name</th>
                                             <th className="p-4 print:border print:border-black">Reagent / Film</th>
                                             <th className="p-4 print:border print:border-black text-center">Previous Stock</th>
-                                            <th className="p-4 print:border print:border-black text-center text-emerald-400">Purchased</th>
-                                            <th className="p-4 print:border print:border-black text-center text-rose-400">Consumed</th>
-                                            <th className="p-4 print:border print:border-black text-center text-indigo-400">Current Stock</th>
+                                            <th className="p-4 print:border print:border-black text-center text-emerald-300">Purchased</th>
+                                            <th className="p-4 print:border print:border-black text-center text-rose-300">Consumed</th>
+                                            <th className="p-4 print:border print:border-black text-center text-indigo-300">Current Stock</th>
                                             <th className="p-4 no-print text-center">Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-800 print:divide-black">
                                         {summaryData.map((d, idx) => (
-                                            <tr key={d.id} className="hover:bg-slate-800/40 transition-colors">
-                                                <td className="p-4 text-center font-bold text-slate-500 print:border print:border-black print:text-black">{idx + 1}</td>
+                                            <tr key={d.id} className="hover:bg-slate-800/80 even:bg-slate-900/70 odd:bg-slate-850/40 transition-colors">
+                                                <td className="p-4 text-center font-bold text-slate-300 print:border print:border-black print:text-black">{idx + 1}</td>
                                                 <td className="p-4 print:border print:border-black">
-                                                    <div className="font-bold text-indigo-400 text-sm print:text-black">{d.linkedTest}</div>
+                                                    <div className="font-bold text-sky-300 text-sm print:text-black">{d.linkedTest}</div>
                                                 </td>
                                                 <td className="p-4 print:border print:border-black">
                                                     <div className="font-bold text-white text-sm print:text-black">{d.name}</div>
-                                                    <div className="text-[10px] text-slate-500">{d.company ? d.company + ' | ' : ''}Unit: {d.unit}</div>
+                                                    <div className="text-xs text-slate-300 font-medium">{d.company ? d.company + ' | ' : ''}Unit: {d.unit}</div>
                                                 </td>
-                                                <td className="p-4 text-center font-bold print:border print:border-black print:text-black">{d.openingStock || 0}</td>
-                                                <td className="p-4 text-center font-bold text-emerald-400 print:border print:border-black print:text-black">{d.purchase || 0}</td>
-                                                <td className="p-4 text-center font-bold text-rose-400 print:border print:border-black print:text-black">{d.consume || 0}</td>
-                                                <td className="p-4 text-center font-black text-indigo-400 text-sm print:border print:border-black print:text-black">{d.currentStock || 0}</td>
+                                                <td className="p-4 text-center font-bold text-slate-200 print:border print:border-black print:text-black">{d.openingStock || 0}</td>
+                                                <td className="p-4 text-center font-bold text-emerald-300 print:border print:border-black print:text-black">{d.purchase || 0}</td>
+                                                <td className="p-4 text-center font-bold text-rose-300 print:border print:border-black print:text-black">{d.consume || 0}</td>
+                                                <td className="p-4 text-center font-black text-indigo-300 text-sm print:border print:border-black print:text-black">{d.currentStock || 0}</td>
                                                 <td className="p-4 text-center no-print">
-                                                    <button onClick={() => handleEditClick(d.reagentOriginal)} className="bg-amber-600/20 text-amber-500 hover:bg-amber-500 hover:text-white px-3 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all border border-amber-900/50 hover:border-amber-500">
+                                                    <button onClick={() => handleEditClick(d.reagentOriginal)} className="bg-amber-600/30 text-amber-300 hover:bg-amber-500 hover:text-white px-3 py-1.5 rounded-lg text-xs font-bold uppercase transition-all border border-amber-600/50">
                                                         Set Stock
                                                     </button>
                                                 </td>
@@ -775,7 +775,7 @@ const ReagentInfoPage: React.FC<ReagentInfoPageProps> = ({ reagents, setReagents
                                     </div>
                                     <div className="overflow-x-auto min-h-[300px]">
                                         <table className="w-full text-left border-collapse text-xs">
-                                            <thead className="bg-slate-950 text-[10px] uppercase font-black text-slate-500 tracking-widest border-b border-slate-800">
+                                            <thead className="bg-slate-800 text-xs uppercase font-bold text-sky-200 tracking-wider border-b border-slate-700">
                                                 <tr>
                                                     <th className="p-4 w-32">Date</th>
                                                     <th className="p-4 w-40">Transaction Type</th>
@@ -786,26 +786,26 @@ const ReagentInfoPage: React.FC<ReagentInfoPageProps> = ({ reagents, setReagents
                                             </thead>
                                             <tbody className="divide-y divide-slate-800">
                                                 {filteredItems.map((item, idx) => (
-                                                    <tr key={idx} className="hover:bg-slate-800/40 transition-colors">
-                                                        <td className="p-4 font-mono text-slate-300">{item.date}</td>
+                                                    <tr key={idx} className="hover:bg-slate-800/80 even:bg-slate-900/70 odd:bg-slate-850/40 transition-colors">
+                                                        <td className="p-4 font-mono text-slate-200 font-bold">{item.date}</td>
                                                         <td className="p-4">
-                                                            <span className={`px-3 py-1 rounded text-[9px] font-black uppercase ${
-                                                                item.type === 'MANUAL_SET' || item.type === 'INITIAL' ? 'bg-blue-900/30 text-blue-400' :
-                                                                item.type === 'PURCHASE' ? 'bg-emerald-900/30 text-emerald-400' :
-                                                                'bg-rose-900/30 text-rose-400'
+                                                            <span className={`px-3 py-1 rounded text-xs font-bold uppercase ${
+                                                                item.type === 'MANUAL_SET' || item.type === 'INITIAL' ? 'bg-blue-900/40 text-blue-300 border border-blue-700/50' :
+                                                                item.type === 'PURCHASE' ? 'bg-emerald-900/40 text-emerald-300 border border-emerald-700/50' :
+                                                                'bg-rose-900/40 text-rose-300 border border-rose-700/50'
                                                             }`}>
                                                                 {item.type}
                                                             </span>
                                                         </td>
-                                                        <td className="p-4 text-slate-400">{item.description}</td>
-                                                        <td className={`p-4 text-right font-black text-sm ${item.qtyChange > 0 ? 'text-emerald-400' : item.qtyChange < 0 ? 'text-rose-400' : 'text-slate-500'}`}>
+                                                        <td className="p-4 text-slate-200 font-medium">{item.description}</td>
+                                                        <td className={`p-4 text-right font-black text-sm ${item.qtyChange > 0 ? 'text-emerald-300' : item.qtyChange < 0 ? 'text-rose-300' : 'text-slate-400'}`}>
                                                             {item.qtyChange > 0 ? '+' : ''}{item.qtyChange}
                                                         </td>
                                                         <td className="p-4 text-right font-black text-white text-sm">{item.resultingStock}</td>
                                                     </tr>
                                                 ))}
                                                 {filteredItems.length === 0 && (
-                                                    <tr><td colSpan={5} className="p-20 text-center text-slate-700 italic font-black uppercase">No transactions found</td></tr>
+                                                    <tr><td colSpan={5} className="p-20 text-center text-slate-400 italic font-bold uppercase">No transactions found</td></tr>
                                                 )}
                                             </tbody>
                                         </table>

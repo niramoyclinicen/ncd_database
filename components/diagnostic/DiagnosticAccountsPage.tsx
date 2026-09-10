@@ -1432,12 +1432,12 @@ const DailyExpenseForm: React.FC<any> = ({
                 <div className="overflow-x-auto min-h-[150px]">
                     <table className="w-full text-left">
                         <thead>
-                            <tr className="text-[11px] text-slate-500 uppercase font-black tracking-widest">
-                                <th className="pb-3 pl-2">বিভাগ (Category)</th>
-                                <th className="pb-3 pl-2">কর্মচারী / বিবরণ (Employee / Details)</th>
-                                <th className="pb-3 pl-2">বর্ণনা (Description)</th>
-                                <th className="pb-3 text-right">পরিশোধিত টাকা (Paid Amount)</th>
-                                <th className="pb-3 text-center">X</th>
+                            <tr className="text-xs bg-slate-800 text-sky-200 uppercase font-bold tracking-wider border-b border-slate-700">
+                                <th className="py-3 px-3">বিভাগ (Category)</th>
+                                <th className="py-3 px-3">কর্মচারী / বিবরণ (Employee / Details)</th>
+                                <th className="py-3 px-3">বর্ণনা (Description)</th>
+                                <th className="py-3 px-3 text-right">পরিশোধিত টাকা (Paid Amount)</th>
+                                <th className="py-3 px-3 text-center">X</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-800">
@@ -1683,41 +1683,41 @@ const DailyExpenseForm: React.FC<any> = ({
                         </button>
                     </div>
                 </div>
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto border border-slate-700 rounded-xl bg-slate-900 shadow-xl">
                     <table className="w-full text-left text-xs">
                         <thead>
-                            <tr className="text-[10px] text-slate-500 uppercase font-black tracking-widest border-b border-slate-800">
-                                <th className="pb-3 pl-2 w-12">SL</th>
-                                <th className="pb-3">তারিখ (Date)</th>
-                                <th className="pb-3">বিভাগ (Category)</th>
-                                <th className="pb-3">উপ-বিভাগ (Sub-Category)</th>
-                                <th className="pb-3">বিবরণ (Description)</th>
-                                <th className="pb-3 text-right">পরিমাণ (Amount)</th>
-                                <th className="pb-3 text-center">অবস্থা (Status)</th>
-                                <th className="pb-3 text-center">অ্যাকশন (Action)</th>
+                            <tr className="text-xs bg-slate-800 text-sky-200 uppercase font-bold tracking-wider border-b border-slate-700">
+                                <th className="py-3.5 px-3 w-12">SL</th>
+                                <th className="py-3.5 px-3">তারিখ (Date)</th>
+                                <th className="py-3.5 px-3">বিভাগ (Category)</th>
+                                <th className="py-3.5 px-3">উপ-বিভাগ (Sub-Category)</th>
+                                <th className="py-3.5 px-3">বিবরণ (Description)</th>
+                                <th className="py-3.5 px-3 text-right">পরিমাণ (Amount)</th>
+                                <th className="py-3.5 px-3 text-center">অবস্থা (Status)</th>
+                                <th className="py-3.5 px-3 text-center">অ্যাকশন (Action)</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-800/50">
+                        <tbody className="divide-y divide-slate-800">
                             {filteredSavedItems.length > 0 ? filteredSavedItems.map((it: any, idx: number) => (
-                                <tr key={it.id} className="hover:bg-slate-800/30 transition-colors">
-                                    <td className="py-4 pl-2 text-slate-500 font-mono">{idx + 1}</td>
-                                    <td className="py-4 text-slate-400 font-bold">{it.date}</td>
-                                    <td className="py-4">
-                                        <div className="font-extrabold text-white text-[11px] mb-0.5">
+                                <tr key={it.id} className="hover:bg-slate-800/80 even:bg-slate-900/70 odd:bg-slate-850/40 transition-colors">
+                                    <td className="py-3.5 px-3 text-slate-300 font-mono font-bold">{idx + 1}</td>
+                                    <td className="py-3.5 px-3 text-slate-200 font-bold">{it.date}</td>
+                                    <td className="py-3.5 px-3">
+                                        <div className="font-extrabold text-white text-xs mb-0.5">
                                             {expenseCategoryBanglaMap[it.category] || it.category}
                                         </div>
-                                        <div className="text-[9px] text-slate-500 font-medium">
+                                        <div className="text-[10px] text-sky-300 font-medium">
                                             {it.category}
                                         </div>
                                     </td>
-                                    <td className="py-4 text-slate-400">{it.subCategory}</td>
-                                    <td className="py-4 text-slate-500 italic">{it.description}</td>
-                                    <td className="py-4 text-right font-black text-white">৳{it.paidAmount.toLocaleString()}</td>
-                                    <td className="py-4 text-center">
+                                    <td className="py-3.5 px-3 text-slate-200 font-medium">{it.subCategory}</td>
+                                    <td className="py-3.5 px-3 text-slate-300">{it.description}</td>
+                                    <td className="py-3.5 px-3 text-right font-black text-white text-sm">৳{it.paidAmount.toLocaleString()}</td>
+                                    <td className="py-3.5 px-3 text-center">
                                         {it.isEdited ? (
-                                            <span className="bg-amber-900/30 text-amber-400 px-2 py-1 rounded text-[9px] font-black uppercase border border-amber-500/20" title={`Edited at ${it.lastEditedAt}`}>Edited</span>
+                                            <span className="bg-amber-900/30 text-amber-300 px-2 py-1 rounded text-[10px] font-bold uppercase border border-amber-500/40" title={`Edited at ${it.lastEditedAt}`}>Edited</span>
                                         ) : (
-                                            <span className="bg-emerald-900/30 text-emerald-400 px-2 py-1 rounded text-[9px] font-black uppercase border border-emerald-500/20">Original</span>
+                                            <span className="bg-emerald-900/30 text-emerald-300 px-2 py-1 rounded text-[10px] font-bold uppercase border border-emerald-500/40">Original</span>
                                         )}
                                     </td>
                                     <td className="py-4 text-center space-x-2">
@@ -3155,32 +3155,32 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                                 </div>
                             </div>
 
-                            <div className="overflow-x-auto rounded-2xl border border-slate-700 bg-slate-900/50">
-                                <table className="w-full text-left text-[11px] border-collapse">
-                                    <thead className="bg-slate-950 text-slate-500 font-black uppercase tracking-widest border-b border-slate-800">
+                            <div className="overflow-x-auto rounded-2xl border border-slate-700 bg-slate-900 shadow-xl">
+                                <table className="w-full text-left text-xs border-collapse">
+                                    <thead className="bg-slate-800 text-sky-200 font-bold uppercase tracking-wider border-b border-slate-700">
                                         <tr className="bg-slate-900 text-white font-black border-b border-slate-700 shadow-lg">
-                                            <td colSpan={5} className="px-4 py-1.5 text-right text-sm text-slate-400 uppercase tracking-widest bg-slate-950 font-bold">Grand Summary Totals:</td>
-                                            <td className="px-4 py-1.5 text-right text-base text-blue-400 bg-slate-900 font-bold">৳{reportSummary.totalBill.toLocaleString()}</td>
-                                            <td className="px-4 py-1.5 text-right text-base text-rose-400 bg-slate-950 font-bold">৳{reportSummary.totalDiscount.toLocaleString()}</td>
-                                            <td className="px-4 py-1.5 text-right text-lg text-emerald-400 font-black bg-slate-900 border-x border-slate-800">৳{reportSummary.paidAmount.toLocaleString()}</td>
-                                            <td className="px-4 py-1.5 text-right text-base text-amber-500 bg-slate-950 font-bold">৳{reportSummary.totalPC.toLocaleString()}</td>
-                                            <td className="px-4 py-1.5 text-right text-base text-sky-400 bg-slate-900 font-bold">৳{reportSummary.usgFee.toLocaleString()}</td>
-                                            <td className="px-4 py-1.5 text-right text-base text-emerald-300 bg-slate-950 font-bold">৳{reportSummary.labFee.toLocaleString()}</td>
-                                            <td className="px-4 py-1.5 text-right bg-blue-600 text-white text-xl shadow-inner font-black">৳{reportSummary.netInstProfit.toLocaleString()}</td>
+                                            <td colSpan={5} className="px-4 py-2 text-right text-xs text-slate-300 uppercase tracking-wider bg-slate-900 font-bold">Grand Summary Totals:</td>
+                                            <td className="px-4 py-2 text-right text-sm text-sky-300 bg-slate-850 font-bold">৳{reportSummary.totalBill.toLocaleString()}</td>
+                                            <td className="px-4 py-2 text-right text-sm text-rose-300 bg-slate-900 font-bold">৳{reportSummary.totalDiscount.toLocaleString()}</td>
+                                            <td className="px-4 py-2 text-right text-base text-emerald-300 font-black bg-slate-850 border-x border-slate-700">৳{reportSummary.paidAmount.toLocaleString()}</td>
+                                            <td className="px-4 py-2 text-right text-sm text-amber-300 bg-slate-900 font-bold">৳{reportSummary.totalPC.toLocaleString()}</td>
+                                            <td className="px-4 py-2 text-right text-sm text-sky-300 bg-slate-850 font-bold">৳{reportSummary.usgFee.toLocaleString()}</td>
+                                            <td className="px-4 py-2 text-right text-sm text-emerald-300 bg-slate-900 font-bold">৳{reportSummary.labFee.toLocaleString()}</td>
+                                            <td className="px-4 py-2 text-right bg-blue-600 text-white text-lg shadow-inner font-black">৳{reportSummary.netInstProfit.toLocaleString()}</td>
                                         </tr>
-                                        <tr>
-                                            <th className="px-4 py-2">SL</th>
-                                            <th className="px-4 py-2">Invoice ID</th>
-                                            <th className="px-4 py-2">Date</th>
-                                            <th className="px-4 py-2">Patient Name</th>
-                                            <th className="px-4 py-2">Referrer</th>
-                                            <th className="px-4 py-2 text-right">Bill</th>
-                                            <th className="px-4 py-2 text-right text-rose-300">Disc</th>
-                                            <th className="px-4 py-2 text-right text-emerald-400">Paid</th>
-                                            <th className="px-4 py-2 text-right text-amber-500">Paid PC</th>
-                                            <th className="px-4 py-2 text-right text-sky-400">USG Fee</th>
-                                            <th className="px-4 py-2 text-right text-emerald-300">Lab Fee</th>
-                                            <th className="px-4 py-2 text-right bg-blue-900/20 text-white">Net Profit</th>
+                                        <tr className="bg-slate-800 text-sky-200">
+                                            <th className="px-4 py-2.5">SL</th>
+                                            <th className="px-4 py-2.5">Invoice ID</th>
+                                            <th className="px-4 py-2.5">Date</th>
+                                            <th className="px-4 py-2.5">Patient Name</th>
+                                            <th className="px-4 py-2.5">Referrer</th>
+                                            <th className="px-4 py-2.5 text-right">Bill</th>
+                                            <th className="px-4 py-2.5 text-right text-rose-300">Disc</th>
+                                            <th className="px-4 py-2.5 text-right text-emerald-300">Paid</th>
+                                            <th className="px-4 py-2.5 text-right text-amber-300">Paid PC</th>
+                                            <th className="px-4 py-2.5 text-right text-sky-300">USG Fee</th>
+                                            <th className="px-4 py-2.5 text-right text-emerald-300">Lab Fee</th>
+                                            <th className="px-4 py-2.5 text-right bg-blue-900/40 text-white">Net Profit</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-800">
@@ -3189,16 +3189,16 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                                                 key={inv.invoice_id} 
                                                 onDoubleClick={() => { setViewingInvoice(inv); setShowInvoiceModal(true); }}
                                                 onContextMenu={(e) => { e.preventDefault(); setViewingInvoice(inv); setShowInvoiceModal(true); }}
-                                                className={`hover:bg-slate-700/30 transition-colors cursor-help ${inv.status==='Returned'?'opacity-50 grayscale bg-red-900/10':''}`}
+                                                className={`hover:bg-slate-800/80 even:bg-slate-900/70 odd:bg-slate-850/40 transition-colors cursor-help ${inv.status==='Returned'?'opacity-50 grayscale bg-red-900/10':''}`}
                                                 title="Double Click or Right Click to view invoice"
                                             >
-                                                <td className="p-4 text-slate-500 font-bold">{idx+1}</td>
-                                                <td className="p-4 font-mono text-cyan-400 font-bold">{inv.invoice_id}</td>
-                                                <td className="p-4 font-mono text-slate-400 font-bold">{inv.invoice_date}</td>
+                                                <td className="p-4 text-slate-300 font-bold">{idx+1}</td>
+                                                <td className="p-4 font-mono text-cyan-300 font-bold">{inv.invoice_id}</td>
+                                                <td className="p-4 font-mono text-slate-200 font-bold">{inv.invoice_date}</td>
                                                 <td className="p-4">
                                                     <div className="flex flex-col">
-                                                        <span className="font-black uppercase text-slate-100 text-xs tracking-tight">{inv.patient_name}</span>
-                                                        <span className="text-[10px] text-slate-500 font-bold uppercase mt-0.5">
+                                                        <span className="font-bold uppercase text-white text-xs tracking-tight">{inv.patient_name}</span>
+                                                        <span className="text-[10px] text-slate-300 font-medium uppercase mt-0.5">
                                                             {(() => {
                                                                 const p = patients.find((pt: any) => pt.pt_id === inv.patient_id);
                                                                 return p ? `${p.ageY}Y, ${p.address}, ${p.mobile}` : 'Details N/A';
@@ -3206,14 +3206,14 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                                                         </span>
                                                     </div>
                                                 </td>
-                                                <td className="p-4 text-slate-400 font-bold italic truncate max-w-[120px]">{inv.referrar_name || 'Self'}</td>
-                                                <td className="p-4 text-right font-medium text-slate-300">{inv.billVal.toLocaleString()}</td>
-                                                <td className="p-4 text-right text-rose-400/70">{inv.discVal.toLocaleString()}</td>
-                                                <td className="p-4 text-right font-black text-emerald-400">{inv.paidVal.toLocaleString()}</td>
-                                                <td className="p-4 text-right text-amber-500 font-bold">৳ {inv.totalPC.toLocaleString()}</td>
-                                                <td className="p-4 text-right text-sky-400 font-bold">{inv.usgFee.toLocaleString()}</td>
+                                                <td className="p-4 text-slate-200 font-bold truncate max-w-[120px]">{inv.referrar_name || 'Self'}</td>
+                                                <td className="p-4 text-right font-medium text-white">{inv.billVal.toLocaleString()}</td>
+                                                <td className="p-4 text-right text-rose-300">{inv.discVal.toLocaleString()}</td>
+                                                <td className="p-4 text-right font-black text-emerald-300">{inv.paidVal.toLocaleString()}</td>
+                                                <td className="p-4 text-right text-amber-300 font-bold">৳ {inv.totalPC.toLocaleString()}</td>
+                                                <td className="p-4 text-right text-sky-300 font-bold">{inv.usgFee.toLocaleString()}</td>
                                                 <td className="p-4 text-right text-emerald-300 font-bold">{inv.labFee?.toLocaleString() || 0}</td>
-                                                <td className="p-4 text-right font-black text-white bg-blue-900/10 text-base">৳{inv.netProfit.toLocaleString()}</td>
+                                                <td className="p-4 text-right font-black text-white bg-blue-900/20 text-base">৳{inv.netProfit.toLocaleString()}</td>
                                             </tr>
                                         ))}
                                     </tbody>
@@ -3276,30 +3276,30 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                                     </div>
                                 </div>
                             </div>
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-left text-[11px] border-collapse">
-                                    <thead className="bg-slate-950 text-slate-500 font-black uppercase tracking-widest border-b border-slate-800">
-                                        <tr className="bg-slate-900/80 text-white font-black border-b border-slate-700 no-print">
-                                            <td colSpan={3} className="p-5 text-right text-[10px] text-slate-500 uppercase tracking-widest">Summary Totals:</td>
-                                            <td className="p-5 text-right text-blue-400">৳{dueList.reduce((s,i)=>s+i.total_amount, 0).toLocaleString()}</td>
-                                            <td className="p-5 text-right text-rose-500 font-black text-sm">৳{dueList.reduce((s,i)=>s+i.due_amount, 0).toLocaleString()}</td>
+                            <div className="overflow-x-auto border border-slate-700 rounded-2xl bg-slate-900 shadow-xl">
+                                <table className="w-full text-left text-xs border-collapse">
+                                    <thead className="bg-slate-800 text-sky-200 font-bold uppercase tracking-wider border-b border-slate-700">
+                                        <tr className="bg-slate-900/90 text-white font-bold border-b border-slate-700 no-print">
+                                            <td colSpan={3} className="p-4 text-right text-xs text-slate-300 uppercase tracking-wider">Summary Totals:</td>
+                                            <td className="p-4 text-right text-sky-300 font-bold">৳{dueList.reduce((s,i)=>s+i.total_amount, 0).toLocaleString()}</td>
+                                            <td className="p-4 text-right text-rose-400 font-black text-sm">৳{dueList.reduce((s,i)=>s+i.due_amount, 0).toLocaleString()}</td>
                                         </tr>
-                                        <tr>
-                                            <th className="p-5 w-16">SL</th>
-                                            <th className="p-5">Date</th>
-                                            <th className="p-5">Patient Name</th>
-                                            <th className="p-5 text-right">Total Bill</th>
-                                            <th className="p-5 text-right text-rose-500">Due Balance</th>
+                                        <tr className="bg-slate-800 text-sky-200">
+                                            <th className="p-4 w-16">SL</th>
+                                            <th className="p-4">Date</th>
+                                            <th className="p-4">Patient Name</th>
+                                            <th className="p-4 text-right">Total Bill</th>
+                                            <th className="p-4 text-right text-rose-300">Due Balance</th>
                                         </tr>
                                     </thead>
-                                    <tbody className="divide-y divide-slate-800/50">
+                                    <tbody className="divide-y divide-slate-800">
                                         {dueList.map((inv, idx) => (
-                                            <tr key={idx} className="hover:bg-slate-800/50 transition-colors">
-                                                <td className="p-5 text-slate-500 font-bold">{idx + 1}</td>
-                                                <td className="p-5 text-slate-400 font-bold">{inv.invoice_date}</td>
-                                                <td className="p-5 font-black text-white uppercase text-sm">{inv.patient_name}</td>
-                                                <td className="p-5 text-right text-slate-300 font-bold">{inv.total_amount.toLocaleString()}</td>
-                                                <td className="p-5 text-right font-black text-rose-500 text-xl">৳{inv.due_amount.toLocaleString()}</td>
+                                            <tr key={idx} className="hover:bg-slate-800/80 even:bg-slate-900/70 odd:bg-slate-850/40 transition-colors">
+                                                <td className="p-4 text-slate-300 font-bold">{idx + 1}</td>
+                                                <td className="p-4 text-slate-200 font-bold">{inv.invoice_date}</td>
+                                                <td className="p-4 font-bold text-white uppercase text-sm">{inv.patient_name}</td>
+                                                <td className="p-4 text-right text-white font-bold">{inv.total_amount.toLocaleString()}</td>
+                                                <td className="p-4 text-right font-black text-rose-400 text-lg">৳{inv.due_amount.toLocaleString()}</td>
                                             </tr>
                                         ))}
                                     </tbody>
