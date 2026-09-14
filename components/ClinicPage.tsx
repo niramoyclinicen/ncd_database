@@ -834,7 +834,7 @@ const AdmissionAndTreatmentPage: React.FC<{
                     patient_id: targetPatient.pt_id, 
                     patient_name: targetPatient.pt_name,
                     patient_mobile: targetPatient.mobile || '',
-                    mobile_relation: targetPatient.mobile_relation || ''
+                    mobile_relation: targetPatient.mobile_relation || 'Self'
                 });
                 setSuccessMessage(`Patient ${targetPatient.pt_name} found!`);
                 setBarcodeInput('');
@@ -865,14 +865,14 @@ const AdmissionAndTreatmentPage: React.FC<{
     }, [patients, patientSearchFilters]);
 
     const handlePatientSelectModal = (id: string, name: string) => {
-        const p = (Array.isArray(patients) ? patients : []).find(pt => pt.pt_id === id);
-        setAdmissionData({
-            ...admissionData, 
+        const p = (Array.isArray(patients) ? patients : []).find(pt => pt && pt.pt_id === id);
+        setAdmissionData(prev => ({
+            ...prev, 
             patient_id: id, 
             patient_name: name,
-            patient_mobile: p?.mobile || '',
-            mobile_relation: p?.mobile_relation || ''
-        });
+            patient_mobile: p?.mobile || prev.patient_mobile || '',
+            mobile_relation: p?.mobile_relation || prev.mobile_relation || 'Self'
+        }));
         setShowPatientSearchModal(false);
         setPatientSearchFilters({ name: '', mobile: '', address: '', thana: '', age: '' });
     };
@@ -885,9 +885,21 @@ const AdmissionAndTreatmentPage: React.FC<{
         const safeAdmissions = Array.isArray(admissions) ? admissions : [];
         const count = safeAdmissions.filter(a => a && a.admission_id && a.admission_id.startsWith(`ADM-${year}-${month}-${day}`)).length + 1;
         const newId = `ADM-${year}-${month}-${day}-${String(count).padStart(3, '0')}`;
-        setAdmissionData({ ...emptyAdmission, admission_id: newId, admission_date: `${year}-${month}-${day}` });
+        setAdmissionData(prev => ({ 
+            ...emptyAdmission, 
+            ...prev, 
+            admission_id: newId, 
+            admission_date: prev.admission_date || `${year}-${month}-${day}` 
+        }));
         setSelectedAdmissionId(null);
     };
+
+    // Auto-generate Admission ID on initial load if not already set
+    useEffect(() => {
+        if (!admissionData.admission_id) {
+            handleGetNewId();
+        }
+    }, []);
 
     // SYNC FUNCTION: Propagates current admission record changes to the global admissions list
     const syncAdmissionToGlobal = (record: AdmissionRecord) => {
@@ -904,53 +916,91 @@ const AdmissionAndTreatmentPage: React.FC<{
     };
 
     const handleSaveAdmission = () => {
-        if (!admissionData.admission_id) {
-            alert("Please click 'Add New' to generate an Admission ID first.");
+        let currentRecord = { ...admissionData };
+
+        // 1. Auto generate Admission ID if not generated yet
+        if (!currentRecord.admission_id) {
+            const today = new Date();
+            const year = today.getFullYear();
+            const month = String(today.getMonth() + 1).padStart(2, '0');
+            const day = String(today.getDate()).padStart(2, '0');
+            const safeAdmissions = Array.isArray(admissions) ? admissions : [];
+            const count = safeAdmissions.filter(a => a && a.admission_id && a.admission_id.startsWith(`ADM-${year}-${month}-${day}`)).length + 1;
+            currentRecord.admission_id = `ADM-${year}-${month}-${day}-${String(count).padStart(3, '0')}`;
+            if (!currentRecord.admission_date) currentRecord.admission_date = `${year}-${month}-${day}`;
+        }
+
+        if (!currentRecord.patient_id) {
+            alert("দয়া করে একজন পেশেন্ট নির্বাচন করুন (Please select a Patient).");
             return;
         }
-        if (!admissionData.patient_id) {
-            alert("Please select a Patient.");
-            return;
+
+        // 2. Auto-fill mobile and relation from patients list if missing
+        const safePatients = Array.isArray(patients) ? patients : [];
+        const p = safePatients.find(pt => pt && pt.pt_id === currentRecord.patient_id);
+        if (!currentRecord.patient_name && p) {
+            currentRecord.patient_name = p.pt_name;
         }
-        if (!admissionData.patient_mobile) {
-            alert("মোবাইল নাম্বার অবশ্যই দিতে হবে (Mobile number is required).");
-            return;
+        if (!currentRecord.patient_mobile && p?.mobile) {
+            currentRecord.patient_mobile = p.mobile;
         }
-        if (!admissionData.mobile_relation) {
-            alert("মোবাইল নাম্বারটি কার (Relation) তা নির্বাচন করুন।");
-            return;
+        if (!currentRecord.mobile_relation) {
+            currentRecord.mobile_relation = p?.mobile_relation || 'Self';
         }
+
+        // Apply updated values back to form state
+        setAdmissionData(currentRecord);
 
         setConfirmModal({
             isOpen: true,
             title: 'Confirm Admission',
             message: 'আপনি কি এই ভর্তি ফরমটি সেভ করতে চান?',
-            onConfirm: executeSaveAdmission
+            onConfirm: () => executeSaveAdmission(currentRecord)
         });
     };
 
-    const executeSaveAdmission = async () => {
+    const executeSaveAdmission = async (recordToSave?: AdmissionRecord) => {
         setConfirmModal(prev => ({ ...prev, isOpen: false }));
+        const targetRecord = recordToSave || admissionData;
+        if (!targetRecord.admission_id || !targetRecord.patient_id) return;
+
         const safeAdmissions = Array.isArray(admissions) ? admissions : [];
-        const idx = safeAdmissions.findIndex((a: AdmissionRecord) => a.admission_id === admissionData.admission_id);
+        const idx = safeAdmissions.findIndex((a: AdmissionRecord) => a && a.admission_id === targetRecord.admission_id);
         let newAdmissions = [...safeAdmissions];
         if (idx >= 0) {
-            newAdmissions[idx] = admissionData;
+            newAdmissions[idx] = targetRecord;
         } else {
-            newAdmissions = [...safeAdmissions, admissionData];
+            newAdmissions = [...safeAdmissions, targetRecord];
         }
 
-        if (performBlockingSync) {
-            const success = await performBlockingSync({ admissions: newAdmissions });
-            if (success) {
-                setAdmissions(newAdmissions);
-                setSuccessMessage("ডাটা সেভ হয়েছে");
-                setSelectedAdmissionId(admissionData.admission_id);
+        // 1. Immediately update state so Indoor Invoice, Bed Status and lists reflect the admitted patient with 0 latency
+        setAdmissions(newAdmissions);
+        syncAdmissionToGlobal(targetRecord);
+        setSelectedAdmissionId(targetRecord.admission_id);
+        setSuccessMessage("ভর্তি ডাটা সফলভাবে সেভ হয়েছে!");
+
+        // Backup to local storage cache immediately
+        try {
+            const cached = localStorage.getItem('ncd_offline_cache_v1');
+            if (cached) {
+                const parsed = JSON.parse(cached);
+                parsed.admissions = newAdmissions;
+                localStorage.setItem('ncd_offline_cache_v1', JSON.stringify(parsed));
             }
-        } else {
-            syncAdmissionToGlobal(admissionData);
-            setSuccessMessage("Admission data saved successfully!");
-            setSelectedAdmissionId(admissionData.admission_id);
+        } catch (e) {
+            console.warn("Local storage cache write notice:", e);
+        }
+
+        // 2. Persist to Supabase Cloud via performBlockingSync
+        if (performBlockingSync) {
+            try {
+                const success = await performBlockingSync({ admissions: newAdmissions });
+                if (!success) {
+                    console.warn("Cloud sync warning: Record saved locally, but cloud sync returned false.");
+                }
+            } catch (err) {
+                console.error("Cloud sync error during admission save:", err);
+            }
         }
     };
 
@@ -1238,8 +1288,14 @@ const AdmissionAndTreatmentPage: React.FC<{
                                                 options={(Array.isArray(patients) ? patients : []).filter(p => p).map(p=>({id: p.pt_id, name: p.pt_name, details: `${p.gender}, ${p.ageY}Y | Addr: ${p.address || 'N/A'}`}))} 
                                                 value={admissionData.patient_id} 
                                                 onChange={(id, name) => {
-                                                    const p = patients.find(pt => pt.pt_id === id);
-                                                    setAdmissionData({...admissionData, patient_id: id, patient_name: name, patient_mobile: p?.mobile || '', mobile_relation: p?.mobile_relation || ''});
+                                                    const p = (Array.isArray(patients) ? patients : []).find(pt => pt && pt.pt_id === id);
+                                                    setAdmissionData(prev => ({
+                                                        ...prev, 
+                                                        patient_id: id, 
+                                                        patient_name: name, 
+                                                        patient_mobile: p?.mobile || prev.patient_mobile || '', 
+                                                        mobile_relation: p?.mobile_relation || prev.mobile_relation || 'Self'
+                                                    }));
                                                 }} 
                                                 onAddNew={() => openAdvancedPatientSearch('')} 
                                                 onEnter={(term) => openAdvancedPatientSearch(term)}
@@ -1979,8 +2035,17 @@ const AdmissionAndTreatmentPage: React.FC<{
                                 isEmbedded={true} 
                                 onClose={()=>setShowNewPatientForm(false)} 
                                 onSaveAndSelect={(id,name)=>{
-                                    setAdmissionData((prev: AdmissionRecord)=>({...prev, patient_id:id, patient_name:name})); 
+                                    const safePatients = Array.isArray(patients) ? patients : [];
+                                    const p = safePatients.find(pt => pt && pt.pt_id === id);
+                                    setAdmissionData((prev: AdmissionRecord)=>({
+                                        ...prev, 
+                                        patient_id: id, 
+                                        patient_name: name,
+                                        patient_mobile: prev.patient_mobile || p?.mobile || '',
+                                        mobile_relation: prev.mobile_relation || p?.mobile_relation || 'Self'
+                                    })); 
                                     setShowNewPatientForm(false);
+                                    setShowPatientSearchModal(false);
                                 }}
                             />
                         </div>
@@ -3158,13 +3223,15 @@ const IndoorInvoicePage: React.FC<{
                             label="" 
                             theme="dark" 
                             placeholder="Search Admitted Patient..."
-                            options={(Array.isArray(admissions) ? admissions : []).filter(a => a).map(a => {
+                            options={(Array.isArray(admissions) ? admissions : []).filter(a => a && (a.admission_id || a.patient_id)).map(a => {
                                 const safePatients = Array.isArray(patients) ? patients : [];
                                 const p = safePatients.find(pt => pt && pt.pt_id === a.patient_id);
+                                const ptName = a.patient_name || p?.pt_name || 'Unknown Patient';
+                                const mob = a.patient_mobile || p?.mobile || '';
                                 return {
                                     id: a.admission_id || '', 
-                                    name: a.patient_name || 'Unknown Patient', 
-                                    details: `ID: ${a.patient_id || 'N/A'} | Indication: ${a.indication || 'N/A'} | DOB: ${p?.dobY || ''}-${p?.dobM || ''}-${p?.dobD || ''} | Addr: ${p?.address || ''} | Mob: ${p?.mobile || ''} | Adm: ${a.admission_date || ''}`
+                                    name: ptName, 
+                                    details: `Adm: ${a.admission_id || 'N/A'} | ID: ${a.patient_id || 'N/A'} | Bed: ${a.bed_no || 'N/A'} | Indication: ${a.indication || 'N/A'} | Mob: ${mob || 'N/A'} | Addr: ${p?.address || ''} | Adm Date: ${a.admission_date || ''}`
                                 };
                             })} 
                             value={selectedAdmission?.admission_id || ''} 

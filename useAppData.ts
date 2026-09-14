@@ -214,10 +214,26 @@ export function useAppData() {
     if (overrides?.consolidatedLabEntries) {
       setConsolidatedLabEntries(overrides.consolidatedLabEntries);
     }
+    if (overrides?.admissions) {
+      setAdmissions(overrides.admissions);
+    }
+    if (overrides?.indoorInvoices) {
+      setIndoorInvoices(overrides.indoorInvoices);
+    }
+    if (overrides?.patients) {
+      setPatients(overrides.patients);
+    }
     const now = new Date().toISOString();
     setLastSavedAt(now);
     lastSavedAtRef.current = now;
     const stateToSync = getCurrentState({ ...overrides, last_updated_at: now });
+    
+    // Always backup to local storage immediately so data is never lost offline
+    try {
+      localStorage.setItem('ncd_offline_cache_v1', JSON.stringify(stateToSync));
+    } catch (e) {
+      console.warn("Local cache save notice:", e);
+    }
     
     try {
       console.log(`[Sync] Starting blocking sync. Overrides:`, overrides ? Object.keys(overrides) : 'None');
