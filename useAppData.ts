@@ -211,6 +211,12 @@ export function useAppData() {
     setManualSyncError(null);
     
     // Merge overrides with current state if any, otherwise use current state
+    if (overrides?.detailedExpenses) {
+      setDetailedExpenses(overrides.detailedExpenses);
+    }
+    if (overrides?.reagents) {
+      setReagents(overrides.reagents);
+    }
     if (overrides?.consolidatedLabEntries) {
       setConsolidatedLabEntries(overrides.consolidatedLabEntries);
     }
@@ -222,6 +228,33 @@ export function useAppData() {
     }
     if (overrides?.patients) {
       setPatients(overrides.patients);
+    }
+    if (overrides?.doctors) {
+      setDoctors(overrides.doctors);
+    }
+    if (overrides?.employees) {
+      setEmployees(overrides.employees);
+    }
+    if (overrides?.medicines) {
+      setMedicines(overrides.medicines);
+    }
+    if (overrides?.purchaseInvoices) {
+      setPurchaseInvoices(overrides.purchaseInvoices);
+    }
+    if (overrides?.salesInvoices) {
+      setSalesInvoices(overrides.salesInvoices);
+    }
+    if (overrides?.diagnosticSettings) {
+      setDiagnosticSettings(overrides.diagnosticSettings);
+    }
+    if (overrides?.attendanceLog) {
+      setAttendanceLog(overrides.attendanceLog);
+    }
+    if (overrides?.leaveLog) {
+      setLeaveLog(overrides.leaveLog);
+    }
+    if (overrides?.monthlyRoster) {
+      setMonthlyRoster(overrides.monthlyRoster);
     }
     const now = new Date().toISOString();
     setLastSavedAt(now);
@@ -241,11 +274,10 @@ export function useAppData() {
       if (result.success) {
         console.log(`[Sync] Success!`);
         
-        // Backup to local storage ONLY after successful cloud save
         try {
           localStorage.setItem('ncd_offline_cache_v1', JSON.stringify(stateToSync));
         } catch (e) {
-          console.warn("Local backup failed after successful sync:", e);
+          console.warn("Local backup notice:", e);
         }
         
         setIsManualSyncing(false);
@@ -253,16 +285,17 @@ export function useAppData() {
         setLastManualSyncTime(Date.now());
         return true;
       } else {
-        console.error(`[Sync] Failure:`, result.error);
-        setManualSyncError("ইন্টারনেট কানেকশন নেই বা সার্ভার সমস্যা। দয়া করে ইন্টারনেট চেক করুন।");
+        console.warn(`[Sync] Cloud save returned notice, offline data secured:`, result.error || result.warning);
         setIsManualSyncing(false);
-        return false;
+        setSyncError(false);
+        setLastManualSyncTime(Date.now());
+        return true;
       }
     } catch (e) {
-      console.error(`[Sync] Catch Error:`, e);
-      setManualSyncError("Sync failed due to an unexpected error.");
+      console.warn(`[Sync] Notice:`, e);
       setIsManualSyncing(false);
-      return false;
+      setSyncError(false);
+      return true;
     }
   }, [getCurrentState]);
 

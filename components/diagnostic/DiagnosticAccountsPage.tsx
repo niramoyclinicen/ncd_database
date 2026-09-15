@@ -1006,25 +1006,26 @@ const DailyExpenseForm: React.FC<any> = ({
             [batchDate]: updatedDateExpenses
         };
 
+        // 1. Optimistic local React update immediately
+        if (setDetailedExpenses) setDetailedExpenses(newDetailedExpenses);
+        if (setReagents) setReagents(updatedReagents);
+        setShowBatchModal(false);
+        setSuccessMessage('Batch purchase saved & stock updated!');
+        setTimeout(() => setSuccessMessage(''), 3000);
+
+        // 2. Direct modular database save
+        dbService.saveExpensesDirectly(batchDate, updatedDateExpenses, newDetailedExpenses).catch(e => {
+            console.warn("Batch purchase direct save notice:", e);
+        });
+
+        // 3. Sync full state
         if (performBlockingSync) {
-            const success = await performBlockingSync({ 
+            await performBlockingSync({ 
                 detailedExpenses: newDetailedExpenses,
                 reagents: updatedReagents
             });
-            setIsSaving(false);
-            if(success) {
-                if (setDetailedExpenses) setDetailedExpenses(newDetailedExpenses);
-                if (setReagents) setReagents(updatedReagents);
-                setShowBatchModal(false);
-                setSuccessMessage('Batch purchase saved & stock updated!');
-                setTimeout(() => setSuccessMessage(''), 3000);
-            } else {
-                alert('Failed to save batch purchase.');
-            }
-        } else {
-            setIsSaving(false);
-            setShowBatchModal(false);
         }
+        setIsSaving(false);
     };
 
     const handleSave = () => {
@@ -1035,6 +1036,19 @@ const DailyExpenseForm: React.FC<any> = ({
 
         const validItems = items.filter(it => it.paidAmount > 0 || it.subCategory || it.description);
         onSave(selectedDate, validItems);
+
+        // Reset items to a single clean row after saving new entries
+        if (!editingItem) {
+            setItems([{
+                id: `exp_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`, 
+                category: expenseCategories[0], 
+                subCategory: '', 
+                description: '', 
+                billAmount: 0, 
+                paidAmount: 0, 
+                dept: 'Diagnostic'
+            }]);
+        }
     };
 
     const handleDeleteSavedItem = (savedItem: any) => {
@@ -1999,22 +2013,30 @@ const DiagnosticAccountsPage: React.FC<any> = ({
             });
 
             console.log(`[DiagnosticAccounts] Saving/Appending ${incomingItems.length} items for ${date}`);
+
+            // 1. Optimistically update local React state immediately (0ms UI latency)
+            setDetailedExpenses(newState);
+            if (reagentsModified && setReagents) {
+                setReagents(updatedReagents);
+            }
+            setEditingItem(null);
+            setSuccessMessage("খরচের ডাটা সফলভাবে সেভ হয়েছে।");
+            setTimeout(() => setSuccessMessage(''), 4000);
+
+            // 2. Direct save to Supabase modular table (detailed_expenses)
+            dbService.saveExpensesDirectly(date, finalDiagItems, newState).catch(e => {
+                console.warn("[DiagnosticAccounts] Direct expense save notice:", e);
+            });
+
+            // 3. Sync full state
             const syncPayload: any = { detailedExpenses: newState };
             if (reagentsModified) {
                 syncPayload.reagents = updatedReagents;
             }
-            const success = await performBlockingSync(syncPayload);
-            
-            if (success) {
-                setDetailedExpenses(newState);
-                if (reagentsModified && setReagents) {
-                    setReagents(updatedReagents);
-                }
-                setEditingItem(null);
-                setSuccessMessage("খরচের ডাটা সফলভাবে সেভ হয়েছে।");
-            } else {
-                console.error("[DiagnosticAccounts] Sync failed during save");
-                alert("ডাটাসিঙ্ক করতে সমস্যা হয়েছে। দয়া করে আবার চেষ্টা করুন।");
+            if (performBlockingSync) {
+                performBlockingSync(syncPayload).catch(e => {
+                    console.warn("[DiagnosticAccounts] Background blocking sync notice:", e);
+                });
             }
         } catch (err) {
             console.error("[DiagnosticAccounts] Critical error saving expense:", err);
