@@ -265,14 +265,20 @@ const DoctorAppointmentPage: React.FC<DoctorAppointmentPageProps> = ({
 
   const filteredPatients = useMemo(() => {
     const safePatients = Array.isArray(patients) ? patients : [];
+    const filterName = (patientSearchFilters?.name || '').toLowerCase();
+    const filterMobile = (patientSearchFilters?.mobile || '').toLowerCase();
+    const filterAddress = (patientSearchFilters?.address || '').toLowerCase();
+    const filterThana = (patientSearchFilters?.thana || '').toLowerCase();
+    const filterAge = String(patientSearchFilters?.age || '');
+
     return safePatients.filter(p => {
       if (!p) return false;
       const pAge = String(p.ageY || '');
-      return (p.pt_name || '').toLowerCase().includes(patientSearchFilters.name.toLowerCase()) &&
-             (p.mobile || '').toLowerCase().includes(patientSearchFilters.mobile.toLowerCase()) &&
-             (p.address || '').toLowerCase().includes(patientSearchFilters.address.toLowerCase()) &&
-             (p.thana || '').toLowerCase().includes(patientSearchFilters.thana.toLowerCase()) &&
-             (pAge.includes(patientSearchFilters.age));
+      return (p.pt_name || '').toLowerCase().includes(filterName) &&
+             (p.mobile || '').toLowerCase().includes(filterMobile) &&
+             (p.address || '').toLowerCase().includes(filterAddress) &&
+             (p.thana || '').toLowerCase().includes(filterThana) &&
+             (pAge.includes(filterAge));
     });
   }, [patients, patientSearchFilters]);
 

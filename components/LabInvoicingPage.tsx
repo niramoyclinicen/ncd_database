@@ -152,14 +152,15 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
       if (emp.job_position || emp.designation) detailsArr.push(emp.job_position || emp.designation);
       if (emp.department) detailsArr.push(`Dept: ${emp.department}`);
       if (emp.mobile) detailsArr.push(`📞 ${emp.mobile}`);
+      const empName = emp.emp_name || (emp as any).name || (emp as any).employee_name || '';
       return {
-        id: emp.emp_name,
-        name: emp.emp_name,
+        id: empName || emp.emp_id || 'Staff',
+        name: empName || 'Staff',
         details: detailsArr.join(' | ')
       };
     });
 
-    if (!opts.some(o => o.name.toLowerCase() === 'admin')) {
+    if (!opts.some(o => (o?.name || '').toLowerCase() === 'admin')) {
       opts.unshift({
         id: 'Admin',
         name: 'Admin',
@@ -293,12 +294,16 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
   // Filter invoices when search term or invoices state changes
   const filteredInvoices = useMemo(() => {
     const safeInvs = Array.isArray(invoices) ? invoices : [];
+    const cleanSearch = (searchTerm || '').toLowerCase();
+    const cleanFilterPatient = (tableFilterPatientName || '').toLowerCase();
+
     return safeInvs.filter(invoice => {
       if (!invoice) return false;
-      const matchesSearch = (invoice.invoice_id || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (invoice.patient_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (invoice.doctor_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (invoice.referrar_name || '').toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesSearch = !cleanSearch ||
+        (invoice.invoice_id || '').toLowerCase().includes(cleanSearch) ||
+        (invoice.patient_name || '').toLowerCase().includes(cleanSearch) ||
+        (invoice.doctor_name || '').toLowerCase().includes(cleanSearch) ||
+        (invoice.referrar_name || '').toLowerCase().includes(cleanSearch);
 
       const invDateStr = invoice.invoice_date || (invoice as any).date || (invoice as any).invoiceDate || '';
       const invDateParts = getNormalizedDateParts(invDateStr);
@@ -309,7 +314,7 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
       
       const matchesDoctor = !tableFilterDoctorId || invoice.doctor_id === tableFilterDoctorId;
       const matchesReferrar = !tableFilterReferrarId || invoice.referrar_id === tableFilterReferrarId;
-      const matchesPatient = !tableFilterPatientName || (invoice.patient_name || '').toLowerCase().includes(tableFilterPatientName.toLowerCase());
+      const matchesPatient = !cleanFilterPatient || (invoice.patient_name || '').toLowerCase().includes(cleanFilterPatient);
       const matchesDue = !tableFilterDueOnly || ((Number(invoice.due_amount) || 0) > 0 && invoice.status !== 'Cancelled' && invoice.status !== 'Returned');
 
       return matchesSearch && matchesDate && matchesMonth && matchesYear && matchesDoctor && matchesReferrar && matchesPatient && matchesDue;
@@ -461,14 +466,20 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
 
   const filteredPatients = useMemo(() => {
     const safePatients = Array.isArray(patients) ? patients : [];
+    const filterName = (patientSearchFilters?.name || '').toLowerCase();
+    const filterMobile = (patientSearchFilters?.mobile || '').toLowerCase();
+    const filterAddress = (patientSearchFilters?.address || '').toLowerCase();
+    const filterThana = (patientSearchFilters?.thana || '').toLowerCase();
+    const filterAge = String(patientSearchFilters?.age || '');
+
     return safePatients.filter(p => {
       if (!p) return false;
       const pAge = String(p.ageY || '');
-      return (p.pt_name || '').toLowerCase().includes(patientSearchFilters.name.toLowerCase()) &&
-             (p.mobile || '').toLowerCase().includes(patientSearchFilters.mobile.toLowerCase()) &&
-             (p.address || '').toLowerCase().includes(patientSearchFilters.address.toLowerCase()) &&
-             (p.thana || '').toLowerCase().includes(patientSearchFilters.thana.toLowerCase()) &&
-             (pAge.includes(patientSearchFilters.age));
+      return (p.pt_name || '').toLowerCase().includes(filterName) &&
+             (p.mobile || '').toLowerCase().includes(filterMobile) &&
+             (p.address || '').toLowerCase().includes(filterAddress) &&
+             (p.thana || '').toLowerCase().includes(filterThana) &&
+             (pAge.includes(filterAge));
     });
   }, [patients, patientSearchFilters]);
 
@@ -735,7 +746,7 @@ pdate the local state and reset form
       let reagentsChanged = false;
       
       if (!isEditing) {
-          const xrayFilmsAvailable = reagents.filter(r => r.linked_category === 'X-Ray' || r.reagent_name.toLowerCase().includes('film') || r.reagent_name.toLowerCase().includes('x-ray'));
+          const xrayFilmsAvailable = (Array.isArray(reagents) ? reagents : []).filter(r => r && (r.linked_category === 'X-Ray' || (r.reagent_name || '').toLowerCase().includes('film') || (r.reagent_name || '').toLowerCase().includes('x-ray')));
           formData.items.forEach(item => {
               const testObj = tests.find(t => t.test_id === item.test_id);
               if (testObj) {
@@ -821,7 +832,7 @@ pdate the local state and reset form
           let reagentsChanged = false;
 
           if (invoiceToCancel.items && Array.isArray(invoiceToCancel.items)) {
-            const xrayFilmsAvailable = reagents.filter(r => r.linked_category === 'X-Ray' || r.reagent_name.toLowerCase().includes('film') || r.reagent_name.toLowerCase().includes('x-ray'));
+            const xrayFilmsAvailable = (Array.isArray(reagents) ? reagents : []).filter(r => r && (r.linked_category === 'X-Ray' || (r.reagent_name || '').toLowerCase().includes('film') || (r.reagent_name || '').toLowerCase().includes('x-ray')));
             invoiceToCancel.items.forEach((item: any) => {
               const testObj = tests.find(t => t.test_id === item.test_id);
               if (testObj) {

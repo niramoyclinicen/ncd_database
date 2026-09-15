@@ -993,7 +993,8 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
   };
 
   const renderMedicineChartTab = () => {
-      const filteredDrugs = clinicalDrugs.filter(d => d.brandName.toLowerCase().includes(drugSearch.toLowerCase()) || d.genericName.toLowerCase().includes(drugSearch.toLowerCase()));
+      const cleanSearch = (drugSearch || '').toLowerCase();
+      const filteredDrugs = (Array.isArray(clinicalDrugs) ? clinicalDrugs : []).filter(d => d && ((d.brandName || '').toLowerCase().includes(cleanSearch) || (d.genericName || '').toLowerCase().includes(cleanSearch)));
       return (
           <div className="space-y-6 animate-fade-in">
               <div className="bg-slate-800 p-8 rounded-3xl border border-slate-700 shadow-2xl">

@@ -66,9 +66,9 @@ const TemplateManagementPage: React.FC<any> = ({ onBack, tests = [], templates: 
     const filteredTemplates = templates.filter(t => 
         (selectedCategoryFilter === 'All' || t.category === selectedCategoryFilter) &&
         (selectedSubCategoryFilter === 'All' || t.subCategory === selectedSubCategoryFilter) &&
-        (t.templateName.toLowerCase().includes(searchTerm.toLowerCase()) || 
-         t.subCategory.toLowerCase().includes(searchTerm.toLowerCase()) ||
-         t.category.toLowerCase().includes(searchTerm.toLowerCase()))
+        ((t.templateName || '').toLowerCase().includes((searchTerm || '').toLowerCase()) || 
+         (t.subCategory || '').toLowerCase().includes((searchTerm || '').toLowerCase()) ||
+         (t.category || '').toLowerCase().includes((searchTerm || '').toLowerCase()))
     );
 
     // Get unique categories and subcategories across the system for the dropdown/datalist
