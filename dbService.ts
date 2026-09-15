@@ -126,12 +126,26 @@ const fetchTableSafe = async (client: SupabaseClient, tableName: string) => {
 const upsertTableSafe = async (client: SupabaseClient, tableName: string, rows: any[]) => {
   if (!rows || rows.length === 0) return true;
   try {
-    const chunkSize = 100;
+    const chunkSize = 50;
     for (let i = 0; i < rows.length; i += chunkSize) {
-      const chunk = rows.slice(i, i + chunkSize);
+      let chunk = rows.slice(i, i + chunkSize);
       const { error } = await client.from(tableName).upsert(chunk, { onConflict: 'id' });
       if (error) {
         console.warn(`Upsert notice for table ${tableName}:`, error.message);
+        // If error indicates a missing column in the schema cache, remove that key and retry
+        const colMatch = error.message.match(/Could not find the '([^']+)' column/);
+        if (colMatch && colMatch[1]) {
+          const badCol = colMatch[1];
+          const sanitizedChunk = chunk.map(r => {
+            const copy = { ...r };
+            delete copy[badCol];
+            return copy;
+          });
+          const retryRes = await client.from(tableName).upsert(sanitizedChunk, { onConflict: 'id' });
+          if (retryRes.error) {
+            console.warn(`Retry upsert for ${tableName} without '${badCol}':`, retryRes.error.message);
+          }
+        }
       }
     }
     return true;
@@ -244,7 +258,16 @@ export const dbService = {
           const id = getItemId(item, idFields);
           if (id && map.has(id)) {
             const existingIdx = map.get(id)!;
-            result[existingIdx] = { ...item, ...result[existingIdx] }; // base has priority, fill missing from extra
+            const existing = result[existingIdx];
+            const merged = { ...item, ...existing };
+            // Intelligently preserve items array and positive amounts
+            if ((!existing.items || existing.items.length === 0) && item.items && item.items.length > 0) {
+              merged.items = item.items;
+            }
+            if ((!existing.netPayable || existing.netPayable === 0) && (item.netPayable || item.net_payable)) {
+              merged.netPayable = item.netPayable || item.net_payable;
+            }
+            result[existingIdx] = merged;
           } else {
             result.push(item);
             if (id) map.set(id, result.length - 1);
@@ -318,7 +341,18 @@ export const dbService = {
                   state.employees = mergeEntityList(state.employees || [], d.employees, ['emp_id', 'id']);
                 }
                 if (Array.isArray(d.medicines) && d.medicines.length > 0) {
-                  state.medicines = mergeEntityList(state.medicines || [], d.medicines, ['id']);
+                  state.medicines = mergeEntityList(state.medicines || [], d.medicines, ['id', 'tradeName', 'trade_name']);
+                }
+                const recPurchases = d.purchaseInvoices || d.purchase_invoices || d.purchases || d.medicinePurchases;
+                if (Array.isArray(recPurchases) && recPurchases.length > 0) {
+                  state.purchaseInvoices = mergeEntityList(state.purchaseInvoices || [], recPurchases, ['invoiceId', 'invoice_id', 'id']);
+                }
+                const recSales = d.salesInvoices || d.sales_invoices || d.sales || d.medicineSales;
+                if (Array.isArray(recSales) && recSales.length > 0) {
+                  state.salesInvoices = mergeEntityList(state.salesInvoices || [], recSales, ['invoiceId', 'invoice_id', 'id']);
+                }
+                if (Array.isArray(d.clinicalDrugs) && d.clinicalDrugs.length > 0) {
+                  state.clinicalDrugs = mergeEntityList(state.clinicalDrugs || [], d.clinicalDrugs, ['id']);
                 }
                 if (d.detailedExpenses && typeof d.detailedExpenses === 'object') {
                   state.detailedExpenses = { ...(state.detailedExpenses || {}), ...d.detailedExpenses };
@@ -335,6 +369,19 @@ export const dbService = {
         state = localState ? { ...localState } : {};
       }
 
+      // Also rescue from localState backup if any medicine or invoice lists exist locally
+      if (localState) {
+        if (Array.isArray(localState.purchaseInvoices) && localState.purchaseInvoices.length > 0) {
+          state.purchaseInvoices = mergeEntityList(state.purchaseInvoices || [], localState.purchaseInvoices, ['invoiceId', 'invoice_id', 'id']);
+        }
+        if (Array.isArray(localState.salesInvoices) && localState.salesInvoices.length > 0) {
+          state.salesInvoices = mergeEntityList(state.salesInvoices || [], localState.salesInvoices, ['invoiceId', 'invoice_id', 'id']);
+        }
+        if (Array.isArray(localState.medicines) && localState.medicines.length > 0) {
+          state.medicines = mergeEntityList(state.medicines || [], localState.medicines, ['id', 'tradeName']);
+        }
+      }
+
       // Normalization of alternate keys in state
       if (!Array.isArray(state.labInvoices)) {
         state.labInvoices = Array.isArray(state.invoices) ? state.invoices : (Array.isArray(state.lab_invoices) ? state.lab_invoices : (Array.isArray(state.diagnostic_invoices) ? state.diagnostic_invoices : []));
@@ -344,6 +391,15 @@ export const dbService = {
       }
       if (!Array.isArray(state.indoorInvoices)) {
         state.indoorInvoices = Array.isArray(state.indoor_invoices) ? state.indoor_invoices : [];
+      }
+      if (!Array.isArray(state.purchaseInvoices)) {
+        state.purchaseInvoices = Array.isArray(state.purchase_invoices) ? state.purchase_invoices : (Array.isArray(state.purchases) ? state.purchases : []);
+      }
+      if (!Array.isArray(state.salesInvoices)) {
+        state.salesInvoices = Array.isArray(state.sales_invoices) ? state.sales_invoices : (Array.isArray(state.sales) ? state.sales : []);
+      }
+      if (!Array.isArray(state.medicines)) {
+        state.medicines = [];
       }
 
       // 2. Fetch modular tables concurrently from Supabase (lab_invoices, due_collections, detailed_expenses, etc.)
@@ -459,9 +515,115 @@ export const dbService = {
         if (testRows && testRows.length > 0) state.tests = mergeEntityList(state.tests, testRows, ['test_id', 'id']);
         if (reagentRows && reagentRows.length > 0) state.reagents = mergeEntityList(state.reagents, reagentRows, ['reagent_id', 'id']);
         if (empRows && empRows.length > 0) state.employees = mergeEntityList(state.employees, empRows, ['emp_id', 'id']);
-        if (medRows && medRows.length > 0) state.medicines = mergeEntityList(state.medicines, medRows, ['id']);
-        if (salesInvRows && salesInvRows.length > 0) state.salesInvoices = mergeEntityList(state.salesInvoices, salesInvRows, ['invoiceId', 'invoice_id', 'id']);
-        if (purchaseInvRows && purchaseInvRows.length > 0) state.purchaseInvoices = mergeEntityList(state.purchaseInvoices, purchaseInvRows, ['invoiceId', 'invoice_id', 'id']);
+
+        // Merge Medicines from modular table
+        if (medRows && medRows.length > 0) {
+          const parsedMeds = medRows.map((m: any) => {
+            const raw = m.data && typeof m.data === 'object' ? m.data : {};
+            const medId = String(m.id || raw.id || '').trim();
+            return {
+              ...raw,
+              ...m,
+              id: medId,
+              tradeName: m.trade_name || m.tradeName || raw.tradeName || m.name || '',
+              genericName: m.generic_name || m.genericName || raw.genericName || '',
+              formulation: m.formulation || raw.formulation || 'Tab',
+              strength: m.strength || raw.strength || '',
+              unitPriceBuy: Number(m.unit_price_buy ?? m.unitPriceBuy ?? raw.unitPriceBuy ?? m.buy_price ?? 0),
+              unitPriceSell: Number(m.unit_price_sell ?? m.unitPriceSell ?? raw.unitPriceSell ?? m.sell_price ?? 0),
+              stock: Number(m.stock ?? raw.stock ?? 0),
+              boxSize: Number(m.box_size ?? m.boxSize ?? raw.boxSize ?? 1),
+              supplier: m.supplier || raw.supplier || '',
+              expiryDate: m.expiry_date || m.expiryDate || raw.expiryDate || '',
+              isAntibiotic: !!(m.is_antibiotic ?? m.isAntibiotic ?? raw.isAntibiotic),
+              requiresPrescription: !!(m.requires_prescription ?? m.requiresPrescription ?? raw.requiresPrescription)
+            };
+          }).filter((m: any) => m.id);
+          state.medicines = mergeEntityList(state.medicines, parsedMeds, ['id', 'tradeName', 'trade_name']);
+        }
+
+        // Merge Sales Invoices from modular table
+        if (salesInvRows && salesInvRows.length > 0) {
+          const parsedSales = salesInvRows.map((r: any) => {
+            const raw = r.data && typeof r.data === 'object' ? r.data : {};
+            let items = r.items ?? raw.items;
+            if (typeof items === 'string') {
+              try { items = JSON.parse(items); } catch { items = []; }
+            }
+            const invId = String(r.invoice_id || r.invoiceId || r.id || raw.invoiceId || '').trim();
+            const invDate = r.invoice_date || r.invoiceDate || r.date || raw.invoiceDate || (r.created_date ? r.created_date.split('T')[0] : '') || '';
+            const net = Number(r.net_payable ?? r.netPayable ?? raw.netPayable ?? 0);
+            const paid = Number(r.paid_amount ?? r.paidAmount ?? raw.paidAmount ?? 0);
+            const due = Number(r.due_amount ?? r.dueAmount ?? raw.dueAmount ?? Math.max(0, net - paid));
+            const total = Number(r.total_amount ?? r.totalAmount ?? raw.totalAmount ?? net);
+            const discount = Number(r.discount ?? raw.discount ?? 0);
+            return {
+              ...raw,
+              ...r,
+              id: invId,
+              invoiceId: invId,
+              invoice_id: invId,
+              invoiceDate: invDate,
+              invoice_date: invDate,
+              customerName: r.customer_name || r.customerName || raw.customerName || '',
+              customerMobile: r.customer_mobile || r.customerMobile || raw.customerMobile || '',
+              customerAge: r.customer_age || r.customerAge || raw.customerAge || '',
+              customerGender: r.customer_gender || r.customerGender || raw.customerGender || '',
+              refDoctorName: r.ref_doctor_name || r.refDoctorName || raw.refDoctorName || '',
+              items: Array.isArray(items) ? items : [],
+              totalAmount: total,
+              discount: discount,
+              netPayable: net,
+              paidAmount: paid,
+              dueAmount: due,
+              billCreatedBy: r.bill_created_by || r.billCreatedBy || raw.billCreatedBy || 'Admin',
+              status: r.status || raw.status || 'Posted',
+              createdDate: r.created_date || r.createdDate || raw.createdDate || invDate
+            };
+          }).filter((r: any) => r.invoiceId);
+          state.salesInvoices = mergeEntityList(state.salesInvoices, parsedSales, ['invoiceId', 'invoice_id', 'id']);
+        }
+
+        // Merge Purchase Invoices from modular table
+        if (purchaseInvRows && purchaseInvRows.length > 0) {
+          const parsedPurchases = purchaseInvRows.map((r: any) => {
+            const raw = r.data && typeof r.data === 'object' ? r.data : {};
+            let items = r.items ?? raw.items;
+            if (typeof items === 'string') {
+              try { items = JSON.parse(items); } catch { items = []; }
+            }
+            const invId = String(r.invoice_id || r.invoiceId || r.id || raw.invoiceId || '').trim();
+            const invDate = r.invoice_date || r.invoiceDate || r.date || raw.invoiceDate || (r.created_date ? r.created_date.split('T')[0] : '') || '';
+            const net = Number(r.net_payable ?? r.netPayable ?? raw.netPayable ?? 0);
+            const paid = Number(r.paid_amount ?? r.paidAmount ?? raw.paidAmount ?? 0);
+            const due = Number(r.due_amount ?? r.dueAmount ?? raw.dueAmount ?? Math.max(0, net - paid));
+            const total = Number(r.total_amount ?? r.totalAmount ?? raw.totalAmount ?? net);
+            const discount = Number(r.discount ?? raw.discount ?? 0);
+            return {
+              ...raw,
+              ...r,
+              id: invId,
+              invoiceId: invId,
+              invoice_id: invId,
+              invoiceDate: invDate,
+              invoice_date: invDate,
+              source: r.source || r.supplier || raw.source || '',
+              items: Array.isArray(items) ? items : [],
+              totalAmount: total,
+              discount: discount,
+              netPayable: net,
+              paidAmount: paid,
+              dueAmount: due,
+              billCreatedBy: r.bill_created_by || r.billCreatedBy || raw.billCreatedBy || 'Admin',
+              billPaidBy: r.bill_paid_by || r.billPaidBy || raw.billPaidBy || '',
+              receivedBy: r.received_by || r.receivedBy || raw.receivedBy || '',
+              status: r.status || raw.status || 'Saved',
+              createdDate: r.created_date || r.createdDate || raw.createdDate || invDate
+            };
+          }).filter((r: any) => r.invoiceId);
+          state.purchaseInvoices = mergeEntityList(state.purchaseInvoices, parsedPurchases, ['invoiceId', 'invoice_id', 'id']);
+        }
+
         if (repRows && repRows.length > 0) state.reports = mergeEntityList(state.reports, repRows, ['report_id', 'id']);
         if (prescRows && prescRows.length > 0) state.prescriptions = mergeEntityList(state.prescriptions, prescRows, ['id']);
         if (apptRows && apptRows.length > 0) state.appointments = mergeEntityList(state.appointments, apptRows, ['appointment_id', 'id']);
@@ -536,6 +698,11 @@ export const dbService = {
         if (Array.isArray(localState.referrars) && localState.referrars.length > 0) {
           state.referrars = mergeEntityList(state.referrars || [], localState.referrars, ['ref_id', 'referrer_id', 'id']);
         }
+        if (Array.isArray(localState.consolidatedLabEntries) && localState.consolidatedLabEntries.length > 0) {
+          state.consolidatedLabEntries = mergeEntityList(state.consolidatedLabEntries || [], localState.consolidatedLabEntries, ['id']);
+        } else if (!Array.isArray(state.consolidatedLabEntries) || state.consolidatedLabEntries.length === 0) {
+          state.consolidatedLabEntries = dbService.getConsolidatedEntries();
+        }
       }
 
       // 4. Strict Deduplication & Guaranteed Unique ID normalization for detailedExpenses
@@ -605,6 +772,118 @@ export const dbService = {
       if (!Array.isArray(state.admissions)) state.admissions = [];
       if (!Array.isArray(state.appointments)) state.appointments = [];
 
+      // Normalize purchase invoices
+      state.purchaseInvoices = state.purchaseInvoices.map((inv: any) => {
+        const invId = String(inv.invoiceId || inv.invoice_id || inv.id || '').trim();
+        const invDate = inv.invoiceDate || inv.invoice_date || inv.date || (inv.createdDate ? String(inv.createdDate).split('T')[0] : '') || '';
+        const net = Number(inv.netPayable ?? inv.net_payable ?? 0);
+        const paid = Number(inv.paidAmount ?? inv.paid_amount ?? 0);
+        const due = Number(inv.dueAmount ?? inv.due_amount ?? Math.max(0, net - paid));
+        return {
+          ...inv,
+          id: invId,
+          invoiceId: invId,
+          invoice_id: invId,
+          invoiceDate: invDate,
+          invoice_date: invDate,
+          source: inv.source || inv.supplier || '',
+          items: Array.isArray(inv.items) ? inv.items : [],
+          totalAmount: Number(inv.totalAmount ?? inv.total_amount ?? net),
+          discount: Number(inv.discount ?? 0),
+          netPayable: net,
+          paidAmount: paid,
+          dueAmount: due,
+          billCreatedBy: inv.billCreatedBy || inv.bill_created_by || 'Admin',
+          billPaidBy: inv.billPaidBy || inv.bill_paid_by || '',
+          receivedBy: inv.receivedBy || inv.received_by || '',
+          status: inv.status || 'Saved',
+          createdDate: inv.createdDate || inv.created_date || invDate
+        };
+      }).filter((inv: any) => inv.invoiceId);
+
+      // Normalize sales invoices
+      state.salesInvoices = state.salesInvoices.map((inv: any) => {
+        const invId = String(inv.invoiceId || inv.invoice_id || inv.id || '').trim();
+        const invDate = inv.invoiceDate || inv.invoice_date || inv.date || (inv.createdDate ? String(inv.createdDate).split('T')[0] : '') || '';
+        const net = Number(inv.netPayable ?? inv.net_payable ?? 0);
+        const paid = Number(inv.paidAmount ?? inv.paid_amount ?? 0);
+        const due = Number(inv.dueAmount ?? inv.due_amount ?? Math.max(0, net - paid));
+        return {
+          ...inv,
+          id: invId,
+          invoiceId: invId,
+          invoice_id: invId,
+          invoiceDate: invDate,
+          invoice_date: invDate,
+          customerName: inv.customerName || inv.customer_name || '',
+          customerMobile: inv.customerMobile || inv.customer_mobile || '',
+          customerAge: inv.customerAge || inv.customer_age || '',
+          customerGender: inv.customerGender || inv.customer_gender || '',
+          refDoctorName: inv.refDoctorName || inv.ref_doctor_name || '',
+          items: Array.isArray(inv.items) ? inv.items : [],
+          totalAmount: Number(inv.totalAmount ?? inv.total_amount ?? net),
+          discount: Number(inv.discount ?? 0),
+          netPayable: net,
+          paidAmount: paid,
+          dueAmount: due,
+          billCreatedBy: inv.billCreatedBy || inv.bill_created_by || 'Admin',
+          status: inv.status || 'Posted',
+          createdDate: inv.createdDate || inv.created_date || invDate
+        };
+      }).filter((inv: any) => inv.invoiceId);
+
+      // Normalize medicines
+      state.medicines = state.medicines.map((m: any) => {
+        const medId = String(m.id || '').trim();
+        return {
+          ...m,
+          id: medId,
+          tradeName: m.tradeName || m.trade_name || m.name || '',
+          genericName: m.genericName || m.generic_name || '',
+          formulation: m.formulation || 'Tab',
+          strength: m.strength || '',
+          unitPriceBuy: Number(m.unitPriceBuy ?? m.unit_price_buy ?? m.buy_price ?? 0),
+          unitPriceSell: Number(m.unitPriceSell ?? m.unit_price_sell ?? m.sell_price ?? 0),
+          stock: Number(m.stock ?? 0),
+          boxSize: Number(m.boxSize ?? m.box_size ?? 1),
+          supplier: m.supplier || '',
+          expiryDate: m.expiryDate || m.expiry_date || '',
+          isAntibiotic: !!(m.isAntibiotic ?? m.is_antibiotic),
+          requiresPrescription: !!(m.requiresPrescription ?? m.requires_prescription)
+        };
+      }).filter((m: any) => m.id);
+
+      // Opportunistic auto-migration check: If state has medicines or invoices, ensure they are mirrored to modular tables
+      if (supabase) {
+        setTimeout(async () => {
+          try {
+            if (state.purchaseInvoices.length > 0) {
+              await dbService.syncPurchaseInvoicesToModularTable(state.purchaseInvoices);
+            }
+            if (state.salesInvoices.length > 0) {
+              await dbService.syncSalesInvoicesToModularTable(state.salesInvoices);
+            }
+            if (state.medicines.length > 0) {
+              await dbService.syncMedicinesToModularTable(state.medicines);
+            }
+          } catch (bgErr) {
+            console.warn("Background modular sync notice:", bgErr);
+          }
+        }, 1500);
+      }
+
+      // Preserve and synchronize consolidated lab entries
+      const localConsolidated = dbService.getConsolidatedEntries();
+      if (!Array.isArray(state.consolidatedLabEntries) || state.consolidatedLabEntries.length === 0) {
+        state.consolidatedLabEntries = localConsolidated;
+      } else {
+        const mergedMap = new Map<string, DailyConsolidatedEntry>();
+        state.consolidatedLabEntries.forEach((e: DailyConsolidatedEntry) => { if (e?.id) mergedMap.set(e.id, e); });
+        localConsolidated.forEach((e: DailyConsolidatedEntry) => { if (e?.id && !mergedMap.has(e.id)) mergedMap.set(e.id, e); });
+        state.consolidatedLabEntries = Array.from(mergedMap.values());
+      }
+      dbService.saveConsolidatedEntries(state.consolidatedLabEntries);
+
       // Save fresh state to local cache
       try {
         localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(state));
@@ -640,8 +919,39 @@ export const dbService = {
       const cutoffDate = getTableSplitCutoffDate(); // '2026-08-01'
       const now = new Date().toISOString();
 
-      // 2. Direct Sync modern detailed_expenses (August 1st onwards) to modular table
-      let expenseSyncSuccess = false;
+      let modularSaveSuccess = false;
+
+      // 2a. Modular Sync for purchase_invoices
+      try {
+        if (Array.isArray(appState.purchaseInvoices) && appState.purchaseInvoices.length > 0) {
+          const purSync = await dbService.syncPurchaseInvoicesToModularTable(appState.purchaseInvoices);
+          if (purSync) modularSaveSuccess = true;
+        }
+      } catch (purErr) {
+        console.warn("Modular purchase sync notice:", purErr);
+      }
+
+      // 2b. Modular Sync for sales_invoices
+      try {
+        if (Array.isArray(appState.salesInvoices) && appState.salesInvoices.length > 0) {
+          const salSync = await dbService.syncSalesInvoicesToModularTable(appState.salesInvoices);
+          if (salSync) modularSaveSuccess = true;
+        }
+      } catch (salErr) {
+        console.warn("Modular sales sync notice:", salErr);
+      }
+
+      // 2c. Modular Sync for medicines
+      try {
+        if (Array.isArray(appState.medicines) && appState.medicines.length > 0) {
+          const medSync = await dbService.syncMedicinesToModularTable(appState.medicines);
+          if (medSync) modularSaveSuccess = true;
+        }
+      } catch (medErr) {
+        console.warn("Modular medicine sync notice:", medErr);
+      }
+
+      // 2d. Direct Sync modern detailed_expenses (August 1st onwards) to modular table
       try {
         const expenseRows: any[] = [];
         Object.entries(appState.detailedExpenses || {}).forEach(([dateKey, items]) => {
@@ -666,15 +976,13 @@ export const dbService = {
 
         if (expenseRows.length > 0) {
           const upRes = await upsertTableSafe(supabase, 'detailed_expenses', expenseRows);
-          expenseSyncSuccess = !!upRes;
-        } else {
-          expenseSyncSuccess = true;
+          if (upRes) modularSaveSuccess = true;
         }
       } catch (e) {
         console.warn("Detailed expenses modular sync warning:", e);
       }
 
-      // 3. Fast Save to Master ncd_state single table
+      // 3. Save to Master ncd_state single table (for backward compatibility and whole-state recovery)
       let masterSuccess = false;
       let masterErrorMessage = '';
       try {
@@ -697,8 +1005,8 @@ export const dbService = {
         masterErrorMessage = err?.message || 'Master table upsert failed';
       }
 
-      // If either master state OR modular table succeeded (or offline cache stored), we treat as success!
-      if (masterSuccess || expenseSyncSuccess) {
+      // If either master state OR any modular table succeeded (or offline cache stored), we treat as success!
+      if (masterSuccess || modularSaveSuccess) {
         return { success: true };
       }
 
@@ -1089,6 +1397,16 @@ export const dbService = {
   saveConsolidatedEntries: (entries: DailyConsolidatedEntry[]) => {
     try {
       localStorage.setItem('ncd_consolidated_lab_entries', JSON.stringify(entries));
+      try {
+        const cachedRaw = localStorage.getItem(LOCAL_STORAGE_KEY) || localStorage.getItem('ncd_offline_cache_v1');
+        if (cachedRaw) {
+          const cached = JSON.parse(cachedRaw);
+          cached.consolidatedLabEntries = entries;
+          cached.last_updated_at = new Date().toISOString();
+          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(cached));
+          localStorage.setItem('ncd_offline_cache_v1', JSON.stringify(cached));
+        }
+      } catch (e) {}
       return true;
     } catch (e) {
       return false;
@@ -1191,6 +1509,167 @@ export const dbService = {
         }
       })
       .subscribe();
+  },
+
+  syncPurchaseInvoicesToModularTable: async (invoices: any[]) => {
+    if (!supabase || !Array.isArray(invoices) || invoices.length === 0) return true;
+    try {
+      const now = new Date().toISOString();
+      const rows = invoices.map((inv: any) => {
+        const invId = String(inv.invoiceId || inv.invoice_id || inv.id || `PUR-${Date.now()}`).trim();
+        const invDate = inv.invoiceDate || inv.invoice_date || inv.date || (inv.createdDate ? String(inv.createdDate).split('T')[0] : '') || now.split('T')[0];
+        const net = Number(inv.netPayable ?? inv.net_payable ?? 0);
+        const paid = Number(inv.paidAmount ?? inv.paid_amount ?? 0);
+        const due = Number(inv.dueAmount ?? inv.due_amount ?? Math.max(0, net - paid));
+        const total = Number(inv.totalAmount ?? inv.total_amount ?? net);
+        const discount = Number(inv.discount ?? 0);
+        return {
+          id: invId,
+          invoice_id: invId,
+          invoice_date: invDate,
+          source: inv.source || inv.supplier || '',
+          items: Array.isArray(inv.items) ? inv.items : [],
+          total_amount: total,
+          discount: discount,
+          net_payable: net,
+          paid_amount: paid,
+          due_amount: due,
+          bill_created_by: inv.billCreatedBy || inv.bill_created_by || 'Admin',
+          bill_paid_by: inv.billPaidBy || inv.bill_paid_by || '',
+          received_by: inv.receivedBy || inv.received_by || '',
+          status: inv.status || 'Saved',
+          created_date: inv.createdDate || inv.created_date || invDate,
+          data: inv,
+          updated_at: now
+        };
+      });
+      return await upsertTableSafe(supabase, 'purchase_invoices', rows);
+    } catch (e) {
+      console.warn("syncPurchaseInvoicesToModularTable notice:", e);
+      return false;
+    }
+  },
+
+  syncSalesInvoicesToModularTable: async (invoices: any[]) => {
+    if (!supabase || !Array.isArray(invoices) || invoices.length === 0) return true;
+    try {
+      const now = new Date().toISOString();
+      const rows = invoices.map((inv: any) => {
+        const invId = String(inv.invoiceId || inv.invoice_id || inv.id || `SL-${Date.now()}`).trim();
+        const invDate = inv.invoiceDate || inv.invoice_date || inv.date || (inv.createdDate ? String(inv.createdDate).split('T')[0] : '') || now.split('T')[0];
+        const net = Number(inv.netPayable ?? inv.net_payable ?? 0);
+        const paid = Number(inv.paidAmount ?? inv.paid_amount ?? 0);
+        const due = Number(inv.dueAmount ?? inv.due_amount ?? Math.max(0, net - paid));
+        const total = Number(inv.totalAmount ?? inv.total_amount ?? net);
+        const discount = Number(inv.discount ?? 0);
+        return {
+          id: invId,
+          invoice_id: invId,
+          invoice_date: invDate,
+          customer_name: inv.customerName || inv.customer_name || '',
+          customer_mobile: inv.customerMobile || inv.customer_mobile || '',
+          customer_age: inv.customerAge || inv.customer_age || '',
+          customer_gender: inv.customerGender || inv.customer_gender || '',
+          ref_doctor_name: inv.refDoctorName || inv.ref_doctor_name || '',
+          items: Array.isArray(inv.items) ? inv.items : [],
+          total_amount: total,
+          discount: discount,
+          net_payable: net,
+          paid_amount: paid,
+          due_amount: due,
+          bill_created_by: inv.billCreatedBy || inv.bill_created_by || 'Admin',
+          status: inv.status || 'Posted',
+          created_date: inv.createdDate || inv.created_date || invDate,
+          data: inv,
+          updated_at: now
+        };
+      });
+      return await upsertTableSafe(supabase, 'sales_invoices', rows);
+    } catch (e) {
+      console.warn("syncSalesInvoicesToModularTable notice:", e);
+      return false;
+    }
+  },
+
+  syncMedicinesToModularTable: async (medicines: any[]) => {
+    if (!supabase || !Array.isArray(medicines) || medicines.length === 0) return true;
+    try {
+      const now = new Date().toISOString();
+      const rows = medicines.map((m: any) => {
+        const medId = String(m.id || `med_${Date.now()}`).trim();
+        return {
+          id: medId,
+          trade_name: m.tradeName || m.trade_name || m.name || '',
+          generic_name: m.genericName || m.generic_name || '',
+          formulation: m.formulation || 'Tab',
+          strength: m.strength || '',
+          unit_price_buy: Number(m.unitPriceBuy ?? m.unit_price_buy ?? m.buy_price ?? 0),
+          unit_price_sell: Number(m.unitPriceSell ?? m.unit_price_sell ?? m.sell_price ?? 0),
+          stock: Number(m.stock ?? 0),
+          box_size: Number(m.boxSize ?? m.box_size ?? 1),
+          supplier: m.supplier || '',
+          expiry_date: m.expiryDate || m.expiry_date || '',
+          is_antibiotic: !!(m.isAntibiotic ?? m.is_antibiotic),
+          requires_prescription: !!(m.requiresPrescription ?? m.requires_prescription),
+          data: m,
+          updated_at: now
+        };
+      });
+      return await upsertTableSafe(supabase, 'medicines', rows);
+    } catch (e) {
+      console.warn("syncMedicinesToModularTable notice:", e);
+      return false;
+    }
+  },
+
+  migrateMedicineToModularTables: async (appState?: any) => {
+    try {
+      const stateToUse = appState || await dbService.loadFromCloud();
+      const results = {
+        purchases: 0,
+        sales: 0,
+        medicines: 0,
+        success: true,
+        message: ''
+      };
+
+      if (Array.isArray(stateToUse.purchaseInvoices) && stateToUse.purchaseInvoices.length > 0) {
+        await dbService.syncPurchaseInvoicesToModularTable(stateToUse.purchaseInvoices);
+        results.purchases = stateToUse.purchaseInvoices.length;
+      }
+      if (Array.isArray(stateToUse.salesInvoices) && stateToUse.salesInvoices.length > 0) {
+        await dbService.syncSalesInvoicesToModularTable(stateToUse.salesInvoices);
+        results.sales = stateToUse.salesInvoices.length;
+      }
+      if (Array.isArray(stateToUse.medicines) && stateToUse.medicines.length > 0) {
+        await dbService.syncMedicinesToModularTable(stateToUse.medicines);
+        results.medicines = stateToUse.medicines.length;
+      }
+
+      results.message = `সফলভাবে মাইগ্রেশন সম্পন্ন: ${results.purchases}টি মেডিসিন ক্রয় (Purchase), ${results.sales}টি বিক্রয় (Sales) এবং ${results.medicines}টি ওষুধের তালিকা আলাদা টেবিলে সিঙ্ক হয়েছে।`;
+      return results;
+    } catch (err: any) {
+      return { purchases: 0, sales: 0, medicines: 0, success: false, message: `মাইগ্রেশনে ত্রুটি: ${err?.message || 'অজানা ত্রুটি'}` };
+    }
+  },
+
+  getMedicineModularStats: async () => {
+    if (!supabase) return { purchases: 0, sales: 0, medicines: 0, connected: false };
+    try {
+      const [purRes, salRes, medRes] = await Promise.all([
+        supabase.from('purchase_invoices').select('*', { count: 'exact', head: true }),
+        supabase.from('sales_invoices').select('*', { count: 'exact', head: true }),
+        supabase.from('medicines').select('*', { count: 'exact', head: true })
+      ]);
+      return {
+        purchases: purRes.count || 0,
+        sales: salRes.count || 0,
+        medicines: medRes.count || 0,
+        connected: true
+      };
+    } catch (e) {
+      return { purchases: 0, sales: 0, medicines: 0, connected: false };
+    }
   }
 };
 
@@ -1288,7 +1767,7 @@ export const defaultSMSGatewaySettings: SMSGatewaySettings = {
 export interface DailyConsolidatedEntry {
   id: string;
   date: string;
-  shift: 'Full Day' | 'Morning' | 'Evening' | 'Night';
+  shift: 'Full Day' | 'Morning' | 'Evening' | 'Night' | 'Monthly' | string;
   entryTime: string;
   operatorName: string;
   totalPatients: number;
@@ -1310,6 +1789,9 @@ export interface DailyConsolidatedEntry {
   };
   notes: string;
   createdAt: string;
+  entryType?: 'daily' | 'monthly';
+  month?: number;
+  year?: number;
 }
 
 export interface AutoBackupSettings {

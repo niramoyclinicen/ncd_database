@@ -86,4 +86,5 @@ export const DatabaseIcon = (props: any) => <Database {...props} />;
 export const RefreshIcon = (props: any) => <RefreshCw {...props} />;
 export const XIcon = (props: any) => <X {...props} />;
 export const AlertCircleIcon = (props: any) => <AlertCircle {...props} />;
-export { Pill, Search, AlertCircle };
+export const LayoutIcon = (props: any) => <ClipboardList {...props} />;
+export { Pill, Search, AlertCircle, ClipboardList };

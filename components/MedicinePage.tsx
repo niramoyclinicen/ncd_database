@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Medicine, Employee, PurchaseInvoice, InvoiceItem, Doctor, SalesInvoice, SalesItem, DrugMonograph, IndoorInvoice } from './DiagnosticData';
-import { BackIcon, MapPinIcon, PhoneIcon, MedicineIcon, FileTextIcon, Pill, SearchIcon, Activity, SaveIcon, TrashIcon, PlusIcon, TrendingDownIcon, RefreshIcon, AlertCircle } from './Icons';
+import { BackIcon, MapPinIcon, PhoneIcon, MedicineIcon, FileTextIcon, Pill, SearchIcon, Activity, SaveIcon, TrashIcon, PlusIcon, TrendingDownIcon, RefreshIcon, AlertCircle, EyeIcon, PrinterIcon, XIcon, EditIcon } from './Icons';
 import SearchableSelect from './SearchableSelect';
 
 interface MedicinePageProps {
@@ -44,11 +44,105 @@ const defaultSuppliers = [
     "Drug International", "Radiant Pharmaceuticals", "Sun Pharmaceutical", "Popular Pharmaceuticals"
 ];
 
+export const getExpiryInfo = (expiryDateStr?: string | null) => {
+  if (!expiryDateStr || typeof expiryDateStr !== 'string' || !expiryDateStr.trim()) {
+    return {
+      status: 'none' as const,
+      label: 'মেয়াদ উল্লেখ নেই',
+      shortLabel: 'N/A',
+      badgeClass: 'bg-slate-800 text-slate-400 border border-slate-700',
+      rowClass: '',
+      daysLeft: null
+    };
+  }
+
+  const clean = expiryDateStr.trim();
+  let expYear = 0;
+  let expMonth = 0; // 1-12
+  let expDay = 28;
+
+  if (clean.includes('-')) {
+    const parts = clean.split('-');
+    if (parts.length >= 2) {
+      expYear = Number(parts[0]);
+      expMonth = Number(parts[1]);
+      if (parts.length >= 3) expDay = Number(parts[2]);
+    }
+  } else if (clean.includes('/')) {
+    const parts = clean.split('/');
+    if (parts.length === 2) {
+      expMonth = Number(parts[0]);
+      expYear = Number(parts[1]);
+      if (expYear < 100) expYear += 2000;
+    }
+  }
+
+  if (!expYear || !expMonth || isNaN(expYear) || isNaN(expMonth)) {
+    return {
+      status: 'none' as const,
+      label: clean,
+      shortLabel: clean,
+      badgeClass: 'bg-slate-800 text-slate-400 border border-slate-700',
+      rowClass: '',
+      daysLeft: null
+    };
+  }
+
+  // End of that month
+  const expDateObj = new Date(expYear, expMonth, 0, 23, 59, 59);
+  const now = new Date();
+  const diffMs = expDateObj.getTime() - now.getTime();
+  const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+
+  if (diffDays < 0) {
+    return {
+      status: 'expired' as const,
+      label: `🔴 মেয়াদোত্তীর্ণ (${clean})`,
+      shortLabel: 'মেয়াদোত্তীর্ণ',
+      badgeClass: 'bg-rose-950/90 text-rose-200 border border-rose-500 font-black shadow-md shadow-rose-950/60 animate-pulse',
+      rowClass: 'bg-rose-950/40 hover:bg-rose-900/50 border-l-4 border-l-rose-500 text-rose-100',
+      daysLeft: diffDays
+    };
+  } else if (diffDays <= 90) {
+    return {
+      status: 'expiring' as const,
+      label: `🟡 মেয়াদ আসন্ন (${diffDays} দিন)`,
+      shortLabel: 'মেয়াদ আসন্ন',
+      badgeClass: 'bg-amber-950/80 text-amber-200 border border-amber-500 font-black shadow-md',
+      rowClass: 'bg-amber-950/30 hover:bg-amber-900/40 border-l-4 border-l-amber-500 text-amber-100',
+      daysLeft: diffDays
+    };
+  } else {
+    return {
+      status: 'valid' as const,
+      label: `🟢 সচল (${clean})`,
+      shortLabel: 'সচল',
+      badgeClass: 'bg-emerald-950/60 text-emerald-300 border border-emerald-600/40 font-bold',
+      rowClass: '',
+      daysLeft: diffDays
+    };
+  }
+};
+
 const MedicinePage: React.FC<MedicinePageProps> = ({ 
     onBack, medicines = [], setMedicines, clinicalDrugs = [], setClinicalDrugs, employees = [], doctors = [], invoices = [], setInvoices, purchaseInvoices = [], setPurchaseInvoices, salesInvoices = [], setSalesInvoices, indoorInvoices = [], performBlockingSync
 }) => {
-  const safeInvoices = useMemo(() => Array.isArray(invoices) && invoices.length > 0 ? invoices : (Array.isArray(purchaseInvoices) ? purchaseInvoices : []), [invoices, purchaseInvoices]);
-  const safeSetInvoices = setInvoices || setPurchaseInvoices || (() => {});
+  const safeInvoices = useMemo(() => {
+    const listA = Array.isArray(invoices) ? invoices : [];
+    const listB = Array.isArray(purchaseInvoices) ? purchaseInvoices : [];
+    if (listA.length > 0 && listB.length > 0) {
+      const map = new Map<string, any>();
+      listA.forEach(item => { if (item?.invoiceId) map.set(item.invoiceId, item); });
+      listB.forEach(item => { if (item?.invoiceId && !map.has(item.invoiceId)) map.set(item.invoiceId, item); });
+      return Array.from(map.values());
+    }
+    return listA.length > 0 ? listA : listB;
+  }, [invoices, purchaseInvoices]);
+
+  const safeSetInvoices = (newInvs: any[]) => {
+    if (setInvoices) setInvoices(newInvs);
+    if (setPurchaseInvoices) setPurchaseInvoices(newInvs);
+  };
   const safeMedicines = useMemo(() => Array.isArray(medicines) ? medicines : [], [medicines]);
   const safeSetMedicines = setMedicines || (() => {});
   const safeSalesInvoices = useMemo(() => Array.isArray(salesInvoices) ? salesInvoices : [], [salesInvoices]);
@@ -81,6 +175,7 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
 
   const [editingPurchaseId, setEditingPurchaseId] = useState<string | null>(null);
   const [isOpeningStock, setIsOpeningStock] = useState(false);
+  const [viewingPurchaseInvoice, setViewingPurchaseInvoice] = useState<PurchaseInvoice | null>(null);
 
   // Sales State Extras
   const [editingInvoiceId, setEditingInvoiceId] = useState<string | null>(null);
@@ -124,6 +219,18 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
   const [currentSalesItem, setCurrentSalesItem] = useState<Partial<SalesItem>>({ tradeName: '', genericName: '', formulation: 'Tab', strength: '', unitPriceSell: 0, qtySelling: 0, lineTotalSell: 0, stock: 0 });
   
   const [searchTerm, setSearchTerm] = useState('');
+  
+  // Purchase Search & Filter State
+  const [buySearchSupplier, setBuySearchSupplier] = useState('');
+  const [buySearchDate, setBuySearchDate] = useState('');
+  const [buySearchMonth, setBuySearchMonth] = useState<string>('all');
+  const [buySearchYear, setBuySearchYear] = useState<string>(new Date().getFullYear().toString());
+  const [buySubTab, setBuySubTab] = useState<'invoices' | 'items'>('invoices');
+
+  // Store Expiry & Search Filter State
+  const [storeSearch, setStoreSearch] = useState('');
+  const [storeFilterStatus, setStoreFilterStatus] = useState<'all' | 'expired' | 'expiring' | 'low_stock'>('all');
+
   const [sellSearchName, setSellSearchName] = useState('');
   const [sellSearchDate, setSellSearchDate] = useState('');
   const [sellSearchMonth, setSellSearchMonth] = useState<string>(new Date().getMonth().toString());
@@ -132,6 +239,156 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [supplierSuggestions, setSupplierSuggestions] = useState<string[]>([]);
   const [showSupplierSuggestions, setShowSupplierSuggestions] = useState(false);
+
+  // Filtered Purchases & Statistics Calculation
+  const filteredPurchases = useMemo(() => {
+    return safeInvoices.filter(inv => {
+      if (!inv || inv.status === 'Cancelled' || inv.status === 'Deleted') return false;
+      const invDate = inv.invoiceDate || (inv as any).date || '';
+      const q = buySearchSupplier.trim().toLowerCase();
+      const matchesSupplier = !q || 
+        (inv.source || '').toLowerCase().includes(q) || 
+        (inv.invoiceId || '').toLowerCase().includes(q) ||
+        (Array.isArray(inv.items) && inv.items.some(it => 
+          (it.tradeName || '').toLowerCase().includes(q) || 
+          (it.genericName || '').toLowerCase().includes(q)
+        ));
+      
+      const matchesDate = !buySearchDate || invDate === buySearchDate;
+      
+      let matchesMonth = true;
+      let matchesYear = true;
+      const parts = (invDate || '').split('-');
+      if (parts.length >= 2) {
+        const y = Number(parts[0]);
+        const m = Number(parts[1]);
+        matchesMonth = buySearchMonth === 'all' || (m - 1) === parseInt(buySearchMonth);
+        matchesYear = buySearchYear === 'all' || isNaN(y) ? true : y === parseInt(buySearchYear);
+      }
+      return matchesSupplier && matchesDate && matchesMonth && matchesYear;
+    });
+  }, [safeInvoices, buySearchSupplier, buySearchDate, buySearchMonth, buySearchYear]);
+
+  const purchaseStats = useMemo(() => {
+    let totalInvoices = 0;
+    let totalMedsQty = 0;
+    let totalNetBuy = 0;
+    let totalPaid = 0;
+    let totalDue = 0;
+    const uniqueMedicineSet = new Set<string>();
+
+    filteredPurchases.forEach(inv => {
+      if (inv.status === 'Initial') return;
+      totalInvoices += 1;
+      totalNetBuy += (Number(inv.netPayable) || 0);
+      totalPaid += (Number(inv.paidAmount) || 0);
+      totalDue += (Number(inv.dueAmount) || 0);
+      if (Array.isArray(inv.items)) {
+        inv.items.forEach(it => {
+          if (!it) return;
+          totalMedsQty += (Number(it.qtyBuying) || 0);
+          if (it.tradeName) uniqueMedicineSet.add(it.tradeName.trim().toLowerCase());
+        });
+      }
+    });
+
+    return {
+      totalInvoices,
+      totalMedsQty,
+      uniqueMedicines: uniqueMedicineSet.size,
+      totalNetBuy,
+      totalPaid,
+      totalDue
+    };
+  }, [filteredPurchases]);
+
+  const itemizedPurchasedMedicines = useMemo(() => {
+    const list: Array<{
+      invoiceId: string;
+      invoiceDate: string;
+      source: string;
+      tradeName: string;
+      genericName?: string;
+      formulation?: string;
+      strength?: string;
+      qty: number;
+      buyPrice: number;
+      sellPrice: number;
+      total: number;
+      expiryDate?: string;
+      status?: string;
+    }> = [];
+
+    filteredPurchases.forEach(inv => {
+      if (Array.isArray(inv.items)) {
+        inv.items.forEach(it => {
+          if (!it) return;
+          list.push({
+            invoiceId: inv.invoiceId,
+            invoiceDate: inv.invoiceDate,
+            source: inv.source,
+            tradeName: it.tradeName || 'Unnamed',
+            genericName: it.genericName,
+            formulation: it.formulation,
+            strength: it.strength,
+            qty: Number(it.qtyBuying) || 0,
+            buyPrice: Number(it.unitPriceBuy) || 0,
+            sellPrice: Number(it.unitPriceSell) || 0,
+            total: Number(it.lineTotalBuy) || ((Number(it.unitPriceBuy) || 0) * (Number(it.qtyBuying) || 0)),
+            expiryDate: it.expiryDate || '',
+            status: inv.status
+          });
+        });
+      }
+    });
+    return list;
+  }, [filteredPurchases]);
+
+  // Store Medicines with Expiry Status
+  const storeMedicinesWithExpiry = useMemo(() => {
+    return safeMedicines.map(m => {
+      const expInfo = getExpiryInfo(m?.expiryDate);
+      return {
+        ...m,
+        expInfo
+      };
+    });
+  }, [safeMedicines]);
+
+  const storeStats = useMemo(() => {
+    let totalItems = storeMedicinesWithExpiry.length;
+    let totalAssetValue = 0;
+    let expiredCount = 0;
+    let expiringCount = 0;
+    let lowStockCount = 0;
+
+    storeMedicinesWithExpiry.forEach(m => {
+      totalAssetValue += (Number(m.stock) || 0) * (Number(m.unitPriceBuy) || 0);
+      if (m.expInfo.status === 'expired') expiredCount++;
+      if (m.expInfo.status === 'expiring') expiringCount++;
+      if ((m.stock || 0) < 10) lowStockCount++;
+    });
+
+    return { totalItems, totalAssetValue, expiredCount, expiringCount, lowStockCount };
+  }, [storeMedicinesWithExpiry]);
+
+  const filteredStoreMedicines = useMemo(() => {
+    return storeMedicinesWithExpiry.filter(m => {
+      if (!m) return false;
+      const q = storeSearch.trim().toLowerCase();
+      const matchesSearch = !q || 
+        (m.tradeName || '').toLowerCase().includes(q) || 
+        (m.genericName || '').toLowerCase().includes(q) || 
+        (m.strength || '').toLowerCase().includes(q);
+
+      if (!matchesSearch) return false;
+
+      if (storeFilterStatus === 'expired') return m.expInfo.status === 'expired';
+      if (storeFilterStatus === 'expiring') return m.expInfo.status === 'expiring';
+      if (storeFilterStatus === 'low_stock') return (m.stock || 0) < 10;
+      return true;
+    });
+  }, [storeMedicinesWithExpiry, storeSearch, storeFilterStatus]);
 
   useEffect(() => { if (successMessage) { const timer = setTimeout(() => setSuccessMessage(''), 3000); return () => clearTimeout(timer); } }, [successMessage]);
   
@@ -218,7 +475,7 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
   };
 
   const selectMedicineForPurchase = (med: Medicine) => {
-      setCurrentPurchaseItem({ id: med.id, tradeName: med.tradeName, genericName: med.genericName, formulation: med.formulation, strength: med.strength, unitPriceBuy: med.unitPriceBuy, unitPriceSell: med.unitPriceSell, qtyBuying: 1, lineTotalBuy: med.unitPriceBuy, expiryDate: '' });
+      setCurrentPurchaseItem({ id: med.id, tradeName: med.tradeName, genericName: med.genericName, formulation: med.formulation, strength: med.strength, unitPriceBuy: med.unitPriceBuy, unitPriceSell: med.unitPriceSell, qtyBuying: 1, lineTotalBuy: med.unitPriceBuy, expiryDate: med.expiryDate || '' });
       setSearchTerm(med.tradeName); setSuggestions([]); setShowSuggestions(false);
   };
 
@@ -306,10 +563,11 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
           return;
       }
       
+      const isEdit = buyViewMode === 'edit';
       setConfirmModal({
           isOpen: true,
-          title: 'Confirm Purchase Save',
-          message: 'আপনি কি এই ক্রয় রশিদটি সেভ করতে চান?',
+          title: isEdit ? 'ক্রয় ইনভয়েস সংশোধন নিশ্চিতকরণ' : 'ক্রয় ইনভয়েস সংরক্ষণ নিশ্চিতকরণ',
+          message: `আপনি কি নিশ্চিতভাবে এই ক্রয় ইনভয়েসটি (${purchaseFormData.invoiceId}) ${isEdit ? 'আপডেট' : 'সেভ'} করতে চান?\n\n• সরবরাহকারী (Supplier): ${purchaseFormData.source}\n• মোট প্রদেয় বিল: ৳${(purchaseFormData.netPayable || 0).toFixed(2)}\n• পরিশোধিত টাকা: ৳${(purchaseFormData.paidAmount || 0).toFixed(2)}\n• বর্তমান বকেয়া: ৳${(purchaseFormData.dueAmount || 0).toFixed(2)}\n\n💡 এটি সংরক্ষণ করলে তালিকাভুক্ত ঔষধগুলোর স্টক স্বয়ংক্রিয়ভাবে সমন্বিত হবে এবং সাপ্লায়ার বকেয়া হিসেবে নির্ভুলভাবে যোগ হবে।`,
           onConfirm: executeSavePurchase
       });
   };
@@ -363,11 +621,17 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
               }
           });
 
+          const savedInvoice: PurchaseInvoice = {
+              ...purchaseFormData,
+              status: finalStatus as any,
+              createdDate: purchaseFormData.createdDate || new Date().toISOString()
+          };
+
           let newInvoicesArr = [...safeInvoices];
           if (buyViewMode === 'edit') {
-              newInvoicesArr = newInvoicesArr.map(inv => inv.invoiceId === editingPurchaseId ? { ...purchaseFormData, status: finalStatus as any } : inv);
+              newInvoicesArr = newInvoicesArr.map(inv => inv.invoiceId === editingPurchaseId ? savedInvoice : inv);
           } else {
-              newInvoicesArr = [ { ...purchaseFormData, status: finalStatus as any, createdDate: new Date().toISOString() }, ...newInvoicesArr ];
+              newInvoicesArr = [ savedInvoice, ...newInvoicesArr ];
           }
 
           if (performBlockingSync) {
@@ -375,18 +639,20 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
               if (success) {
                   safeSetMedicines(newMedsArr);
                   safeSetInvoices(newInvoicesArr);
-                  setSuccessMessage("ডাটা সেভ হয়েছে");
+                  setSuccessMessage("ক্রয় ইনভয়েস সফলভাবে সেভ হয়েছে!");
                   setBuyViewMode('list');
                   setEditingPurchaseId(null);
                   setIsOpeningStock(false);
+                  setViewingPurchaseInvoice(savedInvoice);
               }
           } else {
               safeSetMedicines(newMedsArr);
               safeSetInvoices(newInvoicesArr);
-              setSuccessMessage(buyViewMode === 'edit' ? "Purchase invoice updated!" : "Purchase invoice saved!");
+              setSuccessMessage(buyViewMode === 'edit' ? "ক্রয় ইনভয়েস আপডেট হয়েছে!" : "ক্রয় ইনভয়েস সফলভাবে সেভ হয়েছে!");
               setBuyViewMode('list');
               setEditingPurchaseId(null);
               setIsOpeningStock(false);
+              setViewingPurchaseInvoice(savedInvoice);
           }
       } catch (err) {
           console.error("Save error:", err);
@@ -399,8 +665,8 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
   const handleReturnPurchase = async (inv: PurchaseInvoice) => {
     setConfirmModal({
         isOpen: true,
-        title: 'Confirm Return',
-        message: `সাপ্লায়ার "${inv.source}" এর সকল ঔষধ ফেরত পাঠাতে চান? স্টক থেকে ঔষধ বিয়োগ হয়ে যাবে।`,
+        title: '⚠️ ক্রয় ইনভয়েস ফেরত/বাতিল নিশ্চিতকরণ',
+        message: `আপনি কি নিশ্চিতভাবে সরবরাহকারী "${inv.source}" এর এই ক্রয় ইনভয়েসটি (${inv.invoiceId}) ফেরত/বাতিল করতে চান?\n\n• মোট বিল: ৳${(inv.netPayable || 0).toFixed(2)}\n• পরিশোধিত ছিল: ৳${Number(inv.paidAmount || 0).toFixed(2)}\n• বকেয়া ছিল: ৳${Number(inv.dueAmount || 0).toFixed(2)}\n• ফেরতযোগ্য ঔষধ: ${(inv.items || []).length} প্রকার\n\n⚠️ সতর্কতা: এই ইনভয়েসের সকল ঔষধ ফার্মেসি স্টক থেকে স্বয়ংক্রিয়ভাবে বিয়োগ হয়ে যাবে এবং সংশ্লিষ্ট দেনা-পাওনা/বকেয়া হিসাব সমন্বয় হবে।`,
         onConfirm: () => executeReturnPurchase(inv)
     });
   };
@@ -452,10 +718,11 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
           return;
       }
       
+      const isEdit = sellViewMode === 'edit';
       setConfirmModal({
           isOpen: true,
-          title: 'Confirm Save',
-          message: 'আপনি কি এই বিক্রয় রশিদটি সেভ করতে চান?',
+          title: isEdit ? 'বিক্রয় রশিদ সংশোধন নিশ্চিতকরণ' : 'বিক্রয় রশিদ সংরক্ষণ নিশ্চিতকরণ',
+          message: `আপনি কি নিশ্চিতভাবে পেশেন্ট "${salesFormData.customerName}" এর এই বিক্রয় রশিদটি (${salesFormData.invoiceId}) ${isEdit ? 'আপডেট' : 'সেভ'} করতে চান?\n\n• মোট বিল: ৳${(salesFormData.totalAmount || 0).toFixed(2)}\n• ছাড়: ৳${(salesFormData.discount || 0).toFixed(2)}\n• সর্বমোট প্রদেয়: ৳${(salesFormData.netPayable || 0).toFixed(2)}\n• ক্যাশ আদায়: ৳${(salesFormData.paidAmount || 0).toFixed(2)}\n• বর্তমান বকেয়া: ৳${(salesFormData.dueAmount || 0).toFixed(2)}\n\n💡 তথ্য: এটি সংরক্ষণ করলে বিক্রি হওয়া পরিমাণ স্টক থেকে স্বয়ংক্রিয়ভাবে বিয়োগ হবে এবং সেলস রেভিনিউ যুক্ত হবে।`,
           onConfirm: () => executeSaveSales()
       });
   };
@@ -515,8 +782,8 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
   const handleReturnSale = (inv: SalesInvoice) => {
       setConfirmModal({
           isOpen: true,
-          title: 'Confirm Return',
-          message: `পেশেন্ট "${inv.customerName}" এর সকল ঔষধ ফেরত নিতে চান? স্টকে ঔষধ যোগ হয়ে যাবে।`,
+          title: '⚠️ বিক্রয় রশিদ ফেরত/বাতিল নিশ্চিতকরণ',
+          message: `আপনি কি নিশ্চিতভাবে পেশেন্ট "${inv.customerName}" এর বিক্রয় ইনভয়েসটি (${inv.invoiceId}) বাতিল/ফেরত নিতে চান?\n\n• মোট বিল: ৳${(inv.netPayable || 0).toFixed(2)}\n• ফেরতযোগ্য ঔষধ: ${(inv.items || []).length} প্রকার\n\n⚠️ সতর্কতা: ফেরত নেওয়া ঔষধগুলো ফার্মেসি স্টকে স্বয়ংক্রিয়ভাবে পুনরায় যোগ হবে এবং সেলস হিসাব সমন্বয় হবে।`,
           onConfirm: () => executeReturnSale(inv)
       });
   };
@@ -613,13 +880,372 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
 
   // --- PRINT FUNCTIONS ---
   const handlePrintPurchase = (inv: PurchaseInvoice) => {
-    const printContent = `<html><head><title>Purchase ${inv.invoiceId}</title><style>@page{size:A4;margin:15mm}body{font-family:sans-serif;padding:0;color:#333}table{width:100%;border-collapse:collapse;margin-top:20px}th,td{border:1px solid #ccc;padding:8px;text-align:left;font-size:12px}th{background:#f4f4f4}.header{text-align:center;border-bottom:2px solid #333;padding-bottom:10px;margin-bottom:20px}.header h1{margin:0;font-size:20px}.total-area{margin-top:20px;text-align:right;font-weight:bold;font-size:13px}</style></head><body><div class="header"><h1>Niramoy Clinic & Diagnostic</h1><p>Enayetpur, Sirajgonj | 01730 923007</p><p><b>Purchase Voucher</b></p></div><p>Invoice: ${inv.invoiceId} | Date: ${inv.invoiceDate}<br>Supplier: <b>${inv.source}</b></p><table><thead><tr><th>Item Name</th><th>Generic</th><th>Qty</th><th>Buy Price</th><th>Total</th></tr></thead><tbody>${inv.items.map(i=>`<tr><td>${i.tradeName} ${i.strength}</td><td>${i.genericName}</td><td>${i.qtyBuying}</td><td>${i.unitPriceBuy.toFixed(2)}</td><td>${i.lineTotalBuy.toFixed(2)}</td></tr>`).join('')}</tbody></table><div class="total-area"><p>Net Payable: ৳${inv.netPayable.toFixed(2)}</p><p>Paid: ৳${inv.paidAmount.toFixed(2)}</p><p>Due: ৳${inv.dueAmount.toFixed(2)}</p></div><div style="margin-top:50px;display:flex;justify-content:space-between"><div style="border-top:1px solid #000;width:150px;text-align:center;font-size:10px">Supplier Signature</div><div style="border-top:1px solid #000;width:150px;text-align:center;font-size:10px">Received By</div></div></body></html>`;
-    const win = window.open('', '_blank'); win?.document.write(printContent); win?.document.close(); win?.print();
+    const printContent = `<html><head><title>Purchase ${inv.invoiceId}</title><style>
+      @page { size: A4; margin: 12mm; }
+      body { font-family: 'Segoe UI', Arial, sans-serif; padding: 0; color: #111; margin: 0; }
+      .header { text-align: center; border-bottom: 2px solid #111; padding-bottom: 8px; margin-bottom: 16px; }
+      .header h1 { margin: 0; font-size: 22px; text-transform: uppercase; letter-spacing: 0.5px; }
+      .header p { margin: 3px 0; font-size: 12px; color: #444; font-weight: 600; }
+      .badge { display: inline-block; background: #111; color: #fff; font-size: 11px; font-weight: bold; padding: 3px 14px; border-radius: 12px; margin-top: 4px; text-transform: uppercase; }
+      .meta { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 16px; background: #f8f9fa; padding: 10px 14px; border: 1px solid #ddd; border-radius: 8px; }
+      .meta-col { line-height: 1.6; }
+      table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 11px; }
+      th, td { border: 1px solid #ccc; padding: 7px 8px; text-align: left; }
+      th { background: #eef2f7; font-weight: bold; text-transform: uppercase; font-size: 10px; }
+      .total-area { margin-top: 16px; display: flex; justify-content: space-between; align-items: flex-start; }
+      .notes { font-size: 10px; color: #666; max-width: 50%; line-height: 1.5; }
+      .totals-box { width: 240px; font-size: 12px; background: #fafafa; border: 1px solid #ddd; padding: 10px 12px; border-radius: 6px; }
+      .totals-row { display: flex; justify-content: space-between; padding: 3px 0; }
+      .totals-net { font-size: 13px; font-weight: bold; border-top: 1px solid #111; border-bottom: 1px solid #111; padding: 4px 0; margin: 4px 0; }
+      .sig-area { margin-top: 50px; display: flex; justify-content: space-between; font-size: 11px; font-weight: bold; }
+      .sig-line { border-top: 1px solid #111; width: 160px; text-align: center; padding-top: 4px; }
+    </style></head><body>
+      <div class="header">
+        <h1>Niramoy Clinic & Diagnostic</h1>
+        <p>এনায়েতপুর মন্ডলপাড়া, এনায়েতপুর, সিরাজগঞ্জ | মোবাইল: 01730 923007</p>
+        <div class="badge">ঔষধ ক্রয় রশিদ / PURCHASE VOUCHER</div>
+      </div>
+      <div class="meta">
+        <div class="meta-col">
+          <div><b>ইনভয়েস নং (Invoice #):</b> ${inv.invoiceId}</div>
+          <div><b>ক্রয় তারিখ (Date):</b> ${inv.invoiceDate}</div>
+        </div>
+        <div class="meta-col" style="text-align: right;">
+          <div><b>সরবরাহকারী (Supplier):</b> ${inv.source}</div>
+          <div><b>বিল প্রস্তুতকারক:</b> ${inv.billCreatedBy || 'Admin'}</div>
+        </div>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 25px; text-align: center;">#</th>
+            <th>ঔষধের নাম ও শক্তি (Medicine Name)</th>
+            <th>জেনেরিক (Generic)</th>
+            <th style="text-align: center;">ফর্ম</th>
+            <th style="text-align: center;">মেয়াদ (Expiry)</th>
+            <th style="text-align: center;">পরিমাণ</th>
+            <th style="text-align: right;">ক্রয়মূল্য</th>
+            <th style="text-align: right;">বিক্রয়মূল্য</th>
+            <th style="text-align: right;">মোট টাকা (৳)</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${(inv.items || []).map((i, idx) => `
+            <tr>
+              <td style="text-align: center;">${idx + 1}</td>
+              <td><b>${i.tradeName}</b> ${i.strength || ''}</td>
+              <td style="color: #555; font-style: italic;">${i.genericName || '-'}</td>
+              <td style="text-align: center; text-transform: uppercase;">${i.formulation || '-'}</td>
+              <td style="text-align: center; font-weight: bold;">${i.expiryDate || 'N/A'}</td>
+              <td style="text-align: center; font-weight: bold;">${i.qtyBuying}</td>
+              <td style="text-align: right;">৳${Number(i.unitPriceBuy || 0).toFixed(2)}</td>
+              <td style="text-align: right;">৳${Number(i.unitPriceSell || 0).toFixed(2)}</td>
+              <td style="text-align: right; font-weight: bold;">৳${Number(i.lineTotalBuy || (i.qtyBuying * i.unitPriceBuy) || 0).toFixed(2)}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+      <div class="total-area">
+        <div class="notes">
+          <p>• ঔষধ গ্রহণের সময় সিল ও মেয়াদ পরীক্ষা করে নিশ্চিত হোন।</p>
+          <p>• কম্পিউটারাইজড ক্রয় ভাউচার — নিরাময় ক্লিনিক অ্যান্ড ডায়াগনস্টিক।</p>
+        </div>
+        <div class="totals-box">
+          <div class="totals-row"><span>মোট বিল (Sub Total):</span> <span>৳${(inv.totalAmount || 0).toFixed(2)}</span></div>
+          ${Number(inv.discount || 0) > 0 ? `<div class="totals-row" style="color: green;"><span>ছাড় (Discount):</span> <span>- ৳${Number(inv.discount || 0).toFixed(2)}</span></div>` : ''}
+          <div class="totals-row totals-net"><span>সর্বমোট প্রদেয় (Net):</span> <span>৳${(inv.netPayable || 0).toFixed(2)}</span></div>
+          <div class="totals-row" style="color: #0b7285;"><span>পরিশোধিত (Paid):</span> <span>৳${Number(inv.paidAmount || 0).toFixed(2)}</span></div>
+          <div class="totals-row" style="color: #c92a2a; font-weight: bold;"><span>বকেয়া (Due):</span> <span>৳${Number(inv.dueAmount || 0).toFixed(2)}</span></div>
+        </div>
+      </div>
+      <div class="sig-area">
+        <div class="sig-line">সরবরাহকারীর স্বাক্ষর</div>
+        <div class="sig-line">গ্রহণকারীর স্বাক্ষর</div>
+      </div>
+    </body></html>`;
+    const win = window.open('', '_blank');
+    if (win) {
+      win.document.write(printContent);
+      win.document.close();
+      win.focus();
+      setTimeout(() => { win.print(); }, 250);
+    }
   };
 
   const handlePrintSale = (inv: SalesInvoice) => {
-    const printContent = `<html><head><title>Invoice ${inv.invoiceId}</title><style>@page{size:A4;margin:15mm}body{font-family:sans-serif;padding:0;color:#333}table{width:100%;border-collapse:collapse;margin-top:20px}th,td{border:1px solid #ccc;padding:10px;text-align:left;font-size:13px}th{background:#f4f4f4}.header{text-align:center;border-bottom:2px solid #333;padding-bottom:10px;margin-bottom:20px}.header h1{margin:0;font-size:24px}.total-area{margin-top:20px;text-align:right;font-weight:bold;font-size:15px}</style></head><body><div class="header"><h1>Niramoy Clinic & Diagnostic</h1><p>Enayetpur, Sirajgonj | 01730 923007</p><p>Medicine Invoice</p></div><p>Customer: <b>${inv.customerName}</b> | Mobile: ${inv.customerMobile}<br>Invoice: ${inv.invoiceId} | Date: ${inv.invoiceDate}</p><table><thead><tr><th>Item</th><th>Qty</th><th>Price</th><th>Total</th></tr></thead><tbody>${inv.items.map(i=>`<tr><td>${i.tradeName} ${i.strength}</td><td>${i.qtySelling}</td><td>${i.unitPriceSell}</td><td>${i.lineTotalSell.toFixed(2)}</td></tr>`).join('')}</tbody></table><div class="total-area"><p>Net Payable: ৳${inv.netPayable.toFixed(2)}</p></div><div style="margin-top:100px;text-align:right"><p style="border-top:1px solid #000;display:inline-block;padding:5px 20px">Authorized Signature</p></div></body></html>`;
-    const win = window.open('', '_blank'); win?.document.write(printContent); win?.document.close(); win?.print();
+    const printContent = `<html><head><title>Sale ${inv.invoiceId}</title><style>
+      @page { size: A4; margin: 12mm; }
+      body { font-family: 'Segoe UI', Arial, sans-serif; padding: 0; color: #111; margin: 0; }
+      .header { text-align: center; border-bottom: 2px solid #111; padding-bottom: 8px; margin-bottom: 16px; }
+      .header h1 { margin: 0; font-size: 22px; text-transform: uppercase; letter-spacing: 0.5px; }
+      .header p { margin: 3px 0; font-size: 12px; color: #444; font-weight: 600; }
+      .badge { display: inline-block; background: #059669; color: #fff; font-size: 11px; font-weight: bold; padding: 3px 14px; border-radius: 12px; margin-top: 4px; text-transform: uppercase; }
+      .meta { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 16px; background: #f8f9fa; padding: 10px 14px; border: 1px solid #ddd; border-radius: 8px; }
+      .meta-col { line-height: 1.6; }
+      table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 11px; }
+      th, td { border: 1px solid #ccc; padding: 7px 8px; text-align: left; }
+      th { background: #eef2f7; font-weight: bold; text-transform: uppercase; font-size: 10px; }
+      .total-area { margin-top: 16px; display: flex; justify-content: space-between; align-items: flex-start; }
+      .notes { font-size: 10px; color: #666; max-width: 50%; line-height: 1.5; }
+      .totals-box { width: 240px; font-size: 12px; background: #fafafa; border: 1px solid #ddd; padding: 10px 12px; border-radius: 6px; }
+      .totals-row { display: flex; justify-content: space-between; padding: 3px 0; }
+      .totals-net { font-size: 13px; font-weight: bold; border-top: 1px solid #111; border-bottom: 1px solid #111; padding: 4px 0; margin: 4px 0; }
+      .sig-area { margin-top: 50px; display: flex; justify-content: space-between; font-size: 11px; font-weight: bold; }
+      .sig-line { border-top: 1px solid #111; width: 160px; text-align: center; padding-top: 4px; }
+    </style></head><body>
+      <div class="header">
+        <h1>Niramoy Clinic & Diagnostic</h1>
+        <p>এনায়েতপুর মন্ডলপাড়া, এনায়েতপুর, সিরাজগঞ্জ | মোবাইল: 01730 923007</p>
+        <div class="badge">ঔষধ বিক্রয় রশিদ / CASH MEMO</div>
+      </div>
+      <div class="meta">
+        <div class="meta-col">
+          <div><b>রশিদ নং (Invoice #):</b> ${inv.invoiceId}</div>
+          <div><b>তারিখ (Date):</b> ${inv.invoiceDate}</div>
+          <div><b>রেফারার ডাক্তার:</b> ${inv.refDoctorName || 'Self / Duty Doctor'}</div>
+        </div>
+        <div class="meta-col" style="text-align: right;">
+          <div><b>পেশেন্টের নাম:</b> <b>${inv.customerName}</b></div>
+          <div><b>মোবাইল:</b> ${inv.customerMobile || '-'}</div>
+          <div><b>বিল প্রস্তুতকারক:</b> ${inv.billCreatedBy || 'Admin'}</div>
+        </div>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 25px; text-align: center;">#</th>
+            <th>ঔষধের নাম ও শক্তি (Medicine Info)</th>
+            <th>জেনেরিক (Generic)</th>
+            <th style="text-align: center;">পরিমাণ (Qty)</th>
+            <th style="text-align: right;">ইউনিট মূল্য</th>
+            <th style="text-align: right;">মোট টাকা (৳)</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${(inv.items || []).map((i, idx) => `
+            <tr>
+              <td style="text-align: center;">${idx + 1}</td>
+              <td><b>${i.tradeName}</b> ${i.strength || ''}</td>
+              <td style="color: #555; font-style: italic;">${i.genericName || '-'}</td>
+              <td style="text-align: center; font-weight: bold;">${i.qtySelling}</td>
+              <td style="text-align: right;">৳${Number(i.unitPriceSell || 0).toFixed(2)}</td>
+              <td style="text-align: right; font-weight: bold;">৳${Number(i.lineTotalSell || (i.qtySelling * i.unitPriceSell) || 0).toFixed(2)}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+      <div class="total-area">
+        <div class="notes">
+          <p>• বিক্রিত ঔষধ ফেরত নেওয়া হয় না।</p>
+          <p>• চিকিৎসকের পরামর্শ ব্যতীত ঔষধ সেবন করবেন না।</p>
+          <p>• কম্পিউটারাইজড বিক্রয় রশিদ — নিরাময় ক্লিনিক অ্যান্ড ডায়াগনস্টিক।</p>
+        </div>
+        <div class="totals-box">
+          <div class="totals-row"><span>মোট বিল (Gross Bill):</span> <span>৳${Number(inv.totalAmount || 0).toFixed(2)}</span></div>
+          ${Number(inv.discount || 0) > 0 ? `<div class="totals-row" style="color: green;"><span>ছাড় (Discount):</span> <span>- ৳${Number(inv.discount || 0).toFixed(2)}</span></div>` : ''}
+          <div class="totals-row totals-net"><span>সর্বমোট প্রদেয় (Net Bill):</span> <span>৳${Number(inv.netPayable || 0).toFixed(2)}</span></div>
+          <div class="totals-row" style="color: #0b7285;"><span>আদায়কৃত টাকা (Paid):</span> <span>৳${Number(inv.paidAmount || 0).toFixed(2)}</span></div>
+          ${Number(inv.dueAmount || 0) > 0 ? `<div class="totals-row" style="color: #c92a2a; font-weight: bold;"><span>বকেয়া (Due):</span> <span>৳${Number(inv.dueAmount || 0).toFixed(2)}</span></div>` : ''}
+        </div>
+      </div>
+      <div class="sig-area">
+        <div class="sig-line">গ্রাহকের স্বাক্ষর</div>
+        <div class="sig-line">ক্যাশিয়ারের স্বাক্ষর</div>
+      </div>
+    </body></html>`;
+    const win = window.open('', '_blank');
+    if (win) {
+      win.document.write(printContent);
+      win.document.close();
+      win.focus();
+      setTimeout(() => { win.print(); }, 250);
+    }
+  };
+
+  // --- MONTHLY LIST REPORT PRINT FUNCTIONS ---
+  const handlePrintPurchaseMonthlyReport = (invoicesToPrint: PurchaseInvoice[], periodTitle: string) => {
+    const totalBill = invoicesToPrint.reduce((acc, i) => acc + (Number(i.netPayable) || 0), 0);
+    const totalPaid = invoicesToPrint.reduce((acc, i) => acc + (Number(i.paidAmount) || 0), 0);
+    const totalDue = invoicesToPrint.reduce((acc, i) => acc + (Number(i.dueAmount) || 0), 0);
+    const totalQty = invoicesToPrint.reduce((acc, i) => acc + (Array.isArray(i.items) ? i.items.reduce((sum, item) => sum + (Number(item.qtyBuying) || 0), 0) : 0), 0);
+
+    const printContent = `<html><head><title>Purchase Report - ${periodTitle}</title><style>
+      @page { size: A4 landscape; margin: 10mm; }
+      body { font-family: 'Segoe UI', Arial, sans-serif; padding: 0; color: #111; margin: 0; }
+      .header { text-align: center; border-bottom: 2px solid #111; padding-bottom: 6px; margin-bottom: 12px; }
+      .header h1 { margin: 0; font-size: 20px; text-transform: uppercase; }
+      .header p { margin: 2px 0; font-size: 11px; color: #444; }
+      .title-banner { display: flex; justify-content: space-between; align-items: center; background: #f1f5f9; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 6px; margin-bottom: 12px; font-size: 11px; }
+      .summary-cards { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-bottom: 14px; }
+      .scard { border: 1px solid #cbd5e1; background: #f8fafc; padding: 6px 10px; border-radius: 6px; text-align: center; }
+      .scard-label { font-size: 9px; text-transform: uppercase; color: #64748b; font-weight: bold; }
+      .scard-val { font-size: 14px; font-weight: bold; margin-top: 2px; }
+      table { width: 100%; border-collapse: collapse; font-size: 10.5px; }
+      th, td { border: 1px solid #94a3b8; padding: 5px 6px; text-align: left; }
+      th { background: #e2e8f0; font-weight: bold; text-transform: uppercase; font-size: 9.5px; }
+      .sig-area { margin-top: 40px; display: flex; justify-content: space-between; font-size: 11px; font-weight: bold; }
+      .sig-line { border-top: 1px solid #111; width: 180px; text-align: center; padding-top: 4px; }
+    </style></head><body>
+      <div class="header">
+        <h1>Niramoy Clinic & Diagnostic</h1>
+        <p>এনায়েতপুর মন্ডলপাড়া, এনায়েতপুর, সিরাজগঞ্জ | মোবাইল: 01730 923007</p>
+        <div style="font-size: 13px; font-weight: bold; margin-top: 3px;">ঔষধ ক্রয় মাসিক রিপোর্ট (Medicine Purchase Monthly / Periodic Report)</div>
+      </div>
+      <div class="title-banner">
+        <div><b>সময়কাল / ফিল্টার:</b> ${periodTitle}</div>
+        <div><b>মোট ইনভয়েস:</b> ${invoicesToPrint.length} টি | <b>মোট ঔষধ:</b> ${totalQty} পিস</div>
+        <div><b>রিপোর্ট প্রিন্টের সময়:</b> ${new Date().toLocaleDateString('bn-BD')}</div>
+      </div>
+      <div class="summary-cards">
+        <div class="scard"><div class="scard-label">মোট ইনভয়েস</div><div class="scard-val">${invoicesToPrint.length} টি</div></div>
+        <div class="scard"><div class="scard-label">মোট ঔষধ ক্রয় (Qty)</div><div class="scard-val" style="color: #0284c7;">${totalQty} পিস</div></div>
+        <div class="scard"><div class="scard-label">মোট ক্রয় মূল্য</div><div class="scard-val" style="color: #b45309;">৳${totalBill.toFixed(2)}</div></div>
+        <div class="scard"><div class="scard-label">মোট পরিশোধিত</div><div class="scard-val" style="color: #16a34a;">৳${totalPaid.toFixed(2)}</div></div>
+        <div class="scard"><div class="scard-label">মোট বকেয়া (Due)</div><div class="scard-val" style="color: #dc2626;">৳${totalDue.toFixed(2)}</div></div>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 25px; text-align: center;">ক্রমিক</th>
+            <th style="width: 90px;">ইনভয়েস নং</th>
+            <th style="width: 75px;">তারিখ</th>
+            <th>সরবরাহকারী (Supplier)</th>
+            <th style="text-align: center; width: 60px;">আইটেম</th>
+            <th style="text-align: right; width: 85px;">মোট বিল (৳)</th>
+            <th style="text-align: right; width: 85px;">পরিশোধ (৳)</th>
+            <th style="text-align: right; width: 85px;">বকেয়া (৳)</th>
+            <th style="text-align: center; width: 65px;">স্ট্যাটাস</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${invoicesToPrint.map((inv, idx) => `
+            <tr>
+              <td style="text-align: center; font-weight: bold;">${idx + 1}</td>
+              <td style="font-family: monospace; font-weight: bold;">${inv.invoiceId}</td>
+              <td>${inv.invoiceDate}</td>
+              <td><b>${inv.source}</b></td>
+              <td style="text-align: center;">${Array.isArray(inv.items) ? inv.items.length : 0} টি</td>
+              <td style="text-align: right; font-weight: bold;">৳${(inv.netPayable || 0).toFixed(2)}</td>
+              <td style="text-align: right; color: #16a34a;">৳${Number(inv.paidAmount || 0).toFixed(2)}</td>
+              <td style="text-align: right; color: #dc2626; font-weight: bold;">৳${Number(inv.dueAmount || 0).toFixed(2)}</td>
+              <td style="text-align: center; font-size: 9px;">${inv.status || 'Posted'}</td>
+            </tr>
+          `).join('')}
+          <tr style="background: #e2e8f0; font-weight: bold; font-size: 11px;">
+            <td colspan="5" style="text-align: right; padding: 6px;">সর্বমোট (Grand Total):</td>
+            <td style="text-align: right;">৳${totalBill.toFixed(2)}</td>
+            <td style="text-align: right; color: #16a34a;">৳${totalPaid.toFixed(2)}</td>
+            <td style="text-align: right; color: #dc2626;">৳${totalDue.toFixed(2)}</td>
+            <td></td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="sig-area">
+        <div class="sig-line">ফার্মাসিস্ট / স্টোরকিপার</div>
+        <div class="sig-line">হিসাবরক্ষকের স্বাক্ষর</div>
+        <div class="sig-line">ম্যানেজার / পরিচালকের স্বাক্ষর</div>
+      </div>
+    </body></html>`;
+    const win = window.open('', '_blank');
+    if (win) {
+      win.document.write(printContent);
+      win.document.close();
+      win.focus();
+      setTimeout(() => { win.print(); }, 250);
+    }
+  };
+
+  const handlePrintSalesMonthlyReport = (salesToPrint: SalesInvoice[], periodTitle: string) => {
+    const totalBill = salesToPrint.reduce((acc, i) => acc + (Number(i.totalAmount) || 0), 0);
+    const totalNet = salesToPrint.reduce((acc, i) => acc + (Number(i.netPayable) || 0), 0);
+    const totalPaid = salesToPrint.reduce((acc, i) => acc + (Number(i.paidAmount) || 0), 0);
+    const totalDue = salesToPrint.reduce((acc, i) => acc + (Number(i.dueAmount) || 0), 0);
+
+    const printContent = `<html><head><title>Sales Report - ${periodTitle}</title><style>
+      @page { size: A4 landscape; margin: 10mm; }
+      body { font-family: 'Segoe UI', Arial, sans-serif; padding: 0; color: #111; margin: 0; }
+      .header { text-align: center; border-bottom: 2px solid #111; padding-bottom: 6px; margin-bottom: 12px; }
+      .header h1 { margin: 0; font-size: 20px; text-transform: uppercase; }
+      .header p { margin: 2px 0; font-size: 11px; color: #444; }
+      .title-banner { display: flex; justify-content: space-between; align-items: center; background: #f1f5f9; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 6px; margin-bottom: 12px; font-size: 11px; }
+      .summary-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 14px; }
+      .scard { border: 1px solid #cbd5e1; background: #f8fafc; padding: 6px 10px; border-radius: 6px; text-align: center; }
+      .scard-label { font-size: 9px; text-transform: uppercase; color: #64748b; font-weight: bold; }
+      .scard-val { font-size: 14px; font-weight: bold; margin-top: 2px; }
+      table { width: 100%; border-collapse: collapse; font-size: 10.5px; }
+      th, td { border: 1px solid #94a3b8; padding: 5px 6px; text-align: left; }
+      th { background: #e2e8f0; font-weight: bold; text-transform: uppercase; font-size: 9.5px; }
+      .sig-area { margin-top: 40px; display: flex; justify-content: space-between; font-size: 11px; font-weight: bold; }
+      .sig-line { border-top: 1px solid #111; width: 180px; text-align: center; padding-top: 4px; }
+    </style></head><body>
+      <div class="header">
+        <h1>Niramoy Clinic & Diagnostic</h1>
+        <p>এনায়েতপুর মন্ডলপাড়া, এনায়েতপুর, সিরাজগঞ্জ | মোবাইল: 01730 923007</p>
+        <div style="font-size: 13px; font-weight: bold; margin-top: 3px;">ঔষধ বিক্রয় মাসিক রিপোর্ট (Medicine Sales Monthly / Periodic Report)</div>
+      </div>
+      <div class="title-banner">
+        <div><b>সময়কাল / ফিল্টার:</b> ${periodTitle}</div>
+        <div><b>মোট বিক্রয় রসিদ:</b> ${salesToPrint.length} টি</div>
+        <div><b>রিপোর্ট প্রিন্টের সময়:</b> ${new Date().toLocaleDateString('bn-BD')}</div>
+      </div>
+      <div class="summary-cards">
+        <div class="scard"><div class="scard-label">মোট বিক্রয় ইনভয়েস</div><div class="scard-val">${salesToPrint.length} টি</div></div>
+        <div class="scard"><div class="scard-label">মোট নেট বিক্রয় মূল্য</div><div class="scard-val" style="color: #0284c7;">৳${totalNet.toFixed(2)}</div></div>
+        <div class="scard"><div class="scard-label">মোট ক্যাশ আদায়</div><div class="scard-val" style="color: #16a34a;">৳${totalPaid.toFixed(2)}</div></div>
+        <div class="scard"><div class="scard-label">মোট বকেয়া (Due)</div><div class="scard-val" style="color: #dc2626;">৳${totalDue.toFixed(2)}</div></div>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 25px; text-align: center;">ক্রমিক</th>
+            <th style="width: 90px;">ইনভয়েস নং</th>
+            <th style="width: 75px;">তারিখ</th>
+            <th>পেশেন্টের নাম (Customer)</th>
+            <th style="width: 85px;">মোবাইল</th>
+            <th style="text-align: center; width: 55px;">আইটেম</th>
+            <th style="text-align: right; width: 85px;">মোট বিল (৳)</th>
+            <th style="text-align: right; width: 85px;">আদায়কৃত (৳)</th>
+            <th style="text-align: right; width: 85px;">বকেয়া (৳)</th>
+            <th style="text-align: center; width: 65px;">স্ট্যাটাস</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${salesToPrint.map((inv, idx) => `
+            <tr>
+              <td style="text-align: center; font-weight: bold;">${idx + 1}</td>
+              <td style="font-family: monospace; font-weight: bold;">${inv.invoiceId}</td>
+              <td>${inv.invoiceDate}</td>
+              <td><b>${inv.customerName}</b></td>
+              <td>${inv.customerMobile || '-'}</td>
+              <td style="text-align: center;">${Array.isArray(inv.items) ? inv.items.length : 0} টি</td>
+              <td style="text-align: right; font-weight: bold;">৳${(inv.netPayable || 0).toFixed(2)}</td>
+              <td style="text-align: right; color: #16a34a;">৳${Number(inv.paidAmount || 0).toFixed(2)}</td>
+              <td style="text-align: right; color: #dc2626; font-weight: bold;">৳${Number(inv.dueAmount || 0).toFixed(2)}</td>
+              <td style="text-align: center; font-size: 9px;">${inv.status || 'Posted'}</td>
+            </tr>
+          `).join('')}
+          <tr style="background: #e2e8f0; font-weight: bold; font-size: 11px;">
+            <td colspan="6" style="text-align: right; padding: 6px;">সর্বমোট (Grand Total):</td>
+            <td style="text-align: right;">৳${totalNet.toFixed(2)}</td>
+            <td style="text-align: right; color: #16a34a;">৳${totalPaid.toFixed(2)}</td>
+            <td style="text-align: right; color: #dc2626;">৳${totalDue.toFixed(2)}</td>
+            <td></td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="sig-area">
+        <div class="sig-line">ক্যাশিয়ার / ফার্মাসিস্ট</div>
+        <div class="sig-line">হিসাবরক্ষকের স্বাক্ষর</div>
+        <div class="sig-line">ম্যানেজার / পরিচালকের স্বাক্ষর</div>
+      </div>
+    </body></html>`;
+    const win = window.open('', '_blank');
+    if (win) {
+      win.document.write(printContent);
+      win.document.close();
+      win.focus();
+      setTimeout(() => { win.print(); }, 250);
+    }
   };
 
   const handlePrintStore = () => {
@@ -641,25 +1267,33 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
               <tr class="bg-slate-100">
                 <th class="border border-slate-400 p-2">Medicine Name</th>
                 <th class="border border-slate-400 p-2">Generic Name</th>
+                <th class="border border-slate-400 p-2 text-center">Expiry Status</th>
                 <th class="border border-slate-400 p-2 text-center">Stock</th>
                 <th class="border border-slate-400 p-2 text-right">Buy Price</th>
                 <th class="border border-slate-400 p-2 text-right">Asset Value</th>
               </tr>
             </thead>
             <tbody>
-              ${safeMedicines.map(m => `
-                <tr>
+              ${safeMedicines.map(m => {
+                const exp = getExpiryInfo(m?.expiryDate);
+                const isExp = exp.status === 'expired';
+                return `
+                <tr class="${isExp ? 'bg-red-50 text-red-900 font-semibold' : ''}">
                   <td class="border border-slate-400 p-2 font-bold">${m.tradeName || ''} ${m.strength || ''}</td>
                   <td class="border border-slate-400 p-2 italic text-slate-600">${m.genericName || ''}</td>
+                  <td class="border border-slate-400 p-2 text-center ${isExp ? 'text-red-600 font-black' : ''}">
+                    ${m.expiryDate || 'N/A'} ${isExp ? ' [মেয়াদোত্তীর্ণ]' : ''}
+                  </td>
                   <td class="border border-slate-400 p-2 text-center">${m.stock || 0}</td>
                   <td class="border border-slate-400 p-2 text-right">${Number(m.unitPriceBuy || 0).toFixed(2)}</td>
                   <td class="border border-slate-400 p-2 text-right font-bold">${((m.stock || 0) * (m.unitPriceBuy || 0)).toFixed(2)}</td>
                 </tr>
-              `).join('')}
+              `;
+              }).join('')}
             </tbody>
             <tfoot>
               <tr class="bg-slate-50 font-bold">
-                <td colspan="4" class="border border-slate-400 p-2 text-right">Total Asset Value:</td>
+                <td colspan="5" class="border border-slate-400 p-2 text-right">Total Asset Value:</td>
                 <td class="border border-slate-400 p-2 text-right">৳${safeMedicines.reduce((sum, m) => sum + ((m.stock || 0) * (m.unitPriceBuy || 0)), 0).toFixed(2)}</td>
               </tr>
             </tfoot>
@@ -733,12 +1367,409 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
   };
 
   const renderBuyTab = () => {
-    if(buyViewMode === 'list') return (
-        <div className="space-y-4">
-            <div className="flex justify-between items-center"><h2 className="text-2xl font-bold text-blue-400">Purchase Invoices</h2><button onClick={() => {const newId = `PUR-${Date.now()}`; setPurchaseFormData({invoiceId: newId, invoiceDate: new Date().toISOString().split('T')[0], source: '', items: [], totalAmount: 0, discount: 0, netPayable: 0, paidAmount: 0, dueAmount: 0, billCreatedBy: 'Admin', billPaidBy: '', receivedBy: '', status: 'Saved', createdDate: ''}); setBuyViewMode('add'); setErrors({}); setIsOpeningStock(false);}} className="bg-blue-600 text-white px-6 py-2.5 rounded-lg hover:bg-blue-500 font-bold shadow-lg transition-all">+ Add New Purchase</button></div>
-            <div className="overflow-x-auto rounded-xl border border-slate-700 shadow-2xl"><table className="w-full text-left border-collapse"><thead className="bg-slate-700 text-slate-100"><tr><th className="p-4 uppercase text-xs font-black">ID</th><th className="p-4 uppercase text-xs font-black">Date</th><th className="p-4 uppercase text-xs font-black">Supplier</th><th className="p-4 text-right uppercase text-xs font-black">Net Amount</th><th className="p-4 text-right uppercase text-xs font-black">Due</th><th className="p-4 text-center uppercase text-xs font-black">Status</th><th className="p-4 text-center uppercase text-xs font-black">Actions</th></tr></thead><tbody>{safeInvoices.map(inv => (<tr key={inv.invoiceId} className={`bg-slate-800 border-b border-slate-700 hover:bg-slate-750 transition-colors ${inv.status==='Initial'?'opacity-70':''}`}><td className="p-4 text-slate-300 font-mono text-sm">{inv.invoiceId}</td><td className="p-4 text-slate-100 font-bold">{inv.invoiceDate}</td><td className="p-4 text-white font-black text-base">{inv.source}</td><td className="p-4 text-sky-400 text-right font-black">৳{(inv.netPayable || 0).toFixed(2)}</td><td className="p-4 text-red-500 text-right font-black">৳{Number(inv.dueAmount || 0).toFixed(2)}</td><td className="p-4 text-center"><span className={`text-[10px] font-black px-2 py-1 rounded ${inv.status==='Initial'?'bg-amber-600/20 text-amber-500':'bg-blue-600/20 text-blue-500'}`}>{inv.status || 'Posted'}</span></td><td className="p-4 text-center space-x-4"><button onClick={() => { setPurchaseFormData(inv); setBuyViewMode('edit'); setEditingPurchaseId(inv.invoiceId); setIsOpeningStock(inv.status === 'Initial'); setErrors({}); }} className="text-sky-400 hover:text-white text-sm font-bold underline">Edit</button><button onClick={() => handleReturnPurchase(inv)} className="text-rose-400 hover:text-rose-600 text-sm font-bold underline">Return/Del</button><button onClick={() => handlePrintPurchase(inv)} className="text-emerald-400 hover:text-white text-sm font-bold underline">Print</button></td></tr>))}</tbody></table></div>
+    if (buyViewMode === 'list') {
+      const selectedMonthLabel = buySearchMonth === 'all' 
+        ? 'সকল মাস' 
+        : (monthOptions.find(m => m.value.toString() === buySearchMonth)?.name || '');
+      const selectedYearLabel = buySearchYear === 'all' ? 'সকল বছর' : buySearchYear;
+
+      return (
+        <div className="space-y-6 animate-fade-in">
+          {/* Header & Add Button */}
+          <div className="flex flex-wrap justify-between items-center gap-4 bg-slate-800/90 p-5 rounded-2xl border border-slate-700 shadow-xl">
+            <div>
+              <h2 className="text-2xl font-black text-blue-400 uppercase tracking-tight flex items-center gap-3">
+                <span className="w-3.5 h-3.5 rounded-full bg-blue-500 animate-pulse"></span>
+                ওষুধ ক্রয় ও ইনভয়েস তালিকা (Medicine Purchases)
+              </h2>
+              <p className="text-xs text-slate-400 font-bold mt-1">
+                মাস ও বছরভিত্তিক ক্রয় হিসাব, ইনভয়েস এবং ওষুধভিত্তিক আলাদা রিপোর্ট
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => {
+                  const mLabel = buySearchMonth === 'all' ? 'সকল মাস' : (monthOptions.find(m => m.value.toString() === buySearchMonth)?.name || '');
+                  handlePrintPurchaseMonthlyReport(filteredPurchases, `${mLabel}, ${buySearchYear}${buySearchSupplier ? ` (${buySearchSupplier})` : ''}`);
+                }}
+                className="bg-slate-700 hover:bg-slate-600 text-sky-300 hover:text-white px-5 py-3 rounded-xl font-bold shadow-lg transition-all active:scale-95 flex items-center gap-2 text-sm border border-slate-600"
+                title="ফিল্টারকৃত মাসের ক্রয় তালিকা প্রিন্ট করুন"
+              >
+                <PrinterIcon className="w-5 h-5 text-sky-400" />
+                <span>মাসিক রিপোর্ট প্রিন্ট ({filteredPurchases.length})</span>
+              </button>
+              <button 
+                onClick={() => {
+                  const newId = `PUR-${Date.now()}`;
+                  setPurchaseFormData({
+                    invoiceId: newId,
+                    invoiceDate: new Date().toISOString().split('T')[0],
+                    source: '',
+                    items: [],
+                    totalAmount: 0,
+                    discount: 0,
+                    netPayable: 0,
+                    paidAmount: 0,
+                    dueAmount: 0,
+                    billCreatedBy: 'Admin',
+                    billPaidBy: '',
+                    receivedBy: '',
+                    status: 'Saved',
+                    createdDate: ''
+                  });
+                  setBuyViewMode('add');
+                  setErrors({});
+                  setIsOpeningStock(false);
+                }}
+                className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-xl font-black shadow-lg shadow-blue-900/30 transition-all active:scale-95 flex items-center gap-2 text-sm uppercase tracking-wider"
+              >
+                <PlusIcon className="w-5 h-5" /> + নতুন ক্রয় এন্ট্রি (Add Purchase)
+              </button>
+            </div>
+          </div>
+
+          {/* Filter Bar */}
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-3 bg-slate-900/70 p-4 rounded-2xl border border-slate-700 shadow-lg">
+            <div className="md:col-span-2">
+              <label className="block text-[10px] font-black text-slate-400 mb-1 uppercase tracking-wider">
+                সাপ্লায়ার / ইনভয়েস / ওষুধের নাম দিয়ে খুঁজুন
+              </label>
+              <input
+                type="text"
+                value={buySearchSupplier}
+                onChange={e => setBuySearchSupplier(e.target.value)}
+                placeholder="যেমন: Square, PUR-123, Napa..."
+                className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white text-sm font-bold placeholder-slate-500 focus:border-blue-500 outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] font-black text-slate-400 mb-1 uppercase tracking-wider">
+                নির্দিষ্ট তারিখ
+              </label>
+              <input
+                type="date"
+                value={buySearchDate}
+                onChange={e => setBuySearchDate(e.target.value)}
+                className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white text-sm font-bold focus:border-blue-500 outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] font-black text-slate-400 mb-1 uppercase tracking-wider">
+                মাস নির্বাচন (Month)
+              </label>
+              <select
+                value={buySearchMonth}
+                onChange={e => setBuySearchMonth(e.target.value)}
+                className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white text-sm font-bold focus:border-blue-500 outline-none"
+              >
+                <option value="all">📅 সকল মাস (All Months)</option>
+                {monthOptions.map(m => (
+                  <option key={m.value} value={m.value.toString()}>
+                    {m.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-[10px] font-black text-slate-400 mb-1 uppercase tracking-wider">
+                বছর নির্বাচন (Year)
+              </label>
+              <select
+                value={buySearchYear}
+                onChange={e => setBuySearchYear(e.target.value)}
+                className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white text-sm font-bold focus:border-blue-500 outline-none"
+              >
+                <option value="all">সকল বছর (All Years)</option>
+                {[2023, 2024, 2025, 2026, 2027, 2028].map(y => (
+                  <option key={y} value={y.toString()}>
+                    {y}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Monthly / Annual Summary Statistics Bar */}
+          <div className="bg-slate-900/90 p-5 rounded-2xl border border-slate-700 shadow-2xl space-y-3">
+            <div className="flex flex-wrap justify-between items-center pb-3 border-b border-slate-800">
+              <span className="text-xs font-black text-slate-300 uppercase tracking-wider flex items-center gap-2">
+                📊 ক্রয়ের হিসাব সামারি: <span className="text-blue-400">{selectedMonthLabel}, {selectedYearLabel}</span>
+              </span>
+              {(buySearchSupplier || buySearchDate || buySearchMonth !== 'all' || buySearchYear !== 'all') && (
+                <button
+                  onClick={() => {
+                    setBuySearchSupplier('');
+                    setBuySearchDate('');
+                    setBuySearchMonth('all');
+                    setBuySearchYear(new Date().getFullYear().toString());
+                  }}
+                  className="text-xs font-bold text-rose-400 hover:text-rose-300 underline"
+                >
+                  ফিল্টার রিসেট করুন
+                </button>
+              )}
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+              <div className="bg-slate-800/80 p-3.5 rounded-xl border border-slate-700">
+                <span className="text-[10px] font-black text-slate-400 uppercase block mb-1">মোট ক্রয় ইনভয়েস</span>
+                <span className="text-xl font-black text-white">{purchaseStats.totalInvoices} টি</span>
+              </div>
+              <div className="bg-slate-800/80 p-3.5 rounded-xl border border-slate-700">
+                <span className="text-[10px] font-black text-slate-400 uppercase block mb-1">মোট ওষুধ ক্রয় (Qty)</span>
+                <span className="text-xl font-black text-sky-400">
+                  {purchaseStats.totalMedsQty} <span className="text-xs font-bold text-slate-400">পিস ({purchaseStats.uniqueMedicines} প্রকার)</span>
+                </span>
+              </div>
+              <div className="bg-slate-800/80 p-3.5 rounded-xl border border-slate-700">
+                <span className="text-[10px] font-black text-slate-400 uppercase block mb-1">মোট ক্রয় মূল্য</span>
+                <span className="text-xl font-black text-amber-400">৳ {purchaseStats.totalNetBuy.toLocaleString()}</span>
+              </div>
+              <div className="bg-slate-800/80 p-3.5 rounded-xl border border-slate-700">
+                <span className="text-[10px] font-black text-slate-400 uppercase block mb-1">পরিশোধিত টাকা</span>
+                <span className="text-xl font-black text-emerald-400">৳ {purchaseStats.totalPaid.toLocaleString()}</span>
+              </div>
+              <div className="bg-slate-800/80 p-3.5 rounded-xl border border-slate-700">
+                <span className="text-[10px] font-black text-slate-400 uppercase block mb-1">মোট বকেয়া (Due)</span>
+                <span className="text-xl font-black text-rose-400">৳ {purchaseStats.totalDue.toLocaleString()}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Sub-View Switcher (Invoices vs Itemized Medicine List) */}
+          <div className="flex bg-slate-900 p-1.5 rounded-xl border border-slate-700 max-w-xl">
+            <button
+              onClick={() => setBuySubTab('invoices')}
+              className={`flex-1 py-2.5 px-4 rounded-lg font-black text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${
+                buySubTab === 'invoices' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              🧾 ইনভয়েস আকারে দেখুন ({filteredPurchases.length})
+            </button>
+            <button
+              onClick={() => setBuySubTab('items')}
+              className={`flex-1 py-2.5 px-4 rounded-lg font-black text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${
+                buySubTab === 'items' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              💊 আলাদা আলাদা ওষুধ আকারে দেখুন ({itemizedPurchasedMedicines.length})
+            </button>
+          </div>
+
+          {/* View Mode 1: Invoices View */}
+          {buySubTab === 'invoices' && (
+            <div className="space-y-3">
+              <div className="bg-sky-950/40 border border-sky-800/40 px-4 py-2.5 rounded-xl flex items-center justify-between text-xs text-sky-300">
+                <span className="flex items-center gap-2">
+                  <FileTextIcon className="w-4 h-4 text-sky-400" />
+                  💡 <b>টিপস:</b> যেকোনো ইনভয়েসের উপর <b>ডাবল-ক্লিক (Double-Click)</b> করুন অথবা <b>ভাউচার</b> বাটনে চাপলে পুরো ক্রয় রশিদ দেখতে ও প্রিন্ট করতে পারবেন।
+                </span>
+                <span className="font-mono text-slate-400 hidden sm:inline">মোট ইনভয়েস: {filteredPurchases.length} টি</span>
+              </div>
+              <div className="overflow-x-auto rounded-2xl border border-slate-700 shadow-2xl">
+                <table className="w-full text-left border-collapse">
+                  <thead className="bg-slate-700 text-slate-100">
+                    <tr>
+                      <th className="p-4 uppercase text-xs font-black text-center w-12"># ক্রমিক</th>
+                      <th className="p-4 uppercase text-xs font-black">ইনভয়েস নং</th>
+                      <th className="p-4 uppercase text-xs font-black">তারিখ</th>
+                      <th className="p-4 uppercase text-xs font-black">সাপ্লায়ার</th>
+                      <th className="p-4 uppercase text-xs font-black text-center">আইটেম সংখ্যা</th>
+                      <th className="p-4 text-right uppercase text-xs font-black">মোট বিল</th>
+                      <th className="p-4 text-right uppercase text-xs font-black">পরিশোধ</th>
+                      <th className="p-4 text-right uppercase text-xs font-black">বকেয়া</th>
+                      <th className="p-4 text-center uppercase text-xs font-black">স্ট্যাটাস</th>
+                      <th className="p-4 text-center uppercase text-xs font-black">অ্যাকশন</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-700">
+                    {filteredPurchases.map((inv, idx) => (
+                      <tr
+                        key={inv.invoiceId}
+                        onDoubleClick={() => setViewingPurchaseInvoice(inv)}
+                        title="ডাবল ক্লিক করে ইনভয়েস ভাউচার দেখুন ও প্রিন্ট করুন"
+                        className={`bg-slate-800 hover:bg-slate-750 transition-colors cursor-pointer group ${
+                          inv.status === 'Initial' ? 'opacity-75' : ''
+                        }`}
+                      >
+                        <td className="p-4 text-slate-400 font-bold text-center text-xs">
+                          {idx + 1}
+                        </td>
+                        <td className="p-4 text-sky-400 group-hover:text-white font-mono text-sm font-bold flex items-center gap-2">
+                          <EyeIcon className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 text-sky-400 transition-opacity" />
+                          {inv.invoiceId}
+                        </td>
+                        <td className="p-4 text-slate-100 font-bold">{inv.invoiceDate}</td>
+                        <td className="p-4 text-white font-black text-base">{inv.source}</td>
+                        <td className="p-4 text-center font-bold text-sky-400">
+                          {Array.isArray(inv.items) ? inv.items.length : 0} টি
+                        </td>
+                        <td className="p-4 text-sky-400 text-right font-black text-base">
+                          ৳{(inv.netPayable || 0).toFixed(2)}
+                        </td>
+                        <td className="p-4 text-emerald-400 text-right font-black">
+                          ৳{Number(inv.paidAmount || 0).toFixed(2)}
+                        </td>
+                        <td className="p-4 text-rose-500 text-right font-black text-base">
+                          ৳{Number(inv.dueAmount || 0).toFixed(2)}
+                        </td>
+                        <td className="p-4 text-center">
+                          <span
+                            className={`text-[10px] font-black px-2.5 py-1 rounded ${
+                              inv.status === 'Initial'
+                                ? 'bg-amber-600/20 text-amber-500'
+                                : 'bg-blue-600/20 text-blue-400'
+                            }`}
+                          >
+                            {inv.status || 'Posted'}
+                          </span>
+                        </td>
+                        <td className="p-4 text-center space-x-2 whitespace-nowrap">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setViewingPurchaseInvoice(inv);
+                            }}
+                            className="bg-blue-600/30 hover:bg-blue-600 text-blue-300 hover:text-white px-2.5 py-1 rounded text-xs font-bold transition-all border border-blue-500/40 inline-flex items-center gap-1"
+                            title="ইনভয়েস ভাউচার দেখুন ও প্রিন্ট করুন"
+                          >
+                            <EyeIcon className="w-3.5 h-3.5" /> ভাউচার
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setPurchaseFormData(inv);
+                              setBuyViewMode('edit');
+                              setEditingPurchaseId(inv.invoiceId);
+                              setIsOpeningStock(inv.status === 'Initial');
+                              setErrors({});
+                            }}
+                            className="text-sky-400 hover:text-white text-xs font-bold underline"
+                          >
+                            এডিট
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleReturnPurchase(inv);
+                            }}
+                            className="text-rose-400 hover:text-rose-600 text-xs font-bold underline"
+                          >
+                            ফেরত/বাতিল
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handlePrintPurchase(inv);
+                            }}
+                            className="text-emerald-400 hover:text-white text-xs font-bold underline inline-flex items-center gap-1"
+                          >
+                            <PrinterIcon className="w-3.5 h-3.5" /> প্রিন্ট
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {filteredPurchases.length === 0 && (
+                  <div className="p-16 text-center text-slate-500 font-black text-lg uppercase tracking-wider">
+                    কোনো ক্রয় ইনভয়েস পাওয়া যায়নি।
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* View Mode 2: Itemized Medicine List */}
+          {buySubTab === 'items' && (
+            <div className="space-y-3">
+              <div className="bg-emerald-950/40 border border-emerald-800/40 px-4 py-2.5 rounded-xl flex items-center justify-between text-xs text-emerald-300">
+                <span className="flex items-center gap-2">
+                  <Pill className="w-4 h-4 text-emerald-400" />
+                  💡 <b>টিপস:</b> যেকোনো ওষুধের সারিতে <b>ডাবল-ক্লিক</b> করুন অথবা <b>ভাউচার</b> বাটনে চাপলে সেটির মূল ক্রয় ইনভয়েস দেখতে ও প্রিন্ট করতে পারবেন।
+                </span>
+                <span className="font-mono text-slate-400 hidden sm:inline">মোট ওষুধ রেকর্ড: {itemizedPurchasedMedicines.length} টি</span>
+              </div>
+              <div className="overflow-x-auto rounded-2xl border border-slate-700 shadow-2xl">
+                <table className="w-full text-left border-collapse text-sm">
+                  <thead className="bg-slate-700 text-slate-100">
+                    <tr>
+                      <th className="p-4 uppercase text-xs font-black">ঔষধের নাম ও শক্তি</th>
+                      <th className="p-4 uppercase text-xs font-black">জেনেরিক</th>
+                      <th className="p-4 uppercase text-xs font-black">ফরম</th>
+                      <th className="p-4 text-center uppercase text-xs font-black">মেয়াদ (Expiry)</th>
+                      <th className="p-4 uppercase text-xs font-black">সাপ্লায়ার ও তারিখ</th>
+                      <th className="p-4 text-right uppercase text-xs font-black">ক্রয়মূল্য</th>
+                      <th className="p-4 text-right uppercase text-xs font-black">বিক্রয়মূল্য</th>
+                      <th className="p-4 text-center uppercase text-xs font-black">পরিমাণ (Qty)</th>
+                      <th className="p-4 text-right uppercase text-xs font-black">মোট খরচ</th>
+                      <th className="p-4 text-center uppercase text-xs font-black">ভাউচার</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-700">
+                    {itemizedPurchasedMedicines.map((item, idx) => {
+                      const expInfo = getExpiryInfo(item.expiryDate);
+                      const parentInv = safeInvoices.find(inv => inv.invoiceId === item.invoiceId);
+                      return (
+                        <tr
+                          key={idx}
+                          onDoubleClick={() => {
+                            if (parentInv) setViewingPurchaseInvoice(parentInv);
+                          }}
+                          title="ডাবল ক্লিক করে সম্পূর্ণ ক্রয় ভাউচার দেখুন"
+                          className={`bg-slate-800 hover:bg-slate-750 transition-colors cursor-pointer group ${expInfo.rowClass}`}
+                        >
+                          <td className="p-4 font-black text-white">
+                            {item.tradeName} <span className="text-xs font-bold text-slate-400">({item.strength})</span>
+                          </td>
+                          <td className="p-4 text-sky-400 text-xs font-bold italic">{item.genericName || '-'}</td>
+                          <td className="p-4 text-slate-300 font-bold text-xs uppercase">{item.formulation}</td>
+                          <td className="p-4 text-center whitespace-nowrap">
+                            {item.expiryDate ? (
+                              <span className={`px-2 py-0.5 rounded text-xs font-mono inline-block ${expInfo.badgeClass}`}>
+                                {item.expiryDate} {expInfo.status === 'expired' ? '⚠️' : ''}
+                              </span>
+                            ) : (
+                              <span className="text-xs text-slate-500 italic">উল্লেখ নেই</span>
+                            )}
+                          </td>
+                          <td className="p-4 text-slate-300 text-xs">
+                            <div className="font-bold text-white">{item.source}</div>
+                            <div className="text-[10px] text-slate-400 font-mono">{item.invoiceDate} ({item.invoiceId})</div>
+                          </td>
+                          <td className="p-4 text-right text-slate-300 font-bold">৳{item.buyPrice.toFixed(2)}</td>
+                          <td className="p-4 text-right text-white font-bold">৳{item.sellPrice.toFixed(2)}</td>
+                          <td className="p-4 text-center font-black text-emerald-400 text-base">{item.qty}</td>
+                          <td className="p-4 text-right font-black text-amber-400 text-base">৳{item.total.toFixed(2)}</td>
+                          <td className="p-4 text-center whitespace-nowrap">
+                            {parentInv && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setViewingPurchaseInvoice(parentInv);
+                                }}
+                                className="bg-sky-600/30 hover:bg-sky-600 text-sky-300 hover:text-white px-2.5 py-1 rounded text-xs font-bold transition-all border border-sky-500/40 inline-flex items-center gap-1"
+                                title="ইনভয়েস ভাউচার দেখুন"
+                              >
+                                <EyeIcon className="w-3.5 h-3.5" /> ভাউচার
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                {itemizedPurchasedMedicines.length === 0 && (
+                  <div className="p-16 text-center text-slate-500 font-black text-lg uppercase tracking-wider">
+                    কোনো ওষুধের তালিকা পাওয়া যায়নি।
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
-    );
+      );
+    }
     return (
         <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-2xl animate-fade-in">
             <div className="flex justify-between items-center mb-6 border-b border-slate-700 pb-2">
@@ -773,9 +1804,9 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
                         <label className="block text-[10px] font-black text-slate-500 mb-1 uppercase">Strength</label>
                         <input type="text" value={currentPurchaseItem.strength} onChange={e=>setCurrentPurchaseItem({...currentPurchaseItem, strength:e.target.value})} className="w-full bg-slate-800 border border-slate-600 rounded p-2 text-white font-black text-sm" placeholder="e.g. 500mg"/>
                     </div>
-                    <div className="w-28">
-                        <label className="block text-[10px] font-black text-slate-500 mb-1 uppercase">Expiry</label>
-                        <input type="month" value={currentPurchaseItem.expiryDate} onChange={e=>setCurrentPurchaseItem({...currentPurchaseItem, expiryDate:e.target.value})} className="w-full bg-slate-800 border border-slate-600 rounded p-2 text-white text-xs font-black" />
+                    <div className="w-32">
+                        <label className="block text-[10px] font-black text-amber-400 mb-1 uppercase">মেয়াদ (Expiry)</label>
+                        <input type="month" value={currentPurchaseItem.expiryDate} onChange={e=>setCurrentPurchaseItem({...currentPurchaseItem, expiryDate:e.target.value})} className="w-full bg-slate-800 border border-slate-600 rounded p-2 text-white text-xs font-black focus:border-amber-500 outline-none" title="ঔষধের মেয়াদ উত্তীর্ণের তারিখ" />
                     </div>
                     <div className="w-20">
                         <label className="block text-[10px] font-black text-slate-500 mb-1 uppercase">Buy_Price</label>
@@ -792,7 +1823,47 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
                     <button onClick={addPurchaseItem} className="bg-emerald-600 text-white px-4 py-2 rounded hover:bg-emerald-500 font-black shadow-lg text-sm uppercase">Add</button>
                 </div>
             </div>
-            <div className="overflow-x-auto border-2 border-slate-700 rounded-xl mb-6 shadow-xl"><table className="w-full text-left border-collapse text-sm text-slate-100"><thead className="bg-slate-700 text-white"><tr><th className="p-3 uppercase text-xs">Medicine (Trade + Generic)</th><th className="p-3 text-right uppercase text-xs">Buy P.</th><th className="p-3 text-right uppercase text-xs">Sell P.</th><th className="p-3 text-right uppercase text-xs">Qty</th><th className="p-3 text-right uppercase text-xs">Total</th><th className="p-3 text-center uppercase text-xs">X</th></tr></thead><tbody>{purchaseFormData.items.map((item, i) => (<tr key={i} className="border-b border-slate-700 bg-slate-850"><td className="p-3 font-black text-white"><div>{item.tradeName} <span className="text-xs font-bold text-slate-500">({item.strength})</span></div><div className="text-[10px] text-slate-400 italic font-bold uppercase">{item.genericName}</div></td><td className="p-3 text-right text-slate-300 font-bold">{item.unitPriceBuy.toFixed(2)}</td><td className="p-3 text-right text-slate-300 font-bold">{item.unitPriceSell.toFixed(2)}</td><td className="p-3 text-right font-black text-white">{item.qtyBuying}</td><td className="p-3 text-right font-black text-emerald-400 text-base">৳{item.lineTotalBuy.toFixed(2)}</td><td className="p-3 text-center"><button onClick={()=>removePurchaseItem(i)} className="text-red-500 font-black hover:text-white bg-slate-900 w-8 h-8 rounded-full">×</button></td></tr>))}</tbody></table></div>
+            <div className="overflow-x-auto border-2 border-slate-700 rounded-xl mb-6 shadow-xl">
+              <table className="w-full text-left border-collapse text-sm text-slate-100">
+                <thead className="bg-slate-700 text-white">
+                  <tr>
+                    <th className="p-3 uppercase text-xs">Medicine (Trade + Generic)</th>
+                    <th className="p-3 text-center uppercase text-xs">মেয়াদ (Expiry)</th>
+                    <th className="p-3 text-right uppercase text-xs">Buy P.</th>
+                    <th className="p-3 text-right uppercase text-xs">Sell P.</th>
+                    <th className="p-3 text-right uppercase text-xs">Qty</th>
+                    <th className="p-3 text-right uppercase text-xs">Total</th>
+                    <th className="p-3 text-center uppercase text-xs">X</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {purchaseFormData.items.map((item, i) => (
+                    <tr key={i} className="border-b border-slate-700 bg-slate-850">
+                      <td className="p-3 font-black text-white">
+                        <div>{item.tradeName} <span className="text-xs font-bold text-slate-500">({item.strength})</span></div>
+                        <div className="text-[10px] text-slate-400 italic font-bold uppercase">{item.genericName}</div>
+                      </td>
+                      <td className="p-3 text-center">
+                        {item.expiryDate ? (
+                          <span className="px-2 py-0.5 rounded text-xs font-mono font-bold bg-slate-900 text-amber-300 border border-amber-500/40">
+                            {item.expiryDate}
+                          </span>
+                        ) : (
+                          <span className="text-[11px] text-slate-500 italic">উল্লেখ নেই</span>
+                        )}
+                      </td>
+                      <td className="p-3 text-right text-slate-300 font-bold">{item.unitPriceBuy.toFixed(2)}</td>
+                      <td className="p-3 text-right text-slate-300 font-bold">{item.unitPriceSell.toFixed(2)}</td>
+                      <td className="p-3 text-right font-black text-white">{item.qtyBuying}</td>
+                      <td className="p-3 text-right font-black text-emerald-400 text-base">৳{item.lineTotalBuy.toFixed(2)}</td>
+                      <td className="p-3 text-center">
+                        <button onClick={()=>removePurchaseItem(i)} className="text-red-500 font-black hover:text-white bg-slate-900 w-8 h-8 rounded-full">×</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
                 <div className="p-5 bg-slate-900/50 rounded-xl border border-slate-700"><label className="block text-xs font-black text-slate-500 mb-2 uppercase">Bill Created By</label><select value={purchaseFormData.billCreatedBy} onChange={e=>setPurchaseFormData({...purchaseFormData, billCreatedBy:e.target.value})} className="w-full bg-slate-800 border border-slate-600 rounded p-3 text-white font-black"><option value="Admin">Admin</option>{employees.map(e=><option key={e.emp_id} value={e.emp_name}>{e.emp_name}</option>)}</select></div>
                 <div className="bg-slate-900 p-6 rounded-2xl border-2 border-slate-700 space-y-4 shadow-2xl">
@@ -804,6 +1875,76 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
                 </div>
             </div>
             <div className="mt-8 flex justify-end gap-4"><button onClick={()=>{setBuyViewMode('list'); setEditingPurchaseId(null); setIsOpeningStock(false); setErrors({});}} className="px-8 py-3 bg-slate-700 text-white rounded-lg font-black hover:bg-slate-600 transition-all">Discard</button><button onClick={handleSavePurchase} className="px-16 py-3 bg-blue-600 text-white rounded-lg font-black shadow-2xl hover:bg-blue-500 transform active:scale-95 transition-all uppercase tracking-widest">Post Invoice</button></div>
+
+            {/* Recent Saved Invoices List directly under the purchase entry form */}
+            {safeInvoices.length > 0 && (
+              <div className="mt-12 pt-8 border-t border-slate-700 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-lg font-black text-white flex items-center gap-2">
+                      <FileTextIcon className="w-5 h-5 text-sky-400" />
+                      সংরক্ষিত ক্রয় ইনভয়েসসমূহ (Saved Invoices)
+                    </h3>
+                    <p className="text-xs text-slate-400 mt-0.5">💡 যেকোনো ইনভয়েসের উপর <b>ডাবল-ক্লিক (Double-Click)</b> করুন অথবা <b>ভাউচার</b> বাটনে ক্লিক করে ভাউচার দেখুন ও প্রিন্ট করুন।</p>
+                  </div>
+                  <button
+                    onClick={() => { setBuyViewMode('list'); setEditingPurchaseId(null); }}
+                    className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-xs font-bold text-white rounded-xl transition-all self-start sm:self-auto shrink-0 border border-slate-600"
+                  >
+                    সকল ইনভয়েস তালিকা দেখুন →
+                  </button>
+                </div>
+                <div className="overflow-x-auto rounded-xl border border-slate-700 shadow-xl max-h-96">
+                  <table className="w-full text-left border-collapse text-sm">
+                    <thead className="bg-slate-700 text-slate-200 sticky top-0 z-10">
+                      <tr>
+                        <th className="p-3 uppercase text-xs font-bold">ইনভয়েস নং</th>
+                        <th className="p-3 uppercase text-xs font-bold">তারিখ</th>
+                        <th className="p-3 uppercase text-xs font-bold">সাপ্লায়ার</th>
+                        <th className="p-3 text-center uppercase text-xs font-bold">আইটেম সংখ্যা</th>
+                        <th className="p-3 text-right uppercase text-xs font-bold">মোট বিল</th>
+                        <th className="p-3 text-right uppercase text-xs font-bold">পরিশোধ</th>
+                        <th className="p-3 text-right uppercase text-xs font-bold">বকেয়া</th>
+                        <th className="p-3 text-center uppercase text-xs font-bold">অ্যাকশন</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-700">
+                      {safeInvoices.slice(0, 10).map(inv => (
+                        <tr
+                          key={inv.invoiceId}
+                          onDoubleClick={() => setViewingPurchaseInvoice(inv)}
+                          title="ডাবল ক্লিক করে সম্পূর্ণ ভাউচার দেখুন ও প্রিন্ট করুন"
+                          className="bg-slate-800 hover:bg-slate-750 transition-colors cursor-pointer group"
+                        >
+                          <td className="p-3 font-mono text-sky-400 group-hover:text-white font-bold">{inv.invoiceId}</td>
+                          <td className="p-3 text-slate-200 font-bold">{inv.invoiceDate}</td>
+                          <td className="p-3 text-white font-black">{inv.source}</td>
+                          <td className="p-3 text-center text-sky-400 font-bold">{Array.isArray(inv.items) ? inv.items.length : 0} টি</td>
+                          <td className="p-3 text-right font-black text-sky-400">৳{(inv.netPayable || 0).toFixed(2)}</td>
+                          <td className="p-3 text-right font-black text-emerald-400">৳{Number(inv.paidAmount || 0).toFixed(2)}</td>
+                          <td className="p-3 text-right font-black text-rose-400">৳{Number(inv.dueAmount || 0).toFixed(2)}</td>
+                          <td className="p-3 text-center space-x-2 whitespace-nowrap">
+                            <button
+                              onClick={() => setViewingPurchaseInvoice(inv)}
+                              className="bg-blue-600/30 hover:bg-blue-600 text-blue-300 hover:text-white px-2.5 py-1 rounded text-xs font-bold transition-all border border-blue-500/40 inline-flex items-center gap-1"
+                              title="ইনভয়েস ভাউচার দেখুন ও প্রিন্ট করুন"
+                            >
+                              <EyeIcon className="w-3.5 h-3.5" /> ভাউচার
+                            </button>
+                            <button
+                              onClick={() => handlePrintPurchase(inv)}
+                              className="text-emerald-400 hover:text-white text-xs font-bold underline inline-flex items-center gap-1"
+                            >
+                              <PrinterIcon className="w-3.5 h-3.5" /> প্রিন্ট
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
         </div>
     );
   };
@@ -915,8 +2056,90 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
 
             {sellSubTab === 'outdoor' ? (
                 <>
-                    <div className="flex justify-between items-center border-b border-slate-700 pb-3"><h2 className="text-xl font-bold text-emerald-400 flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-emerald-400"></span> Direct Outdoor Sales (৳{totalOutdoor.toLocaleString()})</h2><button onClick={() => {const newId = `SL-${Date.now()}`; setSalesFormData({invoiceId: newId, invoiceDate: new Date().toISOString().split('T')[0], customerName: '', customerMobile: '', customerAge: '', customerGender: '', refDoctorName: '', items: [], totalAmount: 0, discount: 0, netPayable: 0, paidAmount: 0, dueAmount: 0, billCreatedBy: 'Admin', status: 'Saved', createdDate: ''}); setSellViewMode('add'); setErrors({}); setEditingInvoiceId(null);}} className="bg-emerald-600 text-white px-8 py-2 rounded-lg hover:bg-emerald-500 font-black shadow-2xl transition-all">+ New Sale</button></div>
-                    <div className="overflow-x-auto rounded-2xl border border-slate-700 shadow-2xl"><table className="w-full text-left border-collapse text-sm"><thead className="bg-slate-700 text-slate-100"><tr><th className="p-4 font-black">ID & Date</th><th className="p-4 font-black">Customer Name</th><th className="p-4 text-right font-black">Net Amount</th><th className="p-4 text-center font-black">Action</th></tr></thead><tbody>{filteredOutdoor.map(inv => (<tr key={inv.invoiceId} onClick={() => handlePrintSale(inv)} className={`bg-slate-800 border-b border-slate-700 hover:bg-slate-750 transition-colors cursor-pointer group ${inv.status === 'Cancelled' ? 'opacity-40 grayscale' : ''}`}><td className="p-4 text-slate-300 font-mono text-xs group-hover:text-emerald-400 transition-colors underline"><div>{inv.invoiceId}</div><div className="text-[10px] text-slate-500 font-bold">{inv.invoiceDate}</div></td><td className="p-4 text-white font-black">{inv.customerName} {inv.status === 'Cancelled' && <span className="text-[10px] bg-red-600 text-white px-1 rounded ml-2">CANCELLED</span>}</td><td className="p-4 text-emerald-400 text-right font-black">৳{inv.status === 'Cancelled' ? '0.00' : inv.netPayable.toFixed(2)}</td><td className="p-4 text-center space-x-2" onClick={e=>e.stopPropagation()}><button onClick={() => handlePrintSale(inv)} className="text-sky-400 hover:text-white font-black uppercase text-[10px] border border-sky-800 px-3 py-1 rounded">Voucher</button><button onClick={() => startEditSale(inv)} className="text-amber-400 hover:text-white font-black uppercase text-[10px] border border-amber-800 px-3 py-1 rounded">Correct</button><button onClick={() => handleReturnSale(inv)} className="bg-rose-900/50 text-rose-400 hover:bg-rose-600 hover:text-white font-black uppercase text-[10px] border border-rose-800 px-3 py-1 rounded transition-all">Return</button></td></tr>))}</tbody></table>{filteredOutdoor.length === 0 && <div className="p-16 text-center text-slate-600 italic">No outdoor sales records found.</div>}</div>
+                    <div className="flex flex-wrap justify-between items-center gap-3 border-b border-slate-700 pb-3">
+                        <h2 className="text-xl font-bold text-emerald-400 flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-emerald-400"></span> 
+                            Direct Outdoor Sales (৳{totalOutdoor.toLocaleString()})
+                        </h2>
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={() => {
+                                    const monthName = sellSearchMonth === 'all' ? 'সকল মাস' : (monthOptions.find(m => m.value.toString() === sellSearchMonth)?.name || '');
+                                    handlePrintSalesMonthlyReport(filteredOutdoor, `${monthName}, ${sellSearchYear}${sellSearchName ? ` (${sellSearchName})` : ''}`);
+                                }}
+                                className="bg-slate-700 hover:bg-slate-600 text-emerald-300 hover:text-white px-5 py-2 rounded-lg font-bold shadow-lg transition-all active:scale-95 flex items-center gap-2 text-xs border border-slate-600"
+                                title="ফিল্টারকৃত মাসের বিক্রয় রিপোর্ট প্রিন্ট করুন"
+                            >
+                                <PrinterIcon className="w-4 h-4 text-emerald-400" />
+                                <span>মাসিক রিপোর্ট প্রিন্ট ({filteredOutdoor.length})</span>
+                            </button>
+                            <button 
+                                onClick={() => {
+                                    const newId = `SL-${Date.now()}`; 
+                                    setSalesFormData({invoiceId: newId, invoiceDate: new Date().toISOString().split('T')[0], customerName: '', customerMobile: '', customerAge: '', customerGender: '', refDoctorName: '', items: [], totalAmount: 0, discount: 0, netPayable: 0, paidAmount: 0, dueAmount: 0, billCreatedBy: 'Admin', status: 'Saved', createdDate: ''}); 
+                                    setSellViewMode('add'); 
+                                    setErrors({}); 
+                                    setEditingInvoiceId(null);
+                                }} 
+                                className="bg-emerald-600 text-white px-6 py-2 rounded-lg hover:bg-emerald-500 font-black shadow-2xl transition-all flex items-center gap-1.5 text-xs"
+                            >
+                                <PlusIcon className="w-4 h-4" /> + New Sale
+                            </button>
+                        </div>
+                    </div>
+                    <div className="overflow-x-auto rounded-2xl border border-slate-700 shadow-2xl">
+                        <table className="w-full text-left border-collapse text-sm">
+                            <thead className="bg-slate-700 text-slate-100">
+                                <tr>
+                                    <th className="p-4 font-black text-center w-12 text-xs"># ক্রমিক</th>
+                                    <th className="p-4 font-black text-xs">ID & Date</th>
+                                    <th className="p-4 font-black text-xs">Customer Name</th>
+                                    <th className="p-4 font-black text-center text-xs">আইটেম সংখ্যা</th>
+                                    <th className="p-4 text-right font-black text-xs">Net Amount</th>
+                                    <th className="p-4 text-right font-black text-xs">পরিশোধ / বকেয়া</th>
+                                    <th className="p-4 text-center font-black text-xs">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {filteredOutdoor.map((inv, idx) => (
+                                    <tr 
+                                        key={inv.invoiceId} 
+                                        onClick={() => handlePrintSale(inv)} 
+                                        title="ক্লিক করে বিক্রয় ভাউচার দেখুন ও প্রিন্ট করুন"
+                                        className={`bg-slate-800 border-b border-slate-700 hover:bg-slate-750 transition-colors cursor-pointer group ${inv.status === 'Cancelled' ? 'opacity-40 grayscale' : ''}`}
+                                    >
+                                        <td className="p-4 text-slate-400 font-bold text-center text-xs">
+                                            {idx + 1}
+                                        </td>
+                                        <td className="p-4 text-slate-300 font-mono text-xs group-hover:text-emerald-400 transition-colors underline">
+                                            <div>{inv.invoiceId}</div>
+                                            <div className="text-[10px] text-slate-500 font-bold">{inv.invoiceDate}</div>
+                                        </td>
+                                        <td className="p-4 text-white font-black">
+                                            <div>{inv.customerName} {inv.status === 'Cancelled' && <span className="text-[10px] bg-red-600 text-white px-1 rounded ml-2">CANCELLED</span>}</div>
+                                            {inv.customerMobile && <div className="text-[11px] text-slate-400 font-mono">{inv.customerMobile}</div>}
+                                        </td>
+                                        <td className="p-4 text-center font-bold text-slate-300 text-xs">
+                                            {Array.isArray(inv.items) ? inv.items.length : 0} টি
+                                        </td>
+                                        <td className="p-4 text-emerald-400 text-right font-black">
+                                            ৳{inv.status === 'Cancelled' ? '0.00' : inv.netPayable.toFixed(2)}
+                                        </td>
+                                        <td className="p-4 text-right text-xs">
+                                            <div className="text-emerald-400 font-bold">আদায়: ৳{Number(inv.paidAmount || 0).toFixed(2)}</div>
+                                            {Number(inv.dueAmount || 0) > 0 && <div className="text-rose-400 font-bold">বকেয়া: ৳{Number(inv.dueAmount || 0).toFixed(2)}</div>}
+                                        </td>
+                                        <td className="p-4 text-center space-x-2" onClick={e=>e.stopPropagation()}>
+                                            <button onClick={() => handlePrintSale(inv)} className="text-sky-400 hover:text-white font-black uppercase text-[10px] border border-sky-800 px-3 py-1 rounded">Voucher</button>
+                                            <button onClick={() => startEditSale(inv)} className="text-amber-400 hover:text-white font-black uppercase text-[10px] border border-amber-800 px-3 py-1 rounded">Correct</button>
+                                            <button onClick={() => handleReturnSale(inv)} className="bg-rose-900/50 text-rose-400 hover:bg-rose-600 hover:text-white font-black uppercase text-[10px] border border-rose-800 px-3 py-1 rounded transition-all">Return</button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                        {filteredOutdoor.length === 0 && <div className="p-16 text-center text-slate-600 italic">No outdoor sales records found.</div>}
+                    </div>
                 </>
             ) : (
                 <>
@@ -986,8 +2209,245 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
   const renderStoreTab = () => {
       return (
           <div className="space-y-6 animate-fade-in">
-              <div className="flex justify-between items-center border-b border-slate-700 pb-3"><h2 className="text-2xl font-black text-purple-400 flex items-center gap-2 uppercase tracking-tighter"><span className="w-3 h-3 bg-purple-500 rounded-full"></span> Live Stock Inventory</h2><button onClick={handlePrintStore} className="bg-purple-600 hover:bg-purple-500 text-white px-6 py-2 rounded-lg font-bold flex items-center gap-2 shadow-lg transition-all active:scale-95"><FileTextIcon className="w-4 h-4"/> Print Stock List</button></div>
-              <div className="overflow-x-auto rounded-2xl border border-slate-700 shadow-2xl"><table className="w-full text-left border-collapse text-sm"><thead className="bg-slate-700 text-slate-100"><tr><th className="p-4 uppercase text-xs font-black tracking-widest">Brand Name</th><th className="p-4 uppercase text-xs font-black tracking-widest">Generic</th><th className="p-4 uppercase text-xs font-black tracking-widest">Form</th><th className="p-4 text-right uppercase text-xs font-black tracking-widest">Expiry</th><th className="p-4 text-right uppercase text-xs font-black tracking-widest">Buy P.</th><th className="p-4 text-right uppercase text-xs font-black tracking-widest">Sell P.</th><th className="p-4 text-center uppercase text-xs font-black tracking-widest">Stock</th><th className="p-4 text-right uppercase text-xs font-black tracking-widest">Asset Value</th><th className="p-4 text-center uppercase text-xs font-black tracking-widest">Adjust</th></tr></thead><tbody className="divide-y divide-slate-700">{(Array.isArray(medicines) ? medicines : []).map((m, i) => { if(!m) return null; return (<tr key={i} className="bg-slate-800 hover:bg-slate-750 transition-colors"><td className="p-4 font-black text-white text-base">{m.tradeName} <span className="text-xs font-bold text-slate-500">{m.strength}</span></td><td className="p-4 text-sky-400 text-sm font-bold italic">{m.genericName}</td><td className="p-4 text-slate-400 text-sm font-bold uppercase">{m.formulation}</td><td className="p-4 text-right text-xs font-mono">{m.expiryDate || 'N/A'}</td><td className="p-4 text-right text-slate-300 font-bold">৳{(m.unitPriceBuy || 0).toFixed(2)}</td><td className="p-4 text-right text-white font-black">৳{Number(m.unitPriceSell || 0).toFixed(2)}</td><td className={`p-4 text-center font-black text-xl ${m.stock < 10 ? 'text-red-500 animate-pulse' : 'text-emerald-400'}`}>{m.stock}</td><td className="p-4 text-right text-slate-400 font-bold">৳{(m.stock * (m.unitPriceBuy || 0)).toFixed(2)}</td><td className="p-4 text-center"><button onClick={() => { setAdjustmentData({ medicineId: m.id, tradeName: m.tradeName, genericName: m.genericName, strength: m.strength, formulation: m.formulation, currentStock: m.stock, adjustmentType: 'add', adjustmentQty: '', newSellingPrice: (m.unitPriceSell || 0).toString() }); setShowAdjustmentModal(true); }} className="bg-slate-900 hover:bg-slate-700 text-purple-400 p-2 rounded-lg border border-purple-900/50 transition-all"><RefreshIcon className="w-4 h-4"/></button></td></tr>); })}</tbody></table></div>
+              {/* Header */}
+              <div className="flex flex-wrap justify-between items-center gap-4 border-b border-slate-700 pb-3">
+                  <div>
+                    <h2 className="text-2xl font-black text-purple-400 flex items-center gap-2 uppercase tracking-tighter">
+                      <span className="w-3.5 h-3.5 bg-purple-500 rounded-full animate-pulse"></span>
+                      লাইভ মেডিসিন স্টক ও মেয়াদ ট্র্যাকিং (Live Stock Inventory)
+                    </h2>
+                    <p className="text-xs text-slate-400 font-bold mt-0.5">
+                      ওষুধের স্টক, মেয়াদ উত্তীর্ণের সংকেত এবং ইনভেন্টরি এসেট পর্যবেক্ষণ
+                    </p>
+                  </div>
+                  <button 
+                    onClick={handlePrintStore} 
+                    className="bg-purple-600 hover:bg-purple-500 text-white px-6 py-2.5 rounded-xl font-bold flex items-center gap-2 shadow-lg transition-all active:scale-95 text-sm"
+                  >
+                    <FileTextIcon className="w-4 h-4"/> প্রিন্ট স্টক তালিকা (Print)
+                  </button>
+              </div>
+
+              {/* Live Inventory & Expiry Metrics Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                  <div className="bg-slate-800/90 p-4 rounded-2xl border border-slate-700 shadow-xl">
+                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">মোট ওষুধ প্রজাতি</span>
+                      <span className="text-2xl font-black text-white">{storeStats.totalItems} টি</span>
+                  </div>
+                  <div className="bg-slate-800/90 p-4 rounded-2xl border border-slate-700 shadow-xl">
+                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">মোট ইনভেন্টরি এসেট</span>
+                      <span className="text-2xl font-black text-emerald-400">৳ {storeStats.totalAssetValue.toLocaleString()}</span>
+                  </div>
+                  <div 
+                    onClick={() => setStoreFilterStatus('expired')} 
+                    className={`p-4 rounded-2xl border shadow-xl cursor-pointer transition-all ${
+                      storeFilterStatus === 'expired' 
+                        ? 'bg-rose-950/80 border-rose-500 ring-2 ring-rose-500' 
+                        : 'bg-rose-950/40 border-rose-900/60 hover:bg-rose-950/60'
+                    }`}
+                  >
+                      <span className="text-[10px] font-black text-rose-300 uppercase tracking-wider block mb-1 flex items-center gap-1">
+                        🔴 মেয়াদোত্তীর্ণ ওষুধ
+                      </span>
+                      <span className="text-2xl font-black text-rose-400 flex items-center gap-2">
+                        {storeStats.expiredCount} টি
+                        {storeStats.expiredCount > 0 && <span className="text-xs bg-rose-600 text-white px-2 py-0.5 rounded-full animate-bounce">সতর্কতা!</span>}
+                      </span>
+                  </div>
+                  <div 
+                    onClick={() => setStoreFilterStatus('expiring')} 
+                    className={`p-4 rounded-2xl border shadow-xl cursor-pointer transition-all ${
+                      storeFilterStatus === 'expiring' 
+                        ? 'bg-amber-950/80 border-amber-500 ring-2 ring-amber-500' 
+                        : 'bg-amber-950/40 border-amber-900/60 hover:bg-amber-950/60'
+                    }`}
+                  >
+                      <span className="text-[10px] font-black text-amber-300 uppercase tracking-wider block mb-1">
+                        🟡 মেয়াদ শেষ হতে চলেছে (&lt;3 মাস)
+                      </span>
+                      <span className="text-2xl font-black text-amber-400">
+                        {storeStats.expiringCount} টি
+                      </span>
+                  </div>
+                  <div 
+                    onClick={() => setStoreFilterStatus('low_stock')} 
+                    className={`p-4 rounded-2xl border shadow-xl cursor-pointer transition-all ${
+                      storeFilterStatus === 'low_stock' 
+                        ? 'bg-orange-950/80 border-orange-500 ring-2 ring-orange-500' 
+                        : 'bg-orange-950/40 border-orange-900/60 hover:bg-orange-950/60'
+                    }`}
+                  >
+                      <span className="text-[10px] font-black text-orange-300 uppercase tracking-wider block mb-1">
+                        ⚠️ স্টক স্বল্পতা (&lt;10 পিস)
+                      </span>
+                      <span className="text-2xl font-black text-orange-400">
+                        {storeStats.lowStockCount} টি
+                      </span>
+                  </div>
+              </div>
+
+              {/* Filters & Search Bar */}
+              <div className="flex flex-wrap items-center justify-between gap-4 bg-slate-900/70 p-4 rounded-2xl border border-slate-700 shadow-lg">
+                  <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        onClick={() => setStoreFilterStatus('all')}
+                        className={`px-4 py-2 rounded-xl text-xs font-black uppercase transition-all ${
+                          storeFilterStatus === 'all'
+                            ? 'bg-purple-600 text-white shadow-lg'
+                            : 'bg-slate-800 text-slate-400 hover:text-white border border-slate-700'
+                        }`}
+                      >
+                        সকল ওষুধ ({storeStats.totalItems})
+                      </button>
+                      <button
+                        onClick={() => setStoreFilterStatus('expired')}
+                        className={`px-4 py-2 rounded-xl text-xs font-black uppercase transition-all flex items-center gap-1.5 ${
+                          storeFilterStatus === 'expired'
+                            ? 'bg-rose-600 text-white shadow-lg shadow-rose-900/50 ring-2 ring-rose-400'
+                            : 'bg-slate-800 text-rose-400 hover:text-white border border-rose-900/60'
+                        }`}
+                      >
+                        <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping"></span>
+                        🔴 মেয়াদ উত্তীর্ণ ({storeStats.expiredCount})
+                      </button>
+                      <button
+                        onClick={() => setStoreFilterStatus('expiring')}
+                        className={`px-4 py-2 rounded-xl text-xs font-black uppercase transition-all ${
+                          storeFilterStatus === 'expiring'
+                            ? 'bg-amber-600 text-white shadow-lg ring-2 ring-amber-400'
+                            : 'bg-slate-800 text-amber-400 hover:text-white border border-amber-900/60'
+                        }`}
+                      >
+                        🟡 মেয়াদ শেষ হবে শীঘ্রই ({storeStats.expiringCount})
+                      </button>
+                      <button
+                        onClick={() => setStoreFilterStatus('low_stock')}
+                        className={`px-4 py-2 rounded-xl text-xs font-black uppercase transition-all ${
+                          storeFilterStatus === 'low_stock'
+                            ? 'bg-orange-600 text-white shadow-lg'
+                            : 'bg-slate-800 text-orange-400 hover:text-white border border-slate-700'
+                        }`}
+                      >
+                        ⚠️ লো স্টক ({storeStats.lowStockCount})
+                      </button>
+                  </div>
+
+                  <div className="relative w-full sm:w-80">
+                      <input
+                        type="text"
+                        placeholder="ব্র্যান্ড বা জেনেরিক দিয়ে খুঁজুন..."
+                        value={storeSearch}
+                        onChange={e => setStoreSearch(e.target.value)}
+                        className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:border-purple-500 outline-none shadow-inner font-bold"
+                      />
+                      {storeSearch && (
+                        <button
+                          onClick={() => setStoreSearch('')}
+                          className="absolute right-3 top-2.5 text-xs text-slate-400 hover:text-white"
+                        >
+                          ✕
+                        </button>
+                      )}
+                  </div>
+              </div>
+
+              {/* Live Inventory Table */}
+              <div className="overflow-x-auto rounded-2xl border border-slate-700 shadow-2xl">
+                  <table className="w-full text-left border-collapse text-sm">
+                      <thead className="bg-slate-700 text-slate-100">
+                          <tr>
+                              <th className="p-4 uppercase text-xs font-black tracking-wider">Brand Name</th>
+                              <th className="p-4 uppercase text-xs font-black tracking-wider">Generic Formula</th>
+                              <th className="p-4 uppercase text-xs font-black tracking-wider">Form</th>
+                              <th className="p-4 text-center uppercase text-xs font-black tracking-wider">মেয়াদ (Expiry Status)</th>
+                              <th className="p-4 text-right uppercase text-xs font-black tracking-wider">Buy P.</th>
+                              <th className="p-4 text-right uppercase text-xs font-black tracking-wider">Sell P.</th>
+                              <th className="p-4 text-center uppercase text-xs font-black tracking-wider">Stock</th>
+                              <th className="p-4 text-right uppercase text-xs font-black tracking-wider">Asset Value</th>
+                              <th className="p-4 text-center uppercase text-xs font-black tracking-wider">Adjust</th>
+                          </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-700/60">
+                          {filteredStoreMedicines.map((m, i) => {
+                              if (!m) return null;
+                              const isExp = m.expInfo.status === 'expired';
+                              const isExpiring = m.expInfo.status === 'expiring';
+                              return (
+                                  <tr 
+                                    key={m.id || i} 
+                                    className={`transition-colors ${m.expInfo.rowClass}`}
+                                  >
+                                      <td className="p-4 font-black text-white text-base">
+                                          <div className="flex items-center gap-2">
+                                            {isExp && <span className="text-rose-500 font-black text-base" title="মেয়াদোত্তীর্ণ!">🔴</span>}
+                                            {isExpiring && <span className="text-amber-400 font-black text-base" title="শীঘ্রই মেয়াদোত্তীর্ণ!">🟡</span>}
+                                            <span>{m.tradeName}</span>
+                                            <span className="text-xs font-bold text-slate-400">({m.strength})</span>
+                                          </div>
+                                      </td>
+                                      <td className="p-4 text-sky-400 text-sm font-bold italic">{m.genericName || '-'}</td>
+                                      <td className="p-4 text-slate-300 text-xs font-bold uppercase">{m.formulation}</td>
+                                      <td className="p-4 text-center whitespace-nowrap">
+                                          <div className="flex flex-col items-center gap-1">
+                                            <span className={`px-2.5 py-1 rounded text-xs font-mono font-bold inline-block shadow-sm ${m.expInfo.badgeClass}`}>
+                                              {m.expiryDate || 'অনুল্লিখিত'}
+                                            </span>
+                                            <span className={`text-[10px] font-black ${
+                                              isExp ? 'text-rose-400 animate-pulse' : isExpiring ? 'text-amber-400' : 'text-slate-500'
+                                            }`}>
+                                              {m.expInfo.daysText}
+                                            </span>
+                                          </div>
+                                      </td>
+                                      <td className="p-4 text-right text-slate-300 font-bold">৳{(m.unitPriceBuy || 0).toFixed(2)}</td>
+                                      <td className="p-4 text-right text-white font-black">৳{Number(m.unitPriceSell || 0).toFixed(2)}</td>
+                                      <td className="p-4 text-center font-black text-xl">
+                                          <span className={`px-2.5 py-1 rounded-lg ${
+                                            (m.stock || 0) <= 0 
+                                              ? 'bg-rose-950 text-rose-400 border border-rose-800' 
+                                              : (m.stock || 0) < 10 
+                                              ? 'bg-amber-950 text-amber-400 border border-amber-800 animate-pulse' 
+                                              : 'text-emerald-400'
+                                          }`}>
+                                            {m.stock}
+                                          </span>
+                                      </td>
+                                      <td className="p-4 text-right text-slate-300 font-bold">
+                                        ৳{((m.stock || 0) * (m.unitPriceBuy || 0)).toFixed(2)}
+                                      </td>
+                                      <td className="p-4 text-center">
+                                          <button 
+                                            onClick={() => { 
+                                              setAdjustmentData({ 
+                                                medicineId: m.id, 
+                                                tradeName: m.tradeName, 
+                                                genericName: m.genericName, 
+                                                strength: m.strength, 
+                                                formulation: m.formulation, 
+                                                currentStock: m.stock, 
+                                                adjustmentType: 'add', 
+                                                adjustmentQty: '', 
+                                                newSellingPrice: (m.unitPriceSell || 0).toString() 
+                                              }); 
+                                              setShowAdjustmentModal(true); 
+                                            }} 
+                                            className="bg-slate-900 hover:bg-purple-900/60 text-purple-400 hover:text-white p-2.5 rounded-xl border border-purple-900/50 transition-all shadow-md active:scale-95"
+                                            title="স্টক সংশোধন"
+                                          >
+                                              <RefreshIcon className="w-4 h-4"/>
+                                          </button>
+                                      </td>
+                                  </tr>
+                              ); 
+                          })}
+                      </tbody>
+                  </table>
+                  {filteredStoreMedicines.length === 0 && (
+                      <div className="p-16 text-center text-slate-500 font-black text-lg uppercase tracking-wider">
+                        কোনো ওষুধের রেকর্ড পাওয়া যায়নি।
+                      </div>
+                  )}
+              </div>
           </div>
       );
   };
@@ -1094,7 +2554,7 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col relative overflow-hidden font-sans">
+    <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col relative overflow-y-auto font-sans">
       {successMessage && <div className="fixed top-24 right-8 z-[150] bg-green-600 border-2 border-green-400 text-white px-10 py-5 rounded-2xl shadow-2xl font-black text-xl animate-fade-in-down">✅ {successMessage}</div>}
       
       {/* MANUAL STOCK ADJUSTMENT MODAL */}
@@ -1218,7 +2678,12 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
           <MenuButton label="Medicine_Buy" isActive={activeTab === 'buy'} onClick={() => { setActiveTab('buy'); setBuyViewMode('list'); }} />
           <MenuButton label="Due Paid" isActive={activeTab === 'due_paid'} onClick={() => setActiveTab('due_paid')} />
           <MenuButton label="Medicine_Sell" isActive={activeTab === 'sell'} onClick={() => { setActiveTab('sell'); setSellViewMode('list'); }} />
-          <MenuButton label="Medicine_Store" isActive={activeTab === 'store'} onClick={() => setActiveTab('store')} />
+          <MenuButton 
+            label="Medicine_Store" 
+            badge={storeStats.expiredCount > 0 ? `${storeStats.expiredCount} Exp` : undefined}
+            isActive={activeTab === 'store'} 
+            onClick={() => setActiveTab('store')} 
+          />
           <MenuButton label="Medicine_Chart" isActive={activeTab === 'chart'} onClick={() => setActiveTab('chart')} />
           <MenuButton label="Medicine_Hishab" isActive={activeTab === 'hishab'} onClick={() => setActiveTab('hishab')} />
         </div>
@@ -1232,6 +2697,171 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
           {activeTab === 'hishab' && renderHishabTab()}
         </div>
       </div>
+      {/* PURCHASE INVOICE DETAIL & PRINT MODAL */}
+      {viewingPurchaseInvoice && (
+        <div className="fixed inset-0 z-[300] bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-slate-900 border-2 border-slate-700 rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden animate-scale-in">
+            {/* Header */}
+            <div className="bg-slate-800 px-6 py-5 border-b border-slate-700 flex justify-between items-center">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-blue-600/20 text-sky-400 rounded-xl border border-blue-500/30">
+                  <FileTextIcon className="w-6 h-6" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-xl font-black text-white">ক্রয় ইনভয়েস ভাউচার (Purchase Voucher)</h3>
+                    <span className="bg-sky-500/20 text-sky-300 text-xs px-2.5 py-0.5 rounded-full font-mono font-bold border border-sky-500/30">
+                      {viewingPurchaseInvoice.invoiceId}
+                    </span>
+                    <span className={`text-[10px] font-black px-2 py-0.5 rounded ${viewingPurchaseInvoice.status === 'Initial' ? 'bg-amber-500/20 text-amber-400' : 'bg-emerald-500/20 text-emerald-400'}`}>
+                      {viewingPurchaseInvoice.status || 'Posted'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400 mt-0.5">নিরাময় ক্লিনিক অ্যান্ড ডায়াগনস্টিক — এনায়েতপুর, সিরাজগঞ্জ</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setViewingPurchaseInvoice(null)}
+                className="text-slate-400 hover:text-white p-2 hover:bg-slate-700 rounded-xl transition-all"
+                title="বন্ধ করুন"
+              >
+                <XIcon className="w-6 h-6" />
+              </button>
+            </div>
+
+            {/* Sub-info banner */}
+            <div className="bg-slate-850 px-6 py-4 border-b border-slate-800 grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
+              <div>
+                <span className="text-slate-500 uppercase font-black tracking-wider block">ক্রয় তারিখ</span>
+                <span className="text-white font-bold text-sm">{viewingPurchaseInvoice.invoiceDate}</span>
+              </div>
+              <div>
+                <span className="text-slate-500 uppercase font-black tracking-wider block">সরবরাহকারী (Supplier)</span>
+                <span className="text-sky-300 font-bold text-sm">{viewingPurchaseInvoice.source}</span>
+              </div>
+              <div>
+                <span className="text-slate-500 uppercase font-black tracking-wider block">প্রস্তুতকারক</span>
+                <span className="text-slate-300 font-bold text-sm">{viewingPurchaseInvoice.billCreatedBy || 'Admin'}</span>
+              </div>
+              <div>
+                <span className="text-slate-500 uppercase font-black tracking-wider block">মোট আইটেম</span>
+                <span className="text-emerald-400 font-bold text-sm">{Array.isArray(viewingPurchaseInvoice.items) ? viewingPurchaseInvoice.items.length : 0} টি ঔষধ</span>
+              </div>
+            </div>
+
+            {/* Invoice Items Table */}
+            <div className="overflow-y-auto p-6 flex-1 custom-scrollbar">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead className="bg-slate-800 text-slate-300 uppercase sticky top-0">
+                  <tr>
+                    <th className="p-3 font-black text-center w-10">#</th>
+                    <th className="p-3 font-black">ঔষধের নাম ও শক্তি</th>
+                    <th className="p-3 font-black">জেনেরিক</th>
+                    <th className="p-3 font-black text-center">ফরম</th>
+                    <th className="p-3 font-black text-center">মেয়াদ (Expiry)</th>
+                    <th className="p-3 font-black text-center">পরিমাণ</th>
+                    <th className="p-3 font-black text-right">ক্রয়মূল্য</th>
+                    <th className="p-3 font-black text-right">বিক্রয়মূল্য</th>
+                    <th className="p-3 font-black text-right">মোট (৳)</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800">
+                  {(viewingPurchaseInvoice.items || []).map((item, idx) => {
+                    const expInfo = getExpiryInfo(item.expiryDate);
+                    return (
+                      <tr key={idx} className="hover:bg-slate-800/60 transition-colors">
+                        <td className="p-3 text-center text-slate-500 font-bold">{idx + 1}</td>
+                        <td className="p-3 font-bold text-white text-sm">
+                          {item.tradeName} <span className="text-xs text-slate-400 font-normal">({item.strength})</span>
+                        </td>
+                        <td className="p-3 text-sky-400 italic">{item.genericName || '-'}</td>
+                        <td className="p-3 text-center text-slate-400 uppercase font-mono">{item.formulation || '-'}</td>
+                        <td className="p-3 text-center whitespace-nowrap">
+                          {item.expiryDate ? (
+                            <span className={`px-2 py-0.5 rounded text-[11px] font-mono inline-block ${expInfo.badgeClass}`}>
+                              {item.expiryDate} {expInfo.status === 'expired' ? '⚠️' : ''}
+                            </span>
+                          ) : (
+                            <span className="text-slate-500 italic">উল্লেখ নেই</span>
+                          )}
+                        </td>
+                        <td className="p-3 text-center font-black text-white text-sm">{item.qtyBuying}</td>
+                        <td className="p-3 text-right text-slate-300 font-bold">৳{Number(item.unitPriceBuy || 0).toFixed(2)}</td>
+                        <td className="p-3 text-right text-slate-400 font-bold">৳{Number(item.unitPriceSell || 0).toFixed(2)}</td>
+                        <td className="p-3 text-right font-black text-emerald-400 text-sm">
+                          ৳{Number(item.lineTotalBuy || (item.qtyBuying * item.unitPriceBuy) || 0).toFixed(2)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+
+              {/* Totals Section */}
+              <div className="mt-6 flex justify-end">
+                <div className="w-80 bg-slate-800/90 rounded-2xl border border-slate-700 p-4 space-y-2.5 text-xs shadow-inner">
+                  <div className="flex justify-between items-center text-slate-300 font-bold">
+                    <span>মোট বিল (Sub Total):</span>
+                    <span className="text-white text-sm font-black">৳{(viewingPurchaseInvoice.totalAmount || 0).toFixed(2)}</span>
+                  </div>
+                  {Number(viewingPurchaseInvoice.discount || 0) > 0 && (
+                    <div className="flex justify-between items-center text-emerald-400 font-bold">
+                      <span>ছাড় (Discount):</span>
+                      <span>- ৳{Number(viewingPurchaseInvoice.discount || 0).toFixed(2)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between items-center text-sky-400 font-black border-t border-slate-700 pt-2 text-base">
+                    <span>সর্বমোট প্রদেয় (Net):</span>
+                    <span>৳{(viewingPurchaseInvoice.netPayable || 0).toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-emerald-400 font-bold">
+                    <span>পরিশোধিত (Paid):</span>
+                    <span className="font-black text-sm">৳{Number(viewingPurchaseInvoice.paidAmount || 0).toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-rose-400 font-black text-sm border-t border-slate-700/60 pt-2">
+                    <span>বকেয়া (Due):</span>
+                    <span className="text-base font-black">৳{Number(viewingPurchaseInvoice.dueAmount || 0).toFixed(2)}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer Buttons */}
+            <div className="bg-slate-850 px-6 py-4 border-t border-slate-800 flex justify-between items-center">
+              <button
+                onClick={() => {
+                  const invToEdit = viewingPurchaseInvoice;
+                  setViewingPurchaseInvoice(null);
+                  setPurchaseFormData(invToEdit);
+                  setBuyViewMode('edit');
+                  setEditingPurchaseId(invToEdit.invoiceId);
+                  setIsOpeningStock(invToEdit.status === 'Initial');
+                  setActiveTab('buy');
+                }}
+                className="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-sky-300 hover:text-white rounded-xl font-bold text-xs transition-all border border-slate-700 flex items-center gap-1.5"
+              >
+                <EditIcon className="w-4 h-4" /> এডিট করুন
+              </button>
+
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setViewingPurchaseInvoice(null)}
+                  className="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl font-bold text-xs transition-all"
+                >
+                  বন্ধ করুন
+                </button>
+                <button
+                  onClick={() => handlePrintPurchase(viewingPurchaseInvoice)}
+                  className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold text-xs transition-all shadow-lg flex items-center gap-2"
+                >
+                  <PrinterIcon className="w-4 h-4" /> রসিদ প্রিন্ট করুন
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {confirmModal.isOpen && (
         <div className="fixed inset-0 bg-black/90 z-[10000] flex items-center justify-center p-4 backdrop-blur-2xl animate-in fade-in duration-300">
           <div className="bg-slate-900 border border-slate-700 w-full max-w-sm rounded-[2.5rem] p-10 shadow-2xl shadow-black/50 relative overflow-hidden group">
@@ -1264,8 +2894,15 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
   );
 };
 
-const MenuButton: React.FC<{ label: string; isActive: boolean; onClick: () => void }> = ({ label, isActive, onClick }) => (
-  <button onClick={onClick} className={`px-6 py-5 rounded-2xl font-black text-sm uppercase tracking-widest transition-all duration-500 focus:outline-none flex-1 min-w-[160px] whitespace-nowrap ${isActive ? 'bg-blue-600 text-white shadow-2xl transform scale-105' : 'bg-slate-900/60 text-slate-500 hover:bg-slate-700 hover:text-slate-200'}`}>{label}</button>
+const MenuButton: React.FC<{ label: string; isActive: boolean; onClick: () => void; badge?: string }> = ({ label, isActive, onClick, badge }) => (
+  <button onClick={onClick} className={`relative px-6 py-5 rounded-2xl font-black text-sm uppercase tracking-widest transition-all duration-500 focus:outline-none flex-1 min-w-[160px] whitespace-nowrap flex items-center justify-center gap-2 ${isActive ? 'bg-blue-600 text-white shadow-2xl transform scale-105' : 'bg-slate-900/60 text-slate-500 hover:bg-slate-700 hover:text-slate-200'}`}>
+    <span>{label}</span>
+    {badge && (
+      <span className="bg-rose-600 text-white text-[10px] px-2 py-0.5 rounded-full font-black animate-pulse shadow-md">
+        {badge}
+      </span>
+    )}
+  </button>
 );
 
 export default MedicinePage;

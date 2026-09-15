@@ -1,7 +1,24 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { dbService, DailyConsolidatedEntry, ClinicProfile } from '../../dbService';
 import { BackIcon, PrinterIcon, PlusIcon, TrashIcon, SearchIcon, Activity } from '../Icons';
-import { Save, RefreshCw, Layers, Calendar, Clock, DollarSign, UserCheck, FileSpreadsheet, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Save, RefreshCw, Layers, Calendar, Clock, DollarSign, UserCheck, FileSpreadsheet, CheckCircle2, AlertCircle, CalendarRange } from 'lucide-react';
+
+export const BENGALI_MONTHS = [
+  { value: 0, bn: 'জানুয়ারি', en: 'January' },
+  { value: 1, bn: 'ফেব্রুয়ারি', en: 'February' },
+  { value: 2, bn: 'মার্চ', en: 'March' },
+  { value: 3, bn: 'এপ্রিল', en: 'April' },
+  { value: 4, bn: 'মে', en: 'May' },
+  { value: 5, bn: 'জুন', en: 'June' },
+  { value: 6, bn: 'জুলাই', en: 'July' },
+  { value: 7, bn: 'আগস্ট', en: 'August' },
+  { value: 8, bn: 'সেপ্টেম্বর', en: 'September' },
+  { value: 9, bn: 'অক্টোবর', en: 'October' },
+  { value: 10, bn: 'নভেম্বর', en: 'November' },
+  { value: 11, bn: 'ডিসেম্বর', en: 'December' },
+];
+
+export const AVAILABLE_YEARS = [2024, 2025, 2026, 2027, 2028, 2029, 2030];
 
 interface DailyConsolidatedEntryPageProps {
   onBack?: () => void;
@@ -32,6 +49,16 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
   const [filterShift, setFilterShift] = useState<string>('all');
   const [printingEntry, setPrintingEntry] = useState<DailyConsolidatedEntry | null>(null);
 
+  // Entry Mode: 'daily' (দিনভিত্তিক) or 'monthly' (মাসভিত্তিক একবারে)
+  const [entryMode, setEntryMode] = useState<'daily' | 'monthly'>('daily');
+  const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth());
+  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
+
+  // History filters
+  const [historyTypeFilter, setHistoryTypeFilter] = useState<'all' | 'daily' | 'monthly'>('all');
+  const [historyMonthFilter, setHistoryMonthFilter] = useState<string>('all');
+  const [historyYearFilter, setHistoryYearFilter] = useState<string>('all');
+
   // Sync entries if parent prop updates
   useEffect(() => {
     if (consolidatedLabEntries && consolidatedLabEntries.length > 0) {
@@ -45,6 +72,7 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
   const [formData, setFormData] = useState<Partial<DailyConsolidatedEntry>>({
     date: new Date().toISOString().split('T')[0],
     shift: 'Full Day',
+    entryType: 'daily',
     entryTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     operatorName: currentUserEmail || 'Cashier',
     totalPatients: 0,
@@ -74,6 +102,45 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
     setEntries(dbService.getConsolidatedEntries());
     setClinicProfile(dbService.getClinicProfile());
   }, []);
+
+  // Handle switching between Daily and Monthly entry modes
+  const handleModeChange = (mode: 'daily' | 'monthly') => {
+    setEntryMode(mode);
+    if (mode === 'monthly') {
+      const monthStr = String(selectedMonth + 1).padStart(2, '0');
+      setFormData(prev => ({
+        ...prev,
+        entryType: 'monthly',
+        date: `${selectedYear}-${monthStr}-01`,
+        shift: 'Monthly',
+        month: selectedMonth,
+        year: selectedYear,
+      }));
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        entryType: 'daily',
+        date: new Date().toISOString().split('T')[0],
+        shift: 'Full Day',
+        month: undefined,
+        year: undefined,
+      }));
+    }
+  };
+
+  const handleMonthYearChange = (m: number, y: number) => {
+    setSelectedMonth(m);
+    setSelectedYear(y);
+    const monthStr = String(m + 1).padStart(2, '0');
+    setFormData(prev => ({
+      ...prev,
+      date: `${y}-${monthStr}-01`,
+      entryType: 'monthly',
+      shift: 'Monthly',
+      month: m,
+      year: y,
+    }));
+  };
 
   // Show temporary success banner
   const triggerSuccess = (msg: string) => {
@@ -160,8 +227,14 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
 
   const handleSaveEntry = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.date) {
-      alert('অনুগ্রহ করে তারিখ নির্বাচন করুন!');
+    const isMonthly = entryMode === 'monthly';
+
+    const computedDate = isMonthly
+      ? `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-01`
+      : (formData.date || new Date().toISOString().split('T')[0]);
+
+    if (!computedDate) {
+      alert('অনুগ্রহ করে তারিখ বা মাস-বছর নির্বাচন করুন!');
       return;
     }
     const gross = Number(formData.grossAmount) || 0;
@@ -184,10 +257,14 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
 
     setIsSaving(true);
     try {
+      const monthBn = BENGALI_MONTHS[selectedMonth]?.bn || '';
       const newRecord: DailyConsolidatedEntry = {
-        id: 'DCE-' + Date.now(),
-        date: formData.date || new Date().toISOString().split('T')[0],
-        shift: (formData.shift as any) || 'Full Day',
+        id: (isMonthly ? 'MCE-' : 'DCE-') + Date.now(),
+        date: computedDate,
+        shift: isMonthly ? 'Monthly' : ((formData.shift as any) || 'Full Day'),
+        entryType: isMonthly ? 'monthly' : 'daily',
+        month: isMonthly ? selectedMonth : (computedDate ? parseInt(computedDate.split('-')[1]) - 1 : new Date().getMonth()),
+        year: isMonthly ? selectedYear : (computedDate ? parseInt(computedDate.split('-')[0]) : new Date().getFullYear()),
         entryTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         operatorName: formData.operatorName || 'Cashier',
         totalPatients: Number(formData.totalPatients) || 0,
@@ -200,7 +277,7 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
         doctorCommissionPaid: Number(formData.doctorCommissionPaid) || 0,
         usgDoctorFeePaid: Number(formData.usgDoctorFeePaid) || 0,
         breakdown: formData.breakdown || { pathology: 0, usg: 0, xray: 0, ecg: 0, hormone: 0, others: 0 },
-        notes: formData.notes || '',
+        notes: formData.notes || (isMonthly ? `মাসিক এককালীন এন্ট্রি: ${monthBn} ${selectedYear}` : ''),
         createdAt: new Date().toISOString()
       };
 
@@ -215,12 +292,15 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
         await performBlockingSync({ consolidatedLabEntries: updatedList });
       }
 
-      triggerSuccess('ডেইলি কনসোলিডেটেড ভাউচার সফলভাবে সংরক্ষিত হয়েছে!');
+      triggerSuccess(isMonthly ? `মাসিক কনসোলিডেটেড ভাউচার (${monthBn} ${selectedYear}) সফলভাবে সংরক্ষিত হয়েছে!` : 'ডেইলি কনসোলিডেটেড ভাউচার সফলভাবে সংরক্ষিত হয়েছে!');
 
-      // Reset form to fresh
+      // Reset form
       setFormData({
-        date: new Date().toISOString().split('T')[0],
-        shift: 'Full Day',
+        date: isMonthly ? `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-01` : new Date().toISOString().split('T')[0],
+        shift: isMonthly ? 'Monthly' : 'Full Day',
+        entryType: isMonthly ? 'monthly' : 'daily',
+        month: isMonthly ? selectedMonth : undefined,
+        year: isMonthly ? selectedYear : undefined,
         entryTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         operatorName: currentUserEmail || 'Cashier',
         totalPatients: 0,
@@ -243,7 +323,7 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
         notes: ''
       });
 
-      // Switch to history or prompt print
+      // Switch to prompt print
       setPrintingEntry(newRecord);
     } catch (err) {
       console.error(err);
@@ -270,11 +350,27 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
   // Filtered Entries for History
   const filteredEntries = useMemo(() => {
     return entries.filter(item => {
-      const matchDate = searchDate ? item.date === searchDate : true;
-      const matchShift = filterShift === 'all' ? true : item.shift === filterShift;
-      return matchDate && matchShift;
+      if (!item) return false;
+      const isItemMonthly = item.entryType === 'monthly' || item.shift === 'Monthly';
+
+      if (historyTypeFilter === 'daily' && isItemMonthly) return false;
+      if (historyTypeFilter === 'monthly' && !isItemMonthly) return false;
+
+      if (searchDate && item.date !== searchDate) return false;
+      if (filterShift !== 'all' && item.shift !== filterShift) return false;
+
+      if (historyYearFilter !== 'all') {
+        const itemYear = item.year !== undefined ? item.year : (item.date ? parseInt(item.date.split('-')[0]) : null);
+        if (String(itemYear) !== historyYearFilter) return false;
+      }
+      if (historyMonthFilter !== 'all') {
+        const itemMonth = item.month !== undefined ? item.month : (item.date ? parseInt(item.date.split('-')[1]) - 1 : null);
+        if (String(itemMonth) !== historyMonthFilter) return false;
+      }
+
+      return true;
     });
-  }, [entries, searchDate, filterShift]);
+  }, [entries, historyTypeFilter, searchDate, filterShift, historyYearFilter, historyMonthFilter]);
 
   // History Stats
   const historyStats = useMemo(() => {
@@ -296,11 +392,17 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
     const win = window.open('', '_blank');
     if (!win) return;
 
+    const isMonthly = entry.entryType === 'monthly' || entry.shift === 'Monthly';
+    const entryMonth = entry.month !== undefined ? entry.month : (entry.date ? parseInt(entry.date.split('-')[1]) - 1 : 0);
+    const entryYear = entry.year !== undefined ? entry.year : (entry.date ? entry.date.split('-')[0] : '');
+    const monthBn = BENGALI_MONTHS[entryMonth]?.bn || '';
+    const monthEn = BENGALI_MONTHS[entryMonth]?.en || '';
+
     const html = `
       <!DOCTYPE html>
       <html>
       <head>
-        <title>Daily Consolidated Lab Voucher - ${entry.date}</title>
+        <title>${isMonthly ? `Monthly Consolidated Lab Voucher - ${monthEn} ${entryYear}` : `Daily Consolidated Lab Voucher - ${entry.date}`}</title>
         <style>
           @page { size: A4 portrait; margin: 15mm; }
           body { font-family: 'Segoe UI', Tahoma, sans-serif; color: #0f172a; margin: 0; padding: 20px; font-size: 13px; }
@@ -327,19 +429,19 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
           <h1>${clinicProfile.name || 'Niramoy Clinic & Diagnostic'}</h1>
           <p>${clinicProfile.nameBn || ''} - ${clinicProfile.tagline || ''}</p>
           <p>${clinicProfile.address} | হটলাইন: ${clinicProfile.mobile} | লাইসেন্স: ${clinicProfile.licenseNo}</p>
-          <div class="voucher-tag">ডেইলি কনসোলিডেটেড ল্যাব সামারি ভাউচার (Daily Consolidated Voucher)</div>
+          <div class="voucher-tag">${isMonthly ? `মাসিক কনসোলিডেটেড ল্যাব ভাউচার (Monthly Consolidated Lab Voucher) - ${monthBn} ${entryYear}` : 'ডেইলি কনসোলিডেটেড ল্যাব সামারি ভাউচার (Daily Consolidated Voucher)'}</div>
         </div>
 
         <table class="info-table">
           <tr>
             <td class="label">ভাউচার আইডি:</td>
             <td><b>${entry.id}</b></td>
-            <td class="label">তারিখ ও সময়:</td>
-            <td><b>${entry.date} (${entry.entryTime})</b></td>
+            <td class="label">${isMonthly ? 'মাস ও বৎসর:' : 'তারিখ ও সময়:'}</td>
+            <td><b>${isMonthly ? `${monthBn} ${entryYear} (${monthEn} ${entryYear})` : `${entry.date} (${entry.entryTime})`}</b></td>
           </tr>
           <tr>
-            <td class="label">শিফট / সেশন:</td>
-            <td><b>${entry.shift}</b></td>
+            <td class="label">এন্ট্রি ধরন ও শিফট:</td>
+            <td><b>${isMonthly ? 'মাসিক এককালীন জমা (সারামাস)' : `${entry.shift}`}</b></td>
             <td class="label">হিসাব গ্রহণকারী:</td>
             <td><b>${entry.operatorName}</b></td>
           </tr>
@@ -360,62 +462,64 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
             </tr>
           </thead>
           <tbody>
-            <tr><td>প্যাথলজি (Pathology & Bio-chemistry)</td><td class="text-right">৳${(entry.breakdown?.pathology || 0).toLocaleString()}</td></tr>
-            <tr><td>আল্ট্রাসনোগ্রাফি (USG)</td><td class="text-right">৳${(entry.breakdown?.usg || 0).toLocaleString()}</td></tr>
-            <tr><td>ডিজিটাল এক্স-রে (Digital X-Ray)</td><td class="text-right">৳${(entry.breakdown?.xray || 0).toLocaleString()}</td></tr>
-            <tr><td>ইসিজি (ECG)</td><td class="text-right">৳${(entry.breakdown?.ecg || 0).toLocaleString()}</td></tr>
-            <tr><td>হরমোন টেস্ট (Hormone)</td><td class="text-right">৳${(entry.breakdown?.hormone || 0).toLocaleString()}</td></tr>
-            <tr><td>অন্যান্য ও বিশেষ টেস্ট (Others)</td><td class="text-right">৳${(entry.breakdown?.others || 0).toLocaleString()}</td></tr>
+            <tr><td>🧪 প্যাথলজি (Pathology & Bio-chemistry)</td><td class="text-right">৳${(entry.breakdown?.pathology || 0).toLocaleString()}</td></tr>
+            <tr><td>🩺 আল্ট্রাসনোগ্রাফি (USG)</td><td class="text-right">৳${(entry.breakdown?.usg || 0).toLocaleString()}</td></tr>
+            <tr><td>☢️ ডিজিটাল এক্স-রে (Digital X-Ray)</td><td class="text-right">৳${(entry.breakdown?.xray || 0).toLocaleString()}</td></tr>
+            <tr><td>📈 ইসিজি (ECG)</td><td class="text-right">৳${(entry.breakdown?.ecg || 0).toLocaleString()}</td></tr>
+            <tr><td>🔬 হরমোন টেস্ট (Hormone)</td><td class="text-right">৳${(entry.breakdown?.hormone || 0).toLocaleString()}</td></tr>
+            <tr><td>📦 অন্যান্য ও বিশেষ টেস্ট (Others)</td><td class="text-right">৳${(entry.breakdown?.others || 0).toLocaleString()}</td></tr>
           </tbody>
           <tfoot>
             <tr class="grand-total-row">
-              <td>মোট গ্রস বিল (Gross Total):</td>
-              <td class="text-right">৳${entry.grossAmount.toLocaleString()}</td>
+              <td>মোট গ্রস ডিপার্টমেন্টাল বিল (Gross Total)</td>
+              <td class="text-right font-black">৳${entry.grossAmount.toLocaleString()}</td>
             </tr>
           </tfoot>
         </table>
 
         <div class="section-title">২. আর্থিক সারসংক্ষেপ (Financial Summary)</div>
         <table class="data-table">
-          <tr>
-            <td>মোট গ্রস বিল (Gross Total)</td>
-            <td class="text-right font-bold">৳${entry.grossAmount.toLocaleString()}</td>
-          </tr>
-          <tr>
-            <td>প্রদত্ত মোট ছাড় (Special Discount)</td>
-            <td class="text-right" style="color: #dc2626;">-৳${entry.discountAmount.toLocaleString()}</td>
-          </tr>
-          <tr style="background: #f8fafc; font-weight: bold;">
-            <td>নিট প্রদেয় বিল (Net Payable)</td>
-            <td class="text-right">৳${entry.netPayable.toLocaleString()}</td>
-          </tr>
-          <tr style="background: #ecfdf5; font-weight: 900; color: #065f46;">
-            <td>মোট নগদ ক্যাশ আদায় (Cash Collected)</td>
-            <td class="text-right">৳${entry.cashCollected.toLocaleString()}</td>
-          </tr>
-          <tr>
-            <td>বকেয়া / ডিউ (Due Balance)</td>
-            <td class="text-right" style="color: #ea580c; font-weight: bold;">৳${entry.dueAmount.toLocaleString()}</td>
-          </tr>
-          <tr>
-            <td>ডাক্তার / রেফারেল পিসি কমিশন প্রদান (Doctor PC)</td>
-            <td class="text-right" style="color: #7c2d12;">-৳${(entry.doctorCommissionPaid || 0).toLocaleString()}</td>
-          </tr>
-          <tr>
-            <td>ইউএসজি ডাক্তার অনারিয়াম ফি প্রদান (USG Doctor Fee)</td>
-            <td class="text-right" style="color: #7c2d12;">-৳${(entry.usgDoctorFeePaid || 0).toLocaleString()}</td>
-          </tr>
-          <tr class="grand-total-row" style="background: #f0fdf4; border-top: 2px solid #0f172a;">
-            <td>নিট ক্যাশ ব্যালেন্স / ক্লিনিক জমা (Net Cash-in-Hand):</td>
-            <td class="text-right" style="color: #15803d;">৳${((entry.cashCollected || 0) - (entry.doctorCommissionPaid || 0) - (entry.usgDoctorFeePaid || 0)).toLocaleString()}</td>
-          </tr>
+          <tbody>
+            <tr>
+              <td>মোট গ্রস বিল (Gross Total Amount):</td>
+              <td class="text-right"><b>৳${entry.grossAmount.toLocaleString()}</b></td>
+            </tr>
+            <tr>
+              <td>মোট ছাড় (Special Discount Given):</td>
+              <td class="text-right" style="color: #dc2626;">-৳${entry.discountAmount.toLocaleString()}</td>
+            </tr>
+            <tr style="background: #f8fafc; font-weight: bold;">
+              <td>প্রদেয় নিট বিল (Net Payable):</td>
+              <td class="text-right">৳${entry.netPayable.toLocaleString()}</td>
+            </tr>
+            <tr style="background: #ecfdf5; font-weight: bold; color: #047857;">
+              <td>নগদ ক্যাশ আদায় (Cash Collected):</td>
+              <td class="text-right">৳${entry.cashCollected.toLocaleString()}</td>
+            </tr>
+            <tr>
+              <td>বকেয়া / বাকি (Due Balance):</td>
+              <td class="text-right" style="color: #b45309;">৳${entry.dueAmount.toLocaleString()}</td>
+            </tr>
+            <tr>
+              <td>প্রদত্ত ডাক্তার পিসি কমিশন (Doctor Commission Paid):</td>
+              <td class="text-right" style="color: #dc2626;">-৳${entry.doctorCommissionPaid.toLocaleString()}</td>
+            </tr>
+            <tr>
+              <td>ইউএসজি ডাক্তার অনারিয়াম ফি (USG Doctor Honorarium):</td>
+              <td class="text-right" style="color: #dc2626;">-৳${entry.usgDoctorFeePaid.toLocaleString()}</td>
+            </tr>
+            <tr class="grand-total-row" style="background: #1e293b; color: #fff;">
+              <td>ক্লিনিকের নিট ক্যাশ জমা (Net Center Cash In Hand):</td>
+              <td class="text-right">৳${((entry.cashCollected || 0) - (entry.doctorCommissionPaid || 0) - (entry.usgDoctorFeePaid || 0)).toLocaleString()}</td>
+            </tr>
+          </tbody>
         </table>
 
-        ${entry.notes ? `<p><b>মন্তব্য (Notes):</b> ${entry.notes}</p>` : ''}
+        ${entry.notes ? `<p style="margin-top: 15px; font-size: 11px;"><b>মন্তব্য/নোট:</b> ${entry.notes}</p>` : ''}
 
         <div class="footer">
-          <div class="sig-box">ক্যাশিয়ার / ডাটা এন্ট্রি অপারেটর</div>
-          <div class="sig-box">প্রধান হিসাবরক্ষক</div>
+          <div class="sig-box">ক্যাশিয়ার / প্রস্তুতকারী</div>
+          <div class="sig-box">অ্যাকাউন্টিং অফিসার</div>
           <div class="sig-box">ব্যবস্থাপনা পরিচালক</div>
         </div>
       </body>
@@ -430,24 +534,24 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
   const labelClass = "text-[11px] font-black text-slate-400 uppercase tracking-wider block mb-1.5";
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
+    <div className="w-full h-full min-h-0 flex-1 bg-slate-950 text-slate-100 flex flex-col font-sans overflow-hidden">
       {/* Top Header */}
-      <header className="bg-slate-900 border-b border-slate-800 p-5 flex flex-col md:flex-row justify-between items-center gap-4 shadow-xl no-print">
+      <header className="bg-slate-900 border-b border-slate-800 p-4 sm:p-5 flex flex-col md:flex-row justify-between items-center gap-4 shadow-xl no-print shrink-0">
         <div className="flex items-center gap-4">
           {onBack && (
-            <button onClick={onBack} className="p-3 bg-slate-800 rounded-2xl hover:bg-slate-700 active:scale-95 transition-all text-white shadow-md">
+            <button onClick={onBack} className="p-2.5 sm:p-3 bg-slate-800 rounded-2xl hover:bg-slate-700 active:scale-95 transition-all text-white shadow-md">
               <BackIcon className="w-5 h-5" />
             </button>
           )}
           <div>
             <div className="flex items-center gap-2">
               <span className="w-3 h-3 rounded-full bg-emerald-500 animate-pulse"></span>
-              <h1 className="text-xl md:text-2xl font-black uppercase tracking-tight text-white flex items-center gap-2">
-                <Layers className="text-sky-400" /> ডেইলি কনসোলিডেটেড ল্যাব এন্ট্রি (Daily Consolidated Entry)
+              <h1 className="text-lg sm:text-xl md:text-2xl font-black uppercase tracking-tight text-white flex items-center gap-2">
+                <Layers className="text-sky-400" /> কনসোলিডেটেড ল্যাব ডাটা এন্ট্রি (Consolidated Lab Entry)
               </h1>
             </div>
             <p className="text-xs text-slate-400 font-bold mt-0.5">
-              ব্যস্ত দিনে বা অফলাইন হিসেব শেষে এক ক্লিকে সারাদিনের মোট রোগী, টেস্ট, বিল ও ক্যাশ কালেকশন এন্ট্রি করুন।
+              ব্যস্ত দিনে দিনভিত্তিক অথবা সারামাসের মোট হিসেব একবারে জমা দিন এবং একাউন্টসে স্বয়ংক্রিয়ভাবে সংযুক্ত করুন।
             </p>
           </div>
         </div>
@@ -456,7 +560,7 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
         <div className="flex bg-slate-800 p-1 rounded-2xl border border-slate-700 shadow-inner">
           <button
             onClick={() => setActiveSubTab('new_entry')}
-            className={`px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 ${
+            className={`px-4 sm:px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 ${
               activeSubTab === 'new_entry' ? 'bg-sky-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'
             }`}
           >
@@ -464,7 +568,7 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
           </button>
           <button
             onClick={() => setActiveSubTab('history')}
-            className={`px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 ${
+            className={`px-4 sm:px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 ${
               activeSubTab === 'history' ? 'bg-sky-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'
             }`}
           >
@@ -482,36 +586,100 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
         </div>
       )}
 
-      {/* Main Content */}
-      <main className="flex-1 p-6 md:p-8 container mx-auto max-w-7xl overflow-y-auto">
+      {/* Main Content - Seamless width without gap */}
+      <main className="flex-1 p-3 sm:p-5 md:p-6 w-full overflow-y-auto">
         {activeSubTab === 'new_entry' && (
-          <form onSubmit={handleSaveEntry} className="space-y-8 animate-fade-in">
-            {/* Top Config Row */}
-            <div className="bg-slate-900/90 border border-slate-800 p-6 rounded-3xl shadow-xl grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-5">
+          <form onSubmit={handleSaveEntry} className="space-y-6 max-w-7xl mx-auto animate-fade-in">
+            {/* Entry Mode Switcher: Daily vs Monthly */}
+            <div className="bg-slate-900/90 border border-slate-800 p-4 sm:p-5 rounded-3xl shadow-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div>
-                <label className={labelClass}>📅 তারিখ (Voucher Date)</label>
-                <input
-                  type="date"
-                  value={formData.date}
-                  onChange={e => setFormData({ ...formData, date: e.target.value })}
-                  className={inputClass}
-                  required
-                />
+                <h3 className="text-sm font-black text-white uppercase tracking-wider flex items-center gap-2">
+                  <Layers className="text-sky-400" size={18} /> এন্ট্রি মোড নির্বাচন (Entry Mode)
+                </h3>
+                <p className="text-xs text-slate-400 font-bold mt-0.5">
+                  প্রতিদিনের আলাদা দৈনিক ভাউচার এন্ট্রি অথবা সারামাসের মোট হিসেব একবারে জমা দেওয়ার জন্য মোড বেছে নিন
+                </p>
               </div>
-
-              <div>
-                <label className={labelClass}>⏱️ শিফট / সেশন (Shift)</label>
-                <select
-                  value={formData.shift}
-                  onChange={e => setFormData({ ...formData, shift: e.target.value as any })}
-                  className={inputClass}
+              <div className="flex bg-slate-950 p-1.5 rounded-2xl border border-slate-800 self-stretch sm:self-auto">
+                <button
+                  type="button"
+                  onClick={() => handleModeChange('daily')}
+                  className={`flex-1 sm:flex-initial px-5 py-2.5 rounded-xl text-xs font-black uppercase transition-all flex items-center justify-center gap-2 ${
+                    entryMode === 'daily' ? 'bg-sky-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'
+                  }`}
                 >
-                  <option value="Full Day">সারাদিন (Full Day)</option>
-                  <option value="Morning">সকাল শিফট (Morning)</option>
-                  <option value="Evening">সন্ধ্যা শিফট (Evening)</option>
-                  <option value="Night">রাত শিফট (Night)</option>
-                </select>
+                  <Calendar size={15} /> দিন হিসেবে (Daily Entry)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleModeChange('monthly')}
+                  className={`flex-1 sm:flex-initial px-5 py-2.5 rounded-xl text-xs font-black uppercase transition-all flex items-center justify-center gap-2 ${
+                    entryMode === 'monthly' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <CalendarRange size={15} /> মাস হিসেবে একবারে (Monthly Entry)
+                </button>
               </div>
+            </div>
+
+            {/* Top Config Row */}
+            <div className="bg-slate-900/90 border border-slate-800 p-5 sm:p-6 rounded-3xl shadow-xl grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-5">
+              {entryMode === 'daily' ? (
+                <>
+                  <div>
+                    <label className={labelClass}>📅 তারিখ (Voucher Date)</label>
+                    <input
+                      type="date"
+                      value={formData.date}
+                      onChange={e => setFormData({ ...formData, date: e.target.value })}
+                      className={inputClass}
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className={labelClass}>⏱️ শিফট / সেশন (Shift)</label>
+                    <select
+                      value={formData.shift}
+                      onChange={e => setFormData({ ...formData, shift: e.target.value as any })}
+                      className={inputClass}
+                    >
+                      <option value="Full Day">সারাদিন (Full Day)</option>
+                      <option value="Morning">সকাল শিফট (Morning)</option>
+                      <option value="Evening">সন্ধ্যা শিফট (Evening)</option>
+                      <option value="Night">রাত শিফট (Night)</option>
+                    </select>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div>
+                    <label className={labelClass}>🗓️ মাস নির্বাচন (Month)</label>
+                    <select
+                      value={selectedMonth}
+                      onChange={e => handleMonthYearChange(parseInt(e.target.value), selectedYear)}
+                      className={inputClass}
+                    >
+                      {BENGALI_MONTHS.map(m => (
+                        <option key={m.value} value={m.value}>{m.bn} ({m.en})</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className={labelClass}>📅 বৎসর নির্বাচন (Year)</label>
+                    <select
+                      value={selectedYear}
+                      onChange={e => handleMonthYearChange(selectedMonth, parseInt(e.target.value))}
+                      className={inputClass}
+                    >
+                      {AVAILABLE_YEARS.map(y => (
+                        <option key={y} value={y}>{y} সন</option>
+                      ))}
+                    </select>
+                  </div>
+                </>
+              )}
 
               <div>
                 <label className={labelClass}>👤 ক্যাশিয়ার / অপারেটর (Operator)</label>
@@ -526,7 +694,9 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
               </div>
 
               <div>
-                <label className={labelClass}>👥 মোট রোগী সংখ্যা (Patients)</label>
+                <label className={labelClass}>
+                  👥 {entryMode === 'monthly' ? 'সারামাসের মোট রোগী (Monthly Patients)' : 'মোট রোগী সংখ্যা (Patients)'}
+                </label>
                 <input
                   type="number"
                   min="0"
@@ -539,7 +709,7 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
             </div>
 
             {/* Department Breakdown vs Direct Entry Toggle */}
-            <div className="bg-slate-900/90 border border-slate-800 p-6 rounded-3xl shadow-xl space-y-6">
+            <div className="bg-slate-900/90 border border-slate-800 p-5 sm:p-6 rounded-3xl shadow-xl space-y-6">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
                 <div>
                   <h3 className="text-base font-black text-white uppercase tracking-wide flex items-center gap-2">
@@ -572,80 +742,80 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
                       min="0"
                       value={formData.breakdown?.pathology || ''}
                       onChange={e => handleBreakdownField('pathology', parseFloat(e.target.value) || 0)}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white font-black text-sm text-right"
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white font-mono font-bold text-sm text-right outline-none"
                       placeholder="0"
                     />
                   </div>
 
                   <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800">
-                    <label className="text-[10px] font-black text-sky-400 uppercase block mb-1">👶 আল্ট্রাসনোগ্রাফি</label>
+                    <label className="text-[10px] font-black text-sky-400 uppercase block mb-1">🩺 ইউএসজি (USG)</label>
                     <input
                       type="number"
                       min="0"
                       value={formData.breakdown?.usg || ''}
                       onChange={e => handleBreakdownField('usg', parseFloat(e.target.value) || 0)}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white font-black text-sm text-right"
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white font-mono font-bold text-sm text-right outline-none"
                       placeholder="0"
                     />
                   </div>
 
                   <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800">
-                    <label className="text-[10px] font-black text-emerald-400 uppercase block mb-1">🩻 ডিজিটাল এক্স-রে</label>
+                    <label className="text-[10px] font-black text-amber-400 uppercase block mb-1">☢️ এক্স-রে (X-Ray)</label>
                     <input
                       type="number"
                       min="0"
                       value={formData.breakdown?.xray || ''}
                       onChange={e => handleBreakdownField('xray', parseFloat(e.target.value) || 0)}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white font-black text-sm text-right"
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white font-mono font-bold text-sm text-right outline-none"
                       placeholder="0"
                     />
                   </div>
 
                   <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800">
-                    <label className="text-[10px] font-black text-amber-400 uppercase block mb-1">📈 ইসিজি (ECG)</label>
+                    <label className="text-[10px] font-black text-rose-400 uppercase block mb-1">📈 ইসিজি (ECG)</label>
                     <input
                       type="number"
                       min="0"
                       value={formData.breakdown?.ecg || ''}
                       onChange={e => handleBreakdownField('ecg', parseFloat(e.target.value) || 0)}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white font-black text-sm text-right"
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white font-mono font-bold text-sm text-right outline-none"
                       placeholder="0"
                     />
                   </div>
 
                   <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800">
-                    <label className="text-[10px] font-black text-rose-400 uppercase block mb-1">🧬 হরমোন টেস্ট</label>
+                    <label className="text-[10px] font-black text-teal-400 uppercase block mb-1">🔬 হরমোন</label>
                     <input
                       type="number"
                       min="0"
                       value={formData.breakdown?.hormone || ''}
                       onChange={e => handleBreakdownField('hormone', parseFloat(e.target.value) || 0)}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white font-black text-sm text-right"
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white font-mono font-bold text-sm text-right outline-none"
                       placeholder="0"
                     />
                   </div>
 
                   <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800">
-                    <label className="text-[10px] font-black text-purple-400 uppercase block mb-1">🔬 অন্যান্য টেস্ট</label>
+                    <label className="text-[10px] font-black text-slate-400 uppercase block mb-1">📦 অন্যান্য টেস্ট</label>
                     <input
                       type="number"
                       min="0"
                       value={formData.breakdown?.others || ''}
                       onChange={e => handleBreakdownField('others', parseFloat(e.target.value) || 0)}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white font-black text-sm text-right"
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white font-mono font-bold text-sm text-right outline-none"
                       placeholder="0"
                     />
                   </div>
                 </div>
               ) : (
-                <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800">
-                  <label className={labelClass}>মোট গ্রস ল্যাব টেস্ট বিল (Gross Total Amount ৳)</label>
+                <div>
+                  <label className={labelClass}>সরাসরি মোট গ্রস বিল (Direct Gross Amount ৳)</label>
                   <input
                     type="number"
                     min="0"
                     value={formData.grossAmount || ''}
                     onChange={e => handleGrossOrDiscountChange(parseFloat(e.target.value) || 0, Number(formData.discountAmount) || 0, Number(formData.cashCollected) || 0)}
-                    className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white font-black text-lg text-right"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white font-mono font-black text-lg outline-none"
                     placeholder="0"
                     required
                   />
@@ -654,9 +824,9 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
             </div>
 
             {/* Financial Summary & Calculations Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Left Column: Adjustments & Doctor Commissions */}
-              <div className="bg-slate-900/90 border border-slate-800 p-6 rounded-3xl shadow-xl space-y-5">
+              <div className="bg-slate-900/90 border border-slate-800 p-5 sm:p-6 rounded-3xl shadow-xl space-y-5">
                 <h3 className="text-sm font-black text-white uppercase tracking-wide border-b border-slate-800 pb-3 flex items-center gap-2">
                   <UserCheck className="text-sky-400" size={18} /> ২. নগদ আদায়, ছাড় ও কমিশন প্রদান
                 </h3>
@@ -721,17 +891,21 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
                     value={formData.notes}
                     onChange={e => setFormData({ ...formData, notes: e.target.value })}
                     className="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-slate-200 text-xs font-bold outline-none"
-                    placeholder="ব্যস্ত দিনের নোট বা অতিরিক্ত তথ্য লিখুন..."
+                    placeholder={entryMode === 'monthly' ? `মাসিক এককালীন এন্ট্রি: ${BENGALI_MONTHS[selectedMonth]?.bn} ${selectedYear}...` : "ব্যস্ত দিনের নোট বা অতিরিক্ত তথ্য লিখুন..."}
                   />
                 </div>
               </div>
 
               {/* Right Column: Live Calculated Voucher Summary Card */}
-              <div className="bg-gradient-to-br from-slate-900 to-slate-950 border-2 border-sky-500/30 p-6 rounded-3xl shadow-2xl flex flex-col justify-between space-y-6">
+              <div className="bg-gradient-to-br from-slate-900 to-slate-950 border-2 border-sky-500/30 p-5 sm:p-6 rounded-3xl shadow-2xl flex flex-col justify-between space-y-6">
                 <div>
                   <div className="flex justify-between items-center border-b border-slate-800 pb-3">
                     <span className="text-xs font-black uppercase tracking-widest text-sky-400">লাইভ ভাউচার সামারি</span>
-                    <span className="text-[11px] font-mono text-slate-400">{formData.date} | {formData.shift}</span>
+                    <span className="text-[11px] font-mono text-slate-400">
+                      {entryMode === 'monthly'
+                        ? `🗓️ ${BENGALI_MONTHS[selectedMonth]?.bn} ${selectedYear} (সারামাস)`
+                        : `📅 ${formData.date} | ${formData.shift}`}
+                    </span>
                   </div>
 
                   <div className="space-y-3 mt-4 text-sm font-bold">
@@ -770,7 +944,9 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
                 {/* Net Income Callout */}
                 <div className="bg-slate-950 p-4 rounded-2xl border border-emerald-500/50 flex items-center justify-between shadow-inner">
                   <div>
-                    <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider block">ক্লিনিকের দিন শেষের নিট ক্যাশ জমা</span>
+                    <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider block">
+                      {entryMode === 'monthly' ? 'সারামাসের ক্লিনিকের নিট ক্যাশ জমা' : 'ক্লিনিকের দিন শেষের নিট ক্যাশ জমা'}
+                    </span>
                     <span className="text-xs text-emerald-400 font-bold">(ক্যাশ আদায় - কমিশন)</span>
                   </div>
                   <span className="text-2xl font-black text-emerald-400 font-mono">
@@ -785,7 +961,7 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
                     disabled={isSaving}
                     className="flex-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 active:scale-95 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl flex items-center justify-center gap-2 transition-all"
                   >
-                    <Save size={18} /> {isSaving ? 'সংরক্ষণ হচ্ছে...' : 'ভাউচার সেভ করুন ও স্লিপ প্রিন্ট করুন'}
+                    <Save size={18} /> {isSaving ? 'সংরক্ষণ হচ্ছে...' : (entryMode === 'monthly' ? `মাসিক ভাউচার (${BENGALI_MONTHS[selectedMonth]?.bn} ${selectedYear}) সেভ ও প্রিন্ট করুন` : 'ভাউচার সেভ করুন ও স্লিপ প্রিন্ট করুন')}
                   </button>
                 </div>
               </div>
@@ -795,38 +971,69 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
 
         {/* History Tab */}
         {activeSubTab === 'history' && (
-          <div className="space-y-6 animate-fade-in">
+          <div className="space-y-6 animate-fade-in max-w-7xl mx-auto">
             {/* Filter Bar */}
-            <div className="bg-slate-900 border border-slate-800 p-5 rounded-3xl shadow-xl flex flex-col md:flex-row justify-between items-center gap-4">
-              <div className="flex flex-wrap items-center gap-4 w-full md:w-auto">
+            <div className="bg-slate-900 border border-slate-800 p-4 sm:p-5 rounded-3xl shadow-xl flex flex-col lg:flex-row justify-between items-center gap-4">
+              <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
                 <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase block mb-1">তারিখ অনুযায়ী ফিল্টার</label>
+                  <label className="text-[10px] font-black text-slate-400 uppercase block mb-1">এন্ট্রি ধরন</label>
+                  <select
+                    value={historyTypeFilter}
+                    onChange={e => setHistoryTypeFilter(e.target.value as any)}
+                    className="bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-bold text-xs outline-none"
+                  >
+                    <option value="all">সকল ভাউচার</option>
+                    <option value="daily">📅 শুধুমাত্র দৈনিক</option>
+                    <option value="monthly">🗓️ শুধুমাত্র মাসিক</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 uppercase block mb-1">মাস ফিল্টার</label>
+                  <select
+                    value={historyMonthFilter}
+                    onChange={e => setHistoryMonthFilter(e.target.value)}
+                    className="bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-bold text-xs outline-none"
+                  >
+                    <option value="all">সকল মাস</option>
+                    {BENGALI_MONTHS.map(m => (
+                      <option key={m.value} value={String(m.value)}>{m.bn}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 uppercase block mb-1">বৎসর ফিল্টার</label>
+                  <select
+                    value={historyYearFilter}
+                    onChange={e => setHistoryYearFilter(e.target.value)}
+                    className="bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-bold text-xs outline-none"
+                  >
+                    <option value="all">সকল বৎসর</option>
+                    {AVAILABLE_YEARS.map(y => (
+                      <option key={y} value={String(y)}>{y} সন</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 uppercase block mb-1">নির্দিষ্ট তারিখ</label>
                   <input
                     type="date"
                     value={searchDate}
                     onChange={e => setSearchDate(e.target.value)}
-                    className="bg-slate-950 border border-slate-700 rounded-xl px-4 py-2 text-white font-bold text-xs outline-none"
+                    className="bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-bold text-xs outline-none"
                   />
                 </div>
 
-                <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase block mb-1">শিফট ফিল্টার</label>
-                  <select
-                    value={filterShift}
-                    onChange={e => setFilterShift(e.target.value)}
-                    className="bg-slate-950 border border-slate-700 rounded-xl px-4 py-2 text-white font-bold text-xs outline-none"
-                  >
-                    <option value="all">সকল শিফট</option>
-                    <option value="Full Day">সারাদিন</option>
-                    <option value="Morning">সকাল</option>
-                    <option value="Evening">সন্ধ্যা</option>
-                    <option value="Night">রাত</option>
-                  </select>
-                </div>
-
-                {searchDate && (
+                {(searchDate || historyTypeFilter !== 'all' || historyMonthFilter !== 'all' || historyYearFilter !== 'all') && (
                   <button
-                    onClick={() => setSearchDate('')}
+                    onClick={() => {
+                      setSearchDate('');
+                      setHistoryTypeFilter('all');
+                      setHistoryMonthFilter('all');
+                      setHistoryYearFilter('all');
+                    }}
                     className="mt-4 px-3 py-2 bg-slate-800 text-slate-300 rounded-xl text-xs font-bold hover:text-white"
                   >
                     রিসেট
@@ -835,7 +1042,7 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
               </div>
 
               {/* Summary Stats Pill */}
-              <div className="flex items-center gap-4 text-xs font-bold bg-slate-950 px-5 py-3 rounded-2xl border border-slate-800">
+              <div className="flex flex-wrap items-center gap-4 text-xs font-bold bg-slate-950 px-5 py-3 rounded-2xl border border-slate-800 self-stretch lg:self-auto justify-around">
                 <div>
                   <span className="text-slate-400 block text-[10px] uppercase">মোট রোগী:</span>
                   <span className="text-white font-mono font-black">{historyStats.patients} জন</span>
@@ -859,10 +1066,10 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
                 <table className="w-full text-left border-collapse text-xs">
                   <thead className="bg-slate-950 text-slate-400 uppercase font-black tracking-wider border-b border-slate-800">
                     <tr>
-                      <th className="p-4">তারিখ ও সময়</th>
-                      <th className="p-4">শিফট</th>
+                      <th className="p-4">তারিখ / মাস-বছর</th>
+                      <th className="p-4">এন্ট্রি টাইপ ও শিফট</th>
                       <th className="p-4">অপারেটর</th>
-                      <th className="p-4 text-center">রোগী সংখ্যা</th>
+                      <th className="p-4 text-center">রোগী</th>
                       <th className="p-4 text-right">গ্রস বিল</th>
                       <th className="p-4 text-right">ছাড়</th>
                       <th className="p-4 text-right">নিট বিল</th>
@@ -879,43 +1086,63 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
                         </td>
                       </tr>
                     ) : (
-                      filteredEntries.map(row => (
-                        <tr key={row.id} className="hover:bg-slate-800/50 transition-colors">
-                          <td className="p-4 font-mono text-slate-200">
-                            {row.date} <span className="text-[10px] text-slate-400">({row.entryTime})</span>
-                          </td>
-                          <td className="p-4">
-                            <span className="px-2.5 py-1 rounded-lg bg-slate-800 text-sky-300 text-[10px] font-black uppercase">
-                              {row.shift}
-                            </span>
-                          </td>
-                          <td className="p-4 text-slate-300">{row.operatorName}</td>
-                          <td className="p-4 text-center font-mono">{row.totalPatients}</td>
-                          <td className="p-4 text-right font-mono">৳{row.grossAmount.toLocaleString()}</td>
-                          <td className="p-4 text-right font-mono text-rose-400">-৳{row.discountAmount.toLocaleString()}</td>
-                          <td className="p-4 text-right font-mono text-sky-300">৳{row.netPayable.toLocaleString()}</td>
-                          <td className="p-4 text-right font-mono text-emerald-400 font-black">৳{row.cashCollected.toLocaleString()}</td>
-                          <td className="p-4 text-right font-mono text-amber-400">৳{row.dueAmount.toLocaleString()}</td>
-                          <td className="p-4 text-center">
-                            <div className="flex items-center justify-center gap-2">
-                              <button
-                                onClick={() => handlePrintVoucher(row)}
-                                className="p-2 bg-sky-600/20 hover:bg-sky-600 text-sky-300 hover:text-white rounded-xl transition-all shadow"
-                                title="প্রিন্ট ভাউচার"
-                              >
-                                <PrinterIcon size={14} />
-                              </button>
-                              <button
-                                onClick={() => handleDelete(row.id)}
-                                className="p-2 bg-rose-600/20 hover:bg-rose-600 text-rose-400 hover:text-white rounded-xl transition-all shadow"
-                                title="মুছে ফেলুন"
-                              >
-                                <TrashIcon size={14} />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))
+                      filteredEntries.map(row => {
+                        const isRowMonthly = row.entryType === 'monthly' || row.shift === 'Monthly';
+                        const rowMonth = row.month !== undefined ? row.month : (row.date ? parseInt(row.date.split('-')[1]) - 1 : 0);
+                        const rowYear = row.year !== undefined ? row.year : (row.date ? row.date.split('-')[0] : '');
+
+                        return (
+                          <tr key={row.id} className="hover:bg-slate-800/50 transition-colors">
+                            <td className="p-4 font-mono text-slate-200">
+                              {isRowMonthly ? (
+                                <span className="font-bold text-emerald-400">
+                                  {BENGALI_MONTHS[rowMonth]?.bn} {rowYear}
+                                </span>
+                              ) : (
+                                <>
+                                  {row.date} <span className="text-[10px] text-slate-400">({row.entryTime})</span>
+                                </>
+                              )}
+                            </td>
+                            <td className="p-4">
+                              {isRowMonthly ? (
+                                <span className="px-2.5 py-1 rounded-lg bg-emerald-950/80 border border-emerald-500/40 text-emerald-300 text-[10px] font-black uppercase">
+                                  🗓️ মাসিক এককালীন
+                                </span>
+                              ) : (
+                                <span className="px-2.5 py-1 rounded-lg bg-sky-950/80 border border-sky-500/40 text-sky-300 text-[10px] font-black uppercase">
+                                  📅 দৈনিক ({row.shift})
+                                </span>
+                              )}
+                            </td>
+                            <td className="p-4 text-slate-300">{row.operatorName}</td>
+                            <td className="p-4 text-center font-mono">{row.totalPatients}</td>
+                            <td className="p-4 text-right font-mono">৳{row.grossAmount.toLocaleString()}</td>
+                            <td className="p-4 text-right font-mono text-rose-400">-৳{row.discountAmount.toLocaleString()}</td>
+                            <td className="p-4 text-right font-mono text-sky-300">৳{row.netPayable.toLocaleString()}</td>
+                            <td className="p-4 text-right font-mono text-emerald-400 font-black">৳{row.cashCollected.toLocaleString()}</td>
+                            <td className="p-4 text-right font-mono text-amber-400">৳{row.dueAmount.toLocaleString()}</td>
+                            <td className="p-4 text-center">
+                              <div className="flex items-center justify-center gap-2">
+                                <button
+                                  onClick={() => handlePrintVoucher(row)}
+                                  className="p-2 bg-sky-600/20 hover:bg-sky-600 text-sky-300 hover:text-white rounded-xl transition-all shadow"
+                                  title="প্রিন্ট ভাউচার"
+                                >
+                                  <PrinterIcon size={14} />
+                                </button>
+                                <button
+                                  onClick={() => handleDelete(row.id)}
+                                  className="p-2 bg-rose-600/20 hover:bg-rose-600 text-rose-400 hover:text-white rounded-xl transition-all shadow"
+                                  title="মুছে ফেলুন"
+                                >
+                                  <TrashIcon size={14} />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
                     )}
                   </tbody>
                 </table>
@@ -933,9 +1160,18 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
               <CheckCircle2 size={36} />
             </div>
             <div>
-              <h3 className="text-lg font-black text-white uppercase">ভাউচার সংরক্ষিত হয়েছে!</h3>
+              <h3 className="text-lg font-black text-white uppercase">
+                {printingEntry.entryType === 'monthly' || printingEntry.shift === 'Monthly'
+                  ? 'মাসিক ভাউচার সংরক্ষিত হয়েছে!'
+                  : 'ভাউচার সংরক্ষিত হয়েছে!'}
+              </h3>
               <p className="text-xs text-slate-400 mt-1">
-                ভাউচার নং: <span className="font-mono text-sky-400 font-bold">{printingEntry.id}</span> | তারিখ: {printingEntry.date}
+                ভাউচার নং: <span className="font-mono text-sky-400 font-bold">{printingEntry.id}</span>
+                {printingEntry.entryType === 'monthly' || printingEntry.shift === 'Monthly' ? (
+                  <> | মাস-বৎসর: <span className="text-emerald-400 font-bold">{BENGALI_MONTHS[printingEntry.month ?? new Date(printingEntry.date).getMonth()]?.bn} {printingEntry.year ?? printingEntry.date.split('-')[0]}</span></>
+                ) : (
+                  <> | তারিখ: {printingEntry.date}</>
+                )}
               </p>
             </div>
             <div className="grid grid-cols-2 gap-3 pt-2">

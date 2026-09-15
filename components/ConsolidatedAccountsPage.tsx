@@ -362,7 +362,6 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
 
     const addLog = (shareholderId: number, action: 'ADD' | 'UPDATE' | 'DELETE', details: string) => {
         const newLog: ShareholderLog = {
-            // eslint-disable-next-line react-hooks/purity
             id: `LOG-${Date.now()}`,
             shareholderId,
             action,

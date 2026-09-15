@@ -342,7 +342,6 @@ const DailyExpenseForm: React.FC<any> = ({
 
     useEffect(() => {
         if (editingItem && editingItem.date === selectedDate) {
-            // eslint-disable-next-line react-hooks/set-state-in-effect
             setItems([{ ...editingItem }]);
         } else {
             setItems([{ 

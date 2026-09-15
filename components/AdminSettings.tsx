@@ -81,7 +81,34 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({
   const [isReloadingFromCloud, setIsReloadingFromCloud] = useState(false);
   const [showConfigInputs, setShowConfigInputs] = useState(!supConfig.isConnected);
 
+  // Medicine Multi-Table Migration State
+  const [isMigratingMedicine, setIsMigratingMedicine] = useState(false);
+  const [migrationStatus, setMigrationStatus] = useState<{ success?: boolean; message?: string } | null>(null);
+  const [medicineStats, setMedicineStats] = useState<{ purchases: number; sales: number; medicines: number; connected: boolean } | null>(null);
+  const [showSqlScript, setShowSqlScript] = useState(false);
+  const [copiedSql, setCopiedSql] = useState(false);
+
   const isConnected = dbService.isSupabaseConnected();
+
+  const handleRunMedicineMigration = async () => {
+    setIsMigratingMedicine(true);
+    setMigrationStatus(null);
+    try {
+      const res = await dbService.migrateMedicineToModularTables();
+      setMigrationStatus({ success: res.success, message: res.message });
+      const stats = await dbService.getMedicineModularStats();
+      setMedicineStats(stats);
+    } catch (e: any) {
+      setMigrationStatus({ success: false, message: e?.message || 'মাইগ্রেশন ব্যর্থ হয়েছে' });
+    } finally {
+      setIsMigratingMedicine(false);
+    }
+  };
+
+  const handleCheckMedicineStats = async () => {
+    const stats = await dbService.getMedicineModularStats();
+    setMedicineStats(stats);
+  };
 
   const handleSaveClinicProfile = (e: React.FormEvent) => {
     e.preventDefault();
@@ -1215,6 +1242,233 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({
                         <span className="text-slate-400">Anon Key:</span>
                         <span className="font-mono text-white">••••••••••••••••</span>
                       </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* MEDICINE MULTI-TABLE ARCHITECTURE & MIGRATION */}
+                <div className="bg-slate-950 p-6 rounded-2xl border border-blue-900/50 space-y-4 shadow-xl">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
+                    <div>
+                      <h3 className="text-sm font-black text-blue-400 uppercase tracking-wider flex items-center gap-2">
+                        💊 মেডিসিন মাল্টি-টেবিল সিস্টেম ও মাইগ্রেশন
+                      </h3>
+                      <p className="text-xs text-slate-400 mt-1">
+                        ডায়াগনস্টিকের মতো মেডিসিনের ক্রয় ও বিক্রয় রশিদ এখন দ্রুতগতির আলাদা টেবিলে (<code className="text-blue-300">purchase_invoices</code>, <code className="text-blue-300">sales_invoices</code>, <code className="text-blue-300">medicines</code>) সেভ হবে।
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleCheckMedicineStats}
+                      className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg text-xs font-bold transition-all border border-slate-700"
+                    >
+                      🔄 টেবিল স্ট্যাটাস চেক
+                    </button>
+                  </div>
+
+                  {medicineStats && (
+                    <div className="grid grid-cols-3 gap-3 p-3 bg-slate-900/80 rounded-xl border border-slate-800">
+                      <div className="text-center">
+                        <div className="text-[10px] text-slate-400 uppercase font-bold">ক্রয় রশিদ (Purchases)</div>
+                        <div className="text-lg font-black text-emerald-400">{medicineStats.purchases} টি</div>
+                      </div>
+                      <div className="text-center border-x border-slate-800">
+                        <div className="text-[10px] text-slate-400 uppercase font-bold">বিক্রয় রশিদ (Sales)</div>
+                        <div className="text-lg font-black text-sky-400">{medicineStats.sales} টি</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-[10px] text-slate-400 uppercase font-bold">ওষুধের তালিকা (Catalog)</div>
+                        <div className="text-lg font-black text-purple-400">{medicineStats.medicines} টি</div>
+                      </div>
+                    </div>
+                  )}
+
+                  {migrationStatus && (
+                    <div className={`p-4 rounded-xl text-xs font-bold ${migrationStatus.success ? 'bg-emerald-950/60 border border-emerald-800 text-emerald-300' : 'bg-rose-950/60 border border-rose-800 text-rose-300'}`}>
+                      {migrationStatus.message}
+                    </div>
+                  )}
+
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <button
+                      type="button"
+                      disabled={isMigratingMedicine}
+                      onClick={handleRunMedicineMigration}
+                      className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black text-xs py-3 px-4 rounded-xl uppercase tracking-wider transition-all shadow-lg flex items-center justify-center gap-2 disabled:opacity-50"
+                    >
+                      {isMigratingMedicine ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                          মাইগ্রেশন চলছে...
+                        </>
+                      ) : (
+                        '🚀 মেডিসিনের সকল পূর্বের ডাটা আলাদা টেবিলে সিঙ্ক ও মাইগ্রেশন করুন'
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowSqlScript(!showSqlScript)}
+                      className="px-4 py-3 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white rounded-xl text-xs font-bold border border-slate-700 transition-all"
+                    >
+                      {showSqlScript ? 'SQL স্ক্রিপ্ট লুকান' : '📋 Supabase SQL স্ক্রিপ্ট দেখুন'}
+                    </button>
+                  </div>
+
+                  {showSqlScript && (
+                    <div className="mt-3 p-4 bg-slate-900 rounded-xl border border-slate-800 space-y-3">
+                      <div className="flex justify-between items-center">
+                        <span className="text-[11px] font-black text-amber-400 uppercase">Supabase SQL Editor এ চালানোর স্ক্রিপ্ট:</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const sql = `-- 1. Medicine Purchases (ক্রয় রশিদ)
+CREATE TABLE IF NOT EXISTS public.purchase_invoices (
+  id TEXT PRIMARY KEY,
+  invoice_id TEXT,
+  invoice_date TEXT,
+  source TEXT,
+  items JSONB DEFAULT '[]'::jsonb,
+  total_amount NUMERIC DEFAULT 0,
+  discount NUMERIC DEFAULT 0,
+  net_payable NUMERIC DEFAULT 0,
+  paid_amount NUMERIC DEFAULT 0,
+  due_amount NUMERIC DEFAULT 0,
+  bill_created_by TEXT,
+  bill_paid_by TEXT,
+  received_by TEXT,
+  status TEXT DEFAULT 'Saved',
+  created_date TEXT,
+  data JSONB,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 2. Medicine Sales (বিক্রয় রশিদ)
+CREATE TABLE IF NOT EXISTS public.sales_invoices (
+  id TEXT PRIMARY KEY,
+  invoice_id TEXT,
+  invoice_date TEXT,
+  customer_name TEXT,
+  customer_mobile TEXT,
+  customer_age TEXT,
+  customer_gender TEXT,
+  ref_doctor_name TEXT,
+  items JSONB DEFAULT '[]'::jsonb,
+  total_amount NUMERIC DEFAULT 0,
+  discount NUMERIC DEFAULT 0,
+  net_payable NUMERIC DEFAULT 0,
+  paid_amount NUMERIC DEFAULT 0,
+  due_amount NUMERIC DEFAULT 0,
+  bill_created_by TEXT,
+  status TEXT DEFAULT 'Posted',
+  created_date TEXT,
+  data JSONB,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 3. Medicine Catalog (ওষুধের তালিকা ও স্টক)
+CREATE TABLE IF NOT EXISTS public.medicines (
+  id TEXT PRIMARY KEY,
+  trade_name TEXT,
+  generic_name TEXT,
+  formulation TEXT,
+  strength TEXT,
+  unit_price_buy NUMERIC DEFAULT 0,
+  unit_price_sell NUMERIC DEFAULT 0,
+  stock NUMERIC DEFAULT 0,
+  box_size NUMERIC DEFAULT 1,
+  supplier TEXT,
+  expiry_date TEXT,
+  is_antibiotic BOOLEAN DEFAULT FALSE,
+  requires_prescription BOOLEAN DEFAULT FALSE,
+  data JSONB,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Enable RLS and public access
+ALTER TABLE public.purchase_invoices ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public full access on purchase_invoices" ON public.purchase_invoices;
+CREATE POLICY "Public full access on purchase_invoices" ON public.purchase_invoices FOR ALL USING (true) WITH CHECK (true);
+
+ALTER TABLE public.sales_invoices ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public full access on sales_invoices" ON public.sales_invoices;
+CREATE POLICY "Public full access on sales_invoices" ON public.sales_invoices FOR ALL USING (true) WITH CHECK (true);
+
+ALTER TABLE public.medicines ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public full access on medicines" ON public.medicines;
+CREATE POLICY "Public full access on medicines" ON public.medicines FOR ALL USING (true) WITH CHECK (true);`;
+                            navigator.clipboard.writeText(sql);
+                            setCopiedSql(true);
+                            setTimeout(() => setCopiedSql(false), 3000);
+                          }}
+                          className="px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded text-xs font-bold"
+                        >
+                          {copiedSql ? '✓ কপি হয়েছে!' : '📋 কোড কপি করুন'}
+                        </button>
+                      </div>
+                      <pre className="text-[11px] font-mono text-slate-300 bg-slate-950 p-3 rounded-lg overflow-x-auto max-h-48 border border-slate-800">
+{`-- 1. Medicine Purchases (ক্রয় রশিদ)
+CREATE TABLE IF NOT EXISTS public.purchase_invoices (
+  id TEXT PRIMARY KEY,
+  invoice_id TEXT,
+  invoice_date TEXT,
+  source TEXT,
+  items JSONB DEFAULT '[]'::jsonb,
+  total_amount NUMERIC DEFAULT 0,
+  discount NUMERIC DEFAULT 0,
+  net_payable NUMERIC DEFAULT 0,
+  paid_amount NUMERIC DEFAULT 0,
+  due_amount NUMERIC DEFAULT 0,
+  bill_created_by TEXT,
+  bill_paid_by TEXT,
+  received_by TEXT,
+  status TEXT DEFAULT 'Saved',
+  created_date TEXT,
+  data JSONB,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 2. Medicine Sales (বিক্রয় রশিদ)
+CREATE TABLE IF NOT EXISTS public.sales_invoices (
+  id TEXT PRIMARY KEY,
+  invoice_id TEXT,
+  invoice_date TEXT,
+  customer_name TEXT,
+  customer_mobile TEXT,
+  customer_age TEXT,
+  customer_gender TEXT,
+  ref_doctor_name TEXT,
+  items JSONB DEFAULT '[]'::jsonb,
+  total_amount NUMERIC DEFAULT 0,
+  discount NUMERIC DEFAULT 0,
+  net_payable NUMERIC DEFAULT 0,
+  paid_amount NUMERIC DEFAULT 0,
+  due_amount NUMERIC DEFAULT 0,
+  bill_created_by TEXT,
+  status TEXT DEFAULT 'Posted',
+  created_date TEXT,
+  data JSONB,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 3. Medicine Catalog (ওষুধের তালিকা ও স্টক)
+CREATE TABLE IF NOT EXISTS public.medicines (
+  id TEXT PRIMARY KEY,
+  trade_name TEXT,
+  generic_name TEXT,
+  formulation TEXT,
+  strength TEXT,
+  unit_price_buy NUMERIC DEFAULT 0,
+  unit_price_sell NUMERIC DEFAULT 0,
+  stock NUMERIC DEFAULT 0,
+  box_size NUMERIC DEFAULT 1,
+  supplier TEXT,
+  expiry_date TEXT,
+  is_antibiotic BOOLEAN DEFAULT FALSE,
+  requires_prescription BOOLEAN DEFAULT FALSE,
+  data JSONB,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);`}
+                      </pre>
                     </div>
                   )}
                 </div>

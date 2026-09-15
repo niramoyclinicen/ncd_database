@@ -5,7 +5,7 @@ import SearchableSelect from './SearchableSelect';
 import PatientInfoPage from './PatientInfoPage';
 import DoctorInfoPage from './DoctorInfoPage';
 import ReferrerInfoPage from './ReferrerInfoPage';
-import { BackIcon, ClinicIcon, StethoscopeIcon, ClipboardIcon, FileTextIcon, SettingsIcon, UserPlusIcon, Armchair, Activity, SaveIcon, MoneyIcon, TrashIcon, PrinterIcon, EyeIcon, SearchIcon, PlusIcon, RefreshIcon, Database as DatabaseIcon, Plus, Save, Trash2, Loader2, Trash2Icon, AlertCircle, UsersIcon, EditIcon } from './Icons';
+import { BackIcon, ClinicIcon, StethoscopeIcon, ClipboardIcon, FileTextIcon, SettingsIcon, UserPlusIcon, Armchair, Activity, SaveIcon, MoneyIcon, TrashIcon, PrinterIcon, EyeIcon, SearchIcon, PlusIcon, RefreshIcon, Database as DatabaseIcon, Plus, Save, Trash2, Loader2, Trash2Icon, AlertCircle, UsersIcon, EditIcon, ClipboardList as LayoutIcon } from './Icons';
 
 // Fixed Clinic Config
 const CLINIC_REGISTRATION = 'HSM76710';
@@ -94,6 +94,8 @@ interface AdmissionRecord {
     discharge_date?: string;
     discharge_note?: string;
     bed_no?: string;
+    patient_mobile?: string;
+    mobile_relation?: string;
 }
 
 const emptyAdmission: AdmissionRecord = {
@@ -1621,6 +1623,7 @@ const AdmissionAndTreatmentPage: React.FC<{
                                                 <tbody className="divide-y divide-slate-800/50">
                                                     {(Array.isArray(admissionData.clinical_orders) ? admissionData.clinical_orders : []).flatMap(o => o && Array.isArray(o.medications) ? o.medications : []).map((med, idx) => {
                                                         if (!med) return null;
+                                                        const now = Date.now();
                                                         const logs = (Array.isArray(admissionData.nurse_chart) ? admissionData.nurse_chart : []).filter(l => l && l.medicationId === med.id).sort((a, b) => b.id - a.id);
                                                         const lastLog = logs[0];
                                                         let statusText = 'Not Started';
