@@ -136,7 +136,7 @@ const SidebarLayout = ({ children, onLogout }: { children: React.ReactNode, onLo
       )}
 
       {/* Full-bleed Content View */}
-      <div className={`flex-1 w-full h-full min-h-0 ${location.pathname === '/' ? 'overflow-hidden' : 'overflow-y-auto'} flex flex-col`}>
+      <div id="main-content-viewport" className="flex-1 w-full min-h-0 overflow-y-auto flex flex-col">
         {children}
       </div>
     </div>

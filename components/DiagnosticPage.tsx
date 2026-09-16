@@ -419,7 +419,7 @@ const DiagnosticPage: React.FC<DiagnosticPageProps> = ({
   };
 
   return (
-    <div className="flex h-screen bg-slate-900 text-slate-100 overflow-hidden">
+    <div className="w-full h-full flex-1 flex bg-slate-900 text-slate-100 overflow-hidden">
 
 
       {/* Mobile Menu Backdrop */}

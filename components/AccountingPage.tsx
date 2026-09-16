@@ -230,7 +230,7 @@ const AccountingPage: React.FC<AccountingPageProps> = ({
   }
 
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col relative">
+    <div className="w-full bg-slate-900 text-slate-100 flex flex-col relative pb-32">
         <BackgroundGraphic />
         <header className="bg-slate-800 shadow-xl border-b border-slate-700 z-20 relative pt-14 md:pt-0">
           <div className="max-w-7xl mx-auto py-6 px-6">

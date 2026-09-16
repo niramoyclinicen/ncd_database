@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { BackIcon, SettingsIcon, SaveIcon, DownloadIcon, TrashIcon, DatabaseIcon, RefreshIcon, Activity, UsersIcon, PrinterIcon, PlusIcon, XIcon } from './Icons';
 import { DepartmentPasswords } from '../types';
 import { dbService, ClinicProfile, PrintSettings, StaffAccount, SMSGatewaySettings, AutoBackupSettings, defaultClinicProfile, defaultPrintSettings, defaultStaffAccounts, defaultSMSGatewaySettings, defaultAutoBackupSettings } from '../dbService';
@@ -88,7 +88,105 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({
   const [showSqlScript, setShowSqlScript] = useState(false);
   const [copiedSql, setCopiedSql] = useState(false);
 
+  // Safe Pre-Migration Backup & Smart Migration Engine State
+  const [isCreatingSnapshot, setIsCreatingSnapshot] = useState(false);
+  const [snapshotMsg, setSnapshotMsg] = useState<string | null>(null);
+  const [rollbackSnapshotInfo, setRollbackSnapshotInfo] = useState(() => dbService.getPreMigrationSnapshotInfo());
+  const [isSmartMigrating, setIsSmartMigrating] = useState(false);
+  const [migrationStepMsg, setMigrationStepMsg] = useState('');
+  const [migrationPct, setMigrationPct] = useState(0);
+  const [smartMigrationReport, setSmartMigrationReport] = useState<any | null>(null);
+  const [isRollingBack, setIsRollingBack] = useState(false);
+  const [rollbackMsg, setRollbackMsg] = useState<string | null>(null);
+  const [multiTableStats, setMultiTableStats] = useState<{ connected: boolean; tables: Record<string, number>; totalCount: number } | null>(null);
+  const [showFullSqlScript, setShowFullSqlScript] = useState(false);
+  const [copiedFullSql, setCopiedFullSql] = useState(false);
+  const [showDropNcdStateGuidance, setShowDropNcdStateGuidance] = useState(false);
+
   const isConnected = dbService.isSupabaseConnected();
+
+  const handleCreateSnapshot = async () => {
+    setIsCreatingSnapshot(true);
+    setSnapshotMsg(null);
+    try {
+      const res = await dbService.createPreMigrationSnapshot();
+      if (res.success) {
+        setSnapshotMsg(`✓ সেফটি স্ন্যাপশট ও ব্যাকআপ ফাইল ডাউনলোড সম্পন্ন হয়েছে (${res.filename})!`);
+        setRollbackSnapshotInfo(dbService.getPreMigrationSnapshotInfo());
+      } else {
+        setSnapshotMsg('স্ন্যাপশট তৈরি করতে সমস্যা হয়েছে।');
+      }
+    } catch (e: any) {
+      setSnapshotMsg('ত্রুটি: ' + (e?.message || 'অজানা ত্রুটি'));
+    } finally {
+      setIsCreatingSnapshot(false);
+    }
+  };
+
+  const handleRunSmartMigration = async () => {
+    if (!window.confirm("আপনি কি নিরাপদ স্মার্ট মাইগ্রেশন ইঞ্জিন চালু করতে চান?\n\n১. এটি শুরু করার আগে স্বয়ংক্রিয়ভাবে বর্তমান ডাটার একটি সেফটি স্ন্যাপশট ও JSON ব্যাকআপ ফাইল ডাউনলোড করবে।\n২. পুরাতন ncd_state থেকে কোনো ডাটা ডিলিট করা হবে না (১০০% রিড-অনলি)।\n৩. নতুন পৃথক টেবিলে আগে থেকেই থাকা ডাটা সর্বোচ্চ অগ্রাধিকার পাবে এবং পুরোনো ডুপ্লিকেট বাদ দেওয়া হবে।\n\nচালিয়ে যেতে 'OK' চাপুন।")) {
+      return;
+    }
+    setIsSmartMigrating(true);
+    setSmartMigrationReport(null);
+    setMigrationStepMsg('শুরু হচ্ছে...');
+    setMigrationPct(5);
+
+    try {
+      const report = await dbService.runSmartMigrationEngine(undefined, (msg, pct) => {
+        setMigrationStepMsg(msg);
+        setMigrationPct(pct);
+      });
+      setSmartMigrationReport(report);
+      setRollbackSnapshotInfo(dbService.getPreMigrationSnapshotInfo());
+      const stats = await dbService.getMultiTableMigrationStats();
+      setMultiTableStats(stats);
+      if (performBlockingSync) {
+        await performBlockingSync();
+      }
+    } catch (e: any) {
+      setSmartMigrationReport({
+        success: false,
+        message: 'মাইগ্রেশনে অপ্রত্যাশিত ত্রুটি: ' + (e?.message || 'অজানা ত্রুটি'),
+        rescued: { total: 0 },
+        duplicatesIgnored: 0,
+        tablesUpdated: []
+      });
+    } finally {
+      setIsSmartMigrating(false);
+    }
+  };
+
+  const handleRollbackSnapshot = async () => {
+    if (!window.confirm("সতর্কতা: আপনি কি নিশ্চিতভাবে প্রি-মাইগ্রেশন স্ন্যাপশটে রোলব্যাক করতে চান?\n\nএটি বর্তমান ডাটাকে মাইগ্রেশন শুরুর আগের ঠিক সেই মুহূর্তে ফেরত নিয়ে যাবে।")) {
+      return;
+    }
+    setIsRollingBack(true);
+    setRollbackMsg(null);
+    try {
+      const res = await dbService.rollbackToPreMigrationSnapshot();
+      if (res.success) {
+        setRollbackMsg(`✓ ${res.message}`);
+        if (performBlockingSync) {
+          await performBlockingSync(res.restoredData);
+        }
+        setTimeout(() => {
+          window.location.reload();
+        }, 1500);
+      } else {
+        setRollbackMsg(`রোলব্যাক ব্যর্থ: ${res.message}`);
+      }
+    } catch (e: any) {
+      setRollbackMsg(`ত্রুটি: ${e?.message || 'অজানা ত্রুটি'}`);
+    } finally {
+      setIsRollingBack(false);
+    }
+  };
+
+  const handleCheckMultiTableStats = async () => {
+    const stats = await dbService.getMultiTableMigrationStats();
+    setMultiTableStats(stats);
+  };
 
   const handleRunMedicineMigration = async () => {
     setIsMigratingMedicine(true);
@@ -413,11 +511,18 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({
     window.location.reload();
   };
 
+  useEffect(() => {
+    const mainViewport = document.getElementById('main-content-viewport');
+    if (mainViewport) {
+      mainViewport.scrollTop = 0;
+    }
+  }, [activeTab]);
+
   const inputClass = "w-full bg-slate-900 border-2 border-slate-800 focus:border-sky-500 rounded-xl px-4 py-3 text-white font-medium outline-none transition-all";
   const labelClass = "block text-[11px] font-black text-slate-400 uppercase tracking-wider mb-1.5 ml-0.5";
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-start p-4 md:p-8">
+    <div className="w-full bg-slate-950 text-slate-100 flex flex-col items-center justify-start p-4 md:p-8 pb-36">
       <div className="bg-slate-900 w-full max-w-6xl rounded-[2.5rem] border border-slate-800 shadow-2xl overflow-hidden flex flex-col mb-10">
         
         {/* HEADER BAR */}
@@ -491,7 +596,7 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({
             onClick={() => setActiveTab('database')}
             className={`px-4 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center gap-2 ${activeTab === 'database' ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/40 ring-2 ring-emerald-400' : 'text-slate-400 hover:text-white hover:bg-slate-800 border border-slate-800'}`}
           >
-            <DatabaseIcon size={15} /> ক্লাউড ডাটাবেজ
+            <DatabaseIcon size={15} /> 🛡️ ক্লাউড ডাটাবেজ ও স্মার্ট মাইগ্রেশন
           </button>
           <button
             type="button"
@@ -1246,82 +1351,402 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({
                   )}
                 </div>
 
-                {/* MEDICINE MULTI-TABLE ARCHITECTURE & MIGRATION */}
-                <div className="bg-slate-950 p-6 rounded-2xl border border-blue-900/50 space-y-4 shadow-xl">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
+                {/* SAFE DATA RECOVERY & SMART MIGRATION ENGINE */}
+                <div className="bg-slate-950 p-6 md:p-8 rounded-3xl border border-blue-900/60 space-y-6 shadow-2xl">
+                  {/* Header */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
                     <div>
-                      <h3 className="text-sm font-black text-blue-400 uppercase tracking-wider flex items-center gap-2">
-                        💊 মেডিসিন মাল্টি-টেবিল সিস্টেম ও মাইগ্রেশন
-                      </h3>
+                      <div className="flex items-center gap-2">
+                        <span className="px-2.5 py-0.5 bg-blue-600/30 text-blue-400 border border-blue-500/40 rounded-full text-[10px] font-black uppercase tracking-wider">
+                          New Core Engine
+                        </span>
+                        <h3 className="text-base font-black text-white uppercase tracking-wider flex items-center gap-2">
+                          🛡️ নিরাপদ ব্যাকআপ ও স্মার্ট মাইগ্রেশন ইঞ্জিন
+                        </h3>
+                      </div>
                       <p className="text-xs text-slate-400 mt-1">
-                        ডায়াগনস্টিকের মতো মেডিসিনের ক্রয় ও বিক্রয় রশিদ এখন দ্রুতগতির আলাদা টেবিলে (<code className="text-blue-300">purchase_invoices</code>, <code className="text-blue-300">sales_invoices</code>, <code className="text-blue-300">medicines</code>) সেভ হবে।
+                        একক <code className="text-amber-400 font-mono">ncd_state</code> অবজেক্ট থেকে সমস্ত মিসিং ডাটা নিরাপদে পৃথক টেবিলগুলোতে মার্জ ও রিকভার করুন।
                       </p>
                     </div>
-                    <button
-                      type="button"
-                      onClick={handleCheckMedicineStats}
-                      className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg text-xs font-bold transition-all border border-slate-700"
-                    >
-                      🔄 টেবিল স্ট্যাটাস চেক
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleCheckMultiTableStats}
+                        className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white rounded-xl text-xs font-bold transition-all border border-slate-700 flex items-center gap-1.5 shadow"
+                      >
+                        🔄 সব টেবিল স্ট্যাটাস চেক
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowFullSqlScript(!showFullSqlScript)}
+                        className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-sky-400 hover:text-sky-300 rounded-xl text-xs font-bold transition-all border border-sky-800/60 flex items-center gap-1.5 shadow"
+                      >
+                        {showFullSqlScript ? 'SQL স্ক্রিপ্ট লুকান' : '📋 পূর্ণাঙ্গ SQL স্ক্রিপ্ট'}
+                      </button>
+                    </div>
                   </div>
 
-                  {medicineStats && (
-                    <div className="grid grid-cols-3 gap-3 p-3 bg-slate-900/80 rounded-xl border border-slate-800">
-                      <div className="text-center">
-                        <div className="text-[10px] text-slate-400 uppercase font-bold">ক্রয় রশিদ (Purchases)</div>
-                        <div className="text-lg font-black text-emerald-400">{medicineStats.purchases} টি</div>
-                      </div>
-                      <div className="text-center border-x border-slate-800">
-                        <div className="text-[10px] text-slate-400 uppercase font-bold">বিক্রয় রশিদ (Sales)</div>
-                        <div className="text-lg font-black text-sky-400">{medicineStats.sales} টি</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-[10px] text-slate-400 uppercase font-bold">ওষুধের তালিকা (Catalog)</div>
-                        <div className="text-lg font-black text-purple-400">{medicineStats.medicines} টি</div>
-                      </div>
-                    </div>
-                  )}
-
-                  {migrationStatus && (
-                    <div className={`p-4 rounded-xl text-xs font-bold ${migrationStatus.success ? 'bg-emerald-950/60 border border-emerald-800 text-emerald-300' : 'bg-rose-950/60 border border-rose-800 text-rose-300'}`}>
-                      {migrationStatus.message}
-                    </div>
-                  )}
-
-                  <div className="flex flex-col sm:flex-row gap-3">
-                    <button
-                      type="button"
-                      disabled={isMigratingMedicine}
-                      onClick={handleRunMedicineMigration}
-                      className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black text-xs py-3 px-4 rounded-xl uppercase tracking-wider transition-all shadow-lg flex items-center justify-center gap-2 disabled:opacity-50"
-                    >
-                      {isMigratingMedicine ? (
-                        <>
-                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                          মাইগ্রেশন চলছে...
-                        </>
-                      ) : (
-                        '🚀 মেডিসিনের সকল পূর্বের ডাটা আলাদা টেবিলে সিঙ্ক ও মাইগ্রেশন করুন'
+                  {/* Multi-Table Stats Grid */}
+                  <div className="bg-slate-900/80 p-4 rounded-2xl border border-slate-800 space-y-3">
+                    <div className="flex items-center justify-between text-xs font-bold text-slate-300">
+                      <span className="flex items-center gap-1.5 text-blue-400">
+                        <DatabaseIcon size={14} /> ডাটাবেজ টেবিলসমূহের বর্তমান রেকর্ড স্থিতি:
+                      </span>
+                      {multiTableStats && (
+                        <span className="text-[11px] text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded-md border border-emerald-800">
+                          মোট পৃথক রেকর্ড: {multiTableStats.totalCount} টি
+                        </span>
                       )}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setShowSqlScript(!showSqlScript)}
-                      className="px-4 py-3 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white rounded-xl text-xs font-bold border border-slate-700 transition-all"
-                    >
-                      {showSqlScript ? 'SQL স্ক্রিপ্ট লুকান' : '📋 Supabase SQL স্ক্রিপ্ট দেখুন'}
-                    </button>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                      <div className="p-2.5 bg-slate-950 rounded-xl border border-slate-800/80">
+                        <div className="text-[10px] text-slate-400 uppercase font-bold">🧪 ল্যাব ইনভয়েস</div>
+                        <div className="text-base font-black text-sky-400 mt-0.5">
+                          {multiTableStats?.tables?.lab_invoices ?? '...'} টি
+                        </div>
+                      </div>
+                      <div className="p-2.5 bg-slate-950 rounded-xl border border-slate-800/80">
+                        <div className="text-[10px] text-slate-400 uppercase font-bold">🛒 ওষুধ ক্রয় (Purchases)</div>
+                        <div className="text-base font-black text-emerald-400 mt-0.5">
+                          {multiTableStats?.tables?.purchase_invoices ?? '...'} টি
+                        </div>
+                      </div>
+                      <div className="p-2.5 bg-slate-950 rounded-xl border border-slate-800/80">
+                        <div className="text-[10px] text-slate-400 uppercase font-bold">💊 ওষুধ বিক্রয় (Sales)</div>
+                        <div className="text-base font-black text-indigo-400 mt-0.5">
+                          {multiTableStats?.tables?.sales_invoices ?? '...'} টি
+                        </div>
+                      </div>
+                      <div className="p-2.5 bg-slate-950 rounded-xl border border-slate-800/80">
+                        <div className="text-[10px] text-slate-400 uppercase font-bold">📦 ওষুধের তালিকা ও স্টক</div>
+                        <div className="text-base font-black text-purple-400 mt-0.5">
+                          {multiTableStats?.tables?.medicines ?? '...'} টি
+                        </div>
+                      </div>
+                      <div className="p-2.5 bg-slate-950 rounded-xl border border-slate-800/80">
+                        <div className="text-[10px] text-slate-400 uppercase font-bold">💸 বিস্তারিত খরচ</div>
+                        <div className="text-base font-black text-amber-400 mt-0.5">
+                          {multiTableStats?.tables?.detailed_expenses ?? '...'} টি
+                        </div>
+                      </div>
+                      <div className="p-2.5 bg-slate-950 rounded-xl border border-slate-800/80">
+                        <div className="text-[10px] text-slate-400 uppercase font-bold">💰 বকেয়া আদায়</div>
+                        <div className="text-base font-black text-teal-400 mt-0.5">
+                          {multiTableStats?.tables?.due_collections ?? '...'} টি
+                        </div>
+                      </div>
+                      <div className="p-2.5 bg-slate-950 rounded-xl border border-slate-800/80">
+                        <div className="text-[10px] text-slate-400 uppercase font-bold">🏥 ক্লিনিক ইনডোর বিল</div>
+                        <div className="text-base font-black text-pink-400 mt-0.5">
+                          {multiTableStats?.tables?.indoor_invoices ?? '...'} টি
+                        </div>
+                      </div>
+                      <div className="p-2.5 bg-slate-950 rounded-xl border border-amber-900/40">
+                        <div className="text-[10px] text-amber-400 uppercase font-bold">📦 ncd_state (Legacy)</div>
+                        <div className="text-base font-black text-amber-300 mt-0.5">
+                          {multiTableStats?.tables?.ncd_state ?? '...'} টি
+                        </div>
+                      </div>
+                    </div>
                   </div>
 
-                  {showSqlScript && (
-                    <div className="mt-3 p-4 bg-slate-900 rounded-xl border border-slate-800 space-y-3">
-                      <div className="flex justify-between items-center">
-                        <span className="text-[11px] font-black text-amber-400 uppercase">Supabase SQL Editor এ চালানোর স্ক্রিপ্ট:</span>
+                  {/* 3 Safety Guarantees */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div className="p-3.5 bg-emerald-950/40 border border-emerald-800/60 rounded-2xl space-y-1">
+                      <div className="text-xs font-black text-emerald-400 flex items-center gap-1.5">
+                        <span>🔒</span> Zero Deletion নীতি
+                      </div>
+                      <p className="text-[11px] text-slate-300 leading-relaxed">
+                        Supabase বা সিস্টেমে কোনো ডাটা মুছে ফেলা বা ড্রপ করা হবে না। <code className="text-emerald-300">ncd_state</code> থাকবে ১০০% রিড-অনলি।
+                      </p>
+                    </div>
+                    <div className="p-3.5 bg-sky-950/40 border border-sky-800/60 rounded-2xl space-y-1">
+                      <div className="text-xs font-black text-sky-400 flex items-center gap-1.5">
+                        <span>⚡</span> Latest/Corrected Wins
+                      </div>
+                      <p className="text-[11px] text-slate-300 leading-relaxed">
+                        নতুন টেবিলে আগে থেকেই থাকা বা সংশোধিত ডাটা কোনোভাবেই পুরোনো ডাটা দিয়ে ওভাররাইট হবে না।
+                      </p>
+                    </div>
+                    <div className="p-3.5 bg-indigo-950/40 border border-indigo-800/60 rounded-2xl space-y-1">
+                      <div className="text-xs font-black text-indigo-400 flex items-center gap-1.5">
+                        <span>🔍</span> Missing Data Only
+                      </div>
+                      <p className="text-[11px] text-slate-300 leading-relaxed">
+                        স্মার্ট ডি-ডুপ্লিকেশন স্বয়ংক্রিয়ভাবে ডুপ্লিকেট বাদ দিয়ে শুধু হারিয়ে যাওয়া রেকর্ডগুলো নতুন টেবিলে সিঙ্ক করবে।
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* STEP 1: PRE-MIGRATION BACKUP & SNAPSHOT */}
+                  <div className="p-4 bg-slate-900/90 rounded-2xl border border-slate-800 space-y-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div>
+                        <div className="text-xs font-black text-amber-400 uppercase tracking-wider flex items-center gap-2">
+                          <span>১.</span> প্রি-মাইগ্রেশন সেফটি স্ন্যাপশট ও JSON ব্যাকআপ
+                        </div>
+                        <p className="text-[11px] text-slate-400 mt-0.5">
+                          মাইগ্রেশন চালুর আগে সম্পূর্ণ সিস্টেমের একটি নিরাপদ ব্যাকআপ ফাইল ও ইনস্ট্যান্ট রোলব্যাক পয়েন্ট সংরক্ষণ করুন।
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          disabled={isCreatingSnapshot}
+                          onClick={handleCreateSnapshot}
+                          className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center gap-2 disabled:opacity-50"
+                        >
+                          {isCreatingSnapshot ? (
+                            <>
+                              <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                              স্ন্যাপশট তৈরি হচ্ছে...
+                            </>
+                          ) : (
+                            <>
+                              <DownloadIcon size={14} /> সেফটি স্ন্যাপশট ও JSON ডাউনলোড
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+
+                    {snapshotMsg && (
+                      <div className="p-3 bg-amber-950/60 border border-amber-800/80 rounded-xl text-xs text-amber-300 font-bold">
+                        {snapshotMsg}
+                      </div>
+                    )}
+
+                    {rollbackSnapshotInfo && (
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-slate-950 rounded-xl border border-slate-800/80 text-xs">
+                        <div className="space-y-0.5">
+                          <div className="text-slate-300 font-bold flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                            সক্রিয় রোলব্যাক পয়েন্ট সংরক্ষিত আছে
+                          </div>
+                          <div className="text-[11px] text-slate-400">
+                            তারিখ: {new Date(rollbackSnapshotInfo.timestamp).toLocaleString()} • ফাইল সাইজ: ~{rollbackSnapshotInfo.sizeKb} KB
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          disabled={isRollingBack}
+                          onClick={handleRollbackSnapshot}
+                          className="px-3.5 py-1.5 bg-rose-600/30 hover:bg-rose-600 text-rose-300 hover:text-white rounded-lg text-xs font-bold border border-rose-500/40 transition-all flex items-center gap-1.5 self-start sm:self-auto disabled:opacity-50"
+                        >
+                          {isRollingBack ? (
+                            <>
+                              <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                              রোলব্যাক হচ্ছে...
+                            </>
+                          ) : (
+                            <>
+                              ↩️ এই স্ন্যাপশটে রোলব্যাক করুন
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    )}
+
+                    {rollbackMsg && (
+                      <div className="p-3 bg-rose-950/60 border border-rose-800/80 rounded-xl text-xs text-rose-300 font-bold">
+                        {rollbackMsg}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* STEP 2: RUN SMART MIGRATION ENGINE */}
+                  <div className="p-5 bg-gradient-to-br from-slate-900 via-blue-950/30 to-indigo-950/40 rounded-2xl border border-blue-800/50 space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div>
+                        <div className="text-xs font-black text-blue-400 uppercase tracking-wider flex items-center gap-2">
+                          <span>২.</span> স্মার্ট মাইগ্রেশন ও ডাটা রিকভারি এক্সিকিউশন
+                        </div>
+                        <p className="text-[11px] text-slate-300 mt-0.5">
+                          পুরোনো সমস্ত রেকর্ড অ্যানালাইসিস করে শুধু মিসিং ডাটা পৃথক টেবিলে সেভ করবে (Latest Wins স্ট্র্যাটেজি)।
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        disabled={isSmartMigrating || !isConnected}
+                        onClick={handleRunSmartMigration}
+                        className="px-5 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black text-xs rounded-xl uppercase tracking-wider transition-all shadow-xl shadow-blue-900/30 flex items-center justify-center gap-2 disabled:opacity-50"
+                      >
+                        {isSmartMigrating ? (
+                          <>
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                            স্মার্ট মাইগ্রেশন চলছে...
+                          </>
+                        ) : (
+                          <>
+                            🚀 স্মার্ট মাইগ্রেশন ও ডাটা রিকভারি চালান
+                          </>
+                        )}
+                      </button>
+                    </div>
+
+                    {/* Migration Progress Bar */}
+                    {isSmartMigrating && (
+                      <div className="p-4 bg-slate-950 rounded-xl border border-blue-800/60 space-y-2">
+                        <div className="flex justify-between text-xs font-bold text-blue-300">
+                          <span>{migrationStepMsg || 'ডাটা প্রক্রিয়াকরণ চলছে...'}</span>
+                          <span>{migrationPct}%</span>
+                        </div>
+                        <div className="w-full bg-slate-800 h-2.5 rounded-full overflow-hidden">
+                          <div
+                            className="bg-gradient-to-r from-blue-500 to-emerald-400 h-full transition-all duration-300 rounded-full"
+                            style={{ width: `${migrationPct}%` }}
+                          ></div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Migration Result Report */}
+                    {smartMigrationReport && (
+                      <div className={`p-4 rounded-2xl text-xs space-y-3 ${smartMigrationReport.success ? 'bg-emerald-950/50 border border-emerald-800 text-emerald-200' : 'bg-rose-950/50 border border-rose-800 text-rose-200'}`}>
+                        <div className="flex items-center gap-2 font-black text-sm">
+                          <span>{smartMigrationReport.success ? '✅' : '❌'}</span>
+                          <span>{smartMigrationReport.message}</span>
+                        </div>
+
+                        {smartMigrationReport.success && smartMigrationReport.rescued && (
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-emerald-800/50">
+                            <div className="p-2 bg-emerald-900/40 rounded-lg">
+                              <span className="text-[10px] text-slate-300 block">উদ্ধারকৃত ল্যাব ইনভয়েস</span>
+                              <span className="text-sm font-black text-white">{smartMigrationReport.rescued.labInvoices} টি</span>
+                            </div>
+                            <div className="p-2 bg-emerald-900/40 rounded-lg">
+                              <span className="text-[10px] text-slate-300 block">উদ্ধারকৃত ওষুধ ক্রয় রশিদ</span>
+                              <span className="text-sm font-black text-white">{smartMigrationReport.rescued.purchaseInvoices} টি</span>
+                            </div>
+                            <div className="p-2 bg-emerald-900/40 rounded-lg">
+                              <span className="text-[10px] text-slate-300 block">উদ্ধারকৃত ওষুধ বিক্রয় রশিদ</span>
+                              <span className="text-sm font-black text-white">{smartMigrationReport.rescued.salesInvoices} টি</span>
+                            </div>
+                            <div className="p-2 bg-emerald-900/40 rounded-lg">
+                              <span className="text-[10px] text-slate-300 block">উদ্ধারকৃত ওষুধের তালিকা</span>
+                              <span className="text-sm font-black text-white">{smartMigrationReport.rescued.medicines} টি</span>
+                            </div>
+                            <div className="p-2 bg-emerald-900/40 rounded-lg">
+                              <span className="text-[10px] text-slate-300 block">উদ্ধারকৃত দৈনিক খরচ</span>
+                              <span className="text-sm font-black text-white">{smartMigrationReport.rescued.detailedExpenses} টি</span>
+                            </div>
+                            <div className="p-2 bg-emerald-900/40 rounded-lg">
+                              <span className="text-[10px] text-slate-300 block">উদ্ধারকৃত বকেয়া আদায়</span>
+                              <span className="text-sm font-black text-white">{smartMigrationReport.rescued.dueCollections} টি</span>
+                            </div>
+                            <div className="p-2 bg-emerald-900/40 rounded-lg">
+                              <span className="text-[10px] text-slate-300 block">উদ্ধারকৃত ইনডোর বিল</span>
+                              <span className="text-sm font-black text-white">{smartMigrationReport.rescued.indoorInvoices} টি</span>
+                            </div>
+                            <div className="p-2 bg-emerald-900/40 rounded-lg">
+                              <span className="text-[10px] text-slate-300 block">ইগনোর করা ডুপ্লিকেট</span>
+                              <span className="text-sm font-black text-amber-300">{smartMigrationReport.duplicatesIgnored} টি</span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* STEP 3: POST-MIGRATION VERIFICATION & NCD_STATE HANDLING GUIDANCE */}
+                  <div className="p-4 bg-slate-900/80 rounded-2xl border border-slate-800 space-y-3">
+                    <button
+                      type="button"
+                      onClick={() => setShowDropNcdStateGuidance(!showDropNcdStateGuidance)}
+                      className="w-full flex items-center justify-between text-xs font-black text-slate-300 hover:text-white transition-all text-left"
+                    >
+                      <span className="flex items-center gap-2">
+                        <span>ℹ️</span> মাইগ্রেশন পরবর্তী ভেরিফিকেশন ও পুরাতন ncd_state টেবিল আর্কাইভ/ডিলিট নির্দেশিকা
+                      </span>
+                      <span className="text-blue-400 text-sm">{showDropNcdStateGuidance ? '▲ বন্ধ করুন' : '▼ বিস্তারিত দেখুন'}</span>
+                    </button>
+
+                    {showDropNcdStateGuidance && (
+                      <div className="p-4 bg-slate-950 rounded-xl border border-slate-800 text-xs space-y-3 leading-relaxed text-slate-300">
+                        <div className="space-y-1">
+                          <div className="font-bold text-emerald-400">১. সমস্ত হিসাব যাচাই করুন:</div>
+                          <p className="text-[11px] text-slate-400">
+                            ল্যাব ড্যাশবোর্ড, ফার্মেসি ক্রয়-বিক্রয় ও স্টক, ক্লিনিক ইনডোর ও একাউন্টস খরচ মিলিয়ে নিশ্চিত হোন যে সমস্ত ঐতিহাসিক ডাটা নিখুঁতভাবে প্রদর্শিত হচ্ছে।
+                          </p>
+                        </div>
+                        <div className="space-y-1">
+                          <div className="font-bold text-sky-400">২. পুরোনো ncd_state রাখা কি নিরাপদ?</div>
+                          <p className="text-[11px] text-slate-400">
+                            হ্যাঁ, সম্পূর্ণ নিরাপদ। সিস্টেম এখন স্বয়ংক্রিয়ভাবে নতুন পৃথক টেবিলে অগ্রাধিকার দেয়। পুরোনো টেবিলে কোনো নতুন ডাটা লিখতে হবে না।
+                          </p>
+                        </div>
+                        <div className="space-y-2 pt-2 border-t border-slate-800">
+                          <div className="font-bold text-amber-400">৩. Supabase-এ ncd_state আর্কাইভ বা ডিলিট করার কমান্ড:</div>
+                          <p className="text-[11px] text-slate-400">
+                            যদি আপনি Supabase ডাটাবেজে স্টোরেজ খালি করতে চান, তবে প্রথমে টেবিলটি ব্যাকআপ হিসেবে রিনেম করে রাখতে পারেন:
+                          </p>
+                          <pre className="p-3 bg-slate-900 rounded-lg text-[11px] font-mono text-emerald-300 overflow-x-auto border border-slate-800">
+{`-- সেফটি রিনেম (ডাটা অক্ষত রেখে ব্যাকআপ হিসেবে নাম পরিবর্তন):
+ALTER TABLE IF EXISTS public.ncd_state RENAME TO ncd_state_archive_safe;
+
+-- অথবা আপনি শতভাগ নিশ্চিত হলে পুরোপুরি ড্রপ করতে পারেন:
+-- DROP TABLE IF EXISTS public.ncd_state;`}
+                          </pre>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* COMPLETE MODULAR TABLES SQL MODAL / ACCORDION */}
+                  {showFullSqlScript && (
+                    <div className="p-5 bg-slate-950 rounded-2xl border border-sky-900/60 space-y-4">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
+                        <div>
+                          <div className="text-xs font-black text-sky-400 uppercase tracking-wider">
+                            Supabase SQL Editor এ চালানোর পূর্ণাঙ্গ স্কিমা স্ক্রিপ্ট (৭টি পৃথক টেবিল):
+                          </div>
+                          <p className="text-[11px] text-slate-400 mt-0.5">
+                            ল্যাব, ফার্মেসি, ক্লিনিক ও একাউন্টসের পৃথক টেবিল তৈরির জন্য এটি এক ক্লিকে কপি করে রান করতে পারেন।
+                          </p>
+                        </div>
                         <button
                           type="button"
                           onClick={() => {
-                            const sql = `-- 1. Medicine Purchases (ক্রয় রশিদ)
+                            const sql = `-- =========================================================================
+-- নিরাময় ক্লিনিক অ্যান্ড ডায়াগনস্টিক - পূর্ণাঙ্গ মাল্টি-টেবিল স্কিমা
+-- এই স্ক্রিপ্টটি Supabase SQL Editor এ সম্পূর্ণ রান করুন
+-- =========================================================================
+
+-- 1. ল্যাব ইনভয়েস টেবিল (Lab / Diagnostic Invoices)
+CREATE TABLE IF NOT EXISTS public.lab_invoices (
+  id TEXT PRIMARY KEY,
+  invoice_id TEXT,
+  invoice_date TEXT,
+  patient_id TEXT,
+  patient_name TEXT,
+  doctor_id TEXT,
+  doctor_name TEXT,
+  referrar_id TEXT,
+  referrar_name TEXT,
+  items JSONB DEFAULT '[]'::jsonb,
+  total_amount NUMERIC DEFAULT 0,
+  paid_amount NUMERIC DEFAULT 0,
+  due_amount NUMERIC DEFAULT 0,
+  discount_amount NUMERIC DEFAULT 0,
+  commission_paid NUMERIC DEFAULT 0,
+  special_commission NUMERIC DEFAULT 0,
+  status TEXT DEFAULT 'Paid',
+  data JSONB,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 2. বকেয়া আদায় টেবিল (Due Collections)
+CREATE TABLE IF NOT EXISTS public.due_collections (
+  id TEXT PRIMARY KEY,
+  collection_id TEXT,
+  invoice_id TEXT,
+  amount_collected NUMERIC DEFAULT 0,
+  collection_date TEXT,
+  data JSONB,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 3. মেডিসিন ক্রয় রশিদ (Medicine Purchases)
 CREATE TABLE IF NOT EXISTS public.purchase_invoices (
   id TEXT PRIMARY KEY,
   invoice_id TEXT,
@@ -1342,7 +1767,7 @@ CREATE TABLE IF NOT EXISTS public.purchase_invoices (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 2. Medicine Sales (বিক্রয় রশিদ)
+-- 4. মেডিসিন বিক্রয় রশিদ (Medicine Sales)
 CREATE TABLE IF NOT EXISTS public.sales_invoices (
   id TEXT PRIMARY KEY,
   invoice_id TEXT,
@@ -1365,7 +1790,7 @@ CREATE TABLE IF NOT EXISTS public.sales_invoices (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 3. Medicine Catalog (ওষুধের তালিকা ও স্টক)
+-- 5. মেডিসিন ক্যাটালগ ও স্টক (Medicine Catalog)
 CREATE TABLE IF NOT EXISTS public.medicines (
   id TEXT PRIMARY KEY,
   trade_name TEXT,
@@ -1384,7 +1809,41 @@ CREATE TABLE IF NOT EXISTS public.medicines (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Enable RLS and public access
+-- 6. দৈনিক খরচ টেবিল (Detailed Expenses)
+CREATE TABLE IF NOT EXISTS public.detailed_expenses (
+  id TEXT PRIMARY KEY,
+  date TEXT,
+  category TEXT,
+  sub_category TEXT,
+  description TEXT,
+  bill_amount NUMERIC DEFAULT 0,
+  paid_amount NUMERIC DEFAULT 0,
+  dept TEXT DEFAULT 'Diagnostic',
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 7. ক্লিনিক ইনডোর ভর্তি ও বিল (Indoor Invoices)
+CREATE TABLE IF NOT EXISTS public.indoor_invoices (
+  id TEXT PRIMARY KEY,
+  invoice_id TEXT,
+  daily_id TEXT,
+  patient_name TEXT,
+  invoice_date TEXT,
+  items JSONB DEFAULT '[]'::jsonb,
+  paid_amount NUMERIC DEFAULT 0,
+  data JSONB,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- সিকিউরিটি ও পলিসি (Enable RLS & Public Access)
+ALTER TABLE public.lab_invoices ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public full access on lab_invoices" ON public.lab_invoices;
+CREATE POLICY "Public full access on lab_invoices" ON public.lab_invoices FOR ALL USING (true) WITH CHECK (true);
+
+ALTER TABLE public.due_collections ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public full access on due_collections" ON public.due_collections;
+CREATE POLICY "Public full access on due_collections" ON public.due_collections FOR ALL USING (true) WITH CHECK (true);
+
 ALTER TABLE public.purchase_invoices ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Public full access on purchase_invoices" ON public.purchase_invoices;
 CREATE POLICY "Public full access on purchase_invoices" ON public.purchase_invoices FOR ALL USING (true) WITH CHECK (true);
@@ -1395,78 +1854,87 @@ CREATE POLICY "Public full access on sales_invoices" ON public.sales_invoices FO
 
 ALTER TABLE public.medicines ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Public full access on medicines" ON public.medicines;
-CREATE POLICY "Public full access on medicines" ON public.medicines FOR ALL USING (true) WITH CHECK (true);`;
+CREATE POLICY "Public full access on medicines" ON public.medicines FOR ALL USING (true) WITH CHECK (true);
+
+ALTER TABLE public.detailed_expenses ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public full access on detailed_expenses" ON public.detailed_expenses;
+CREATE POLICY "Public full access on detailed_expenses" ON public.detailed_expenses FOR ALL USING (true) WITH CHECK (true);
+
+ALTER TABLE public.indoor_invoices ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public full access on indoor_invoices" ON public.indoor_invoices;
+CREATE POLICY "Public full access on indoor_invoices" ON public.indoor_invoices FOR ALL USING (true) WITH CHECK (true);`;
                             navigator.clipboard.writeText(sql);
-                            setCopiedSql(true);
-                            setTimeout(() => setCopiedSql(false), 3000);
+                            setCopiedFullSql(true);
+                            setTimeout(() => setCopiedFullSql(false), 3000);
                           }}
-                          className="px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded text-xs font-bold"
+                          className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all shadow self-start sm:self-auto"
                         >
-                          {copiedSql ? '✓ কপি হয়েছে!' : '📋 কোড কপি করুন'}
+                          {copiedFullSql ? '✓ সম্পূর্ণ SQL কোড কপি হয়েছে!' : '📋 সম্পূর্ণ SQL স্ক্রিপ্ট কপি করুন'}
                         </button>
                       </div>
-                      <pre className="text-[11px] font-mono text-slate-300 bg-slate-950 p-3 rounded-lg overflow-x-auto max-h-48 border border-slate-800">
-{`-- 1. Medicine Purchases (ক্রয় রশিদ)
+
+                      <pre className="text-[11px] font-mono text-slate-300 bg-slate-900 p-4 rounded-xl overflow-x-auto max-h-60 border border-slate-800 leading-relaxed">
+{`-- 1. lab_invoices
+CREATE TABLE IF NOT EXISTS public.lab_invoices (
+  id TEXT PRIMARY KEY, invoice_id TEXT, invoice_date TEXT,
+  patient_id TEXT, patient_name TEXT, doctor_id TEXT, doctor_name TEXT,
+  referrar_id TEXT, referrar_name TEXT, items JSONB DEFAULT '[]'::jsonb,
+  total_amount NUMERIC DEFAULT 0, paid_amount NUMERIC DEFAULT 0,
+  due_amount NUMERIC DEFAULT 0, discount_amount NUMERIC DEFAULT 0,
+  commission_paid NUMERIC DEFAULT 0, special_commission NUMERIC DEFAULT 0,
+  status TEXT DEFAULT 'Paid', data JSONB, updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 2. purchase_invoices
 CREATE TABLE IF NOT EXISTS public.purchase_invoices (
-  id TEXT PRIMARY KEY,
-  invoice_id TEXT,
-  invoice_date TEXT,
-  source TEXT,
-  items JSONB DEFAULT '[]'::jsonb,
-  total_amount NUMERIC DEFAULT 0,
-  discount NUMERIC DEFAULT 0,
-  net_payable NUMERIC DEFAULT 0,
-  paid_amount NUMERIC DEFAULT 0,
-  due_amount NUMERIC DEFAULT 0,
-  bill_created_by TEXT,
-  bill_paid_by TEXT,
-  received_by TEXT,
-  status TEXT DEFAULT 'Saved',
-  created_date TEXT,
-  data JSONB,
+  id TEXT PRIMARY KEY, invoice_id TEXT, invoice_date TEXT, source TEXT,
+  items JSONB DEFAULT '[]'::jsonb, total_amount NUMERIC DEFAULT 0,
+  discount NUMERIC DEFAULT 0, net_payable NUMERIC DEFAULT 0,
+  paid_amount NUMERIC DEFAULT 0, due_amount NUMERIC DEFAULT 0,
+  bill_created_by TEXT, bill_paid_by TEXT, received_by TEXT,
+  status TEXT DEFAULT 'Saved', created_date TEXT, data JSONB,
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 2. Medicine Sales (বিক্রয় রশিদ)
+-- 3. sales_invoices
 CREATE TABLE IF NOT EXISTS public.sales_invoices (
-  id TEXT PRIMARY KEY,
-  invoice_id TEXT,
-  invoice_date TEXT,
-  customer_name TEXT,
-  customer_mobile TEXT,
-  customer_age TEXT,
-  customer_gender TEXT,
-  ref_doctor_name TEXT,
-  items JSONB DEFAULT '[]'::jsonb,
-  total_amount NUMERIC DEFAULT 0,
-  discount NUMERIC DEFAULT 0,
-  net_payable NUMERIC DEFAULT 0,
-  paid_amount NUMERIC DEFAULT 0,
-  due_amount NUMERIC DEFAULT 0,
-  bill_created_by TEXT,
-  status TEXT DEFAULT 'Posted',
-  created_date TEXT,
-  data JSONB,
-  updated_at TIMESTAMPTZ DEFAULT NOW()
+  id TEXT PRIMARY KEY, invoice_id TEXT, invoice_date TEXT,
+  customer_name TEXT, customer_mobile TEXT, customer_age TEXT, customer_gender TEXT,
+  ref_doctor_name TEXT, items JSONB DEFAULT '[]'::jsonb,
+  total_amount NUMERIC DEFAULT 0, discount NUMERIC DEFAULT 0,
+  net_payable NUMERIC DEFAULT 0, paid_amount NUMERIC DEFAULT 0,
+  due_amount NUMERIC DEFAULT 0, bill_created_by TEXT, status TEXT DEFAULT 'Posted',
+  created_date TEXT, data JSONB, updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 3. Medicine Catalog (ওষুধের তালিকা ও স্টক)
+-- 4. medicines
 CREATE TABLE IF NOT EXISTS public.medicines (
-  id TEXT PRIMARY KEY,
-  trade_name TEXT,
-  generic_name TEXT,
-  formulation TEXT,
-  strength TEXT,
-  unit_price_buy NUMERIC DEFAULT 0,
-  unit_price_sell NUMERIC DEFAULT 0,
-  stock NUMERIC DEFAULT 0,
-  box_size NUMERIC DEFAULT 1,
-  supplier TEXT,
-  expiry_date TEXT,
-  is_antibiotic BOOLEAN DEFAULT FALSE,
-  requires_prescription BOOLEAN DEFAULT FALSE,
-  data JSONB,
-  updated_at TIMESTAMPTZ DEFAULT NOW()
+  id TEXT PRIMARY KEY, trade_name TEXT, generic_name TEXT, formulation TEXT,
+  strength TEXT, unit_price_buy NUMERIC DEFAULT 0, unit_price_sell NUMERIC DEFAULT 0,
+  stock NUMERIC DEFAULT 0, box_size NUMERIC DEFAULT 1, supplier TEXT,
+  expiry_date TEXT, is_antibiotic BOOLEAN DEFAULT FALSE,
+  requires_prescription BOOLEAN DEFAULT FALSE, data JSONB, updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 5. detailed_expenses
+CREATE TABLE IF NOT EXISTS public.detailed_expenses (
+  id TEXT PRIMARY KEY, date TEXT, category TEXT, sub_category TEXT,
+  description TEXT, bill_amount NUMERIC DEFAULT 0, paid_amount NUMERIC DEFAULT 0,
+  dept TEXT DEFAULT 'Diagnostic', updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 6. due_collections
+CREATE TABLE IF NOT EXISTS public.due_collections (
+  id TEXT PRIMARY KEY, collection_id TEXT, invoice_id TEXT,
+  amount_collected NUMERIC DEFAULT 0, collection_date TEXT,
+  data JSONB, updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 7. indoor_invoices
+CREATE TABLE IF NOT EXISTS public.indoor_invoices (
+  id TEXT PRIMARY KEY, invoice_id TEXT, daily_id TEXT,
+  patient_name TEXT, invoice_date TEXT, items JSONB DEFAULT '[]'::jsonb,
+  paid_amount NUMERIC DEFAULT 0, data JSONB, updated_at TIMESTAMPTZ DEFAULT NOW()
 );`}
                       </pre>
                     </div>

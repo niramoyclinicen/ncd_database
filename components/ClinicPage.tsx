@@ -4239,7 +4239,7 @@ const ClinicPage: React.FC<ClinicPageProps> = ({
     useEffect(() => { if(successMessage) { const t = setTimeout(() => setSuccessMessage(''), 3000); return () => clearTimeout(t); } }, [successMessage]);
 
     return (
-        <div className="bg-slate-950 min-h-screen text-slate-200 flex flex-col font-sans selection:bg-cyan-500/30">
+        <div className="w-full h-full flex-1 bg-slate-950 text-slate-200 flex flex-col font-sans selection:bg-cyan-500/30 overflow-hidden">
             <div className="bg-slate-900/80 backdrop-blur-md border-b border-slate-800 shadow-2xl z-10 sticky top-0">
                 <div className="max-w-[1600px] mx-auto px-6 py-4 pt-16 md:pt-4 w-full"> 
                     <div className="flex flex-col gap-4">

@@ -259,13 +259,14 @@ export const dbService = {
           if (id && map.has(id)) {
             const existingIdx = map.get(id)!;
             const existing = result[existingIdx];
-            const merged = { ...item, ...existing };
-            // Intelligently preserve items array and positive amounts
-            if ((!existing.items || existing.items.length === 0) && item.items && item.items.length > 0) {
-              merged.items = item.items;
+            // Latest/Corrected modular item takes precedence over existing legacy record
+            const merged = { ...existing, ...item };
+            // Intelligently preserve items array and positive amounts if incoming modular record lacked them
+            if ((!item.items || item.items.length === 0) && existing.items && existing.items.length > 0) {
+              merged.items = existing.items;
             }
-            if ((!existing.netPayable || existing.netPayable === 0) && (item.netPayable || item.net_payable)) {
-              merged.netPayable = item.netPayable || item.net_payable;
+            if ((!item.netPayable && !item.net_payable) && (existing.netPayable || existing.net_payable)) {
+              merged.netPayable = existing.netPayable || existing.net_payable;
             }
             result[existingIdx] = merged;
           } else {
@@ -982,6 +983,36 @@ export const dbService = {
         console.warn("Detailed expenses modular sync warning:", e);
       }
 
+      // 2e. Modular Sync for lab_invoices
+      try {
+        if (Array.isArray(appState.labInvoices) && appState.labInvoices.length > 0) {
+          const labSync = await dbService.syncLabInvoicesToModularTable(appState.labInvoices);
+          if (labSync) modularSaveSuccess = true;
+        }
+      } catch (labErr) {
+        console.warn("Modular lab invoices sync notice:", labErr);
+      }
+
+      // 2f. Modular Sync for due_collections
+      try {
+        if (Array.isArray(appState.dueCollections) && appState.dueCollections.length > 0) {
+          const dueSync = await dbService.syncDueCollectionsToModularTable(appState.dueCollections);
+          if (dueSync) modularSaveSuccess = true;
+        }
+      } catch (dueErr) {
+        console.warn("Modular due collections sync notice:", dueErr);
+      }
+
+      // 2g. Modular Sync for indoor_invoices
+      try {
+        if (Array.isArray(appState.indoorInvoices) && appState.indoorInvoices.length > 0) {
+          const indoorSync = await dbService.syncIndoorInvoicesToModularTable(appState.indoorInvoices);
+          if (indoorSync) modularSaveSuccess = true;
+        }
+      } catch (indoorErr) {
+        console.warn("Modular indoor sync notice:", indoorErr);
+      }
+
       // 3. Save to Master ncd_state single table (for backward compatibility and whole-state recovery)
       let masterSuccess = false;
       let masterErrorMessage = '';
@@ -1669,6 +1700,617 @@ export const dbService = {
       };
     } catch (e) {
       return { purchases: 0, sales: 0, medicines: 0, connected: false };
+    }
+  },
+
+  syncLabInvoicesToModularTable: async (invoices: any[]) => {
+    if (!supabase || !Array.isArray(invoices) || invoices.length === 0) return true;
+    try {
+      const now = new Date().toISOString();
+      const rows = invoices.map((inv: any) => {
+        const invId = String(inv.invoice_id || inv.id || inv.invoice_no || inv.invoiceId || `INV-${Date.now()}`).trim();
+        const invDate = inv.invoice_date || inv.date || inv.created_at || (inv.createdAt ? String(inv.createdAt).split('T')[0] : '') || now.split('T')[0];
+        const items = Array.isArray(inv.items) ? inv.items : [];
+        const total = Number(inv.total_amount ?? inv.totalAmount ?? inv.total ?? 0);
+        const paid = Number(inv.paid_amount ?? inv.paidAmount ?? inv.paid ?? 0);
+        const discount = Number(inv.discount_amount ?? inv.discountAmount ?? inv.discount ?? 0);
+        const due = Number(inv.due_amount ?? inv.dueAmount ?? Math.max(0, total - discount - paid));
+        return {
+          id: invId,
+          invoice_id: invId,
+          invoice_date: invDate,
+          patient_id: String(inv.patient_id || inv.pt_id || ''),
+          patient_name: inv.patient_name || inv.pt_name || '',
+          doctor_id: String(inv.doctor_id || ''),
+          doctor_name: inv.doctor_name || '',
+          referrar_id: String(inv.referrar_id || inv.ref_id || ''),
+          referrar_name: inv.referrar_name || inv.ref_name || '',
+          items,
+          total_amount: total,
+          paid_amount: paid,
+          due_amount: due,
+          discount_amount: discount,
+          commission_paid: Number(inv.commission_paid ?? inv.commissionPaid ?? 0),
+          special_commission: Number(inv.special_commission ?? inv.specialCommission ?? 0),
+          status: inv.status || (due > 0 ? 'Due' : 'Paid'),
+          data: inv,
+          updated_at: now
+        };
+      });
+      return await upsertTableSafe(supabase, 'lab_invoices', rows);
+    } catch (e) {
+      console.warn("syncLabInvoicesToModularTable notice:", e);
+      return false;
+    }
+  },
+
+  syncDueCollectionsToModularTable: async (collections: any[]) => {
+    if (!supabase || !Array.isArray(collections) || collections.length === 0) return true;
+    try {
+      const now = new Date().toISOString();
+      const rows = collections.map((col: any) => {
+        const colId = String(col.collection_id || col.id || col.collectionId || `DUE-${Date.now()}`).trim();
+        const invId = String(col.invoice_id || col.invoice_no || col.invoiceId || '').trim();
+        const colDate = col.collection_date || col.date || col.created_at || now.split('T')[0];
+        const amount = Number(col.amount_collected ?? col.amount ?? col.paid_amount ?? 0);
+        return {
+          id: colId,
+          collection_id: colId,
+          invoice_id: invId,
+          amount_collected: amount,
+          collection_date: colDate,
+          data: col,
+          updated_at: now
+        };
+      });
+      return await upsertTableSafe(supabase, 'due_collections', rows);
+    } catch (e) {
+      console.warn("syncDueCollectionsToModularTable notice:", e);
+      return false;
+    }
+  },
+
+  syncIndoorInvoicesToModularTable: async (invoices: any[]) => {
+    if (!supabase || !Array.isArray(invoices) || invoices.length === 0) return true;
+    try {
+      const now = new Date().toISOString();
+      const rows = invoices.map((inv: any) => {
+        const invId = String(inv.invoice_id || inv.daily_id || inv.id || `IN-${Date.now()}`).trim();
+        const invDate = inv.invoice_date || inv.admission_date || inv.date || now.split('T')[0];
+        const items = Array.isArray(inv.items) ? inv.items : [];
+        const paid = Number(inv.paid_amount ?? inv.paidAmount ?? 0);
+        return {
+          id: invId,
+          invoice_id: invId,
+          daily_id: inv.daily_id || invId,
+          patient_name: inv.patient_name || inv.patientName || '',
+          invoice_date: invDate,
+          items,
+          paid_amount: paid,
+          data: inv,
+          updated_at: now
+        };
+      });
+      return await upsertTableSafe(supabase, 'indoor_invoices', rows);
+    } catch (e) {
+      console.warn("syncIndoorInvoicesToModularTable notice:", e);
+      return false;
+    }
+  },
+
+  syncDetailedExpensesToModularTable: async (expenses: Record<string, any[]> | any[]) => {
+    if (!supabase) return true;
+    try {
+      const now = new Date().toISOString();
+      const rows: any[] = [];
+      if (Array.isArray(expenses)) {
+        expenses.forEach((it: any, idx: number) => {
+          if (!it || it.isDeleted) return;
+          const rowDate = (it.date || now).split('T')[0];
+          const rowId = String(it.id || `exp_${rowDate.replace(/-/g, '')}_${idx}_${Date.now()}`);
+          rows.push({
+            id: rowId,
+            date: rowDate,
+            category: it.category || 'General',
+            sub_category: it.subCategory || it.sub_category || '',
+            description: it.description || '',
+            bill_amount: Number(it.billAmount || it.paidAmount || 0),
+            paid_amount: Number(it.paidAmount || it.billAmount || 0),
+            dept: it.dept || 'Diagnostic',
+            updated_at: now
+          });
+        });
+      } else if (expenses && typeof expenses === 'object') {
+        Object.entries(expenses).forEach(([dateKey, items]) => {
+          if (Array.isArray(items)) {
+            items.forEach((it: any, idx: number) => {
+              if (!it || it.isDeleted) return;
+              const rowId = String(it.id || `exp_${dateKey.replace(/-/g, '')}_${idx}_${Date.now()}`);
+              rows.push({
+                id: rowId,
+                date: dateKey,
+                category: it.category || 'General',
+                sub_category: it.subCategory || it.sub_category || '',
+                description: it.description || '',
+                bill_amount: Number(it.billAmount || it.paidAmount || 0),
+                paid_amount: Number(it.paidAmount || it.billAmount || 0),
+                dept: it.dept || 'Diagnostic',
+                updated_at: now
+              });
+            });
+          }
+        });
+      }
+      if (rows.length > 0) {
+        return await upsertTableSafe(supabase, 'detailed_expenses', rows);
+      }
+      return true;
+    } catch (e) {
+      console.warn("syncDetailedExpensesToModularTable notice:", e);
+      return false;
+    }
+  },
+
+  // 1. Snapshot & Rollback Storage
+  createPreMigrationSnapshot: async (appState?: any) => {
+    try {
+      const currentState = appState || await dbService.loadFromCloud();
+      const timestamp = new Date().toISOString();
+      const filename = `ncd_backup_pre_migration_${Date.now()}.json`;
+      const snapshotId = `SNAPSHOT-${Date.now()}`;
+
+      // Save rollback point to localStorage dedicated key
+      localStorage.setItem('ncd_migration_rollback_snapshot', JSON.stringify({
+        id: snapshotId,
+        timestamp,
+        title: `Pre-Migration Safety Rollback Point (${new Date().toLocaleString()})`,
+        data: currentState
+      }));
+
+      // Also register in local snapshot vault
+      dbService.saveLocalSnapshot(`Pre-Migration Safety Snapshot (${new Date().toLocaleTimeString()})`, currentState);
+
+      // Automatically trigger file download
+      try {
+        const jsonStr = JSON.stringify(currentState, null, 2);
+        const blob = new Blob([jsonStr], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      } catch (dlErr) {
+        console.warn("Auto download notice:", dlErr);
+      }
+
+      return { success: true, snapshotId, filename, timestamp };
+    } catch (err: any) {
+      console.warn("createPreMigrationSnapshot notice:", err);
+      return { success: false, snapshotId: '', filename: '', timestamp: '' };
+    }
+  },
+
+  getPreMigrationSnapshotInfo: () => {
+    try {
+      const raw = localStorage.getItem('ncd_migration_rollback_snapshot');
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      return {
+        id: parsed.id || 'N/A',
+        timestamp: parsed.timestamp || '',
+        title: parsed.title || 'Pre-Migration Snapshot',
+        sizeKb: Math.round(raw.length / 1024)
+      };
+    } catch {
+      return null;
+    }
+  },
+
+  rollbackToPreMigrationSnapshot: async () => {
+    try {
+      const raw = localStorage.getItem('ncd_migration_rollback_snapshot');
+      if (!raw) {
+        return { success: false, message: 'কোনো প্রি-মাইগ্রেশন রোলব্যাক স্ন্যাপশট খুঁজে পাওয়া যায়নি।' };
+      }
+      const parsed = JSON.parse(raw);
+      const dataToRestore = parsed.data || parsed;
+
+      // Update local storage caches
+      try {
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(dataToRestore));
+        localStorage.setItem('ncd_offline_cache_v1', JSON.stringify(dataToRestore));
+      } catch {}
+
+      // Push restored state to cloud
+      await dbService.saveToCloud(dataToRestore);
+
+      return {
+        success: true,
+        message: `সফলভাবে প্রি-মাইগ্রেশন পয়েন্টে রোলব্যাক করা হয়েছে! (${new Date(parsed.timestamp || Date.now()).toLocaleString()})`,
+        restoredData: dataToRestore
+      };
+    } catch (e: any) {
+      return { success: false, message: 'রোলব্যাকে ত্রুটি: ' + (e?.message || 'Unknown error') };
+    }
+  },
+
+  // 2. Smart Migration Engine (Latest/Multi-Table Wins, Zero Deletion from Supabase)
+  runSmartMigrationEngine: async (appState?: any, onProgress?: (msg: string, pct: number) => void) => {
+    if (!supabase) {
+      return {
+        success: false,
+        message: 'Supabase ডাটাবেজ সংযুক্ত নেই। অনুগ্রহ করে ক্রেডেনশিয়াল পরীক্ষা করুন।',
+        rescued: { labInvoices: 0, purchaseInvoices: 0, salesInvoices: 0, medicines: 0, detailedExpenses: 0, dueCollections: 0, indoorInvoices: 0, consolidatedLabEntries: 0, total: 0 },
+        duplicatesIgnored: 0,
+        tablesUpdated: []
+      };
+    }
+
+    try {
+      // Step 1: Pre-Migration Backup Snapshot & Auto-Download
+      onProgress?.('ধাপ ১/৫: বর্তমান ডাটার প্রি-মাইগ্রেশন সেফটি স্ন্যাপশট ও JSON ব্যাকআপ তৈরি হচ্ছে...', 15);
+      const snapshotInfo = await dbService.createPreMigrationSnapshot(appState);
+
+      // Step 2: Read All Legacy Records from ncd_state (Zero Deletion, 100% Read-Only)
+      onProgress?.('ধাপ ২/৫: পুরোনো ncd_state টেবিল থেকে সমস্ত ঐতিহাসিক ডাটা রিড করা হচ্ছে (Zero Deletion)...', 30);
+      const { data: legacyRecords, error: legacyErr } = await supabase
+        .from('ncd_state')
+        .select('*')
+        .order('updated_at', { ascending: false });
+
+      if (legacyErr || !legacyRecords || legacyRecords.length === 0) {
+        return {
+          success: true,
+          message: 'পুরাতন ncd_state টেবিলে কোনো অতিরিক্ত ডাটা পাওয়া যায়নি বা ইতিমধ্যেই সমস্ত ডাটা পৃথক টেবিলে রয়েছে।',
+          snapshotId: snapshotInfo.snapshotId,
+          snapshotFilename: snapshotInfo.filename,
+          rescued: { labInvoices: 0, purchaseInvoices: 0, salesInvoices: 0, medicines: 0, detailedExpenses: 0, dueCollections: 0, indoorInvoices: 0, consolidatedLabEntries: 0, total: 0 },
+          duplicatesIgnored: 0,
+          tablesUpdated: []
+        };
+      }
+
+      // Extract all entities across all historical rows in ncd_state
+      const legacyLabInvoices: any[] = [];
+      const legacyPurchaseInvoices: any[] = [];
+      const legacySalesInvoices: any[] = [];
+      const legacyMedicines: any[] = [];
+      const legacyExpenses: any[] = [];
+      const legacyDueCollections: any[] = [];
+      const legacyIndoorInvoices: any[] = [];
+      const legacyConsolidated: any[] = [];
+
+      const extractObj = (raw: any) => {
+        if (!raw) return null;
+        if (typeof raw === 'object' && !Array.isArray(raw)) return raw;
+        if (typeof raw === 'string') {
+          try { return JSON.parse(raw); } catch { return null; }
+        }
+        return null;
+      };
+
+      legacyRecords.forEach(rec => {
+        const d = extractObj(rec.data);
+        if (!d) return;
+
+        const labs = d.labInvoices || d.invoices || d.lab_invoices || d.diagnostic_invoices;
+        if (Array.isArray(labs)) legacyLabInvoices.push(...labs);
+
+        const purs = d.purchaseInvoices || d.purchase_invoices || d.purchases || d.medicinePurchases;
+        if (Array.isArray(purs)) legacyPurchaseInvoices.push(...purs);
+
+        const sals = d.salesInvoices || d.sales_invoices || d.sales || d.medicineSales;
+        if (Array.isArray(sals)) legacySalesInvoices.push(...sals);
+
+        if (Array.isArray(d.medicines)) legacyMedicines.push(...d.medicines);
+
+        if (d.detailedExpenses && typeof d.detailedExpenses === 'object') {
+          Object.entries(d.detailedExpenses).forEach(([dateKey, items]: [string, any]) => {
+            if (Array.isArray(items)) {
+              items.forEach(it => {
+                if (it && !it.isDeleted) legacyExpenses.push({ ...it, date: it.date || dateKey });
+              });
+            }
+          });
+        }
+
+        const dues = d.dueCollections || d.due_collections || d.dues || d.collections;
+        if (Array.isArray(dues)) legacyDueCollections.push(...dues);
+
+        const indoor = d.indoorInvoices || d.indoor_invoices || d.clinicInvoices;
+        if (Array.isArray(indoor)) legacyIndoorInvoices.push(...indoor);
+
+        if (Array.isArray(d.consolidatedLabEntries)) legacyConsolidated.push(...d.consolidatedLabEntries);
+      });
+
+      // Step 3: Fetch Existing Data from All Modular Tables
+      onProgress?.('ধাপ ৩/৫: নতুন পৃথক টেবিলগুলোর বর্তমান ডাটা পড়া হচ্ছে...', 45);
+      const [
+        currLabs,
+        currPurs,
+        currSals,
+        currMeds,
+        currExps,
+        currDues,
+        currIndoor
+      ] = await Promise.all([
+        fetchTableSafe(supabase, 'lab_invoices'),
+        fetchTableSafe(supabase, 'purchase_invoices'),
+        fetchTableSafe(supabase, 'sales_invoices'),
+        fetchTableSafe(supabase, 'medicines'),
+        fetchTableSafe(supabase, 'detailed_expenses'),
+        fetchTableSafe(supabase, 'due_collections'),
+        fetchTableSafe(supabase, 'indoor_invoices')
+      ]);
+
+      // Build Sets of existing IDs from modular tables (Latest Wins: Modular tables take precedence)
+      const existingLabIds = new Set<string>();
+      (currLabs || []).forEach((r: any) => {
+        const id = String(r.invoice_id || r.id || r.invoice_no || '').trim();
+        if (id) existingLabIds.add(id);
+      });
+
+      const existingPurIds = new Set<string>();
+      (currPurs || []).forEach((r: any) => {
+        const id = String(r.invoice_id || r.invoiceId || r.id || '').trim();
+        if (id) existingPurIds.add(id);
+      });
+
+      const existingSalIds = new Set<string>();
+      (currSals || []).forEach((r: any) => {
+        const id = String(r.invoice_id || r.invoiceId || r.id || '').trim();
+        if (id) existingSalIds.add(id);
+      });
+
+      const existingMedKeys = new Set<string>();
+      (currMeds || []).forEach((r: any) => {
+        const id = String(r.id || '').trim().toLowerCase();
+        const name = String(r.trade_name || r.tradeName || '').trim().toLowerCase();
+        if (id) existingMedKeys.add(id);
+        if (name) existingMedKeys.add(name);
+      });
+
+      const existingExpenseKeys = new Set<string>();
+      (currExps || []).forEach((r: any) => {
+        const id = String(r.id || '').trim();
+        if (id) existingExpenseKeys.add(id);
+        const rowDate = (r.date || '').split('T')[0];
+        const desc = (r.description || '').trim().toLowerCase();
+        const amt = Number(r.paid_amount || r.bill_amount || 0);
+        if (rowDate && desc) {
+          existingExpenseKeys.add(`${rowDate}_${desc}_${amt}`);
+        }
+      });
+
+      const existingDueIds = new Set<string>();
+      (currDues || []).forEach((r: any) => {
+        const id = String(r.collection_id || r.id || '').trim();
+        if (id) existingDueIds.add(id);
+      });
+
+      const existingIndoorIds = new Set<string>();
+      (currIndoor || []).forEach((r: any) => {
+        const id = String(r.invoice_id || r.daily_id || r.id || '').trim();
+        if (id) existingIndoorIds.add(id);
+      });
+
+      // Step 4: Smart Deduplication (Latest Wins) -> Filter ONLY missing records
+      onProgress?.('ধাপ ৪/৫: স্মার্ট ডি-ডুপ্লিকেশন: ডুপ্লিকেট বাদ দিয়ে মিসিং ডাটা বাছাই করা হচ্ছে...', 65);
+      let duplicatesIgnored = 0;
+
+      const missingLabs: any[] = [];
+      const seenNewLabIds = new Set<string>();
+      legacyLabInvoices.forEach(inv => {
+        const id = String(inv.invoice_id || inv.id || inv.invoice_no || inv.invoiceId || '').trim();
+        if (!id) return;
+        if (existingLabIds.has(id) || seenNewLabIds.has(id)) {
+          duplicatesIgnored++;
+        } else {
+          seenNewLabIds.add(id);
+          missingLabs.push(inv);
+        }
+      });
+
+      const missingPurs: any[] = [];
+      const seenNewPurIds = new Set<string>();
+      legacyPurchaseInvoices.forEach(inv => {
+        const id = String(inv.invoiceId || inv.invoice_id || inv.id || '').trim();
+        if (!id) return;
+        if (existingPurIds.has(id) || seenNewPurIds.has(id)) {
+          duplicatesIgnored++;
+        } else {
+          seenNewPurIds.add(id);
+          missingPurs.push(inv);
+        }
+      });
+
+      const missingSals: any[] = [];
+      const seenNewSalIds = new Set<string>();
+      legacySalesInvoices.forEach(inv => {
+        const id = String(inv.invoiceId || inv.invoice_id || inv.id || '').trim();
+        if (!id) return;
+        if (existingSalIds.has(id) || seenNewSalIds.has(id)) {
+          duplicatesIgnored++;
+        } else {
+          seenNewSalIds.add(id);
+          missingSals.push(inv);
+        }
+      });
+
+      const missingMeds: any[] = [];
+      const seenNewMedKeys = new Set<string>();
+      legacyMedicines.forEach(m => {
+        const id = String(m.id || '').trim().toLowerCase();
+        const name = String(m.tradeName || m.trade_name || '').trim().toLowerCase();
+        if ((id && existingMedKeys.has(id)) || (name && existingMedKeys.has(name)) || (id && seenNewMedKeys.has(id))) {
+          duplicatesIgnored++;
+        } else {
+          if (id) seenNewMedKeys.add(id);
+          if (name) seenNewMedKeys.add(name);
+          missingMeds.push(m);
+        }
+      });
+
+      const missingExpenses: any[] = [];
+      const seenNewExpKeys = new Set<string>();
+      legacyExpenses.forEach(exp => {
+        const id = String(exp.id || '').trim();
+        const d = (exp.date || '').split('T')[0];
+        const desc = (exp.description || '').trim().toLowerCase();
+        const amt = Number(exp.paidAmount || exp.billAmount || 0);
+        const compositeKey = `${d}_${desc}_${amt}`;
+        if ((id && existingExpenseKeys.has(id)) || existingExpenseKeys.has(compositeKey) || (id && seenNewExpKeys.has(id))) {
+          duplicatesIgnored++;
+        } else {
+          if (id) seenNewExpKeys.add(id);
+          seenNewExpKeys.add(compositeKey);
+          missingExpenses.push(exp);
+        }
+      });
+
+      const missingDues: any[] = [];
+      const seenNewDueIds = new Set<string>();
+      legacyDueCollections.forEach(col => {
+        const id = String(col.collection_id || col.id || col.collectionId || '').trim();
+        if (!id) return;
+        if (existingDueIds.has(id) || seenNewDueIds.has(id)) {
+          duplicatesIgnored++;
+        } else {
+          seenNewDueIds.add(id);
+          missingDues.push(col);
+        }
+      });
+
+      const missingIndoor: any[] = [];
+      const seenNewIndoorIds = new Set<string>();
+      legacyIndoorInvoices.forEach(inv => {
+        const id = String(inv.invoice_id || inv.daily_id || inv.id || '').trim();
+        if (!id) return;
+        if (existingIndoorIds.has(id) || seenNewIndoorIds.has(id)) {
+          duplicatesIgnored++;
+        } else {
+          seenNewIndoorIds.add(id);
+          missingIndoor.push(inv);
+        }
+      });
+
+      // Step 5: Batch Upsert ONLY missing records into modular tables
+      onProgress?.('ধাপ ৫/৫: মিসিং রেকর্ডগুলো পৃথক টেবিলে সেভ করা হচ্ছে...', 85);
+      const tablesUpdated: string[] = [];
+
+      if (missingLabs.length > 0) {
+        await dbService.syncLabInvoicesToModularTable(missingLabs);
+        tablesUpdated.push(`lab_invoices (${missingLabs.length})`);
+      }
+
+      if (missingPurs.length > 0) {
+        await dbService.syncPurchaseInvoicesToModularTable(missingPurs);
+        tablesUpdated.push(`purchase_invoices (${missingPurs.length})`);
+      }
+
+      if (missingSals.length > 0) {
+        await dbService.syncSalesInvoicesToModularTable(missingSals);
+        tablesUpdated.push(`sales_invoices (${missingSals.length})`);
+      }
+
+      if (missingMeds.length > 0) {
+        await dbService.syncMedicinesToModularTable(missingMeds);
+        tablesUpdated.push(`medicines (${missingMeds.length})`);
+      }
+
+      if (missingExpenses.length > 0) {
+        await dbService.syncDetailedExpensesToModularTable(missingExpenses);
+        tablesUpdated.push(`detailed_expenses (${missingExpenses.length})`);
+      }
+
+      if (missingDues.length > 0) {
+        await dbService.syncDueCollectionsToModularTable(missingDues);
+        tablesUpdated.push(`due_collections (${missingDues.length})`);
+      }
+
+      if (missingIndoor.length > 0) {
+        await dbService.syncIndoorInvoicesToModularTable(missingIndoor);
+        tablesUpdated.push(`indoor_invoices (${missingIndoor.length})`);
+      }
+
+      if (legacyConsolidated.length > 0) {
+        const currentCons = dbService.getConsolidatedEntries();
+        const currentIds = new Set(currentCons.map(c => c.id));
+        const missingCons = legacyConsolidated.filter(c => c && c.id && !currentIds.has(c.id));
+        if (missingCons.length > 0) {
+          dbService.saveConsolidatedEntries([...currentCons, ...missingCons]);
+          tablesUpdated.push(`consolidated_lab_entries (${missingCons.length})`);
+        }
+      }
+
+      onProgress?.('মাইগ্রেশন সম্পন্ন! ডাটা রিফ্রেশ করা হচ্ছে...', 100);
+
+      const totalRescued = missingLabs.length + missingPurs.length + missingSals.length + missingMeds.length + missingExpenses.length + missingDues.length + missingIndoor.length;
+
+      const summaryMsg = totalRescued > 0
+        ? `সফলভাবে ${totalRescued}টি মিসিং রেকর্ড নতুন পৃথক টেবিলে উদ্ধার ও মাইগ্রেট করা হয়েছে! (${duplicatesIgnored}টি ডুপ্লিকেট রেকর্ড বাদ দেওয়া হয়েছে এবং নতুন সংশোধিত ডাটা অক্ষত রাখা হয়েছে)।`
+        : `সবগুলো রেকর্ড ইতিমধ্যেই নতুন পৃথক টেবিলে সুরক্ষিত আছে। ${duplicatesIgnored}টি ডুপ্লিকেট স্ক্যান করে বাদ দেওয়া হয়েছে।`;
+
+      return {
+        success: true,
+        message: summaryMsg,
+        snapshotId: snapshotInfo.snapshotId,
+        snapshotFilename: snapshotInfo.filename,
+        rescued: {
+          labInvoices: missingLabs.length,
+          purchaseInvoices: missingPurs.length,
+          salesInvoices: missingSals.length,
+          medicines: missingMeds.length,
+          detailedExpenses: missingExpenses.length,
+          dueCollections: missingDues.length,
+          indoorInvoices: missingIndoor.length,
+          consolidatedLabEntries: legacyConsolidated.length,
+          total: totalRescued
+        },
+        duplicatesIgnored,
+        tablesUpdated
+      };
+    } catch (err: any) {
+      console.error("Migration error:", err);
+      return {
+        success: false,
+        message: 'মাইগ্রেশনে ত্রুটি: ' + (err?.message || 'অজানা ত্রুটি'),
+        rescued: { labInvoices: 0, purchaseInvoices: 0, salesInvoices: 0, medicines: 0, detailedExpenses: 0, dueCollections: 0, indoorInvoices: 0, consolidatedLabEntries: 0, total: 0 },
+        duplicatesIgnored: 0,
+        tablesUpdated: []
+      };
+    }
+  },
+
+  getMultiTableMigrationStats: async () => {
+    if (!supabase) {
+      return { connected: false, tables: {}, totalCount: 0 };
+    }
+    try {
+      const tableNames = [
+        'purchase_invoices', 'sales_invoices', 'medicines', 'detailed_expenses',
+        'lab_invoices', 'due_collections', 'indoor_invoices', 'ncd_state'
+      ];
+      const stats: Record<string, number> = {};
+      await Promise.all(tableNames.map(async (name) => {
+        try {
+          const { count, error } = await supabase.from(name).select('*', { count: 'exact', head: true });
+          if (!error && count !== null) {
+            stats[name] = count;
+          } else {
+            stats[name] = 0;
+          }
+        } catch {
+          stats[name] = 0;
+        }
+      }));
+      const totalCount = Object.entries(stats).reduce((acc, [k, v]) => k !== 'ncd_state' ? acc + v : acc, 0);
+      return { connected: true, tables: stats, totalCount };
+    } catch {
+      return { connected: false, tables: {}, totalCount: 0 };
     }
   }
 };

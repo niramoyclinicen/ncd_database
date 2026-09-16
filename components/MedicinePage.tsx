@@ -2554,7 +2554,7 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col relative overflow-y-auto font-sans">
+    <div className="w-full bg-slate-900 text-slate-100 flex flex-col relative font-sans pb-32">
       {successMessage && <div className="fixed top-24 right-8 z-[150] bg-green-600 border-2 border-green-400 text-white px-10 py-5 rounded-2xl shadow-2xl font-black text-xl animate-fade-in-down">✅ {successMessage}</div>}
       
       {/* MANUAL STOCK ADJUSTMENT MODAL */}
