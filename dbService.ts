@@ -87,8 +87,10 @@ const safeIsoDate = (d: any): string | null => {
   }
 };
 
-// Default cutoff date for separate individual tables (Permanently removed to allow all dates)
-export const DEFAULT_SEPARATE_TABLES_CUTOFF_DATE = '1970-01-01';
+// Default cutoff date for separate individual tables: August 1, 2026
+// Data before this date is read from the legacy ncd_state table archive;
+// New data created from this date onward is saved to the modular tables.
+export const DEFAULT_SEPARATE_TABLES_CUTOFF_DATE = '2026-08-01';
 
 export const getTableSplitCutoffDate = (): string => {
   try {
@@ -277,29 +279,10 @@ export const dbService = {
       // 1. Initialize state
       let state: any = {};
 
-      // Normalization of alternate keys in state
-      if (!Array.isArray(state.labInvoices)) {
-        state.labInvoices = Array.isArray(state.invoices) ? state.invoices : (Array.isArray(state.lab_invoices) ? state.lab_invoices : (Array.isArray(state.diagnostic_invoices) ? state.diagnostic_invoices : []));
-      }
-      if (!Array.isArray(state.dueCollections)) {
-        state.dueCollections = Array.isArray(state.due_collections) ? state.due_collections : (Array.isArray(state.dues) ? state.dues : []);
-      }
-      if (!Array.isArray(state.indoorInvoices)) {
-        state.indoorInvoices = Array.isArray(state.indoor_invoices) ? state.indoor_invoices : [];
-      }
-      if (!Array.isArray(state.purchaseInvoices)) {
-        state.purchaseInvoices = Array.isArray(state.purchase_invoices) ? state.purchase_invoices : (Array.isArray(state.purchases) ? state.purchases : []);
-      }
-      if (!Array.isArray(state.salesInvoices)) {
-        state.salesInvoices = Array.isArray(state.sales_invoices) ? state.sales_invoices : (Array.isArray(state.sales) ? state.sales : []);
-      }
-      if (!Array.isArray(state.medicines)) {
-        state.medicines = [];
-      }
-
-      // 2. Fetch modular tables concurrently from Supabase (lab_invoices, due_collections, detailed_expenses, etc.)
+      // 2. Fetch legacy ncd_state table and all modular tables concurrently from Supabase
       try {
         const [
+          ncdRes,
           expRows,
           labInvRows,
           altInvRows,
@@ -320,6 +303,7 @@ export const dbService = {
           apptRows,
           admRows
         ] = await Promise.all([
+          supabase.from('ncd_state').select('*').order('updated_at', { ascending: false }),
           fetchTableSafe(supabase, 'detailed_expenses'),
           fetchTableSafe(supabase, 'lab_invoices'),
           fetchTableSafe(supabase, 'invoices'),
@@ -340,6 +324,105 @@ export const dbService = {
           fetchTableSafe(supabase, 'appointments'),
           fetchTableSafe(supabase, 'admissions')
         ]);
+
+        // A. Load historical baseline from ncd_state (Single Table Archive - Read-Only)
+        // This ensures all records up to August 1, 2026 (January-July and earlier) are loaded directly from ncd_state
+        const legacyRecords = ncdRes && !ncdRes.error ? (ncdRes.data || []) : [];
+        if (legacyRecords.length > 0) {
+          legacyRecords.forEach((rec: any) => {
+            let rowData = rec.data;
+            if (typeof rowData === 'string') {
+              try { rowData = JSON.parse(rowData); } catch { rowData = null; }
+            }
+            if (rowData && typeof rowData === 'object') {
+              // Detailed Expenses from ncd_state (Historical Jan-July and all prior dates)
+              if (rowData.detailedExpenses && typeof rowData.detailedExpenses === 'object') {
+                if (!state.detailedExpenses) state.detailedExpenses = {};
+                Object.entries(rowData.detailedExpenses).forEach(([dKey, items]: [string, any]) => {
+                  const normDate = (dKey || '').split(/[T ]/)[0].trim();
+                  if (!normDate) return;
+                  if (!state.detailedExpenses[normDate]) state.detailedExpenses[normDate] = [];
+                  if (Array.isArray(items)) {
+                    items.forEach((it: any) => {
+                      if (!it || it.isDeleted) return;
+                      const itId = String(it.id || '');
+                      const exists = state.detailedExpenses[normDate].some((x: any) => String(x.id || '') === itId && itId !== '');
+                      if (!exists) {
+                        state.detailedExpenses[normDate].push({ ...it, date: normDate });
+                      }
+                    });
+                  }
+                });
+              }
+
+              // Lab Invoices from ncd_state
+              const labs = rowData.labInvoices || rowData.invoices || rowData.lab_invoices || rowData.diagnostic_invoices;
+              if (Array.isArray(labs) && labs.length > 0) {
+                state.labInvoices = mergeEntityList(state.labInvoices || [], labs, ['invoice_id', 'invoiceId', 'id']);
+              }
+
+              // Due Collections from ncd_state
+              const dues = rowData.dueCollections || rowData.due_collections || rowData.dues || rowData.collections;
+              if (Array.isArray(dues) && dues.length > 0) {
+                state.dueCollections = mergeEntityList(state.dueCollections || [], dues, ['collection_id', 'collectionId', 'id']);
+              }
+
+              // Indoor Invoices from ncd_state
+              const indoor = rowData.indoorInvoices || rowData.indoor_invoices || rowData.clinicInvoices;
+              if (Array.isArray(indoor) && indoor.length > 0) {
+                state.indoorInvoices = mergeEntityList(state.indoorInvoices || [], indoor, ['invoice_id', 'invoiceId', 'admission_id', 'id']);
+              }
+
+              // Purchase Invoices from ncd_state
+              const purs = rowData.purchaseInvoices || rowData.purchase_invoices || rowData.purchases || rowData.medicinePurchases;
+              if (Array.isArray(purs) && purs.length > 0) {
+                state.purchaseInvoices = mergeEntityList(state.purchaseInvoices || [], purs, ['invoice_id', 'invoiceId', 'id']);
+              }
+
+              // Sales Invoices from ncd_state
+              const sals = rowData.salesInvoices || rowData.sales_invoices || rowData.sales || rowData.medicineSales;
+              if (Array.isArray(sals) && sals.length > 0) {
+                state.salesInvoices = mergeEntityList(state.salesInvoices || [], sals, ['invoice_id', 'invoiceId', 'id']);
+              }
+
+              // Medicines from ncd_state
+              if (Array.isArray(rowData.medicines) && rowData.medicines.length > 0) {
+                state.medicines = mergeEntityList(state.medicines || [], rowData.medicines, ['id', 'name']);
+              }
+
+              // Entity lists from ncd_state
+              ['patients', 'doctors', 'referrars', 'tests', 'reagents', 'employees', 'reports', 'prescriptions', 'appointments', 'admissions'].forEach(k => {
+                if (Array.isArray(rowData[k]) && rowData[k].length > 0) {
+                  state[k] = mergeEntityList(state[k] || [], rowData[k], ['id']);
+                }
+              });
+
+              // Settings and maps from ncd_state
+              ['diagnosticSettings', 'employeeReferrerMap', 'passwords', 'attendanceLog', 'leaveLog', 'monthlyRoster'].forEach(k => {
+                if (rowData[k] && typeof rowData[k] === 'object' && !state[k]) {
+                  state[k] = rowData[k];
+                }
+              });
+
+              if (Array.isArray(rowData.rtTemplates) && rowData.rtTemplates.length > 0 && (!state.rtTemplates || state.rtTemplates.length === 0)) {
+                state.rtTemplates = rowData.rtTemplates;
+              }
+
+              if (Array.isArray(rowData.consolidatedLabEntries) && rowData.consolidatedLabEntries.length > 0) {
+                state.consolidatedLabEntries = mergeEntityList(state.consolidatedLabEntries || [], rowData.consolidatedLabEntries, ['id', 'date']);
+              }
+            }
+          });
+        }
+
+        // B. Merge entity tables from modular Supabase tables
+        if (patientRows && patientRows.length > 0) state.patients = mergeEntityList(state.patients || [], patientRows, ['id', 'patient_id']);
+        if (doctorRows && doctorRows.length > 0) state.doctors = mergeEntityList(state.doctors || [], doctorRows, ['id', 'doctor_id']);
+        if (referrerRows && referrerRows.length > 0) state.referrars = mergeEntityList(state.referrars || [], referrerRows, ['id', 'referrar_id']);
+        if (testRows && testRows.length > 0) state.tests = mergeEntityList(state.tests || [], testRows, ['id', 'test_id']);
+        if (reagentRows && reagentRows.length > 0) state.reagents = mergeEntityList(state.reagents || [], reagentRows, ['id']);
+        if (empRows && empRows.length > 0) state.employees = mergeEntityList(state.employees || [], empRows, ['id', 'emp_id']);
+        if (medRows && medRows.length > 0) state.medicines = mergeEntityList(state.medicines || [], medRows, ['id', 'name']);
 
         // Merge Lab Invoices from modular table(s)
         const combinedLabRows = [...(labInvRows || []), ...(altInvRows || [])];
@@ -524,15 +607,17 @@ export const dbService = {
         if (apptRows && apptRows.length > 0) state.appointments = mergeEntityList(state.appointments, apptRows, ['appointment_id', 'id']);
         if (admRows && admRows.length > 0) state.admissions = mergeEntityList(state.admissions, admRows, ['admission_id', 'id']);
 
-        // Detailed Expenses from modular table (All historical dates - Jan to Dec and beyond):
+        // Detailed Expenses from modular table: Merge with ncd_state historical expenses
         if (expRows && expRows.length > 0) {
-          const modularGrouped: Record<string, any[]> = {};
+          if (!state.detailedExpenses || typeof state.detailedExpenses !== 'object') {
+            state.detailedExpenses = {};
+          }
           expRows.forEach((row: any) => {
-            const rowDate = (row.date || '').split('T')[0];
+            const rowDate = (row.date || '').split(/[T ]/)[0].trim();
             if (!rowDate) return;
-            if (!modularGrouped[rowDate]) modularGrouped[rowDate] = [];
-            modularGrouped[rowDate].push({
-              id: row.id,
+            if (!state.detailedExpenses[rowDate]) state.detailedExpenses[rowDate] = [];
+            const expItem = {
+              id: String(row.id || ''),
               date: rowDate,
               category: row.category || 'General',
               subCategory: row.sub_category || row.subCategory || '',
@@ -540,13 +625,15 @@ export const dbService = {
               billAmount: Number(row.bill_amount || row.billAmount || 0),
               paidAmount: Number(row.paid_amount || row.paidAmount || 0),
               dept: row.dept || 'Diagnostic'
-            });
+            };
+
+            const existingIdx = state.detailedExpenses[rowDate].findIndex((x: any) => String(x.id || '') === expItem.id && expItem.id !== '');
+            if (existingIdx >= 0) {
+              state.detailedExpenses[rowDate][existingIdx] = { ...state.detailedExpenses[rowDate][existingIdx], ...expItem };
+            } else {
+              state.detailedExpenses[rowDate].push(expItem);
+            }
           });
-          state.detailedExpenses = modularGrouped;
-        } else if (state.detailedExpenses && Object.keys(state.detailedExpenses).length > 0) {
-          // Keep existing in-memory expenses if modular table returned empty
-        } else {
-          state.detailedExpenses = {};
         }
       } catch (modularErr) {
         console.warn("Modular table load notice:", modularErr);

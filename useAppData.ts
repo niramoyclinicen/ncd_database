@@ -211,8 +211,29 @@ export function useAppData() {
     setManualSyncError(null);
     
     // Merge overrides with current state if any, otherwise use current state
+    if (overrides?.labInvoices) {
+      setLabInvoices(overrides.labInvoices);
+    }
+    if (overrides?.dueCollections) {
+      setDueCollections(overrides.dueCollections);
+    }
     if (overrides?.detailedExpenses) {
       setDetailedExpenses(overrides.detailedExpenses);
+    }
+    if (overrides?.referrars) {
+      setReferrars(overrides.referrars);
+    }
+    if (overrides?.tests) {
+      setTests(overrides.tests);
+    }
+    if (overrides?.reports) {
+      setReports(overrides.reports);
+    }
+    if (overrides?.prescriptions) {
+      setPrescriptions(overrides.prescriptions);
+    }
+    if (overrides?.appointments) {
+      setAppointments(overrides.appointments);
     }
     if (overrides?.reagents) {
       setReagents(overrides.reagents);
@@ -255,6 +276,12 @@ export function useAppData() {
     }
     if (overrides?.monthlyRoster) {
       setMonthlyRoster(overrides.monthlyRoster);
+    }
+    if (overrides?.rtTemplates) {
+      setRtTemplates(overrides.rtTemplates);
+    }
+    if (overrides?.passwords) {
+      setPasswords(overrides.passwords);
     }
     const now = new Date().toISOString();
     setLastSavedAt(now);
