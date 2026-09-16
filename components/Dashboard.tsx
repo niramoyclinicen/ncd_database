@@ -203,10 +203,10 @@ const BackgroundRose = () => (
 
 const Dashboard: React.FC<DashboardProps> = ({ onLogout, onNavigate }) => {
   return (
-    <div className="w-full relative bg-slate-950 min-h-full pb-16">
+    <div className="h-full max-h-full w-full flex flex-col relative overflow-hidden bg-slate-950">
       
       {/* Background Layer */}
-      <div className="absolute inset-0 w-full min-h-full pointer-events-none z-0 overflow-hidden">
+      <div className="absolute inset-0 w-full h-full pointer-events-none z-0">
           <div className="absolute inset-0 bg-slate-950" />
           <div className="absolute top-[-20%] left-[-20%] w-[80%] h-[80%] bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-rose-900/40 via-transparent to-transparent blur-3xl" />
           <div className="absolute bottom-[-20%] right-[-20%] w-[80%] h-[80%] bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-teal-900/40 via-transparent to-transparent blur-3xl" />
@@ -214,8 +214,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onNavigate }) => {
           <BackgroundRose />
       </div>
 
-      {/* DESKTOP & TABLET VIEW - Fully scrollable if screen height is compact, perfectly balanced */}
-      <div className="hidden md:flex flex-1 flex-col w-full max-w-6xl mx-auto px-4 md:px-6 pt-5 md:pt-7 pb-10 md:pb-16 z-10 min-h-full justify-between">
+      {/* DESKTOP & TABLET VIEW - Single Cohesive Screen (Zero Scrolling), All Elements Visible at Once */}
+      <div className="hidden md:flex flex-1 flex-col w-full max-w-6xl mx-auto px-4 md:px-6 pt-5 md:pt-7 pb-3 md:pb-4 z-10 h-full max-h-full overflow-hidden justify-start lg:justify-between">
           
           {/* HEADER - Compact horizontal row with 3-line stacked info, comfortably padded from top */}
           <header className="flex-none flex flex-row items-center justify-between gap-3 md:gap-4 lg:gap-6 w-full animate-fade-in-down pt-1 pb-1">
@@ -418,8 +418,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onNavigate }) => {
           </footer>
       </div>
 
-      {/* DEDICATED MOBILE VIEW (< md screens: Smartphones) - Fully Scrollable, Generous Bottom Clearance */}
-      <div className="flex md:hidden flex-1 flex-col w-full max-w-md mx-auto px-3 pt-3 pb-12 xs:pt-3.5 xs:pb-16 z-10 justify-between min-h-full">
+      {/* DEDICATED MOBILE VIEW (< md screens: Smartphones) - Single Static View (No Scrolling), Full Feature & Design Fidelity */}
+      <div className="flex md:hidden flex-1 flex-col w-full max-w-md mx-auto px-3 pt-3 pb-2 xs:pt-3.5 xs:pb-2.5 z-10 justify-between h-[100dvh] max-h-[100dvh] overflow-hidden">
         
         {/* MOBILE HEADER - 3-Line Stacked Structure with Compact Logo */}
         <header className="flex-none flex flex-col items-center justify-center w-full animate-fade-in-down pt-0.5">

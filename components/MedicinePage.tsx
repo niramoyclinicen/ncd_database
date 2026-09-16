@@ -240,6 +240,279 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
   const [supplierSuggestions, setSupplierSuggestions] = useState<string[]>([]);
   const [showSupplierSuggestions, setShowSupplierSuggestions] = useState(false);
 
+  // Helper for calculating last day of month
+  const getLastDayOfMonth = (year: number, monthZeroIndexed: number) => {
+    const d = new Date(year, monthZeroIndexed + 1, 0);
+    const mm = String(monthZeroIndexed + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${year}-${mm}-${dd}`;
+  };
+
+  // Detect whether an invoice is an aggregated lump-sum entry
+  const isLumpSumPurchase = (inv: PurchaseInvoice) => {
+    return (
+      (inv.invoiceId || '').startsWith('PUR-LUMP') ||
+      (inv.billCreatedBy || '').includes('এককালীন') ||
+      (inv.billCreatedBy || '').includes('Lump-Sum') ||
+      (inv.source || '').includes('এককালীন') ||
+      (Array.isArray(inv.items) && inv.items.some(it => (it?.genericName || '').includes('এককালীন') || (it?.tradeName || '').includes('এককালীন')))
+    );
+  };
+
+  const isLumpSumSale = (inv: SalesInvoice) => {
+    return (
+      (inv.invoiceId || '').startsWith('SALE-LUMP') ||
+      (inv.billCreatedBy || '').includes('এককালীন') ||
+      (inv.billCreatedBy || '').includes('Lump-Sum') ||
+      (inv.customerName || '').includes('এককালীন') ||
+      (Array.isArray(inv.items) && inv.items.some(it => (it?.genericName || '').includes('এককালীন') || (it?.tradeName || '').includes('এককালীন')))
+    );
+  };
+
+  // Lump-Sum Monthly Purchase Modal state
+  const [showLumpSumPurchaseModal, setShowLumpSumPurchaseModal] = useState(false);
+  const [lumpSumPurchaseForm, setLumpSumPurchaseForm] = useState({
+    year: new Date().getFullYear(),
+    month: new Date().getMonth(),
+    date: '',
+    supplier: '',
+    totalAmount: '',
+    paidAmount: '',
+    dueAmount: 0,
+    notes: '',
+    editingInvoiceId: ''
+  });
+
+  // Lump-Sum Monthly Sales Modal state
+  const [showLumpSumSalesModal, setShowLumpSumSalesModal] = useState(false);
+  const [lumpSumSalesForm, setLumpSumSalesForm] = useState({
+    year: new Date().getFullYear(),
+    month: new Date().getMonth(),
+    date: '',
+    customerName: '',
+    totalAmount: '',
+    paidAmount: '',
+    dueAmount: 0,
+    notes: '',
+    editingInvoiceId: ''
+  });
+
+  const openLumpSumPurchaseModal = (targetMonth?: number, targetYear?: number) => {
+    const y = targetYear ?? (buySearchYear !== 'all' ? Number(buySearchYear) : selectedYear);
+    const m = targetMonth ?? (buySearchMonth !== 'all' ? Number(buySearchMonth) : selectedMonth);
+    const mName = monthOptions[m]?.name || `Month ${m + 1}`;
+    setLumpSumPurchaseForm({
+      year: y,
+      month: m,
+      date: getLastDayOfMonth(y, m),
+      supplier: `এককালীন ওষুধ ক্রয় (${mName} ${y})`,
+      totalAmount: '',
+      paidAmount: '',
+      dueAmount: 0,
+      notes: 'বিগত মাসের মোট ওষুধ ক্রয় (এককালীন রেকর্ড)',
+      editingInvoiceId: ''
+    });
+    setShowLumpSumPurchaseModal(true);
+  };
+
+  const openEditLumpSumPurchase = (inv: PurchaseInvoice) => {
+    const [yStr, mStr] = (inv.invoiceDate || '').split('-');
+    const y = Number(yStr) || selectedYear;
+    const m = (Number(mStr) || (selectedMonth + 1)) - 1;
+    setLumpSumPurchaseForm({
+      year: y,
+      month: m,
+      date: inv.invoiceDate || getLastDayOfMonth(y, m),
+      supplier: inv.source || '',
+      totalAmount: String(inv.netPayable || inv.totalAmount || ''),
+      paidAmount: String(inv.paidAmount ?? ''),
+      dueAmount: Number(inv.dueAmount || 0),
+      notes: inv.items?.[0]?.genericName || '',
+      editingInvoiceId: inv.invoiceId
+    });
+    setShowLumpSumPurchaseModal(true);
+  };
+
+  const handleSaveLumpSumPurchase = async () => {
+    const amount = Number(lumpSumPurchaseForm.totalAmount);
+    if (!amount || amount <= 0) {
+      alert("অনুগ্রহ করে ক্রয়ের মোট টাকার পরিমাণ লিখুন!");
+      return;
+    }
+    const paid = Number(lumpSumPurchaseForm.paidAmount || 0);
+    const due = Math.max(0, amount - paid);
+    const mZero = Number(lumpSumPurchaseForm.month);
+    const yNum = Number(lumpSumPurchaseForm.year);
+    const mName = monthOptions[mZero]?.name || `Month ${mZero + 1}`;
+    const invDate = lumpSumPurchaseForm.date || getLastDayOfMonth(yNum, mZero);
+    const invoiceId = lumpSumPurchaseForm.editingInvoiceId || `PUR-LUMP-${yNum}-${String(mZero + 1).padStart(2, '0')}-${Date.now().toString().slice(-4)}`;
+    const supplierName = (lumpSumPurchaseForm.supplier || '').trim() || `এককালীন ওষুধ ক্রয় (${mName} ${yNum})`;
+    const note = (lumpSumPurchaseForm.notes || '').trim();
+
+    const newInv: PurchaseInvoice = {
+      invoiceId,
+      invoiceDate: invDate,
+      source: supplierName,
+      items: [{
+        id: `ITEM-LUMP-${Date.now()}`,
+        tradeName: `এককালীন মাসিক ওষুধ ক্রয় (${mName} ${yNum})`,
+        genericName: note || 'মাসিক মোট ক্রয় রেকর্ড (এককালীন)',
+        formulation: 'Other',
+        strength: '',
+        qtyBuying: 1,
+        unitPriceBuy: amount,
+        unitPriceSell: 0,
+        lineTotalBuy: amount,
+        expiryDate: ''
+      }],
+      totalAmount: amount,
+      discount: 0,
+      netPayable: amount,
+      paidAmount: paid,
+      dueAmount: due,
+      billCreatedBy: 'Admin (এককালীন)',
+      billPaidBy: '',
+      receivedBy: '',
+      status: 'Posted',
+      createdDate: new Date().toISOString()
+    };
+
+    setLoading(true);
+    try {
+      let newInvoicesArr = [...safeInvoices];
+      if (lumpSumPurchaseForm.editingInvoiceId) {
+        newInvoicesArr = newInvoicesArr.map(x => x.invoiceId === lumpSumPurchaseForm.editingInvoiceId ? newInv : x);
+      } else {
+        newInvoicesArr = [newInv, ...newInvoicesArr];
+      }
+
+      if (performBlockingSync) {
+        const success = await performBlockingSync({ purchaseInvoices: newInvoicesArr });
+        if (success) {
+          safeSetInvoices(newInvoicesArr);
+          setSuccessMessage(`${mName} ${yNum} এর এককালীন ক্রয় সফলভাবে সংরক্ষিত হয়েছে!`);
+          setShowLumpSumPurchaseModal(false);
+        }
+      } else {
+        safeSetInvoices(newInvoicesArr);
+        setSuccessMessage(`${mName} ${yNum} এর এককালীন ক্রয় সংরক্ষিত হয়েছে!`);
+        setShowLumpSumPurchaseModal(false);
+      }
+    } catch (e) {
+      console.error("Lump purchase save error:", e);
+      alert("এককালীন ক্রয় সেভ করার সময় সমস্যা হয়েছে।");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const openLumpSumSalesModal = (targetMonth?: number, targetYear?: number) => {
+    const y = targetYear ?? (sellSearchYear !== 'all' ? Number(sellSearchYear) : selectedYear);
+    const m = targetMonth ?? (sellSearchMonth !== 'all' ? Number(sellSearchMonth) : selectedMonth);
+    const mName = monthOptions[m]?.name || `Month ${m + 1}`;
+    setLumpSumSalesForm({
+      year: y,
+      month: m,
+      date: getLastDayOfMonth(y, m),
+      customerName: `এককালীন মোট ফার্মেসি বিক্রয় (${mName} ${y})`,
+      totalAmount: '',
+      paidAmount: '',
+      dueAmount: 0,
+      notes: 'বিগত মাসের মোট ওষুধ বিক্রয় (এককালীন রেকর্ড)',
+      editingInvoiceId: ''
+    });
+    setShowLumpSumSalesModal(true);
+  };
+
+  const openEditLumpSumSales = (inv: SalesInvoice) => {
+    const [yStr, mStr] = (inv.invoiceDate || '').split('-');
+    const y = Number(yStr) || selectedYear;
+    const m = (Number(mStr) || (selectedMonth + 1)) - 1;
+    setLumpSumSalesForm({
+      year: y,
+      month: m,
+      date: inv.invoiceDate || getLastDayOfMonth(y, m),
+      customerName: inv.customerName || '',
+      totalAmount: String(inv.netPayable || inv.totalAmount || ''),
+      paidAmount: String(inv.paidAmount ?? ''),
+      dueAmount: Number(inv.dueAmount || 0),
+      notes: inv.refDoctorName || inv.items?.[0]?.genericName || '',
+      editingInvoiceId: inv.invoiceId
+    });
+    setShowLumpSumSalesModal(true);
+  };
+
+  const handleSaveLumpSumSales = async () => {
+    const amount = Number(lumpSumSalesForm.totalAmount);
+    if (!amount || amount <= 0) {
+      alert("অনুগ্রহ করে বিক্রয়ের মোট টাকার পরিমাণ লিখুন!");
+      return;
+    }
+    const paid = Number(lumpSumSalesForm.paidAmount || 0);
+    const due = Math.max(0, amount - paid);
+    const mZero = Number(lumpSumSalesForm.month);
+    const yNum = Number(lumpSumSalesForm.year);
+    const mName = monthOptions[mZero]?.name || `Month ${mZero + 1}`;
+    const invDate = lumpSumSalesForm.date || getLastDayOfMonth(yNum, mZero);
+    const invoiceId = lumpSumSalesForm.editingInvoiceId || `SALE-LUMP-${yNum}-${String(mZero + 1).padStart(2, '0')}-${Date.now().toString().slice(-4)}`;
+    const custName = (lumpSumSalesForm.customerName || '').trim() || `এককালীন মোট ফার্মেসি বিক্রয় (${mName} ${yNum})`;
+    const note = (lumpSumSalesForm.notes || '').trim();
+
+    const newSalesInv: SalesInvoice = {
+      invoiceId,
+      invoiceDate: invDate,
+      customerName: custName,
+      customerMobile: '',
+      customerAge: '',
+      customerGender: '',
+      refDoctorName: note || 'এককালীন মাসিক বিক্রয়',
+      items: [{
+        id: `ITEM-LUMP-SALE-${Date.now()}`,
+        tradeName: `এককালীন মাসিক ফার্মেসি বিক্রয় (${mName} ${yNum})`,
+        genericName: note || 'মাসিক মোট বিক্রয় রেকর্ড (এককালীন)',
+        qtySelling: 1,
+        unitPriceSell: amount,
+        lineTotalSell: amount
+      }],
+      totalAmount: amount,
+      discount: 0,
+      netPayable: amount,
+      paidAmount: paid,
+      dueAmount: due,
+      billCreatedBy: 'Admin (এককালীন)',
+      status: 'Posted',
+      createdDate: new Date().toISOString()
+    };
+
+    setLoading(true);
+    try {
+      let newSalesArr = [...safeSalesInvoices];
+      if (lumpSumSalesForm.editingInvoiceId) {
+        newSalesArr = newSalesArr.map(x => x.invoiceId === lumpSumSalesForm.editingInvoiceId ? newSalesInv : x);
+      } else {
+        newSalesArr = [newSalesInv, ...newSalesArr];
+      }
+
+      if (performBlockingSync) {
+        const success = await performBlockingSync({ salesInvoices: newSalesArr });
+        if (success) {
+          safeSetSalesInvoices(newSalesArr);
+          setSuccessMessage(`${mName} ${yNum} এর এককালীন বিক্রয় সফলভাবে সংরক্ষিত হয়েছে!`);
+          setShowLumpSumSalesModal(false);
+        }
+      } else {
+        safeSetSalesInvoices(newSalesArr);
+        setSuccessMessage(`${mName} ${yNum} এর এককালীন বিক্রয় সংরক্ষিত হয়েছে!`);
+        setShowLumpSumSalesModal(false);
+      }
+    } catch (e) {
+      console.error("Lump sales save error:", e);
+      alert("এককালীন বিক্রয় সেভ করার সময় সমস্যা হয়েছে।");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Filtered Purchases & Statistics Calculation
   const filteredPurchases = useMemo(() => {
     return safeInvoices.filter(inv => {
@@ -1308,56 +1581,160 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
   const handlePrintHishab = () => {
     const monthName = monthOptions[selectedMonth]?.name || '';
     const filteredPurchases = safeInvoices.filter(inv => {
-        if (!inv || !inv.invoiceDate || inv.status === 'Cancelled' || inv.status === 'Initial') return false;
+        if (!inv || !inv.invoiceDate || inv.status === 'Cancelled' || inv.status === 'Initial' || inv.status === 'Deleted') return false;
         const [y, m] = inv.invoiceDate.split('-').map(Number);
         return (m - 1) === selectedMonth && y === selectedYear;
     });
     const filteredSales = safeSalesInvoices.filter(inv => {
-        if (!inv || !inv.invoiceDate) return false;
+        if (!inv || !inv.invoiceDate || inv.status === 'Cancelled' || inv.status === 'Returned' || inv.status === 'Deleted') return false;
         const [y, m] = inv.invoiceDate.split('-').map(Number);
         return (m - 1) === selectedMonth && y === selectedYear;
     });
-    const buyTotal = filteredPurchases.reduce((sum, inv) => sum + (inv.netPayable || 0), 0);
-    const saleTotal = filteredSales.reduce((sum, inv) => sum + (inv.netPayable || 0), 0);
+
+    const indoorSalesTotal = safeIndoorInvoices.filter(inv => {
+        if (!inv) return false;
+        const dateToUse = inv.invoice_date || inv.admission_date || (inv as any).date || '';
+        if (!dateToUse || typeof dateToUse !== 'string' || inv.status === 'Cancelled' || inv.status === 'Returned' || inv.status === 'Deleted') return false;
+        const parts = dateToUse.split('-');
+        if (parts.length < 2) return false;
+        const [y, m] = parts.map(Number);
+        return (m - 1) === selectedMonth && y === selectedYear;
+    }).reduce((sum, inv) => {
+        const items = Array.isArray(inv.items) ? inv.items : [];
+        return sum + items.filter(it => it && (it.service_type === 'Medicine' || it.service_type === 'ঔষধ' || (it.service_type || '').toLowerCase().includes('med'))).reduce((s, it) => s + (Number(it.payable_amount) || Number(it.line_total) || 0), 0);
+    }, 0);
+
+    const buyTotal = filteredPurchases.reduce((sum, inv) => sum + (Number(inv.netPayable) || 0), 0);
+    const outdoorSaleTotal = filteredSales.reduce((sum, inv) => sum + (Number(inv.netPayable) || 0), 0);
+    const grandSaleTotal = outdoorSaleTotal + indoorSalesTotal;
+    const netProfit = grandSaleTotal - buyTotal;
 
     const win = window.open('', '_blank');
     if (!win) return;
     const html = `
       <html>
         <head>
-          <title>Medicine Hishab - ${monthName} ${selectedYear}</title>
-          <script src="https://cdn.tailwindcss.com"></script>
+          <title>মেডিসিন মাসিক লেজার রিপোর্ট - ${monthName} ${selectedYear}</title>
+          <style>
+            @page { size: A4 portrait; margin: 12mm 15mm; }
+            body { font-family: 'Segoe UI', Tahoma, sans-serif; color: #1e293b; margin: 0; padding: 10px; font-size: 11px; }
+            .header { text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 8px; margin-bottom: 12px; }
+            .header h1 { margin: 0; font-size: 20px; font-weight: 900; text-transform: uppercase; color: #0f172a; }
+            .header p { margin: 2px 0 0; font-size: 10.5px; color: #475569; }
+            .title-banner { background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 6px; padding: 6px 12px; margin-bottom: 12px; display: flex; justify-content: space-between; font-size: 11px; }
+            .summary-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 14px; }
+            .scard { border: 1px solid #cbd5e1; border-radius: 6px; padding: 6px 10px; background: #fff; text-align: center; }
+            .scard-label { font-size: 9.5px; font-weight: bold; color: #64748b; text-transform: uppercase; }
+            .scard-val { font-size: 13px; font-weight: 900; margin-top: 2px; }
+            .tables-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+            table { width: 100%; border-collapse: collapse; font-size: 10px; }
+            th { background: #e2e8f0; color: #0f172a; padding: 5px; border: 1px solid #cbd5e1; font-weight: bold; text-align: left; }
+            td { padding: 4px 5px; border: 1px solid #cbd5e1; }
+            tfoot tr td { background: #f8fafc; font-weight: bold; }
+            .badge-lump { display: inline-block; background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; font-size: 8.5px; font-weight: bold; padding: 0.5px 3.5px; border-radius: 3px; margin-left: 3px; }
+            .sig-area { margin-top: 24px; display: flex; justify-content: space-between; padding-top: 15px; }
+            .sig-line { border-top: 1px dashed #64748b; width: 130px; text-align: center; font-size: 10px; color: #475569; padding-top: 4px; }
+          </style>
         </head>
-        <body class="p-10">
-          <div class="text-center mb-8">
-            <h1 class="text-2xl font-bold uppercase">Niramoy Clinic & Diagnostic</h1>
-            <p>Medicine Ledger Summary: ${monthName} ${selectedYear}</p>
+        <body>
+          <div class="header">
+            <h1>Niramoy Clinic & Diagnostic</h1>
+            <p>এনায়েতপুর মন্ডলপাড়া, এনায়েতপুর, সিরাজগঞ্জ | মোবাইল: 01730 923007</p>
+            <div style="font-size: 12px; font-weight: bold; margin-top: 3px; color: #0284c7;">ঔষধ লেজার ও হিসাব বিশ্লেষণ (Medicine Monthly Ledger Report)</div>
           </div>
-          <div class="grid grid-cols-2 gap-8">
+          <div class="title-banner">
+            <div><b>মাস ও বছর:</b> ${monthName}, ${selectedYear}</div>
+            <div><b>প্রিন্টের তারিখ:</b> ${new Date().toLocaleDateString('bn-BD')}</div>
+            <div><b>মোট রেকর্ড:</b> ক্রয় ${filteredPurchases.length} টি | বিক্রয় ${filteredSales.length} টি</div>
+          </div>
+          <div class="summary-cards">
+            <div class="scard"><div class="scard-label">মোট ঔষধ ক্রয়</div><div class="scard-val" style="color: #dc2626;">৳${buyTotal.toFixed(2)}</div></div>
+            <div class="scard"><div class="scard-label">আউটডোর বিক্রয়</div><div class="scard-val" style="color: #16a34a;">৳${outdoorSaleTotal.toFixed(2)}</div></div>
+            <div class="scard"><div class="scard-label">ইনডোর ঔষধ বিক্রয়</div><div class="scard-val" style="color: #7c3aed;">৳${indoorSalesTotal.toFixed(2)}</div></div>
+            <div class="scard"><div class="scard-label">নিট লাভ / উদ্বৃত্ত</div><div class="scard-val" style="color: ${netProfit >= 0 ? '#0284c7' : '#dc2626'};">৳${netProfit.toFixed(2)}</div></div>
+          </div>
+          <div class="tables-grid">
             <div>
-              <h2 class="font-bold border-b mb-2 uppercase text-sm">Purchase Ledger</h2>
-              <table class="w-full border-collapse border border-slate-400 text-[10px]">
-                <thead><tr class="bg-slate-100"><th>Date</th><th>Supplier</th><th class="text-right">Amount</th></tr></thead>
+              <div style="font-weight: bold; font-size: 11px; margin-bottom: 4px; color: #0369a1; border-bottom: 2px solid #0284c7; padding-bottom: 2px;">ক্রয় খতিয়ান (Stock Purchase Ledger)</div>
+              <table>
+                <thead>
+                  <tr>
+                    <th style="width: 65px;">তারিখ</th>
+                    <th>সরবরাহকারী (Supplier)</th>
+                    <th style="text-align: right; width: 65px;">টাকা (৳)</th>
+                  </tr>
+                </thead>
                 <tbody>
-                  ${filteredPurchases.map(inv => `<tr><td class="border border-slate-400 p-1">${inv.invoiceDate}</td><td class="border border-slate-400 p-1">${inv.source}</td><td class="border border-slate-400 p-1 text-right">${(inv.netPayable || 0).toFixed(2)}</td></tr>`).join('')}
+                  ${filteredPurchases.map(inv => {
+                    const isLump = isLumpSumPurchase(inv);
+                    return `
+                      <tr>
+                        <td>${inv.invoiceDate}</td>
+                        <td><b>${inv.source}</b> ${isLump ? '<span class="badge-lump">এককালীন</span>' : ''}</td>
+                        <td style="text-align: right; font-weight: bold;">৳${(Number(inv.netPayable) || 0).toFixed(2)}</td>
+                      </tr>
+                    `;
+                  }).join('')}
+                  ${filteredPurchases.length === 0 ? '<tr><td colspan="3" style="text-align:center; color:#94a3b8; padding:12px;">কোনো ক্রয় রেকর্ড নেই</td></tr>' : ''}
                 </tbody>
-                <tfoot><tr class="font-bold"><td>Total</td><td></td><td class="text-right">৳${buyTotal.toFixed(2)}</td></tr></tfoot>
+                <tfoot>
+                  <tr>
+                    <td colspan="2" style="text-align: right; padding: 5px;">মোট ক্রয় (Total Buy):</td>
+                    <td style="text-align: right; color: #dc2626; font-weight: 900;">৳${buyTotal.toFixed(2)}</td>
+                  </tr>
+                </tfoot>
               </table>
             </div>
+
             <div>
-              <h2 class="font-bold border-b mb-2 uppercase text-sm">Sales Journal</h2>
-              <table class="w-full border-collapse border border-slate-400 text-[10px]">
-                <thead><tr class="bg-slate-100"><th>Date</th><th>Category</th><th class="text-right">Amount</th></tr></thead>
+              <div style="font-weight: bold; font-size: 11px; margin-bottom: 4px; color: #15803d; border-bottom: 2px solid #16a34a; padding-bottom: 2px;">বিক্রয় খতিয়ান (Sales Journal)</div>
+              <table>
+                <thead>
+                  <tr>
+                    <th style="width: 65px;">তারিখ</th>
+                    <th>খাত / বিবরণ</th>
+                    <th style="text-align: right; width: 65px;">টাকা (৳)</th>
+                  </tr>
+                </thead>
                 <tbody>
-                  ${filteredSales.map(inv => `<tr><td class="border border-slate-400 p-1">${inv.invoiceDate}</td><td class="border border-slate-400 p-1">Outdoor Sale</td><td class="border border-slate-400 p-1 text-right">${(inv.netPayable || 0).toFixed(2)}</td></tr>`).join('')}
+                  ${filteredSales.map(inv => {
+                    const isLump = isLumpSumSale(inv);
+                    return `
+                      <tr>
+                        <td>${inv.invoiceDate}</td>
+                        <td><b>${inv.customerName}</b> ${isLump ? '<span class="badge-lump">এককালীন</span>' : ''}</td>
+                        <td style="text-align: right; font-weight: bold; color: #15803d;">৳${(Number(inv.netPayable) || 0).toFixed(2)}</td>
+                      </tr>
+                    `;
+                  }).join('')}
+                  ${indoorSalesTotal > 0 ? `
+                    <tr style="background: #faf5ff;">
+                      <td>-</td>
+                      <td><b>ইনডোর মোট ঔষধ বিক্রয়</b></td>
+                      <td style="text-align: right; font-weight: bold; color: #7c3aed;">৳${indoorSalesTotal.toFixed(2)}</td>
+                    </tr>
+                  ` : ''}
+                  ${filteredSales.length === 0 && indoorSalesTotal === 0 ? '<tr><td colspan="3" style="text-align:center; color:#94a3b8; padding:12px;">কোনো বিক্রয় রেকর্ড নেই</td></tr>' : ''}
                 </tbody>
-                <tfoot><tr class="font-bold"><td>Total</td><td></td><td class="text-right">৳${saleTotal.toFixed(2)}</td></tr></tfoot>
+                <tfoot>
+                  <tr>
+                    <td colspan="2" style="text-align: right; padding: 5px;">মোট বিক্রয় (Total Sell):</td>
+                    <td style="text-align: right; color: #16a34a; font-weight: 900;">৳${grandSaleTotal.toFixed(2)}</td>
+                  </tr>
+                </tfoot>
               </table>
             </div>
           </div>
-          <div class="mt-8 p-4 border-2 border-black bg-gray-50 flex justify-between font-bold text-lg">
-            <span>Net Profit/Loss:</span>
-            <span>৳${Number(saleTotal - buyTotal).toFixed(2)}</span>
+
+          <div style="margin-top: 12px; padding: 8px 12px; background: #f8fafc; border: 1.5px solid #0f172a; border-radius: 6px; display: flex; justify-content: space-between; font-weight: bold; font-size: 12px;">
+            <span>${monthName} ${selectedYear} এর নিট মেডিসিন ব্যালেন্স / প্রফিট:</span>
+            <span style="color: ${netProfit >= 0 ? '#16a34a' : '#dc2626'}; font-size: 13px;">৳${netProfit.toFixed(2)}</span>
+          </div>
+
+          <div class="sig-area">
+            <div class="sig-line">ফার্মাসিস্ট / ক্যাশিয়ার</div>
+            <div class="sig-line">হিসাবরক্ষক</div>
+            <div class="sig-line">ম্যানেজার / পরিচালক</div>
           </div>
         </body>
       </html>
@@ -1387,6 +1764,14 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
               </p>
             </div>
             <div className="flex items-center gap-3">
+              <button
+                onClick={() => openLumpSumPurchaseModal()}
+                className="bg-amber-600 hover:bg-amber-500 text-white px-4 py-3 rounded-xl font-bold shadow-lg shadow-amber-900/30 transition-all active:scale-95 flex items-center gap-2 text-sm border border-amber-500"
+                title="পূর্বের ইনভয়েস না থাকলে নির্দিষ্ট মাসের এককালীন মোট ঔষধ ক্রয় লিখুন"
+              >
+                <PlusIcon className="w-5 h-5 text-amber-200" />
+                <span>এককালীন মাসিক ক্রয়</span>
+              </button>
               <button
                 onClick={() => {
                   const mLabel = buySearchMonth === 'all' ? 'সকল মাস' : (monthOptions.find(m => m.value.toString() === buySearchMonth)?.name || '');
@@ -1599,7 +1984,16 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
                           {inv.invoiceId}
                         </td>
                         <td className="p-4 text-slate-100 font-bold">{inv.invoiceDate}</td>
-                        <td className="p-4 text-white font-black text-base">{inv.source}</td>
+                        <td className="p-4 text-white font-black text-base">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span>{inv.source}</span>
+                            {isLumpSumPurchase(inv) && (
+                              <span className="bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[10px] font-black px-2 py-0.5 rounded-full">
+                                🏷️ এককালীন ক্রয়
+                              </span>
+                            )}
+                          </div>
+                        </td>
                         <td className="p-4 text-center font-bold text-sky-400">
                           {Array.isArray(inv.items) ? inv.items.length : 0} টি
                         </td>
@@ -1617,10 +2011,12 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
                             className={`text-[10px] font-black px-2.5 py-1 rounded ${
                               inv.status === 'Initial'
                                 ? 'bg-amber-600/20 text-amber-500'
+                                : isLumpSumPurchase(inv)
+                                ? 'bg-amber-600/20 text-amber-400'
                                 : 'bg-blue-600/20 text-blue-400'
                             }`}
                           >
-                            {inv.status || 'Posted'}
+                            {isLumpSumPurchase(inv) ? 'এককালীন' : (inv.status || 'Posted')}
                           </span>
                         </td>
                         <td className="p-4 text-center space-x-2 whitespace-nowrap">
@@ -1637,11 +2033,15 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              setPurchaseFormData(inv);
-                              setBuyViewMode('edit');
-                              setEditingPurchaseId(inv.invoiceId);
-                              setIsOpeningStock(inv.status === 'Initial');
-                              setErrors({});
+                              if (isLumpSumPurchase(inv)) {
+                                openEditLumpSumPurchase(inv);
+                              } else {
+                                setPurchaseFormData(inv);
+                                setBuyViewMode('edit');
+                                setEditingPurchaseId(inv.invoiceId);
+                                setIsOpeningStock(inv.status === 'Initial');
+                                setErrors({});
+                              }
                             }}
                             className="text-sky-400 hover:text-white text-xs font-bold underline"
                           >
@@ -2063,6 +2463,14 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
                         </h2>
                         <div className="flex items-center gap-2">
                             <button
+                                onClick={() => openLumpSumSalesModal()}
+                                className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg font-bold shadow-lg transition-all active:scale-95 flex items-center gap-1.5 text-xs border border-emerald-400"
+                                title="পূর্বের ইনভয়েস না থাকলে নির্দিষ্ট মাসের এককালীন মোট ফার্মেসি বিক্রয় লিখুন"
+                            >
+                                <PlusIcon className="w-4 h-4 text-emerald-200" />
+                                <span>এককালীন মাসিক বিক্রয়</span>
+                            </button>
+                            <button
                                 onClick={() => {
                                     const monthName = sellSearchMonth === 'all' ? 'সকল মাস' : (monthOptions.find(m => m.value.toString() === sellSearchMonth)?.name || '');
                                     handlePrintSalesMonthlyReport(filteredOutdoor, `${monthName}, ${sellSearchYear}${sellSearchName ? ` (${sellSearchName})` : ''}`);
@@ -2116,7 +2524,15 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
                                             <div className="text-[10px] text-slate-500 font-bold">{inv.invoiceDate}</div>
                                         </td>
                                         <td className="p-4 text-white font-black">
-                                            <div>{inv.customerName} {inv.status === 'Cancelled' && <span className="text-[10px] bg-red-600 text-white px-1 rounded ml-2">CANCELLED</span>}</div>
+                                            <div className="flex items-center gap-2 flex-wrap">
+                                                <span>{inv.customerName}</span>
+                                                {isLumpSumSale(inv) && (
+                                                    <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-black px-2 py-0.5 rounded-full">
+                                                        🏷️ এককালীন বিক্রয়
+                                                    </span>
+                                                )}
+                                                {inv.status === 'Cancelled' && <span className="text-[10px] bg-red-600 text-white px-1 rounded ml-2">CANCELLED</span>}
+                                            </div>
                                             {inv.customerMobile && <div className="text-[11px] text-slate-400 font-mono">{inv.customerMobile}</div>}
                                         </td>
                                         <td className="p-4 text-center font-bold text-slate-300 text-xs">
@@ -2131,7 +2547,11 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
                                         </td>
                                         <td className="p-4 text-center space-x-2" onClick={e=>e.stopPropagation()}>
                                             <button onClick={() => handlePrintSale(inv)} className="text-sky-400 hover:text-white font-black uppercase text-[10px] border border-sky-800 px-3 py-1 rounded">Voucher</button>
-                                            <button onClick={() => startEditSale(inv)} className="text-amber-400 hover:text-white font-black uppercase text-[10px] border border-amber-800 px-3 py-1 rounded">Correct</button>
+                                            {isLumpSumSale(inv) ? (
+                                                <button onClick={() => openEditLumpSumSales(inv)} className="text-emerald-400 hover:text-white font-black uppercase text-[10px] border border-emerald-800 px-3 py-1 rounded">এডিট</button>
+                                            ) : (
+                                                <button onClick={() => startEditSale(inv)} className="text-amber-400 hover:text-white font-black uppercase text-[10px] border border-amber-800 px-3 py-1 rounded">Correct</button>
+                                            )}
                                             <button onClick={() => handleReturnSale(inv)} className="bg-rose-900/50 text-rose-400 hover:bg-rose-600 hover:text-white font-black uppercase text-[10px] border border-rose-800 px-3 py-1 rounded transition-all">Return</button>
                                         </td>
                                     </tr>
@@ -2513,40 +2933,245 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
 
     return (
         <div className="space-y-8 animate-fade-in">
-            <div className="flex justify-between items-center bg-slate-800 p-6 rounded-3xl border border-slate-700 shadow-2xl">
-                <h3 className="text-2xl font-black text-white font-bengali tracking-tighter uppercase flex items-center gap-3"><span className="w-3 h-3 bg-amber-500 rounded-full"></span> Medicine Ledger analysis / হিসাব</h3>
-                <div className="flex gap-4">
-                    <button onClick={handlePrintHishab} className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-xl font-bold flex items-center gap-2 transition-all shadow-lg active:scale-95"><FileTextIcon className="w-4 h-4"/> Print A4 Sheet</button>
-                    <select value={selectedMonth} onChange={e => setSelectedMonth(parseInt(e.target.value))} className="bg-slate-900 border-2 border-slate-700 rounded-xl px-4 py-2 text-white font-black">{monthOptions.map(m => <option key={m.value} value={m.value}>{m.name}</option>)}</select>
-                    <select value={selectedYear} onChange={e => setSelectedYear(parseInt(e.target.value))} className="bg-slate-900 border-2 border-slate-700 rounded-xl px-4 py-2 text-white font-black">{[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}</select>
+            <div className="flex flex-wrap justify-between items-center gap-4 bg-slate-800 p-6 rounded-3xl border border-slate-700 shadow-2xl">
+                <div>
+                  <h3 className="text-2xl font-black text-white font-bengali tracking-tighter uppercase flex items-center gap-3">
+                    <span className="w-3 h-3 bg-amber-500 rounded-full animate-pulse"></span>
+                    ঔষধ লেজার বিশ্লেষণ ও মাসিক হিসাব (Medicine Ledger & Accounts)
+                  </h3>
+                  <p className="text-xs text-slate-400 font-bold mt-1">
+                    ইনভয়েস বা এককালীন এন্ট্রি অনুযায়ী মাসিক ক্রয়, বিক্রয় ও নিট মুনাফা বিশ্লেষণ
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-3">
+                    <button 
+                      onClick={() => openLumpSumPurchaseModal(selectedMonth, selectedYear)}
+                      className="bg-amber-600 hover:bg-amber-500 text-white px-3.5 py-2 rounded-xl font-bold flex items-center gap-1.5 transition-all shadow-lg active:scale-95 text-xs border border-amber-500"
+                      title="উক্ত মাসের এককালীন মোট ঔষধ ক্রয় লিখে রাখুন"
+                    >
+                      <PlusIcon className="w-4 h-4 text-amber-200" /> + এককালীন ক্রয়
+                    </button>
+                    <button 
+                      onClick={() => openLumpSumSalesModal(selectedMonth, selectedYear)}
+                      className="bg-emerald-600 hover:bg-emerald-500 text-white px-3.5 py-2 rounded-xl font-bold flex items-center gap-1.5 transition-all shadow-lg active:scale-95 text-xs border border-emerald-400"
+                      title="উক্ত মাসের এককালীন মোট ঔষধ বিক্রয় লিখে রাখুন"
+                    >
+                      <PlusIcon className="w-4 h-4 text-emerald-200" /> + এককালীন বিক্রয়
+                    </button>
+                    <button onClick={handlePrintHishab} className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-xl font-bold flex items-center gap-2 transition-all shadow-lg active:scale-95 text-xs">
+                      <FileTextIcon className="w-4 h-4"/> মাসিক হিসাব প্রিন্ট (A4)
+                    </button>
+                    <select value={selectedMonth} onChange={e => setSelectedMonth(parseInt(e.target.value))} className="bg-slate-900 border-2 border-slate-700 rounded-xl px-3 py-2 text-white font-black text-xs">
+                      {monthOptions.map(m => <option key={m.value} value={m.value}>{m.name}</option>)}
+                    </select>
+                    <select value={selectedYear} onChange={e => setSelectedYear(parseInt(e.target.value))} className="bg-slate-900 border-2 border-slate-700 rounded-xl px-3 py-2 text-white font-black text-xs">
+                      {[2022, 2023, 2024, 2025, 2026, 2027, 2028].map(y => <option key={y} value={y}>{y}</option>)}
+                    </select>
                 </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="bg-slate-900/50 p-6 rounded-2xl border border-slate-700 flex flex-col items-center">
-                    <span className="text-slate-400 text-xs font-black uppercase tracking-widest mb-1">Total Purchase (Buy)</span>
-                    <span className="text-2xl font-black text-rose-400">৳ {buyTotals.val.toLocaleString()}</span>
+                <div className="bg-slate-900/60 p-6 rounded-2xl border border-slate-700 flex flex-col items-center shadow-lg">
+                    <span className="text-slate-400 text-xs font-black uppercase tracking-widest mb-1">মোট ক্রয় (Total Buy)</span>
+                    <span className="text-3xl font-black text-rose-400">৳ {buyTotals.val.toLocaleString()}</span>
+                    <span className="text-[11px] text-slate-500 font-bold mt-1">পরিশোধ: ৳{buyTotals.paid.toLocaleString()}</span>
                 </div>
-                <div className="bg-slate-900/50 p-6 rounded-2xl border border-slate-700 flex flex-col items-center">
-                    <span className="text-slate-400 text-xs font-black uppercase tracking-widest mb-1">Total Sales (Sell)</span>
-                    <span className="text-2xl font-black text-emerald-400">৳ {saleTotals.total.toLocaleString()}</span>
+                <div className="bg-slate-900/60 p-6 rounded-2xl border border-slate-700 flex flex-col items-center shadow-lg">
+                    <span className="text-slate-400 text-xs font-black uppercase tracking-widest mb-1">মোট বিক্রয় (Total Sell)</span>
+                    <span className="text-3xl font-black text-emerald-400">৳ {saleTotals.total.toLocaleString()}</span>
+                    <span className="text-[11px] text-slate-500 font-bold mt-1">
+                      {indoorSalesTotal > 0 ? `আউটডোর: ৳${(saleTotals.total - indoorSalesTotal).toLocaleString()} | ইনডোর: ৳${indoorSalesTotal.toLocaleString()}` : 'আউটডোর ও ফার্মেসি সেল'}
+                    </span>
                 </div>
-                <div className={`bg-slate-900 p-6 rounded-2xl border-2 flex flex-col items-center ${saleTotals.total - buyTotals.val >= 0 ? 'border-emerald-500/50' : 'border-rose-500/50'}`}>
-                    <span className="text-slate-400 text-xs font-black uppercase tracking-widest mb-1">Net Balance</span>
+                <div className={`bg-slate-900 p-6 rounded-2xl border-2 flex flex-col items-center shadow-lg ${saleTotals.total - buyTotals.val >= 0 ? 'border-emerald-500/50' : 'border-rose-500/50'}`}>
+                    <span className="text-slate-400 text-xs font-black uppercase tracking-widest mb-1">নিট লাভ / ব্যালেন্স (Net Profit)</span>
                     <span className={`text-3xl font-black ${saleTotals.total - buyTotals.val >= 0 ? 'text-blue-400' : 'text-rose-500'}`}>
                         ৳ {(saleTotals.total - buyTotals.val).toLocaleString()}
+                    </span>
+                    <span className="text-[11px] text-slate-400 font-bold mt-1">
+                      {saleTotals.total - buyTotals.val >= 0 ? 'উদ্বৃত্ত / লাভ' : 'ঘাটতি / ব্যয় বেশি'}
                     </span>
                 </div>
             </div>
 
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-10">
                 <div className="space-y-4">
-                    <h4 className="text-xl font-black text-blue-400 border-b-2 border-blue-900/50 pb-2 uppercase tracking-widest">Stock Purchase Ledger</h4>
-                    <div className="overflow-x-auto rounded-2xl border-2 border-slate-700 shadow-2xl"><table className="w-full text-left border-collapse text-xs"><thead className="bg-slate-700 text-slate-100"><tr><th className="p-4 border-r border-slate-600">Date</th><th className="p-4 border-r border-slate-600">Supplier</th><th className="p-4 text-right">Bill</th><th className="p-4 text-right">Paid</th></tr></thead><tbody className="bg-slate-800 divide-y divide-slate-700">{filteredPurchases.map((inv) => (<tr key={inv.invoiceId}><td className="p-4 border-r border-slate-700 text-slate-400 font-mono">{inv.invoiceDate}</td><td className="p-4 border-r border-slate-700 font-black text-white">{inv.source}</td><td className="p-4 text-right font-black text-slate-300">৳{inv.netPayable.toLocaleString()}</td><td className="p-4 text-emerald-400 font-black text-right">৳{inv.paidAmount.toLocaleString()}</td></tr>))}</tbody><tfoot className="bg-slate-900 text-white font-black"><tr><td colSpan={2} className="p-4 text-right text-xs">MONTH TOTAL:</td><td className="p-4 text-right">৳{buyTotals.val.toLocaleString()}</td><td className="p-4 text-right text-emerald-400">৳{buyTotals.paid.toLocaleString()}</td></tr></tfoot></table></div>
+                    <div className="flex justify-between items-center border-b-2 border-blue-900/50 pb-2">
+                      <h4 className="text-lg font-black text-blue-400 uppercase tracking-wider flex items-center gap-2">
+                        <span>📦</span> ক্রয় খতিয়ান (Stock Purchase Ledger)
+                      </h4>
+                      <button
+                        onClick={() => openLumpSumPurchaseModal(selectedMonth, selectedYear)}
+                        className="text-amber-400 hover:text-white text-xs font-bold underline"
+                      >
+                        + এককালীন ক্রয়
+                      </button>
+                    </div>
+                    <div className="overflow-x-auto rounded-2xl border-2 border-slate-700 shadow-2xl">
+                      <table className="w-full text-left border-collapse text-xs">
+                        <thead className="bg-slate-700 text-slate-100">
+                          <tr>
+                            <th className="p-3.5 border-r border-slate-600">তারিখ</th>
+                            <th className="p-3.5 border-r border-slate-600">সরবরাহকারী</th>
+                            <th className="p-3.5 text-right">বিল (৳)</th>
+                            <th className="p-3.5 text-right">পরিশোধ</th>
+                            <th className="p-3.5 text-center">অ্যাকশন</th>
+                          </tr>
+                        </thead>
+                        <tbody className="bg-slate-800 divide-y divide-slate-700">
+                          {filteredPurchases.map((inv) => (
+                            <tr key={inv.invoiceId} className="hover:bg-slate-750">
+                              <td className="p-3.5 border-r border-slate-700 text-slate-400 font-mono">{inv.invoiceDate}</td>
+                              <td className="p-3.5 border-r border-slate-700 font-black text-white">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span>{inv.source}</span>
+                                  {isLumpSumPurchase(inv) && (
+                                    <span className="bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[9px] font-black px-1.5 py-0.5 rounded">
+                                      এককালীন
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="p-3.5 text-right font-black text-slate-200">৳{(inv.netPayable || 0).toLocaleString()}</td>
+                              <td className="p-3.5 text-emerald-400 font-black text-right">৳{Number(inv.paidAmount || 0).toLocaleString()}</td>
+                              <td className="p-3.5 text-center flex justify-center gap-3">
+                                {isLumpSumPurchase(inv) ? (
+                                  <>
+                                    <button
+                                      onClick={() => openEditLumpSumPurchase(inv)}
+                                      className="text-amber-400 hover:text-white underline font-bold"
+                                    >
+                                      এডিট
+                                    </button>
+                                    <button
+                                      onClick={() => setViewingPurchaseInvoice(inv)}
+                                      className="text-sky-400 hover:text-white underline font-bold"
+                                    >
+                                      প্রিন্ট
+                                    </button>
+                                  </>
+                                ) : (
+                                  <button
+                                    onClick={() => setViewingPurchaseInvoice(inv)}
+                                    className="text-sky-400 hover:text-white underline font-bold"
+                                  >
+                                    ভিউ
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                          {filteredPurchases.length === 0 && (
+                            <tr>
+                              <td colSpan={5} className="p-8 text-center text-slate-500 italic">
+                                এই মাসে কোনো ক্রয় রেকর্ড পাওয়া যায়নি।
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                        <tfoot className="bg-slate-900 text-white font-black">
+                          <tr>
+                            <td colSpan={2} className="p-3.5 text-right text-xs">মাসিক মোট ক্রয়:</td>
+                            <td className="p-3.5 text-right text-rose-400">৳{buyTotals.val.toLocaleString()}</td>
+                            <td className="p-3.5 text-right text-emerald-400">৳{buyTotals.paid.toLocaleString()}</td>
+                            <td></td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
                 </div>
+
                 <div className="space-y-4">
-                    <h4 className="text-xl font-black text-emerald-400 border-b-2 border-emerald-900/50 pb-2 uppercase tracking-widest">Outdoor Sales Journal</h4>
-                    <div className="overflow-x-auto rounded-2xl border-2 border-slate-700 shadow-2xl"><table className="w-full text-left border-collapse text-xs"><thead className="bg-slate-700 text-slate-100"><tr><th className="p-4 border-r border-slate-600">Date</th><th className="p-4 border-r border-slate-600">Category</th><th className="p-4 text-right">Sales Amt</th></tr></thead><tbody className="bg-slate-800 divide-y divide-slate-700">{filteredSales.map((inv) => (<tr key={inv.invoiceId}><td className="p-4 border-r border-slate-700 text-slate-400 font-mono">{inv.invoiceDate}</td><td className="p-4 border-r border-slate-700 text-emerald-300 font-black">Outdoor Sale</td><td className="p-4 text-right font-black text-emerald-400">৳{inv.netPayable.toLocaleString()}</td></tr>))}</tbody><tfoot className="bg-slate-900 text-white font-black"><tr><td colSpan={2} className="p-4 text-right text-xs">GRAND REVENUE:</td><td className="p-4 text-right text-emerald-400">৳{saleTotals.total.toLocaleString()}</td></tr></tfoot></table></div>
+                    <div className="flex justify-between items-center border-b-2 border-emerald-900/50 pb-2">
+                      <h4 className="text-lg font-black text-emerald-400 uppercase tracking-wider flex items-center gap-2">
+                        <span>💰</span> বিক্রয় খতিয়ান (Sales Journal)
+                      </h4>
+                      <button
+                        onClick={() => openLumpSumSalesModal(selectedMonth, selectedYear)}
+                        className="text-emerald-400 hover:text-white text-xs font-bold underline"
+                      >
+                        + এককালীন বিক্রয়
+                      </button>
+                    </div>
+                    <div className="overflow-x-auto rounded-2xl border-2 border-slate-700 shadow-2xl">
+                      <table className="w-full text-left border-collapse text-xs">
+                        <thead className="bg-slate-700 text-slate-100">
+                          <tr>
+                            <th className="p-3.5 border-r border-slate-600">তারিখ</th>
+                            <th className="p-3.5 border-r border-slate-600">খাত / বিবরণ</th>
+                            <th className="p-3.5 text-right">বিক্রয় টাকা (৳)</th>
+                            <th className="p-3.5 text-center">অ্যাকশন</th>
+                          </tr>
+                        </thead>
+                        <tbody className="bg-slate-800 divide-y divide-slate-700">
+                          {filteredSales.map((inv) => (
+                            <tr key={inv.invoiceId} className="hover:bg-slate-750">
+                              <td className="p-3.5 border-r border-slate-700 text-slate-400 font-mono">{inv.invoiceDate}</td>
+                              <td className="p-3.5 border-r border-slate-700 text-slate-100 font-bold">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span>{inv.customerName}</span>
+                                  {isLumpSumSale(inv) && (
+                                    <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[9px] font-black px-1.5 py-0.5 rounded">
+                                      এককালীন
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="p-3.5 text-right font-black text-emerald-400">৳{(inv.netPayable || 0).toLocaleString()}</td>
+                              <td className="p-3.5 text-center flex justify-center gap-3">
+                                {isLumpSumSale(inv) ? (
+                                  <>
+                                    <button
+                                      onClick={() => openEditLumpSumSales(inv)}
+                                      className="text-emerald-400 hover:text-white underline font-bold"
+                                    >
+                                      এডিট
+                                    </button>
+                                    <button
+                                      onClick={() => handlePrintSale(inv)}
+                                      className="text-sky-400 hover:text-white underline font-bold"
+                                    >
+                                      প্রিন্ট
+                                    </button>
+                                  </>
+                                ) : (
+                                  <button
+                                    onClick={() => handlePrintSale(inv)}
+                                    className="text-sky-400 hover:text-white underline font-bold"
+                                  >
+                                    ভাউচার
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                          {indoorSalesTotal > 0 && (
+                            <tr className="bg-purple-950/40">
+                              <td className="p-3.5 border-r border-slate-700 text-slate-400 font-mono">-</td>
+                              <td className="p-3.5 border-r border-slate-700 font-bold text-purple-300">
+                                ইনডোর মোট ঔষধ বিল
+                              </td>
+                              <td className="p-3.5 text-right font-black text-purple-300">৳{indoorSalesTotal.toLocaleString()}</td>
+                              <td className="p-3.5 text-center text-slate-500 text-[10px]">ইনডোর</td>
+                            </tr>
+                          )}
+                          {filteredSales.length === 0 && indoorSalesTotal === 0 && (
+                            <tr>
+                              <td colSpan={4} className="p-8 text-center text-slate-500 italic">
+                                এই মাসে কোনো বিক্রয় রেকর্ড পাওয়া যায়নি।
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                        <tfoot className="bg-slate-900 text-white font-black">
+                          <tr>
+                            <td colSpan={2} className="p-3.5 text-right text-xs">মাসিক মোট বিক্রয় রেভিনিউ:</td>
+                            <td className="p-3.5 text-right text-emerald-400">৳{saleTotals.total.toLocaleString()}</td>
+                            <td></td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
                 </div>
             </div>
         </div>
@@ -2857,6 +3482,340 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
                   <PrinterIcon className="w-4 h-4" /> রসিদ প্রিন্ট করুন
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: এককালীন মাসিক ওষুধ ক্রয় (Lump-sum Monthly Purchase) */}
+      {showLumpSumPurchaseModal && (
+        <div className="fixed inset-0 bg-black/80 z-[9999] flex items-center justify-center p-4 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="bg-slate-900 border border-amber-500/50 w-full max-w-lg rounded-3xl p-6 shadow-2xl shadow-amber-950/50 relative overflow-hidden">
+            <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-amber-500 via-orange-500 to-yellow-400"></div>
+            
+            <div className="flex justify-between items-center mb-5 pb-3 border-b border-slate-800">
+              <div>
+                <h3 className="text-xl font-black text-amber-400 flex items-center gap-2">
+                  <span>📦</span>
+                  {lumpSumPurchaseForm.editingInvoiceId ? 'এককালীন ওষুধ ক্রয় সংশোধন' : 'এককালীন মাসিক ওষুধ ক্রয় এন্ট্রি'}
+                </h3>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  বিগত মাসসমূহের বিস্তারিত বিল না থাকলে এককালীন মোট ক্রয়ের হিসাব যোগ করুন
+                </p>
+              </div>
+              <button
+                onClick={() => setShowLumpSumPurchaseModal(false)}
+                className="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition-colors text-lg"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1">বছর (Year)</label>
+                  <select
+                    value={lumpSumPurchaseForm.year}
+                    onChange={(e) => {
+                      const y = Number(e.target.value);
+                      const m = lumpSumPurchaseForm.month;
+                      const mName = monthOptions[m]?.name || `Month ${m + 1}`;
+                      setLumpSumPurchaseForm(prev => ({
+                        ...prev,
+                        year: y,
+                        date: getLastDayOfMonth(y, m),
+                        supplier: prev.supplier.startsWith('এককালীন ওষুধ ক্রয়') ? `এককালীন ওষুধ ক্রয় (${mName} ${y})` : prev.supplier
+                      }));
+                    }}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-bold text-sm focus:border-amber-500 outline-none"
+                  >
+                    {[2022, 2023, 2024, 2025, 2026, 2027, 2028].map(y => (
+                      <option key={y} value={y}>{y}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1">মাস (Month)</label>
+                  <select
+                    value={lumpSumPurchaseForm.month}
+                    onChange={(e) => {
+                      const m = Number(e.target.value);
+                      const y = lumpSumPurchaseForm.year;
+                      const mName = monthOptions[m]?.name || `Month ${m + 1}`;
+                      setLumpSumPurchaseForm(prev => ({
+                        ...prev,
+                        month: m,
+                        date: getLastDayOfMonth(y, m),
+                        supplier: prev.supplier.startsWith('এককালীন ওষুধ ক্রয়') ? `এককালীন ওষুধ ক্রয় (${mName} ${y})` : prev.supplier
+                      }));
+                    }}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-bold text-sm focus:border-amber-500 outline-none"
+                  >
+                    {monthOptions.map(m => (
+                      <option key={m.value} value={m.value}>{m.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1">রেকর্ড তারিখ (Date)</label>
+                <input
+                  type="date"
+                  value={lumpSumPurchaseForm.date}
+                  onChange={(e) => setLumpSumPurchaseForm(prev => ({ ...prev, date: e.target.value }))}
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono text-sm focus:border-amber-500 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1">সরবরাহকারী / খাতের নাম</label>
+                <input
+                  type="text"
+                  value={lumpSumPurchaseForm.supplier}
+                  onChange={(e) => setLumpSumPurchaseForm(prev => ({ ...prev, supplier: e.target.value }))}
+                  placeholder="যেমন: এককালীন ওষুধ ক্রয় (জানুয়ারি ২০২৪) বা স্কয়ার / বেক্সিমকো"
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white text-sm focus:border-amber-500 outline-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-amber-300 mb-1">মোট ক্রয়ের পরিমাণ (৳) *</label>
+                  <input
+                    type="number"
+                    value={lumpSumPurchaseForm.totalAmount}
+                    onChange={(e) => {
+                      const tot = e.target.value;
+                      const paid = lumpSumPurchaseForm.paidAmount;
+                      const due = Math.max(0, Number(tot || 0) - Number(paid || 0));
+                      setLumpSumPurchaseForm(prev => ({ ...prev, totalAmount: tot, dueAmount: due }));
+                    }}
+                    placeholder="মোট টাকা লিখুন"
+                    className="w-full bg-slate-950 border-2 border-amber-500/80 rounded-xl px-3 py-2 text-amber-300 font-black text-base focus:border-amber-400 outline-none"
+                    autoFocus
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-emerald-300 mb-1">পরিশোধিত টাকা (৳)</label>
+                  <input
+                    type="number"
+                    value={lumpSumPurchaseForm.paidAmount}
+                    onChange={(e) => {
+                      const paid = e.target.value;
+                      const tot = lumpSumPurchaseForm.totalAmount;
+                      const due = Math.max(0, Number(tot || 0) - Number(paid || 0));
+                      setLumpSumPurchaseForm(prev => ({ ...prev, paidAmount: paid, dueAmount: due }));
+                    }}
+                    placeholder="পরিশোধ লিখুন"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-emerald-300 font-bold text-base focus:border-emerald-500 outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="bg-slate-950/80 p-3 rounded-xl border border-slate-800 flex justify-between items-center text-xs">
+                <span className="text-slate-400 font-bold">বকেয়া (Due):</span>
+                <span className={`font-black text-sm ${lumpSumPurchaseForm.dueAmount > 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                  ৳{Number(lumpSumPurchaseForm.dueAmount || 0).toLocaleString()}
+                </span>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1">মন্তব্য / নোট (ঐচ্ছিক)</label>
+                <input
+                  type="text"
+                  value={lumpSumPurchaseForm.notes}
+                  onChange={(e) => setLumpSumPurchaseForm(prev => ({ ...prev, notes: e.target.value }))}
+                  placeholder="যেমন: পুরাতন খাতার মোট ক্রয় হিসাব"
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white text-xs focus:border-amber-500 outline-none"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6 pt-4 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setShowLumpSumPurchaseModal(false)}
+                className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl font-bold text-xs uppercase tracking-wider transition-all"
+              >
+                বাতিল
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveLumpSumPurchase}
+                disabled={loading}
+                className="flex-1 py-2.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl font-black text-xs uppercase tracking-wider shadow-lg shadow-amber-900/40 transition-all active:scale-95 disabled:opacity-50"
+              >
+                {loading ? 'সংরক্ষণ হচ্ছে...' : 'সংরক্ষণ করুন'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: এককালীন মাসিক ওষুধ বিক্রয় (Lump-sum Monthly Sales) */}
+      {showLumpSumSalesModal && (
+        <div className="fixed inset-0 bg-black/80 z-[9999] flex items-center justify-center p-4 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="bg-slate-900 border border-emerald-500/50 w-full max-w-lg rounded-3xl p-6 shadow-2xl shadow-emerald-950/50 relative overflow-hidden">
+            <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-emerald-500 via-teal-500 to-green-400"></div>
+            
+            <div className="flex justify-between items-center mb-5 pb-3 border-b border-slate-800">
+              <div>
+                <h3 className="text-xl font-black text-emerald-400 flex items-center gap-2">
+                  <span>💰</span>
+                  {lumpSumSalesForm.editingInvoiceId ? 'এককালীন বিক্রয় সংশোধন' : 'এককালীন মাসিক ফার্মেসি বিক্রয় এন্ট্রি'}
+                </h3>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  বিগত মাসসমূহের বিস্তারিত মেমো না থাকলে এককালীন মোট বিক্রয় আয় যোগ করুন
+                </p>
+              </div>
+              <button
+                onClick={() => setShowLumpSumSalesModal(false)}
+                className="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition-colors text-lg"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1">বছর (Year)</label>
+                  <select
+                    value={lumpSumSalesForm.year}
+                    onChange={(e) => {
+                      const y = Number(e.target.value);
+                      const m = lumpSumSalesForm.month;
+                      const mName = monthOptions[m]?.name || `Month ${m + 1}`;
+                      setLumpSumSalesForm(prev => ({
+                        ...prev,
+                        year: y,
+                        date: getLastDayOfMonth(y, m),
+                        customerName: prev.customerName.startsWith('এককালীন মোট ফার্মেসি বিক্রয়') ? `এককালীন মোট ফার্মেসি বিক্রয় (${mName} ${y})` : prev.customerName
+                      }));
+                    }}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-bold text-sm focus:border-emerald-500 outline-none"
+                  >
+                    {[2022, 2023, 2024, 2025, 2026, 2027, 2028].map(y => (
+                      <option key={y} value={y}>{y}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1">মাস (Month)</label>
+                  <select
+                    value={lumpSumSalesForm.month}
+                    onChange={(e) => {
+                      const m = Number(e.target.value);
+                      const y = lumpSumSalesForm.year;
+                      const mName = monthOptions[m]?.name || `Month ${m + 1}`;
+                      setLumpSumSalesForm(prev => ({
+                        ...prev,
+                        month: m,
+                        date: getLastDayOfMonth(y, m),
+                        customerName: prev.customerName.startsWith('এককালীন মোট ফার্মেসি বিক্রয়') ? `এককালীন মোট ফার্মেসি বিক্রয় (${mName} ${y})` : prev.customerName
+                      }));
+                    }}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-bold text-sm focus:border-emerald-500 outline-none"
+                  >
+                    {monthOptions.map(m => (
+                      <option key={m.value} value={m.value}>{m.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1">রেকর্ড তারিখ (Date)</label>
+                <input
+                  type="date"
+                  value={lumpSumSalesForm.date}
+                  onChange={(e) => setLumpSumSalesForm(prev => ({ ...prev, date: e.target.value }))}
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono text-sm focus:border-emerald-500 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1">গ্রাহক / বিবরণ</label>
+                <input
+                  type="text"
+                  value={lumpSumSalesForm.customerName}
+                  onChange={(e) => setLumpSumSalesForm(prev => ({ ...prev, customerName: e.target.value }))}
+                  placeholder="যেমন: এককালীন মোট ফার্মেসি বিক্রয় (জানুয়ারি ২০২৪)"
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white text-sm focus:border-emerald-500 outline-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-emerald-300 mb-1">মোট বিক্রয় রেভিনিউ (৳) *</label>
+                  <input
+                    type="number"
+                    value={lumpSumSalesForm.totalAmount}
+                    onChange={(e) => {
+                      const tot = e.target.value;
+                      const paid = lumpSumSalesForm.paidAmount;
+                      const due = Math.max(0, Number(tot || 0) - Number(paid || 0));
+                      setLumpSumSalesForm(prev => ({ ...prev, totalAmount: tot, dueAmount: due }));
+                    }}
+                    placeholder="বিক্রয়ের মোট টাকা"
+                    className="w-full bg-slate-950 border-2 border-emerald-500/80 rounded-xl px-3 py-2 text-emerald-300 font-black text-base focus:border-emerald-400 outline-none"
+                    autoFocus
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-sky-300 mb-1">আদায়কৃত টাকা (৳)</label>
+                  <input
+                    type="number"
+                    value={lumpSumSalesForm.paidAmount}
+                    onChange={(e) => {
+                      const paid = e.target.value;
+                      const tot = lumpSumSalesForm.totalAmount;
+                      const due = Math.max(0, Number(tot || 0) - Number(paid || 0));
+                      setLumpSumSalesForm(prev => ({ ...prev, paidAmount: paid, dueAmount: due }));
+                    }}
+                    placeholder="নগদ আদায় লিখুন"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sky-300 font-bold text-base focus:border-sky-500 outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="bg-slate-950/80 p-3 rounded-xl border border-slate-800 flex justify-between items-center text-xs">
+                <span className="text-slate-400 font-bold">বকেয়া (Due):</span>
+                <span className={`font-black text-sm ${lumpSumSalesForm.dueAmount > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                  ৳{Number(lumpSumSalesForm.dueAmount || 0).toLocaleString()}
+                </span>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1">মন্তব্য / নোট (ঐচ্ছিক)</label>
+                <input
+                  type="text"
+                  value={lumpSumSalesForm.notes}
+                  onChange={(e) => setLumpSumSalesForm(prev => ({ ...prev, notes: e.target.value }))}
+                  placeholder="যেমন: পুরাতন খাতার মোট বিক্রয় রেকর্ড"
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white text-xs focus:border-emerald-500 outline-none"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6 pt-4 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setShowLumpSumSalesModal(false)}
+                className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl font-bold text-xs uppercase tracking-wider transition-all"
+              >
+                বাতিল
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveLumpSumSales}
+                disabled={loading}
+                className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-black text-xs uppercase tracking-wider shadow-lg shadow-emerald-900/40 transition-all active:scale-95 disabled:opacity-50"
+              >
+                {loading ? 'সংরক্ষণ হচ্ছে...' : 'সংরক্ষণ করুন'}
+              </button>
             </div>
           </div>
         </div>

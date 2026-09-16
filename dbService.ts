@@ -107,6 +107,11 @@ export const setTableSplitCutoffDate = (dateStr: string) => {
   } catch (e) {}
 };
 
+// Single table save is now permanently disabled
+export const isSingleTableSaveDisabled = (): boolean => true;
+
+export const setSingleTableSaveDisabled = (disabled: boolean) => {};
+
 // Safe helper to fetch all rows from a table
 const fetchTableSafe = async (client: SupabaseClient, tableName: string) => {
   try {
@@ -215,17 +220,8 @@ export const dbService = {
 
   loadFromCloud: async () => {
     try {
-      let localState: any = null;
-      // Scan all possible local storage keys for offline recovery
-      try {
-        const primaryCache = localStorage.getItem(LOCAL_STORAGE_KEY) || localStorage.getItem('ncd_offline_cache_v1');
-        if (primaryCache) localState = JSON.parse(primaryCache);
-      } catch (e) {
-        console.warn("Could not read local cache:", e);
-      }
-
       if (!supabase) {
-        return localState || { _error: "Supabase not initialized. Check Supabase URL & Key." };
+        return { _error: "Supabase not initialized. Offline mode is completely disabled." };
       }
       
       const cutoffDate = getTableSplitCutoffDate(); // '2026-08-01'
@@ -278,110 +274,8 @@ export const dbService = {
         return result;
       };
 
-      // 1. Primary Source: Fetch master state records from single table ncd_state
+      // 1. Initialize state
       let state: any = {};
-      const extractDataObj = (raw: any) => {
-        if (!raw) return null;
-        if (typeof raw === 'object' && !Array.isArray(raw)) return raw;
-        if (typeof raw === 'string') {
-          try {
-            const parsed = JSON.parse(raw);
-            if (typeof parsed === 'object' && !Array.isArray(parsed)) return parsed;
-          } catch {}
-        }
-        return null;
-      };
-
-      try {
-        const { data: records, error } = await supabase
-          .from('ncd_state')
-          .select('id, data, updated_at')
-          .order('updated_at', { ascending: false });
-          
-        if (!error && records && records.length > 0) {
-          // Find master record or the richest snapshot
-          const masterRecord = records.find(r => r.id === MASTER_RECORD_ID) || records[0];
-          const masterData = masterRecord ? extractDataObj(masterRecord.data) : null;
-          if (masterData) {
-            state = { ...masterData };
-          }
-          
-          // Also check other records in ncd_state to rescue any historical data
-          records.forEach(rec => {
-            if (rec && rec.data) {
-              const d = extractDataObj(rec.data);
-              if (d) {
-                const recInvs = d.labInvoices || d.invoices || d.lab_invoices || d.diagnostic_invoices;
-                if (Array.isArray(recInvs) && recInvs.length > 0) {
-                  state.labInvoices = mergeEntityList(state.labInvoices || [], recInvs, ['invoice_id', 'id', 'invoice_no', 'invoiceId']);
-                }
-                const recDues = d.dueCollections || d.due_collections || d.dues || d.collections;
-                if (Array.isArray(recDues) && recDues.length > 0) {
-                  state.dueCollections = mergeEntityList(state.dueCollections || [], recDues, ['collection_id', 'id', 'collectionId']);
-                }
-                const recIndoor = d.indoorInvoices || d.indoor_invoices || d.clinicInvoices;
-                if (Array.isArray(recIndoor) && recIndoor.length > 0) {
-                  state.indoorInvoices = mergeEntityList(state.indoorInvoices || [], recIndoor, ['invoice_id', 'daily_id', 'id']);
-                }
-                if (Array.isArray(d.patients) && d.patients.length > 0) {
-                  state.patients = mergeEntityList(state.patients || [], d.patients, ['pt_id', 'patient_id', 'id']);
-                }
-                if (Array.isArray(d.doctors) && d.doctors.length > 0) {
-                  state.doctors = mergeEntityList(state.doctors || [], d.doctors, ['doctor_id', 'id']);
-                }
-                if (Array.isArray(d.referrars) && d.referrars.length > 0) {
-                  state.referrars = mergeEntityList(state.referrars || [], d.referrars, ['ref_id', 'referrer_id', 'id']);
-                }
-                if (Array.isArray(d.tests) && d.tests.length > 0) {
-                  state.tests = mergeEntityList(state.tests || [], d.tests, ['test_id', 'id']);
-                }
-                if (Array.isArray(d.reagents) && d.reagents.length > 0) {
-                  state.reagents = mergeEntityList(state.reagents || [], d.reagents, ['reagent_id', 'id']);
-                }
-                if (Array.isArray(d.employees) && d.employees.length > 0) {
-                  state.employees = mergeEntityList(state.employees || [], d.employees, ['emp_id', 'id']);
-                }
-                if (Array.isArray(d.medicines) && d.medicines.length > 0) {
-                  state.medicines = mergeEntityList(state.medicines || [], d.medicines, ['id', 'tradeName', 'trade_name']);
-                }
-                const recPurchases = d.purchaseInvoices || d.purchase_invoices || d.purchases || d.medicinePurchases;
-                if (Array.isArray(recPurchases) && recPurchases.length > 0) {
-                  state.purchaseInvoices = mergeEntityList(state.purchaseInvoices || [], recPurchases, ['invoiceId', 'invoice_id', 'id']);
-                }
-                const recSales = d.salesInvoices || d.sales_invoices || d.sales || d.medicineSales;
-                if (Array.isArray(recSales) && recSales.length > 0) {
-                  state.salesInvoices = mergeEntityList(state.salesInvoices || [], recSales, ['invoiceId', 'invoice_id', 'id']);
-                }
-                if (Array.isArray(d.clinicalDrugs) && d.clinicalDrugs.length > 0) {
-                  state.clinicalDrugs = mergeEntityList(state.clinicalDrugs || [], d.clinicalDrugs, ['id']);
-                }
-                if (d.detailedExpenses && typeof d.detailedExpenses === 'object') {
-                  state.detailedExpenses = { ...(state.detailedExpenses || {}), ...d.detailedExpenses };
-                }
-              }
-            }
-          });
-        }
-      } catch (err) {
-        console.warn("Notice fetching ncd_state:", err);
-      }
-
-      if (!state || typeof state !== 'object') {
-        state = localState ? { ...localState } : {};
-      }
-
-      // Also rescue from localState backup if any medicine or invoice lists exist locally
-      if (localState) {
-        if (Array.isArray(localState.purchaseInvoices) && localState.purchaseInvoices.length > 0) {
-          state.purchaseInvoices = mergeEntityList(state.purchaseInvoices || [], localState.purchaseInvoices, ['invoiceId', 'invoice_id', 'id']);
-        }
-        if (Array.isArray(localState.salesInvoices) && localState.salesInvoices.length > 0) {
-          state.salesInvoices = mergeEntityList(state.salesInvoices || [], localState.salesInvoices, ['invoiceId', 'invoice_id', 'id']);
-        }
-        if (Array.isArray(localState.medicines) && localState.medicines.length > 0) {
-          state.medicines = mergeEntityList(state.medicines || [], localState.medicines, ['id', 'tradeName']);
-        }
-      }
 
       // Normalization of alternate keys in state
       if (!Array.isArray(state.labInvoices)) {
@@ -679,31 +573,9 @@ export const dbService = {
         console.warn("Modular table load notice:", modularErr);
       }
 
-      // 3. Safety check with local cache: Never lose offline collections
-      if (localState) {
-        if (Array.isArray(localState.labInvoices) && localState.labInvoices.length > 0) {
-          state.labInvoices = mergeEntityList(state.labInvoices || [], localState.labInvoices, ['invoice_id', 'id', 'invoice_no']);
-        }
-        if (Array.isArray(localState.dueCollections) && localState.dueCollections.length > 0) {
-          state.dueCollections = mergeEntityList(state.dueCollections || [], localState.dueCollections, ['collection_id', 'id']);
-        }
-        if (Array.isArray(localState.indoorInvoices) && localState.indoorInvoices.length > 0) {
-          state.indoorInvoices = mergeEntityList(state.indoorInvoices || [], localState.indoorInvoices, ['invoice_id', 'daily_id', 'id']);
-        }
-        if (Array.isArray(localState.patients) && localState.patients.length > 0) {
-          state.patients = mergeEntityList(state.patients || [], localState.patients, ['pt_id', 'patient_id', 'id']);
-        }
-        if (Array.isArray(localState.doctors) && localState.doctors.length > 0) {
-          state.doctors = mergeEntityList(state.doctors || [], localState.doctors, ['doctor_id', 'id']);
-        }
-        if (Array.isArray(localState.referrars) && localState.referrars.length > 0) {
-          state.referrars = mergeEntityList(state.referrars || [], localState.referrars, ['ref_id', 'referrer_id', 'id']);
-        }
-        if (Array.isArray(localState.consolidatedLabEntries) && localState.consolidatedLabEntries.length > 0) {
-          state.consolidatedLabEntries = mergeEntityList(state.consolidatedLabEntries || [], localState.consolidatedLabEntries, ['id']);
-        } else if (!Array.isArray(state.consolidatedLabEntries) || state.consolidatedLabEntries.length === 0) {
-          state.consolidatedLabEntries = dbService.getConsolidatedEntries();
-        }
+      // 3. Consolidated Lab Entries handling
+      if (!Array.isArray(state.consolidatedLabEntries) || state.consolidatedLabEntries.length === 0) {
+        state.consolidatedLabEntries = dbService.getConsolidatedEntries();
       }
 
       // 4. Strict Deduplication & Guaranteed Unique ID normalization for detailedExpenses
@@ -885,36 +757,17 @@ export const dbService = {
       }
       dbService.saveConsolidatedEntries(state.consolidatedLabEntries);
 
-      // Save fresh state to local cache
-      try {
-        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(state));
-        localStorage.setItem('ncd_offline_cache_v1', JSON.stringify(state));
-      } catch (e) {}
-
       return state;
     } catch (error) {
       console.error("Cloud load error:", error);
-      try {
-        const cached = localStorage.getItem(LOCAL_STORAGE_KEY) || localStorage.getItem('ncd_offline_cache_v1');
-        if (cached) return JSON.parse(cached);
-      } catch (e) {}
       return { _error: "Failed to load state from cloud." };
     }
   },
 
   saveToCloud: async (appState: any) => {
     try {
-      // 1. Always update local storage cache immediately (0ms latency local safety)
-      try {
-        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(appState));
-        localStorage.setItem('ncd_offline_cache_v1', JSON.stringify(appState));
-      } catch (e) {
-        console.warn("Local cache save error:", e);
-      }
-
       if (!supabase) {
-        console.warn("Supabase not connected. Saved to local storage.");
-        return { success: true, mocked: true };
+        return { success: false, error: "Supabase not connected. Offline save is disabled." };
       }
       
       const cutoffDate = getTableSplitCutoffDate(); // '2026-08-01'
@@ -1013,36 +866,13 @@ export const dbService = {
         console.warn("Modular indoor sync notice:", indoorErr);
       }
 
-      // 3. Save to Master ncd_state single table (for backward compatibility and whole-state recovery)
-      let masterSuccess = false;
-      let masterErrorMessage = '';
-      try {
-        const { error: masterErr } = await supabase
-          .from('ncd_state')
-          .upsert({ 
-            id: MASTER_RECORD_ID, 
-            data: appState,
-            updated_at: now 
-          }, { onConflict: 'id' });
-
-        if (masterErr) {
-          console.warn("Master state save notice:", masterErr.message);
-          masterErrorMessage = masterErr.message;
-        } else {
-          masterSuccess = true;
-        }
-      } catch (err: any) {
-        console.warn("Master state upsert exception:", err);
-        masterErrorMessage = err?.message || 'Master table upsert failed';
-      }
-
-      // If either master state OR any modular table succeeded (or offline cache stored), we treat as success!
-      if (masterSuccess || modularSaveSuccess) {
+      // If modular table save succeeded, we treat as success!
+      if (modularSaveSuccess) {
         return { success: true };
       }
 
-      console.warn("Cloud sync had errors, data secured in local storage:", masterErrorMessage);
-      return { success: true, warning: masterErrorMessage, isOffline: true };
+      console.warn("Cloud sync had errors, data secured in local storage");
+      return { success: true, warning: 'Failed to save to modular tables', isOffline: true };
     } catch (error: any) {
       console.error("Cloud save critical error:", error);
       return { success: true, warning: error?.message, isOffline: true };
@@ -1128,28 +958,21 @@ export const dbService = {
   },
 
   getLocalBackup: () => {
-    try {
-      const data = localStorage.getItem(LOCAL_STORAGE_KEY);
-      if (data) return JSON.parse(data);
-    } catch {}
-    return null;
+    return null; // Offline mode is disabled
   },
 
   isSupabaseConnected: () => !!supabase && isValidSupabaseConfig(currentConfig.url, currentConfig.key),
   
   deepScanRecovery: () => {
-    try {
-      const backup = dbService.getLocalBackup();
-      return backup || null;
-    } catch {
-      return null;
-    }
+    return null; // Offline mode is disabled
   },
   
   normalizeRecoveredData: (raw: any) => raw,
   
   getTableSplitCutoffDate,
   setTableSplitCutoffDate,
+  isSingleTableSaveDisabled,
+  setSingleTableSaveDisabled,
 
   cleanDuplicateExpenses: async (onProgress?: (progress: number) => void) => {
     try {
@@ -1160,17 +983,6 @@ export const dbService = {
         state = await dbService.loadFromCloud();
       } catch (err) {
         console.warn("Cloud load error during deduplication:", err);
-      }
-
-      if (!state || state._error) {
-        try {
-          const localStr = localStorage.getItem(LOCAL_STORAGE_KEY) || localStorage.getItem('ncd_state');
-          if (localStr) {
-            state = JSON.parse(localStr);
-          }
-        } catch (e) {
-          console.warn("Local storage state load error:", e);
-        }
       }
 
       if (!state || typeof state !== 'object') {
@@ -1260,24 +1072,8 @@ export const dbService = {
         }
       }
 
-      // 2. Update local state and ncd_state
-      try {
-        const localStateStr = localStorage.getItem(LOCAL_STORAGE_KEY) || localStorage.getItem('ncd_state');
-        if (localStateStr) {
-          const localState = JSON.parse(localStateStr);
-          if (localState.detailedExpenses && typeof localState.detailedExpenses === 'object') {
-            Object.keys(localState.detailedExpenses).forEach(d => {
-              if (Array.isArray(localState.detailedExpenses[d])) {
-                localState.detailedExpenses[d] = localState.detailedExpenses[d].filter((it: any) => String(it.id).trim() !== targetIdStr);
-              }
-            });
-            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(localState));
-          }
-        }
-      } catch (lsErr) {
-        console.warn("Local storage delete warning:", lsErr);
-      }
-
+      // 2. Local fallback removed
+      
       return { success: true };
     } catch (err: any) {
       return { success: false, error: err.message };
@@ -1288,25 +1084,6 @@ export const dbService = {
     try {
       const now = new Date().toISOString();
       const cutoffDate = getTableSplitCutoffDate(); // '2026-08-01'
-
-      // 1. Immediately update offline cache in localStorage
-      try {
-        const localStateStr = localStorage.getItem(LOCAL_STORAGE_KEY) || localStorage.getItem('ncd_state');
-        if (localStateStr) {
-          const localState = JSON.parse(localStateStr);
-          if (fullDetailedExpenses) {
-            localState.detailedExpenses = fullDetailedExpenses;
-          } else {
-            if (!localState.detailedExpenses) localState.detailedExpenses = {};
-            localState.detailedExpenses[date] = items;
-          }
-          localState.last_updated_at = now;
-          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(localState));
-          localStorage.setItem('ncd_offline_cache_v1', JSON.stringify(localState));
-        }
-      } catch (lsErr) {
-        console.warn("Local storage save expense error:", lsErr);
-      }
 
       // 2. If Supabase is connected, save directly to modular table 'detailed_expenses'
       if (supabase && (!date || date >= cutoffDate)) {
