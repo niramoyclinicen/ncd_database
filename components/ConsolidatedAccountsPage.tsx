@@ -438,18 +438,29 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
     const expenseSheetData = useMemo(() => { try {
         const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
         const rows = [];
+        
+        // Fast index normalized date to list of expenses
+        const normalizedExpsMap = new Map<string, any[]>();
+        Object.entries(detailedExpenses).forEach(([rawDateKey, items]) => {
+            if (!Array.isArray(items) || items.length === 0) return;
+            const normKey = (rawDateKey || '').split(/[T ]/)[0].trim();
+            if (!normalizedExpsMap.has(normKey)) {
+                normalizedExpsMap.set(normKey, []);
+            }
+            normalizedExpsMap.get(normKey)!.push(...items);
+        });
+
         for (let d = 1; d <= daysInMonth; d++) {
             const dateStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-            const dailyExps = (detailedExpenses[dateStr] || []).filter(ex => {
-                if (ex.isDeleted) return false;
+            const expsForDay = normalizedExpsMap.get(dateStr) || detailedExpenses[dateStr] || [];
+            
+            const dailyExps = expsForDay.filter(ex => {
+                if (!ex || ex.isDeleted) return false;
                 if (deptFilter === 'All') return true;
                 if (deptFilter === 'Diagnostic') {
                     return ex.dept === 'Diagnostic' || (!ex.dept && diagExpenseCategories.includes(ex.category));
                 }
                 if (deptFilter === 'Clinic') {
-                    // For Clinic, we include it if it's tagged Clinic OR if it's untagged and in clinic categories
-                    // To avoid double counting untagged shared categories, we could prioritize one,
-                    // but usually these were separate in the user's mind even if categories overlapped.
                     return ex.dept === 'Clinic' || (!ex.dept && clinicExpenseCategories.includes(ex.category));
                 }
                 return false;
@@ -457,13 +468,6 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
             const categorySums: Record<string, number> = {};
             expenseMapSequence.forEach(e => categorySums[e.key] = 0);
             dailyExps.forEach(exp => {
-                // Only process if it belongs to the intended department or has no department assigned
-                // For the consolidated sheet, we might want to show everything, but the user specifically
-                // complained about Diagnostic expenses appearing in Clinic reports.
-                // However, 'expenseSheetData' seems to be a combined ledger.
-                // If the user wants to see ONLY Clinic expenses in a "Monthly Clinic Expense Sheet",
-                // we should check how this data is used.
-
                 let catName = exp.category;
 
                 // Mapping Diagnostic & Clinic categories to Consolidated keys
@@ -491,8 +495,9 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                 if (catName === 'Electrical and Electronics') catName = 'Electrical and Electronics';
 
                 const matched = expenseMapSequence.find(e => e.key === catName);
-                if (matched) categorySums[matched.key] += exp.paidAmount;
-                else categorySums['Others'] += exp.paidAmount;
+                const paidVal = Number(exp.paidAmount || exp.billAmount || 0);
+                if (matched) categorySums[matched.key] += paidVal;
+                else categorySums['Others'] += paidVal;
             });
             const totalDay = Object.values(categorySums).reduce((a, b) => a + b, 0);
             rows.push({ date: dateStr, categories: categorySums, total: totalDay });
@@ -649,26 +654,37 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
         let clinicUpto = 0;
         let lastDayWithData = -1;
 
+        // Normalized date map for lookup
+        const normalizedExpsMap = new Map<string, any[]>();
+        Object.entries(detailedExpenses).forEach(([rawDateKey, items]) => {
+            if (!Array.isArray(items) || items.length === 0) return;
+            const normKey = (rawDateKey || '').split(/[T ]/)[0].trim();
+            if (!normalizedExpsMap.has(normKey)) {
+                normalizedExpsMap.set(normKey, []);
+            }
+            normalizedExpsMap.get(normKey)!.push(...items);
+        });
+
         for (let d = 1; d <= daysInMonth; d++) {
             const dateStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-            const dailyExps = detailedExpenses[dateStr] || [];
+            const dailyExps = normalizedExpsMap.get(dateStr) || detailedExpenses[dateStr] || [];
 
             let diagToday = 0;
             let clinicToday = 0;
 
             dailyExps.forEach(ex => {
-                if (ex.isDeleted) return;
+                if (!ex || ex.isDeleted) return;
                 let cat = ex.category;
                 if (cat === 'House rent') cat = 'House rent';
 
                 const isClinic = ex.dept === 'Clinic' || (!ex.dept && clinicExpenseCategories.includes(cat) && !diagExpenseCategories.includes(cat));
                 // default to diag if not clinic explicitly
-                const isDiag = !isClinic;
+                const amt = Number(ex.paidAmount || ex.billAmount || 0);
 
                 if (isClinic) {
-                    clinicToday += (ex.paidAmount || 0);
+                    clinicToday += amt;
                 } else {
-                    diagToday += (ex.paidAmount || 0);
+                    diagToday += amt;
                 }
             });
 
@@ -1020,7 +1036,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
 
                 const mapping = expenseMapSequence.find(e => e.key === catName);
                 const key = mapping ? mapping.key : 'Others';
-                groupedExp[key] += it.paidAmount;
+                groupedExp[key] += Number(it.paidAmount || it.billAmount || 0);
             });
         });
         const monthlyLoanRepayments = repayments.filter(r => isSelectedMonth(r.date)).reduce((s, r) => s + r.amount, 0);
@@ -1157,11 +1173,16 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                     <span className="h-4 w-0.5 bg-black"></span>
                                     <p className="text-[10pt] font-black uppercase tracking-tight text-slate-800 m-0 p-0 font-['Hind_Siliguri'] print:text-[8pt]">মাসিক খরচের হিসাব : {monthOptions[selectedMonth].name} {selectedYear}</p>
                                 </div>
-                                <div className="no-print flex items-center bg-slate-100 p-1 rounded border border-slate-300 mr-32 gap-1">
-                                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-tighter mr-1 ml-0.5">Filter:</span>
-                                    <button onClick={() => setDeptFilter('All')} className={`px-2 py-0.5 rounded text-[9px] font-bold transition-all ${deptFilter === 'All' ? 'bg-slate-800 text-white shadow-md' : 'text-slate-500 hover:text-slate-800'}`}>All</button>
-                                    <button onClick={() => setDeptFilter('Diagnostic')} className={`px-2 py-0.5 rounded text-[9px] font-bold transition-all ${deptFilter === 'Diagnostic' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-500 hover:text-indigo-600'}`}>Diagnostic</button>
-                                    <button onClick={() => setDeptFilter('Clinic')} className={`px-2 py-0.5 rounded text-[9px] font-bold transition-all ${deptFilter === 'Clinic' ? 'bg-emerald-600 text-white shadow-md' : 'text-slate-500 hover:text-emerald-600'}`}>Clinic</button>
+                                <div className="no-print flex items-center gap-2">
+                                    <div className="flex items-center bg-slate-100 p-1 rounded border border-slate-300 gap-1">
+                                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-tighter mr-1 ml-0.5">Filter:</span>
+                                        <button onClick={() => setDeptFilter('All')} className={`px-2 py-0.5 rounded text-[9px] font-bold transition-all ${deptFilter === 'All' ? 'bg-slate-800 text-white shadow-md' : 'text-slate-500 hover:text-slate-800'}`}>All</button>
+                                        <button onClick={() => setDeptFilter('Diagnostic')} className={`px-2 py-0.5 rounded text-[9px] font-bold transition-all ${deptFilter === 'Diagnostic' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-500 hover:text-indigo-600'}`}>Diagnostic</button>
+                                        <button onClick={() => setDeptFilter('Clinic')} className={`px-2 py-0.5 rounded text-[9px] font-bold transition-all ${deptFilter === 'Clinic' ? 'bg-emerald-600 text-white shadow-md' : 'text-slate-500 hover:text-emerald-600'}`}>Clinic</button>
+                                    </div>
+                                    <div className="text-[11px] font-bold px-2 py-1 bg-slate-50 border border-slate-300 rounded text-slate-700 font-mono">
+                                        মোট খরচ: <span className="text-emerald-700 font-black">৳{safeNum(expenseSheetData.grandTotal).toLocaleString()}</span>
+                                    </div>
                                 </div>
                             </div>
                             <table className="print-table w-full text-[8.75pt] border-collapse border-2 border-black table-fixed leading-none">

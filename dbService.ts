@@ -562,10 +562,13 @@ export const dbService = {
       const cleanExpenses: Record<string, any[]> = {};
 
       if (typeof rawExpenses === 'object' && !Array.isArray(rawExpenses)) {
-        Object.entries(rawExpenses).forEach(([dateKey, items]) => {
+        Object.entries(rawExpenses).forEach(([rawDateKey, items]) => {
+          const dateKey = (rawDateKey || '').split(/[T ]/)[0].trim();
+          if (!dateKey) return;
+          if (!cleanExpenses[dateKey]) cleanExpenses[dateKey] = [];
+
           if (Array.isArray(items)) {
             const seen = new Set<string>();
-            const deduped: any[] = [];
 
             items.forEach((item: any, idx: number) => {
               if (!item || item.isDeleted) return;
@@ -585,9 +588,10 @@ export const dbService = {
                   ? String(item.id)
                   : `exp_${dateKey.replace(/-/g, '')}_${idx}_${Date.now()}`;
 
-                deduped.push({
+                cleanExpenses[dateKey].push({
                   ...item,
                   id: validId,
+                  date: dateKey,
                   category: cat,
                   subCategory: sub,
                   description: desc,
@@ -597,10 +601,6 @@ export const dbService = {
                 });
               }
             });
-
-            cleanExpenses[dateKey] = deduped;
-          } else {
-            cleanExpenses[dateKey] = [];
           }
         });
       }
