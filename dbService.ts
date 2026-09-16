@@ -87,8 +87,8 @@ const safeIsoDate = (d: any): string | null => {
   }
 };
 
-// Default cutoff date for separate individual tables (e.g. detailed_expenses)
-export const DEFAULT_SEPARATE_TABLES_CUTOFF_DATE = '2026-08-01';
+// Default cutoff date for separate individual tables (Permanently removed to allow all dates)
+export const DEFAULT_SEPARATE_TABLES_CUTOFF_DATE = '1970-01-01';
 
 export const getTableSplitCutoffDate = (): string => {
   try {
@@ -524,51 +524,30 @@ export const dbService = {
         if (apptRows && apptRows.length > 0) state.appointments = mergeEntityList(state.appointments, apptRows, ['appointment_id', 'id']);
         if (admRows && admRows.length > 0) state.admissions = mergeEntityList(state.admissions, admRows, ['admission_id', 'id']);
 
-        // Detailed Expenses Dual-Partition:
-        const rawExpenses = state.detailedExpenses || {};
-        const mergedExpenses: Record<string, any[]> = {};
-
-        // 2a. Pre-cutoff legacy expenses from ncd_state
-        Object.entries(rawExpenses).forEach(([d, items]: any) => {
-          if (d < cutoffDate && Array.isArray(items)) {
-            mergedExpenses[d] = items;
-          }
-        });
-
-        // 2b. Modern expenses from detailed_expenses table
+        // Detailed Expenses from modular table (All historical dates - Jan to Dec and beyond):
         if (expRows && expRows.length > 0) {
-          const modernGrouped: Record<string, any[]> = {};
+          const modularGrouped: Record<string, any[]> = {};
           expRows.forEach((row: any) => {
             const rowDate = (row.date || '').split('T')[0];
             if (!rowDate) return;
-            if (rowDate >= cutoffDate) {
-              if (!modernGrouped[rowDate]) modernGrouped[rowDate] = [];
-              modernGrouped[rowDate].push({
-                id: row.id,
-                date: rowDate,
-                category: row.category || 'General',
-                subCategory: row.sub_category || row.subCategory || '',
-                description: row.description || '',
-                billAmount: Number(row.bill_amount || row.billAmount || 0),
-                paidAmount: Number(row.paid_amount || row.paidAmount || 0),
-                dept: row.dept || 'Diagnostic'
-              });
-            }
+            if (!modularGrouped[rowDate]) modularGrouped[rowDate] = [];
+            modularGrouped[rowDate].push({
+              id: row.id,
+              date: rowDate,
+              category: row.category || 'General',
+              subCategory: row.sub_category || row.subCategory || '',
+              description: row.description || '',
+              billAmount: Number(row.bill_amount || row.billAmount || 0),
+              paidAmount: Number(row.paid_amount || row.paidAmount || 0),
+              dept: row.dept || 'Diagnostic'
+            });
           });
-
-          Object.entries(modernGrouped).forEach(([d, items]) => {
-            mergedExpenses[d] = items;
-          });
+          state.detailedExpenses = modularGrouped;
+        } else if (state.detailedExpenses && Object.keys(state.detailedExpenses).length > 0) {
+          // Keep existing in-memory expenses if modular table returned empty
         } else {
-          // If modular table is empty for modern dates, keep what was in ncd_state
-          Object.entries(rawExpenses).forEach(([d, items]: any) => {
-            if (d >= cutoffDate && Array.isArray(items)) {
-              if (!mergedExpenses[d]) mergedExpenses[d] = items;
-            }
-          });
+          state.detailedExpenses = {};
         }
-
-        state.detailedExpenses = mergedExpenses;
       } catch (modularErr) {
         console.warn("Modular table load notice:", modularErr);
       }
@@ -805,11 +784,11 @@ export const dbService = {
         console.warn("Modular medicine sync notice:", medErr);
       }
 
-      // 2d. Direct Sync modern detailed_expenses (August 1st onwards) to modular table
+      // 2d. Direct Sync ALL detailed_expenses (all historical dates) to modular table
       try {
         const expenseRows: any[] = [];
         Object.entries(appState.detailedExpenses || {}).forEach(([dateKey, items]) => {
-          if (dateKey >= cutoffDate && Array.isArray(items)) {
+          if (Array.isArray(items)) {
             items.forEach((it: any, idx: number) => {
               if (!it || it.isDeleted) return;
               const rowId = String(it.id || `exp_${dateKey.replace(/-/g, '')}_${idx}_${Date.now()}`);
@@ -1061,10 +1040,9 @@ export const dbService = {
   deleteExpense: async (date: string, id: number | string) => {
     try {
       const targetIdStr = String(id).trim();
-      const cutoffDate = getTableSplitCutoffDate();
 
-      // 1. If date is >= cutoffDate and Supabase is connected, delete from detailed_expenses modular table
-      if (supabase && (!date || date >= cutoffDate)) {
+      // Delete from detailed_expenses modular table directly (all historical and modern dates)
+      if (supabase) {
         try {
           await supabase.from('detailed_expenses').delete().eq('id', targetIdStr);
         } catch (cloudDelErr) {
@@ -1072,8 +1050,6 @@ export const dbService = {
         }
       }
 
-      // 2. Local fallback removed
-      
       return { success: true };
     } catch (err: any) {
       return { success: false, error: err.message };
@@ -1083,10 +1059,9 @@ export const dbService = {
   saveExpensesDirectly: async (date: string, items: any[], fullDetailedExpenses?: any) => {
     try {
       const now = new Date().toISOString();
-      const cutoffDate = getTableSplitCutoffDate(); // '2026-08-01'
 
-      // 2. If Supabase is connected, save directly to modular table 'detailed_expenses'
-      if (supabase && (!date || date >= cutoffDate)) {
+      // Save directly to modular table 'detailed_expenses' (all dates)
+      if (supabase) {
         try {
           const rows = (items || []).filter(it => it && !it.isDeleted).map((it, idx) => ({
             id: String(it.id || `exp_${date.replace(/-/g, '')}_${idx}_${Date.now()}`),
@@ -2058,6 +2033,165 @@ export const dbService = {
         rescued: { labInvoices: 0, purchaseInvoices: 0, salesInvoices: 0, medicines: 0, detailedExpenses: 0, dueCollections: 0, indoorInvoices: 0, consolidatedLabEntries: 0, total: 0 },
         duplicatesIgnored: 0,
         tablesUpdated: []
+      };
+    }
+  },
+
+  // Dedicated one-click transfer for January-July & historical expenses from ncd_state to detailed_expenses
+  migrateExpensesFromNcdStateToModular: async (onProgress?: (msg: string, pct: number) => void): Promise<{
+    success: boolean;
+    message: string;
+    transferredCount: number;
+    duplicatesSkipped: number;
+    totalLegacyExpenses: number;
+    totalModularExpensesNow: number;
+    datesCovered: string[];
+  }> => {
+    if (!supabase) {
+      return {
+        success: false,
+        message: 'Supabase ক্লাউড কানেকশন সক্রিয় নেই। প্রথমে কানেকশন নিশ্চিত করুন।',
+        transferredCount: 0,
+        duplicatesSkipped: 0,
+        totalLegacyExpenses: 0,
+        totalModularExpensesNow: 0,
+        datesCovered: []
+      };
+    }
+
+    try {
+      onProgress?.('ধাপ ১/৪: ncd_state টেবিল থেকে জানুয়ারি-জুলাই ও সমস্ত ঐতিহাসিক খরচের ডাটা পড়া হচ্ছে...', 20);
+      const { data: legacyRecords, error: legacyErr } = await supabase
+        .from('ncd_state')
+        .select('*')
+        .order('updated_at', { ascending: false });
+
+      if (legacyErr) {
+        throw new Error(legacyErr.message);
+      }
+
+      if (!legacyRecords || legacyRecords.length === 0) {
+        return {
+          success: true,
+          message: 'ncd_state টেবিলে কোনো ডাটা পাওয়া যায়নি।',
+          transferredCount: 0,
+          duplicatesSkipped: 0,
+          totalLegacyExpenses: 0,
+          totalModularExpensesNow: 0,
+          datesCovered: []
+        };
+      }
+
+      // Extract all historical expenses across all rows in ncd_state
+      const legacyExpenses: any[] = [];
+      const extractObj = (raw: any) => {
+        if (!raw) return null;
+        if (typeof raw === 'object' && !Array.isArray(raw)) return raw;
+        if (typeof raw === 'string') {
+          try { return JSON.parse(raw); } catch { return null; }
+        }
+        return null;
+      };
+
+      legacyRecords.forEach(rec => {
+        const d = extractObj(rec.data);
+        if (!d) return;
+        if (d.detailedExpenses && typeof d.detailedExpenses === 'object') {
+          Object.entries(d.detailedExpenses).forEach(([dateKey, items]: [string, any]) => {
+            if (Array.isArray(items)) {
+              items.forEach(it => {
+                if (it && !it.isDeleted) {
+                  legacyExpenses.push({
+                    ...it,
+                    date: it.date || dateKey
+                  });
+                }
+              });
+            }
+          });
+        }
+      });
+
+      onProgress?.('ধাপ ২/৪: detailed_expenses টেবিল থেকে বর্তমান ডাটা পড়ে তুলনা করা হচ্ছে...', 45);
+      const currExps = await fetchTableSafe(supabase, 'detailed_expenses') || [];
+      const existingKeys = new Set<string>();
+      currExps.forEach((r: any) => {
+        const id = String(r.id || '').trim();
+        if (id) existingKeys.add(id);
+        const rowDate = (r.date || '').split('T')[0];
+        const desc = (r.description || '').trim().toLowerCase();
+        const amt = Number(r.paid_amount || r.bill_amount || 0);
+        if (rowDate && desc) {
+          existingKeys.add(`${rowDate}_${desc}_${amt}`);
+        }
+      });
+
+      onProgress?.('ধাপ ৩/৪: ডুপ্লিকেট বাদ দিয়ে মিসিং খরচের রেকর্ড বাছাই করা হচ্ছে...', 65);
+      const missingExpenses: any[] = [];
+      const seenKeys = new Set<string>();
+      let duplicatesSkipped = 0;
+      const datesSet = new Set<string>();
+
+      legacyExpenses.forEach((exp, idx) => {
+        const rowDate = (exp.date || '').split('T')[0];
+        if (!rowDate) return;
+        const id = String(exp.id || '').trim();
+        const desc = (exp.description || '').trim().toLowerCase();
+        const amt = Number(exp.paidAmount || exp.billAmount || 0);
+        const compositeKey = `${rowDate}_${desc}_${amt}`;
+
+        if ((id && existingKeys.has(id)) || existingKeys.has(compositeKey) || (id && seenKeys.has(id)) || seenKeys.has(compositeKey)) {
+          duplicatesSkipped++;
+        } else {
+          if (id) seenKeys.add(id);
+          seenKeys.add(compositeKey);
+          datesSet.add(rowDate);
+          
+          const uniqueId = id || `exp_${rowDate.replace(/-/g, '')}_${idx}_${Date.now()}`;
+          missingExpenses.push({
+            id: uniqueId,
+            date: rowDate,
+            category: exp.category || 'General',
+            sub_category: exp.subCategory || exp.sub_category || '',
+            description: exp.description || '',
+            bill_amount: Number(exp.billAmount || exp.paidAmount || 0),
+            paid_amount: Number(exp.paidAmount || exp.billAmount || 0),
+            dept: exp.dept || 'Diagnostic',
+            updated_at: new Date().toISOString()
+          });
+        }
+      });
+
+      onProgress?.('ধাপ ৪/৪: মিসিং খরচের রেকর্ডগুলো detailed_expenses টেবিলে পার্মানেন্ট সেভ করা হচ্ছে...', 85);
+      if (missingExpenses.length > 0) {
+        await upsertTableSafe(supabase, 'detailed_expenses', missingExpenses);
+      }
+
+      onProgress?.('ট্রান্সফার সম্পন্ন!', 100);
+      const totalNow = currExps.length + missingExpenses.length;
+      const sortedDates = Array.from(datesSet).sort();
+
+      return {
+        success: true,
+        message: missingExpenses.length > 0
+          ? `সফলভাবে ${missingExpenses.length}টি খরচের রেকর্ড ncd_state থেকে detailed_expenses টেবিলে স্থায়ীভাবে ট্রান্সফার করা হয়েছে! (${duplicatesSkipped}টি ডুপ্লিকেট বাদ দেওয়া হয়েছে)।`
+          : `ncd_state-এর সমস্ত খরচ ইতিমধ্যেই detailed_expenses টেবিলে সুরক্ষিত রয়েছে। (${duplicatesSkipped}টি রেকর্ড চেক করা হয়েছে)।`,
+        transferredCount: missingExpenses.length,
+        duplicatesSkipped,
+        totalLegacyExpenses: legacyExpenses.length,
+        totalModularExpensesNow: totalNow,
+        datesCovered: sortedDates
+      };
+    } catch (e: any) {
+      console.error("Expense migration error:", e);
+      return {
+        success: false,
+        message: 'খরচ ট্রান্সফারে অপ্রত্যাশিত ত্রুটি: ' + (e?.message || 'অজানা ত্রুটি'),
+        transferredCount: 0,
+        duplicatesSkipped: 0,
+        totalLegacyExpenses: 0,
+        totalModularExpensesNow: 0,
+        datesCovered: []
       };
     }
   },
