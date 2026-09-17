@@ -379,6 +379,9 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
 
     setLoading(true);
     try {
+      // Direct write ensures instant persistence in database (ncd_state for < 2026-08-01, or purchase_invoices for >= 2026-08-01)
+      await dbService.savePurchaseInvoiceDirectly(newInv);
+
       let newInvoicesArr = [...safeInvoices];
       if (lumpSumPurchaseForm.editingInvoiceId) {
         newInvoicesArr = newInvoicesArr.map(x => x.invoiceId === lumpSumPurchaseForm.editingInvoiceId ? newInv : x);
@@ -387,20 +390,34 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
       }
 
       if (performBlockingSync) {
-        const success = await performBlockingSync({ purchaseInvoices: newInvoicesArr });
-        if (success) {
-          safeSetInvoices(newInvoicesArr);
-          setSuccessMessage(`${mName} ${yNum} এর এককালীন ক্রয় সফলভাবে সংরক্ষিত হয়েছে!`);
-          setShowLumpSumPurchaseModal(false);
-        }
-      } else {
-        safeSetInvoices(newInvoicesArr);
-        setSuccessMessage(`${mName} ${yNum} এর এককালীন ক্রয় সংরক্ষিত হয়েছে!`);
-        setShowLumpSumPurchaseModal(false);
+        await performBlockingSync({ purchaseInvoices: newInvoicesArr });
       }
+      safeSetInvoices(newInvoicesArr);
+      setSuccessMessage(`${mName} ${yNum} এর এককালীন ক্রয় সফলভাবে সংরক্ষিত হয়েছে!`);
+      setShowLumpSumPurchaseModal(false);
     } catch (e) {
       console.error("Lump purchase save error:", e);
       alert("এককালীন ক্রয় সেভ করার সময় সমস্যা হয়েছে।");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteLumpSumPurchase = async (invoiceId: string, invoiceDate?: string) => {
+    if (!window.confirm('আপনি কি এই এককালীন ক্রয় এন্ট্রি মুছে ফেলতে চান?')) return;
+    setLoading(true);
+    try {
+      await dbService.deletePurchaseInvoiceDirectly(invoiceId, invoiceDate);
+      const newInvoicesArr = safeInvoices.filter(x => x.invoiceId !== invoiceId);
+      safeSetInvoices(newInvoicesArr);
+      if (performBlockingSync) {
+        await performBlockingSync({ purchaseInvoices: newInvoicesArr });
+      }
+      setShowLumpSumPurchaseModal(false);
+      setSuccessMessage('এককালীন ক্রয় সফলভাবে মুছে ফেলা হয়েছে।');
+    } catch (e) {
+      console.error('Delete lump purchase error:', e);
+      alert('এককালীন ক্রয় মুছতে সমস্যা হয়েছে।');
     } finally {
       setLoading(false);
     }
@@ -486,6 +503,9 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
 
     setLoading(true);
     try {
+      // Direct write ensures instant persistence in database (ncd_state for < 2026-08-01, or sales_invoices for >= 2026-08-01)
+      await dbService.saveSalesInvoiceDirectly(newSalesInv);
+
       let newSalesArr = [...safeSalesInvoices];
       if (lumpSumSalesForm.editingInvoiceId) {
         newSalesArr = newSalesArr.map(x => x.invoiceId === lumpSumSalesForm.editingInvoiceId ? newSalesInv : x);
@@ -494,20 +514,34 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
       }
 
       if (performBlockingSync) {
-        const success = await performBlockingSync({ salesInvoices: newSalesArr });
-        if (success) {
-          safeSetSalesInvoices(newSalesArr);
-          setSuccessMessage(`${mName} ${yNum} এর এককালীন বিক্রয় সফলভাবে সংরক্ষিত হয়েছে!`);
-          setShowLumpSumSalesModal(false);
-        }
-      } else {
-        safeSetSalesInvoices(newSalesArr);
-        setSuccessMessage(`${mName} ${yNum} এর এককালীন বিক্রয় সংরক্ষিত হয়েছে!`);
-        setShowLumpSumSalesModal(false);
+        await performBlockingSync({ salesInvoices: newSalesArr });
       }
+      safeSetSalesInvoices(newSalesArr);
+      setSuccessMessage(`${mName} ${yNum} এর এককালীন বিক্রয় সফলভাবে সংরক্ষিত হয়েছে!`);
+      setShowLumpSumSalesModal(false);
     } catch (e) {
       console.error("Lump sales save error:", e);
       alert("এককালীন বিক্রয় সেভ করার সময় সমস্যা হয়েছে।");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteLumpSumSales = async (invoiceId: string, invoiceDate?: string) => {
+    if (!window.confirm('আপনি কি এই এককালীন বিক্রয় এন্ট্রি মুছে ফেলতে চান?')) return;
+    setLoading(true);
+    try {
+      await dbService.deleteSalesInvoiceDirectly(invoiceId, invoiceDate);
+      const newSalesArr = safeSalesInvoices.filter(x => x.invoiceId !== invoiceId);
+      safeSetSalesInvoices(newSalesArr);
+      if (performBlockingSync) {
+        await performBlockingSync({ salesInvoices: newSalesArr });
+      }
+      setShowLumpSumSalesModal(false);
+      setSuccessMessage('এককালীন বিক্রয় সফলভাবে মুছে ফেলা হয়েছে।');
+    } catch (e) {
+      console.error('Delete lump sale error:', e);
+      alert('এককালীন বিক্রয় মুছতে সমস্যা হয়েছে।');
     } finally {
       setLoading(false);
     }
@@ -3634,6 +3668,16 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
             </div>
 
             <div className="flex gap-3 mt-6 pt-4 border-t border-slate-800">
+              {lumpSumPurchaseForm.editingInvoiceId && (
+                <button
+                  type="button"
+                  onClick={() => handleDeleteLumpSumPurchase(lumpSumPurchaseForm.editingInvoiceId, lumpSumPurchaseForm.date)}
+                  disabled={loading}
+                  className="px-4 py-2.5 bg-rose-950/60 hover:bg-rose-900 text-rose-300 border border-rose-800/80 rounded-xl font-bold text-xs uppercase tracking-wider transition-all"
+                >
+                  মুছুন
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => setShowLumpSumPurchaseModal(false)}
@@ -3801,6 +3845,16 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
             </div>
 
             <div className="flex gap-3 mt-6 pt-4 border-t border-slate-800">
+              {lumpSumSalesForm.editingInvoiceId && (
+                <button
+                  type="button"
+                  onClick={() => handleDeleteLumpSumSales(lumpSumSalesForm.editingInvoiceId, lumpSumSalesForm.date)}
+                  disabled={loading}
+                  className="px-4 py-2.5 bg-rose-950/60 hover:bg-rose-900 text-rose-300 border border-rose-800/80 rounded-xl font-bold text-xs uppercase tracking-wider transition-all"
+                >
+                  মুছুন
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => setShowLumpSumSalesModal(false)}
