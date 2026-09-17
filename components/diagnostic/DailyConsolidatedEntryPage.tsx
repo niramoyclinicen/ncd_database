@@ -334,17 +334,83 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('আপনি কি নিশ্চিত যে এই কনসোলিডেটেড রেকর্ডটি মুছে ফেলতে চান?')) return;
-    dbService.deleteConsolidatedEntry(id);
-    const updatedList = dbService.getConsolidatedEntries();
-    setEntries(updatedList);
-    if (setConsolidatedLabEntries) {
-      setConsolidatedLabEntries(updatedList);
+    if (!confirm('আপনি কি নিশ্চিত যে এই কনসোলিডেটেড রেকর্ডটি স্থায়ীভাবে মুছে ফেলতে চান?')) return;
+    setIsSaving(true);
+    try {
+      await dbService.deleteConsolidatedEntry(id);
+      const updatedList = (entries || []).filter(item => String(item.id).trim() !== String(id).trim());
+      dbService.saveConsolidatedEntries(updatedList);
+      setEntries(updatedList);
+      if (setConsolidatedLabEntries) {
+        setConsolidatedLabEntries(updatedList);
+      }
+      if (performBlockingSync) {
+        await performBlockingSync({ consolidatedLabEntries: updatedList });
+      }
+      triggerSuccess('রেকর্ডটি স্থায়ীভাবে মুছে ফেলা হয়েছে।');
+    } catch (err) {
+      console.error("Delete consolidated error:", err);
+      alert('রেকর্ডটি মুছতে সমস্যা হয়েছে!');
+    } finally {
+      setIsSaving(false);
     }
-    if (performBlockingSync) {
-      await performBlockingSync({ consolidatedLabEntries: updatedList });
+  };
+
+  // Find duplicate entries (same date/month, type, shift and gross/cash)
+  const duplicateEntryIds = useMemo(() => {
+    const seen = new Set<string>();
+    const dupIds: string[] = [];
+    (entries || []).forEach(e => {
+      if (!e) return;
+      const sig = `${e.date}_${e.entryType || 'daily'}_${e.shift || ''}_${e.grossAmount || 0}_${e.cashCollected || 0}`;
+      if (seen.has(sig)) {
+        dupIds.push(e.id);
+      } else {
+        seen.add(sig);
+      }
+    });
+    return dupIds;
+  }, [entries]);
+
+  const handleCleanDuplicates = async () => {
+    if (duplicateEntryIds.length === 0) return;
+    if (!confirm(`শনাক্তকৃত ${duplicateEntryIds.length}টি ডুপ্লিকেট রেকর্ড স্থায়ীভাবে মুছে ফেলতে চান? একটি মূল রেকর্ড অক্ষত রাখা হবে।`)) return;
+    setIsSaving(true);
+    try {
+      const seen = new Set<string>();
+      const keptList: DailyConsolidatedEntry[] = [];
+      const idsToDelete: string[] = [];
+
+      (entries || []).forEach(e => {
+        if (!e) return;
+        const sig = `${e.date}_${e.entryType || 'daily'}_${e.shift || ''}_${e.grossAmount || 0}_${e.cashCollected || 0}`;
+        if (!seen.has(sig)) {
+          seen.add(sig);
+          keptList.push(e);
+        } else {
+          idsToDelete.push(e.id);
+        }
+      });
+
+      for (const dId of idsToDelete) {
+        await dbService.deleteConsolidatedEntry(dId);
+      }
+
+      dbService.saveConsolidatedEntries(keptList);
+      setEntries(keptList);
+      if (setConsolidatedLabEntries) {
+        setConsolidatedLabEntries(keptList);
+      }
+      if (performBlockingSync) {
+        await performBlockingSync({ consolidatedLabEntries: keptList });
+      }
+      triggerSuccess(`সফলভাবে ${idsToDelete.length}টি ডুপ্লিকেট রেকর্ড স্থায়ীভাবে মুছে ফেলা হয়েছে!`);
+    } catch (err) {
+      console.error("Clean duplicates error:", err);
+      alert('ডুপ্লিকেট রেকর্ড মুছতে সমস্যা হয়েছে!');
+    } finally {
+      setIsSaving(false);
     }
-    triggerSuccess('রেকর্ডটি মুছে ফেলা হয়েছে।');
   };
 
   // Filtered Entries for History
@@ -1059,6 +1125,25 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
                 </div>
               </div>
             </div>
+
+            {/* Duplicate Notice Banner */}
+            {duplicateEntryIds.length > 0 && (
+              <div className="bg-amber-950/60 border-2 border-amber-500/80 rounded-2xl p-4 flex flex-col sm:flex-row justify-between items-center gap-3 shadow-lg animate-pulse">
+                <div className="flex items-center gap-3 text-amber-200 text-sm font-bold">
+                  <span className="text-xl">⚠️</span>
+                  <span>
+                    তালিকায় <b>{duplicateEntryIds.length}টি ডুপ্লিকেট এন্ট্রি</b> শনাক্ত হয়েছে (যেমন একই মাসের বা তারিখের ডাবল রেকর্ড)।
+                  </span>
+                </div>
+                <button
+                  onClick={handleCleanDuplicates}
+                  disabled={isSaving}
+                  className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl text-xs uppercase tracking-wide transition-all shadow-md active:scale-95 shrink-0"
+                >
+                  {isSaving ? 'মুছে ফেলা হচ্ছে...' : '⚡ অতিরিক্ত ডুপ্লিকেট মুছে একটি রাখুন'}
+                </button>
+              </div>
+            )}
 
             {/* Records Table */}
             <div className="bg-slate-900 border border-slate-800 rounded-3xl shadow-xl overflow-hidden">

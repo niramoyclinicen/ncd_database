@@ -715,11 +715,12 @@ export const dbService = {
         }
 
         // Detailed Expenses from modular table: Merge strictly August 1, 2026 onwards
+        // Detailed Expenses from modular table: Merge safely across all available dates
         if (expRows && expRows.length > 0) {
           if (!state.detailedExpenses || typeof state.detailedExpenses !== 'object') {
             state.detailedExpenses = {};
           }
-          expRows.filter((row: any) => isMultiTableDate(row.date)).forEach((row: any) => {
+          expRows.forEach((row: any) => {
             const rowDate = (row.date || '').split(/[T ]/)[0].trim();
             if (!rowDate) return;
             if (!state.detailedExpenses[rowDate]) state.detailedExpenses[rowDate] = [];
@@ -729,9 +730,10 @@ export const dbService = {
               category: row.category || 'General',
               subCategory: row.sub_category || row.subCategory || '',
               description: row.description || '',
-              billAmount: Number(row.bill_amount || row.billAmount || 0),
-              paidAmount: Number(row.paid_amount || row.paidAmount || 0),
-              dept: row.dept || 'Diagnostic'
+              billAmount: Number(row.bill_amount ?? row.billAmount ?? 0),
+              paidAmount: Number(row.paid_amount ?? row.paidAmount ?? 0),
+              dept: row.dept || 'Diagnostic',
+              metadata: row.metadata || undefined
             };
 
             const existingIdx = state.detailedExpenses[rowDate].findIndex((x: any) => String(x.id || '') === expItem.id && expItem.id !== '');
@@ -751,7 +753,7 @@ export const dbService = {
         state.consolidatedLabEntries = dbService.getConsolidatedEntries();
       }
 
-      // 4. Strict Deduplication & Guaranteed Unique ID normalization for detailedExpenses
+      // 4. Safe Unique ID normalization for detailedExpenses (Strictly preservation-oriented)
       const rawExpenses = state.detailedExpenses || {};
       const cleanExpenses: Record<string, any[]> = {};
 
@@ -762,36 +764,28 @@ export const dbService = {
           if (!cleanExpenses[dateKey]) cleanExpenses[dateKey] = [];
 
           if (Array.isArray(items)) {
-            const seen = new Set<string>();
+            const seenIds = new Set<string>();
 
             items.forEach((item: any, idx: number) => {
               if (!item || item.isDeleted) return;
               
-              const cat = String(item.category || 'General').trim();
-              const sub = String(item.subCategory || item.sub_category || '').trim();
-              const desc = String(item.description || '').trim();
-              const paidAmt = Number(item.paidAmount || item.billAmount || item.paid_amount || 0);
-              const billAmt = Number(item.billAmount || item.paidAmount || item.bill_amount || 0);
-              const dept = item.dept || 'Diagnostic';
+              const itId = item.id !== undefined && item.id !== null && String(item.id).trim() !== '' && String(item.id) !== 'undefined'
+                ? String(item.id).trim()
+                : `exp_${dateKey.replace(/-/g, '')}_${idx}_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
 
-              const sig = `${cat.toLowerCase()}|${sub.toLowerCase()}|${desc.toLowerCase()}|${paidAmt}|${billAmt}|${dept.toLowerCase()}`;
-
-              if (!seen.has(sig)) {
-                seen.add(sig);
-                const validId = item.id !== undefined && item.id !== null && String(item.id).trim() !== '' && String(item.id) !== 'undefined'
-                  ? String(item.id)
-                  : `exp_${dateKey.replace(/-/g, '')}_${idx}_${Date.now()}`;
-
+              // Only drop exact duplicate IDs; NEVER drop genuine expenses with the same amount or category!
+              if (!seenIds.has(itId)) {
+                seenIds.add(itId);
                 cleanExpenses[dateKey].push({
                   ...item,
-                  id: validId,
+                  id: itId,
                   date: dateKey,
-                  category: cat,
-                  subCategory: sub,
-                  description: desc,
-                  paidAmount: paidAmt,
-                  billAmount: billAmt,
-                  dept
+                  category: item.category || 'General',
+                  subCategory: item.subCategory || item.sub_category || '',
+                  description: item.description || '',
+                  paidAmount: Number(item.paidAmount ?? item.paid_amount ?? item.billAmount ?? 0),
+                  billAmount: Number(item.billAmount ?? item.bill_amount ?? item.paidAmount ?? 0),
+                  dept: item.dept || 'Diagnostic'
                 });
               }
             });
@@ -920,17 +914,12 @@ export const dbService = {
         }, 1500);
       }
 
-      // Preserve and synchronize consolidated lab entries
-      const localConsolidated = dbService.getConsolidatedEntries();
-      if (!Array.isArray(state.consolidatedLabEntries) || state.consolidatedLabEntries.length === 0) {
-        state.consolidatedLabEntries = localConsolidated;
+      // Synchronize consolidated lab entries
+      if (Array.isArray(state.consolidatedLabEntries)) {
+        dbService.saveConsolidatedEntries(state.consolidatedLabEntries);
       } else {
-        const mergedMap = new Map<string, DailyConsolidatedEntry>();
-        state.consolidatedLabEntries.forEach((e: DailyConsolidatedEntry) => { if (e?.id) mergedMap.set(e.id, e); });
-        localConsolidated.forEach((e: DailyConsolidatedEntry) => { if (e?.id && !mergedMap.has(e.id)) mergedMap.set(e.id, e); });
-        state.consolidatedLabEntries = Array.from(mergedMap.values());
+        state.consolidatedLabEntries = dbService.getConsolidatedEntries();
       }
-      dbService.saveConsolidatedEntries(state.consolidatedLabEntries);
 
       return state;
     } catch (error) {
@@ -971,7 +960,13 @@ export const dbService = {
           const allLabs = mergeEntityList(legacyBase.labInvoices || [], appState.labInvoices || [], ['invoice_id', 'invoiceId', 'id']);
           const allDues = mergeEntityList(legacyBase.dueCollections || [], appState.dueCollections || [], ['collection_id', 'collectionId', 'id']);
           const allIndoor = mergeEntityList(legacyBase.indoorInvoices || [], appState.indoorInvoices || [], ['invoice_id', 'invoiceId', 'admission_id', 'id']);
-          const allConsolidated = mergeEntityList(legacyBase.consolidatedLabEntries || [], appState.consolidatedLabEntries || [], ['id', 'date']);
+          // For consolidated lab entries, appState is authoritative so deletions are respected and never revived
+          const allConsolidated = Array.isArray(appState.consolidatedLabEntries)
+            ? appState.consolidatedLabEntries
+            : (legacyBase.consolidatedLabEntries || []);
+          if (cachedLegacyState) {
+            cachedLegacyState.consolidatedLabEntries = allConsolidated;
+          }
           const allReports = mergeEntityList(legacyBase.reports || [], appState.reports || [], ['id']);
           const allPrescriptions = mergeEntityList(legacyBase.prescriptions || [], appState.prescriptions || [], ['id']);
           const allAppointments = mergeEntityList(legacyBase.appointments || [], appState.appointments || [], ['id']);
@@ -1774,13 +1769,52 @@ export const dbService = {
     }
   },
 
-  deleteConsolidatedEntry: (id: string) => {
+  deleteConsolidatedEntry: async (id: string) => {
     try {
+      const targetId = String(id).trim();
       const existing = dbService.getConsolidatedEntries();
-      const updated = existing.filter(e => e.id !== id);
+      const updated = existing.filter(e => String(e.id).trim() !== targetId);
       dbService.saveConsolidatedEntries(updated);
+
+      if (cachedLegacyState && Array.isArray(cachedLegacyState.consolidatedLabEntries)) {
+        cachedLegacyState.consolidatedLabEntries = cachedLegacyState.consolidatedLabEntries.filter(
+          (e: any) => String(e.id).trim() !== targetId
+        );
+      }
+
+      if (supabase) {
+        try {
+          const now = new Date().toISOString();
+          if (!cachedLegacyState) {
+            const { data } = await supabase.from('ncd_state').select('*').limit(5);
+            if (data && data.length > 0) {
+              const masterRow = data.find((r: any) => r.id === MASTER_RECORD_ID) || data[0];
+              cachedLegacyRecordId = masterRow.id || MASTER_RECORD_ID;
+              cachedLegacyState = typeof masterRow.data === 'string' ? JSON.parse(masterRow.data) : masterRow.data;
+            }
+          }
+
+          if (cachedLegacyState) {
+            if (Array.isArray(cachedLegacyState.consolidatedLabEntries)) {
+              cachedLegacyState.consolidatedLabEntries = cachedLegacyState.consolidatedLabEntries.filter(
+                (e: any) => String(e.id).trim() !== targetId
+              );
+            }
+            cachedLegacyState.last_updated_at = now;
+            await supabase.from('ncd_state').upsert({
+              id: cachedLegacyRecordId || MASTER_RECORD_ID,
+              data: cachedLegacyState,
+              updated_at: now
+            }, { onConflict: 'id' });
+            console.log(`[dbService] Successfully deleted consolidated entry ${targetId} from ncd_state`);
+          }
+        } catch (cloudErr) {
+          console.warn("deleteConsolidatedEntry cloud delete notice:", cloudErr);
+        }
+      }
       return true;
     } catch (e) {
+      console.error("deleteConsolidatedEntry error:", e);
       return false;
     }
   },

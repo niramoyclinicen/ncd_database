@@ -795,6 +795,12 @@ const DailyExpenseForm: React.FC<any> = ({
     // Sync local date with prop if prop changes from outside
     useEffect(() => {
         setLocalDate(selectedDate);
+        setSearchDate(selectedDate);
+        const d = new Date(selectedDate);
+        if (!isNaN(d.getTime())) {
+            setSearchMonth(d.getMonth());
+            setSearchYear(d.getFullYear());
+        }
     }, [selectedDate]);
 
     // Initialize items: Empty row or the specific item being edited
@@ -1029,13 +1035,21 @@ const DailyExpenseForm: React.FC<any> = ({
     };
 
     const handleSave = () => {
+        const targetDate = (localDate && localDate.length === 10) ? localDate : selectedDate;
         if (items.every(it => it.paidAmount <= 0 && !it.subCategory && !it.description)) {
             alert("দয়া করে অন্তত একটি খরচের হিসাব সঠিকভাবে লিখুন।");
             return;
         }
 
         const validItems = items.filter(it => it.paidAmount > 0 || it.subCategory || it.description);
-        onSave(selectedDate, validItems);
+        onDateChange(targetDate);
+        setSearchDate(targetDate);
+        const d = new Date(targetDate);
+        if (!isNaN(d.getTime())) {
+            setSearchMonth(d.getMonth());
+            setSearchYear(d.getFullYear());
+        }
+        onSave(targetDate, validItems);
 
         // Reset items to a single clean row after saving new entries
         if (!editingItem) {
@@ -1426,17 +1440,42 @@ const DailyExpenseForm: React.FC<any> = ({
                         <input 
                         type="date" 
                         value={localDate} 
-                        onChange={(e) => setLocalDate(e.target.value)}
+                        onChange={(e) => {
+                            const val = e.target.value;
+                            setLocalDate(val);
+                            if (val && val.length === 10) {
+                                onDateChange(val);
+                                setSearchDate(val);
+                                const d = new Date(val);
+                                if (!isNaN(d.getTime())) {
+                                    setSearchMonth(d.getMonth());
+                                    setSearchYear(d.getFullYear());
+                                }
+                            }
+                        }}
                         onBlur={(e) => {
-                            if (e.target.value.length === 10) {
-                                onDateChange(e.target.value);
+                            const val = e.target.value;
+                            if (val && val.length === 10) {
+                                onDateChange(val);
+                                setSearchDate(val);
+                                const d = new Date(val);
+                                if (!isNaN(d.getTime())) {
+                                    setSearchMonth(d.getMonth());
+                                    setSearchYear(d.getFullYear());
+                                }
                             }
                         }}
                         onKeyDown={(e) => {
                             if (e.key === 'Enter') {
                                 const target = e.target as HTMLInputElement;
-                                if (target.value.length === 10) {
+                                if (target.value && target.value.length === 10) {
                                     onDateChange(target.value);
+                                    setSearchDate(target.value);
+                                    const d = new Date(target.value);
+                                    if (!isNaN(d.getTime())) {
+                                        setSearchMonth(d.getMonth());
+                                        setSearchYear(d.getFullYear());
+                                    }
                                 }
                             }
                         }}
@@ -2013,6 +2052,14 @@ const DiagnosticAccountsPage: React.FC<any> = ({
             });
 
             console.log(`[DiagnosticAccounts] Saving/Appending ${incomingItems.length} items for ${date}`);
+
+            // Keep selected date and viewing month/year synchronized
+            setSelectedDate(date);
+            const dateObj = new Date(date);
+            if (!isNaN(dateObj.getTime())) {
+                setSelectedMonth(dateObj.getMonth());
+                setSelectedYear(dateObj.getFullYear());
+            }
 
             // 1. Optimistically update local React state immediately (0ms UI latency)
             setDetailedExpenses(newState);
