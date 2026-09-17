@@ -88,8 +88,8 @@ const safeIsoDate = (d: any): string | null => {
 };
 
 // Default cutoff date for separate individual tables: August 1, 2026
-// Data before this date is read from the legacy ncd_state table archive;
-// New data created from this date onward is saved to the modular tables.
+// Data before this date is read from and saved to the single table (ncd_state);
+// Data from this date onward (August 1, 2026 to present and future) is read from and saved to modular tables.
 export const DEFAULT_SEPARATE_TABLES_CUTOFF_DATE = '2026-08-01';
 
 export const getTableSplitCutoffDate = (): string => {
@@ -109,10 +109,80 @@ export const setTableSplitCutoffDate = (dateStr: string) => {
   } catch (e) {}
 };
 
-// Single table save is now permanently disabled
-export const isSingleTableSaveDisabled = (): boolean => true;
+// Robust date normalizer to YYYY-MM-DD
+export const normalizeDate = (d: any): string => {
+  if (!d) return '';
+  const s = String(d).trim();
+  if (!s) return '';
+  const mIso = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (mIso) {
+    return `${mIso[1]}-${mIso[2].padStart(2, '0')}-${mIso[3].padStart(2, '0')}`;
+  }
+  if (s.includes('/')) {
+    const parts = s.split('/');
+    if (parts.length === 3) {
+      if (parts[2].length === 4) {
+        return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+      } else if (parts[0].length === 4) {
+        return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+      }
+    }
+  }
+  const p = new Date(s);
+  if (!isNaN(p.getTime())) {
+    const y = p.getFullYear();
+    const m = String(p.getMonth() + 1).padStart(2, '0');
+    const day = String(p.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+  return '';
+};
 
-export const setSingleTableSaveDisabled = (disabled: boolean) => {};
+// Extract date from any entity record
+export const getRecordDate = (rec: any): string => {
+  if (!rec || typeof rec !== 'object') return '';
+  const raw = rec.invoiceDate || rec.invoice_date || rec.admission_date || rec.collection_date || rec.collectionDate || rec.report_date || rec.appointment_date || rec.date || rec.createdAt || rec.createdDate || rec.created_date || rec.created_at || '';
+  return normalizeDate(raw);
+};
+
+// Check if a record belongs to the historical/legacy period (< 2026-08-01)
+export const isLegacyDate = (rawDate: any): boolean => {
+  const norm = normalizeDate(rawDate);
+  if (!norm) return false;
+  return norm < getTableSplitCutoffDate();
+};
+
+// Check if a record belongs to the modular/multi-table period (>= 2026-08-01)
+export const isMultiTableDate = (rawDate: any): boolean => {
+  const norm = normalizeDate(rawDate);
+  if (!norm) return true; // Default untimed items to multi-table
+  return norm >= getTableSplitCutoffDate();
+};
+
+// In-memory cache for legacy baseline from ncd_state to make legacy saves instantaneous and lossless
+let cachedLegacyState: any = null;
+let cachedLegacyRecordId: number = MASTER_RECORD_ID;
+
+// Single table save status for legacy data (January-July 2026)
+export const isSingleTableSaveDisabled = (): boolean => {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      const saved = localStorage.getItem('ncd_single_table_save_disabled');
+      if (saved !== null) {
+        return saved === 'true';
+      }
+    }
+  } catch (e) {}
+  return false; // Active by default so historical records are saved to ncd_state
+};
+
+export const setSingleTableSaveDisabled = (disabled: boolean) => {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('ncd_single_table_save_disabled', disabled ? 'true' : 'false');
+    }
+  } catch (e) {}
+};
 
 // Safe helper to fetch all rows from a table
 const fetchTableSafe = async (client: SupabaseClient, tableName: string) => {
@@ -325,22 +395,27 @@ export const dbService = {
           fetchTableSafe(supabase, 'admissions')
         ]);
 
-        // A. Load historical baseline from ncd_state (Single Table Archive - Read-Only)
-        // This ensures all records up to August 1, 2026 (January-July and earlier) are loaded directly from ncd_state
+        // A. Load historical baseline from ncd_state (Single Table Archive)
+        // All records before August 1, 2026 (January-July 2026 and earlier) are strictly loaded from ncd_state
         const legacyRecords = ncdRes && !ncdRes.error ? (ncdRes.data || []) : [];
         if (legacyRecords.length > 0) {
           legacyRecords.forEach((rec: any) => {
+            if (rec && rec.id) {
+              cachedLegacyRecordId = rec.id;
+            }
             let rowData = rec.data;
             if (typeof rowData === 'string') {
               try { rowData = JSON.parse(rowData); } catch { rowData = null; }
             }
             if (rowData && typeof rowData === 'object') {
-              // Detailed Expenses from ncd_state (Historical Jan-July and all prior dates)
+              cachedLegacyState = { ...(cachedLegacyState || {}), ...rowData };
+
+              // Detailed Expenses from ncd_state (strictly dates before August 1, 2026)
               if (rowData.detailedExpenses && typeof rowData.detailedExpenses === 'object') {
                 if (!state.detailedExpenses) state.detailedExpenses = {};
                 Object.entries(rowData.detailedExpenses).forEach(([dKey, items]: [string, any]) => {
                   const normDate = (dKey || '').split(/[T ]/)[0].trim();
-                  if (!normDate) return;
+                  if (!normDate || !isLegacyDate(normDate)) return;
                   if (!state.detailedExpenses[normDate]) state.detailedExpenses[normDate] = [];
                   if (Array.isArray(items)) {
                     items.forEach((it: any) => {
@@ -355,34 +430,39 @@ export const dbService = {
                 });
               }
 
-              // Lab Invoices from ncd_state
+              // Lab Invoices from ncd_state (strictly dates before August 1, 2026)
               const labs = rowData.labInvoices || rowData.invoices || rowData.lab_invoices || rowData.diagnostic_invoices;
               if (Array.isArray(labs) && labs.length > 0) {
-                state.labInvoices = mergeEntityList(state.labInvoices || [], labs, ['invoice_id', 'invoiceId', 'id']);
+                const legacyLabs = labs.filter((x: any) => isLegacyDate(getRecordDate(x)));
+                state.labInvoices = mergeEntityList(state.labInvoices || [], legacyLabs, ['invoice_id', 'invoiceId', 'id']);
               }
 
-              // Due Collections from ncd_state
+              // Due Collections from ncd_state (strictly dates before August 1, 2026)
               const dues = rowData.dueCollections || rowData.due_collections || rowData.dues || rowData.collections;
               if (Array.isArray(dues) && dues.length > 0) {
-                state.dueCollections = mergeEntityList(state.dueCollections || [], dues, ['collection_id', 'collectionId', 'id']);
+                const legacyDues = dues.filter((x: any) => isLegacyDate(getRecordDate(x)));
+                state.dueCollections = mergeEntityList(state.dueCollections || [], legacyDues, ['collection_id', 'collectionId', 'id']);
               }
 
-              // Indoor Invoices from ncd_state
+              // Indoor Invoices from ncd_state (strictly dates before August 1, 2026)
               const indoor = rowData.indoorInvoices || rowData.indoor_invoices || rowData.clinicInvoices;
               if (Array.isArray(indoor) && indoor.length > 0) {
-                state.indoorInvoices = mergeEntityList(state.indoorInvoices || [], indoor, ['invoice_id', 'invoiceId', 'admission_id', 'id']);
+                const legacyIndoor = indoor.filter((x: any) => isLegacyDate(getRecordDate(x)));
+                state.indoorInvoices = mergeEntityList(state.indoorInvoices || [], legacyIndoor, ['invoice_id', 'invoiceId', 'admission_id', 'id']);
               }
 
-              // Purchase Invoices from ncd_state
+              // Purchase Invoices from ncd_state (strictly dates before August 1, 2026 - January to July 2026)
               const purs = rowData.purchaseInvoices || rowData.purchase_invoices || rowData.purchases || rowData.medicinePurchases;
               if (Array.isArray(purs) && purs.length > 0) {
-                state.purchaseInvoices = mergeEntityList(state.purchaseInvoices || [], purs, ['invoice_id', 'invoiceId', 'id']);
+                const legacyPurs = purs.filter((x: any) => isLegacyDate(getRecordDate(x)));
+                state.purchaseInvoices = mergeEntityList(state.purchaseInvoices || [], legacyPurs, ['invoice_id', 'invoiceId', 'id']);
               }
 
-              // Sales Invoices from ncd_state
+              // Sales Invoices from ncd_state (strictly dates before August 1, 2026 - January to July 2026)
               const sals = rowData.salesInvoices || rowData.sales_invoices || rowData.sales || rowData.medicineSales;
               if (Array.isArray(sals) && sals.length > 0) {
-                state.salesInvoices = mergeEntityList(state.salesInvoices || [], sals, ['invoice_id', 'invoiceId', 'id']);
+                const legacySals = sals.filter((x: any) => isLegacyDate(getRecordDate(x)));
+                state.salesInvoices = mergeEntityList(state.salesInvoices || [], legacySals, ['invoice_id', 'invoiceId', 'id']);
               }
 
               // Medicines from ncd_state
@@ -391,9 +471,17 @@ export const dbService = {
               }
 
               // Entity lists from ncd_state
-              ['patients', 'doctors', 'referrars', 'tests', 'reagents', 'employees', 'reports', 'prescriptions', 'appointments', 'admissions'].forEach(k => {
+              ['patients', 'doctors', 'referrars', 'tests', 'reagents', 'employees'].forEach(k => {
                 if (Array.isArray(rowData[k]) && rowData[k].length > 0) {
                   state[k] = mergeEntityList(state[k] || [], rowData[k], ['id']);
+                }
+              });
+
+              // Dated activity records from ncd_state
+              ['reports', 'prescriptions', 'appointments', 'admissions'].forEach(k => {
+                if (Array.isArray(rowData[k]) && rowData[k].length > 0) {
+                  const legacyItems = rowData[k].filter((x: any) => isLegacyDate(getRecordDate(x)));
+                  state[k] = mergeEntityList(state[k] || [], legacyItems, ['id']);
                 }
               });
 
@@ -409,7 +497,8 @@ export const dbService = {
               }
 
               if (Array.isArray(rowData.consolidatedLabEntries) && rowData.consolidatedLabEntries.length > 0) {
-                state.consolidatedLabEntries = mergeEntityList(state.consolidatedLabEntries || [], rowData.consolidatedLabEntries, ['id', 'date']);
+                const legacyCons = rowData.consolidatedLabEntries.filter((x: any) => isLegacyDate(x.date));
+                state.consolidatedLabEntries = mergeEntityList(state.consolidatedLabEntries || [], legacyCons, ['id', 'date']);
               }
             }
           });
@@ -451,11 +540,11 @@ export const dbService = {
               special_commission: Number(r.special_commission || r.specialCommission || 0),
               status: r.status || (Number(r.due_amount || 0) > 0 ? 'Due' : 'Paid')
             };
-          }).filter(r => r.invoice_id);
+          }).filter(r => r.invoice_id && isMultiTableDate(getRecordDate(r)));
           state.labInvoices = mergeEntityList(state.labInvoices, parsedLabInvs, ['invoice_id', 'id', 'invoice_no', 'invoiceId']);
         }
 
-        // Merge Due Collections from modular table(s)
+        // Merge Due Collections from modular table(s) (strictly from August 1, 2026 onwards)
         const combinedDueRows = [...(dueColRows || []), ...(altDueRows || [])];
         if (combinedDueRows.length > 0) {
           const parsedDues = combinedDueRows.map((r: any) => ({
@@ -464,11 +553,11 @@ export const dbService = {
             invoice_id: String(r.invoice_id || r.invoice_no || r.invoiceId || '').trim(),
             amount_collected: Number(r.amount_collected || r.amount || r.paid_amount || 0),
             collection_date: r.collection_date || r.date || r.created_at || ''
-          })).filter(r => r.collection_id || r.invoice_id);
+          })).filter(r => (r.collection_id || r.invoice_id) && isMultiTableDate(getRecordDate(r)));
           state.dueCollections = mergeEntityList(state.dueCollections, parsedDues, ['collection_id', 'id', 'collectionId']);
         }
 
-        // Merge Indoor Invoices from modular table
+        // Merge Indoor Invoices from modular table (strictly from August 1, 2026 onwards)
         if (indoorInvRows && indoorInvRows.length > 0) {
           const parsedIndoor = indoorInvRows.map((r: any) => {
             let items = r.items;
@@ -482,7 +571,7 @@ export const dbService = {
               items: Array.isArray(items) ? items : [],
               paid_amount: Number(r.paid_amount || r.paidAmount || 0)
             };
-          });
+          }).filter((r: any) => isMultiTableDate(getRecordDate(r)));
           state.indoorInvoices = mergeEntityList(state.indoorInvoices, parsedIndoor, ['invoice_id', 'daily_id', 'id']);
         }
 
@@ -520,7 +609,7 @@ export const dbService = {
           state.medicines = mergeEntityList(state.medicines, parsedMeds, ['id', 'tradeName', 'trade_name']);
         }
 
-        // Merge Sales Invoices from modular table
+        // Merge Sales Invoices from modular table (strictly from August 1, 2026 onwards)
         if (salesInvRows && salesInvRows.length > 0) {
           const parsedSales = salesInvRows.map((r: any) => {
             const raw = r.data && typeof r.data === 'object' ? r.data : {};
@@ -558,11 +647,11 @@ export const dbService = {
               status: r.status || raw.status || 'Posted',
               createdDate: r.created_date || r.createdDate || raw.createdDate || invDate
             };
-          }).filter((r: any) => r.invoiceId);
+          }).filter((r: any) => r.invoiceId && isMultiTableDate(getRecordDate(r)));
           state.salesInvoices = mergeEntityList(state.salesInvoices, parsedSales, ['invoiceId', 'invoice_id', 'id']);
         }
 
-        // Merge Purchase Invoices from modular table
+        // Merge Purchase Invoices from modular table (strictly from August 1, 2026 onwards)
         if (purchaseInvRows && purchaseInvRows.length > 0) {
           const parsedPurchases = purchaseInvRows.map((r: any) => {
             const raw = r.data && typeof r.data === 'object' ? r.data : {};
@@ -598,21 +687,33 @@ export const dbService = {
               status: r.status || raw.status || 'Saved',
               createdDate: r.created_date || r.createdDate || raw.createdDate || invDate
             };
-          }).filter((r: any) => r.invoiceId);
+          }).filter((r: any) => r.invoiceId && isMultiTableDate(getRecordDate(r)));
           state.purchaseInvoices = mergeEntityList(state.purchaseInvoices, parsedPurchases, ['invoiceId', 'invoice_id', 'id']);
         }
 
-        if (repRows && repRows.length > 0) state.reports = mergeEntityList(state.reports, repRows, ['report_id', 'id']);
-        if (prescRows && prescRows.length > 0) state.prescriptions = mergeEntityList(state.prescriptions, prescRows, ['id']);
-        if (apptRows && apptRows.length > 0) state.appointments = mergeEntityList(state.appointments, apptRows, ['appointment_id', 'id']);
-        if (admRows && admRows.length > 0) state.admissions = mergeEntityList(state.admissions, admRows, ['admission_id', 'id']);
+        if (repRows && repRows.length > 0) {
+          const modReports = repRows.filter((r: any) => isMultiTableDate(getRecordDate(r)));
+          state.reports = mergeEntityList(state.reports, modReports, ['report_id', 'id']);
+        }
+        if (prescRows && prescRows.length > 0) {
+          const modPresc = prescRows.filter((r: any) => isMultiTableDate(getRecordDate(r)));
+          state.prescriptions = mergeEntityList(state.prescriptions, modPresc, ['id']);
+        }
+        if (apptRows && apptRows.length > 0) {
+          const modAppt = apptRows.filter((r: any) => isMultiTableDate(getRecordDate(r)));
+          state.appointments = mergeEntityList(state.appointments, modAppt, ['appointment_id', 'id']);
+        }
+        if (admRows && admRows.length > 0) {
+          const modAdm = admRows.filter((r: any) => isMultiTableDate(getRecordDate(r)));
+          state.admissions = mergeEntityList(state.admissions, modAdm, ['admission_id', 'id']);
+        }
 
-        // Detailed Expenses from modular table: Merge with ncd_state historical expenses
+        // Detailed Expenses from modular table: Merge strictly August 1, 2026 onwards
         if (expRows && expRows.length > 0) {
           if (!state.detailedExpenses || typeof state.detailedExpenses !== 'object') {
             state.detailedExpenses = {};
           }
-          expRows.forEach((row: any) => {
+          expRows.filter((row: any) => isMultiTableDate(row.date)).forEach((row: any) => {
             const rowDate = (row.date || '').split(/[T ]/)[0].trim();
             if (!rowDate) return;
             if (!state.detailedExpenses[rowDate]) state.detailedExpenses[rowDate] = [];
@@ -792,17 +893,19 @@ export const dbService = {
         };
       }).filter((m: any) => m.id);
 
-      // Opportunistic auto-migration check: If state has medicines or invoices, ensure they are mirrored to modular tables
+      // Background modular sync for modern records and medicine catalog only
       if (supabase) {
         setTimeout(async () => {
           try {
-            if (state.purchaseInvoices.length > 0) {
-              await dbService.syncPurchaseInvoicesToModularTable(state.purchaseInvoices);
+            const modernPurchases = (state.purchaseInvoices || []).filter((r: any) => isMultiTableDate(getRecordDate(r)));
+            if (modernPurchases.length > 0) {
+              await dbService.syncPurchaseInvoicesToModularTable(modernPurchases);
             }
-            if (state.salesInvoices.length > 0) {
-              await dbService.syncSalesInvoicesToModularTable(state.salesInvoices);
+            const modernSales = (state.salesInvoices || []).filter((r: any) => isMultiTableDate(getRecordDate(r)));
+            if (modernSales.length > 0) {
+              await dbService.syncSalesInvoicesToModularTable(modernSales);
             }
-            if (state.medicines.length > 0) {
+            if (state.medicines && state.medicines.length > 0) {
               await dbService.syncMedicinesToModularTable(state.medicines);
             }
           } catch (bgErr) {
@@ -836,50 +939,148 @@ export const dbService = {
         return { success: false, error: "Supabase not connected. Offline save is disabled." };
       }
       
-      const cutoffDate = getTableSplitCutoffDate(); // '2026-08-01'
       const now = new Date().toISOString();
+      let hasAnySaveSuccess = false;
 
-      let modularSaveSuccess = false;
+      // ---------------------------------------------------------------------------------
+      // 1. ROUTE HISTORICAL DATA (< 2026-08-01) TO ncd_state (Single Table Archive)
+      // Any record before August 1, 2026 (January to July 2026) is saved strictly to ncd_state
+      // ---------------------------------------------------------------------------------
+      if (!isSingleTableSaveDisabled()) {
+        try {
+          if (!cachedLegacyState) {
+            const { data } = await supabase.from('ncd_state').select('*').limit(1);
+            if (data && data.length > 0) {
+              cachedLegacyRecordId = data[0].id;
+              cachedLegacyState = typeof data[0].data === 'string' ? JSON.parse(data[0].data) : data[0].data;
+            }
+          }
 
-      // 2a. Modular Sync for purchase_invoices
+          const legacyBase = cachedLegacyState && typeof cachedLegacyState === 'object' ? { ...cachedLegacyState } : {};
+
+          // Extract legacy dated records from appState (records before August 1, 2026)
+          const legacyPurchases = (appState.purchaseInvoices || []).filter((r: any) => isLegacyDate(getRecordDate(r)));
+          const legacySales = (appState.salesInvoices || []).filter((r: any) => isLegacyDate(getRecordDate(r)));
+          const legacyLabs = (appState.labInvoices || []).filter((r: any) => isLegacyDate(getRecordDate(r)));
+          const legacyDues = (appState.dueCollections || []).filter((r: any) => isLegacyDate(getRecordDate(r)));
+          const legacyIndoor = (appState.indoorInvoices || []).filter((r: any) => isLegacyDate(getRecordDate(r)));
+          const legacyConsolidated = (appState.consolidatedLabEntries || []).filter((r: any) => isLegacyDate(r.date));
+          const legacyReports = (appState.reports || []).filter((r: any) => isLegacyDate(getRecordDate(r)));
+          const legacyPrescriptions = (appState.prescriptions || []).filter((r: any) => isLegacyDate(getRecordDate(r)));
+          const legacyAppointments = (appState.appointments || []).filter((r: any) => isLegacyDate(getRecordDate(r)));
+          const legacyAdmissions = (appState.admissions || []).filter((r: any) => isLegacyDate(getRecordDate(r)));
+
+          // Filter legacy detailed expenses
+          const legacyExpenses: Record<string, any[]> = {};
+          if (legacyBase.detailedExpenses && typeof legacyBase.detailedExpenses === 'object') {
+            Object.entries(legacyBase.detailedExpenses).forEach(([k, v]) => {
+              if (isLegacyDate(k)) legacyExpenses[k] = v as any[];
+            });
+          }
+          if (appState.detailedExpenses && typeof appState.detailedExpenses === 'object') {
+            Object.entries(appState.detailedExpenses).forEach(([k, v]) => {
+              if (isLegacyDate(k)) legacyExpenses[k] = v as any[];
+            });
+          }
+
+          // Build complete legacy payload for ncd_state
+          const legacyPayload = {
+            ...legacyBase,
+            // Master catalogs & settings (preserved and synced)
+            medicines: appState.medicines || legacyBase.medicines || [],
+            patients: appState.patients || legacyBase.patients || [],
+            doctors: appState.doctors || legacyBase.doctors || [],
+            referrars: appState.referrars || legacyBase.referrars || [],
+            tests: appState.tests || legacyBase.tests || [],
+            reagents: appState.reagents || legacyBase.reagents || [],
+            employees: appState.employees || legacyBase.employees || [],
+            passwords: appState.passwords || legacyBase.passwords || {},
+            diagnosticSettings: appState.diagnosticSettings || legacyBase.diagnosticSettings || {},
+            employeeReferrerMap: appState.employeeReferrerMap || legacyBase.employeeReferrerMap || {},
+            attendanceLog: appState.attendanceLog || legacyBase.attendanceLog || {},
+            leaveLog: appState.leaveLog || legacyBase.leaveLog || {},
+            monthlyRoster: appState.monthlyRoster || legacyBase.monthlyRoster || {},
+            rtTemplates: appState.rtTemplates || legacyBase.rtTemplates || [],
+            
+            // Strictly historical activity records (< 2026-08-01)
+            purchaseInvoices: mergeEntityList(legacyBase.purchaseInvoices || [], legacyPurchases, ['invoice_id', 'invoiceId', 'id']),
+            salesInvoices: mergeEntityList(legacyBase.salesInvoices || [], legacySales, ['invoice_id', 'invoiceId', 'id']),
+            labInvoices: mergeEntityList(legacyBase.labInvoices || [], legacyLabs, ['invoice_id', 'invoiceId', 'id']),
+            dueCollections: mergeEntityList(legacyBase.dueCollections || [], legacyDues, ['collection_id', 'collectionId', 'id']),
+            indoorInvoices: mergeEntityList(legacyBase.indoorInvoices || [], legacyIndoor, ['invoice_id', 'invoiceId', 'admission_id', 'id']),
+            consolidatedLabEntries: mergeEntityList(legacyBase.consolidatedLabEntries || [], legacyConsolidated, ['id', 'date']),
+            reports: mergeEntityList(legacyBase.reports || [], legacyReports, ['id']),
+            prescriptions: mergeEntityList(legacyBase.prescriptions || [], legacyPrescriptions, ['id']),
+            appointments: mergeEntityList(legacyBase.appointments || [], legacyAppointments, ['id']),
+            admissions: mergeEntityList(legacyBase.admissions || [], legacyAdmissions, ['id']),
+            detailedExpenses: legacyExpenses,
+            last_updated_at: now
+          };
+
+          // Save to ncd_state in Supabase
+          const { error: ncdErr } = await supabase.from('ncd_state').upsert({
+            id: cachedLegacyRecordId || MASTER_RECORD_ID,
+            data: legacyPayload,
+            updated_at: now
+          }, { onConflict: 'id' });
+
+          if (ncdErr) {
+            console.warn("ncd_state legacy save notice:", ncdErr.message);
+          } else {
+            cachedLegacyState = legacyPayload;
+            hasAnySaveSuccess = true;
+            console.log("[dbService] Saved historical records to ncd_state successfully.");
+          }
+        } catch (ncdSaveEx) {
+          console.warn("ncd_state save warning:", ncdSaveEx);
+        }
+      }
+
+      // ---------------------------------------------------------------------------------
+      // 2. ROUTE MODERN / FUTURE DATA (>= 2026-08-01) & MASTER CATALOGS TO MODULAR TABLES
+      // ---------------------------------------------------------------------------------
+      
+      // 2a. Modular Sync for purchase_invoices (strictly >= 2026-08-01)
       try {
-        if (Array.isArray(appState.purchaseInvoices) && appState.purchaseInvoices.length > 0) {
-          const purSync = await dbService.syncPurchaseInvoicesToModularTable(appState.purchaseInvoices);
-          if (purSync) modularSaveSuccess = true;
+        const modernPurchases = (appState.purchaseInvoices || []).filter((r: any) => isMultiTableDate(getRecordDate(r)));
+        if (modernPurchases.length > 0) {
+          const purSync = await dbService.syncPurchaseInvoicesToModularTable(modernPurchases);
+          if (purSync) hasAnySaveSuccess = true;
         }
       } catch (purErr) {
         console.warn("Modular purchase sync notice:", purErr);
       }
 
-      // 2b. Modular Sync for sales_invoices
+      // 2b. Modular Sync for sales_invoices (strictly >= 2026-08-01)
       try {
-        if (Array.isArray(appState.salesInvoices) && appState.salesInvoices.length > 0) {
-          const salSync = await dbService.syncSalesInvoicesToModularTable(appState.salesInvoices);
-          if (salSync) modularSaveSuccess = true;
+        const modernSales = (appState.salesInvoices || []).filter((r: any) => isMultiTableDate(getRecordDate(r)));
+        if (modernSales.length > 0) {
+          const salSync = await dbService.syncSalesInvoicesToModularTable(modernSales);
+          if (salSync) hasAnySaveSuccess = true;
         }
       } catch (salErr) {
         console.warn("Modular sales sync notice:", salErr);
       }
 
-      // 2c. Modular Sync for medicines
+      // 2c. Modular Sync for medicines (master catalog, all medicines)
       try {
         if (Array.isArray(appState.medicines) && appState.medicines.length > 0) {
           const medSync = await dbService.syncMedicinesToModularTable(appState.medicines);
-          if (medSync) modularSaveSuccess = true;
+          if (medSync) hasAnySaveSuccess = true;
         }
       } catch (medErr) {
         console.warn("Modular medicine sync notice:", medErr);
       }
 
-      // 2d. Direct Sync ALL detailed_expenses (all historical dates) to modular table
+      // 2d. Modular Sync for detailed_expenses (strictly >= 2026-08-01)
       try {
-        const expenseRows: any[] = [];
+        const modernExpenseRows: any[] = [];
         Object.entries(appState.detailedExpenses || {}).forEach(([dateKey, items]) => {
-          if (Array.isArray(items)) {
+          if (isMultiTableDate(dateKey) && Array.isArray(items)) {
             items.forEach((it: any, idx: number) => {
               if (!it || it.isDeleted) return;
               const rowId = String(it.id || `exp_${dateKey.replace(/-/g, '')}_${idx}_${Date.now()}`);
-              expenseRows.push({
+              modernExpenseRows.push({
                 id: rowId,
                 date: dateKey,
                 category: it.category || 'General',
@@ -894,51 +1095,76 @@ export const dbService = {
           }
         });
 
-        if (expenseRows.length > 0) {
-          const upRes = await upsertTableSafe(supabase, 'detailed_expenses', expenseRows);
-          if (upRes) modularSaveSuccess = true;
+        if (modernExpenseRows.length > 0) {
+          const upRes = await upsertTableSafe(supabase, 'detailed_expenses', modernExpenseRows);
+          if (upRes) hasAnySaveSuccess = true;
         }
       } catch (e) {
         console.warn("Detailed expenses modular sync warning:", e);
       }
 
-      // 2e. Modular Sync for lab_invoices
+      // 2e. Modular Sync for lab_invoices (strictly >= 2026-08-01)
       try {
-        if (Array.isArray(appState.labInvoices) && appState.labInvoices.length > 0) {
-          const labSync = await dbService.syncLabInvoicesToModularTable(appState.labInvoices);
-          if (labSync) modularSaveSuccess = true;
+        const modernLabs = (appState.labInvoices || []).filter((r: any) => isMultiTableDate(getRecordDate(r)));
+        if (modernLabs.length > 0) {
+          const labSync = await dbService.syncLabInvoicesToModularTable(modernLabs);
+          if (labSync) hasAnySaveSuccess = true;
         }
       } catch (labErr) {
         console.warn("Modular lab invoices sync notice:", labErr);
       }
 
-      // 2f. Modular Sync for due_collections
+      // 2f. Modular Sync for due_collections (strictly >= 2026-08-01)
       try {
-        if (Array.isArray(appState.dueCollections) && appState.dueCollections.length > 0) {
-          const dueSync = await dbService.syncDueCollectionsToModularTable(appState.dueCollections);
-          if (dueSync) modularSaveSuccess = true;
+        const modernDues = (appState.dueCollections || []).filter((r: any) => isMultiTableDate(getRecordDate(r)));
+        if (modernDues.length > 0) {
+          const dueSync = await dbService.syncDueCollectionsToModularTable(modernDues);
+          if (dueSync) hasAnySaveSuccess = true;
         }
       } catch (dueErr) {
         console.warn("Modular due collections sync notice:", dueErr);
       }
 
-      // 2g. Modular Sync for indoor_invoices
+      // 2g. Modular Sync for indoor_invoices (strictly >= 2026-08-01)
       try {
-        if (Array.isArray(appState.indoorInvoices) && appState.indoorInvoices.length > 0) {
-          const indoorSync = await dbService.syncIndoorInvoicesToModularTable(appState.indoorInvoices);
-          if (indoorSync) modularSaveSuccess = true;
+        const modernIndoor = (appState.indoorInvoices || []).filter((r: any) => isMultiTableDate(getRecordDate(r)));
+        if (modernIndoor.length > 0) {
+          const indoorSync = await dbService.syncIndoorInvoicesToModularTable(modernIndoor);
+          if (indoorSync) hasAnySaveSuccess = true;
         }
       } catch (indoorErr) {
         console.warn("Modular indoor sync notice:", indoorErr);
       }
 
-      // If modular table save succeeded, we treat as success!
-      if (modularSaveSuccess) {
+      // Master tables sync (patients, doctors, referrars, tests, reagents, employees)
+      try {
+        if (Array.isArray(appState.patients) && appState.patients.length > 0) {
+          await upsertTableSafe(supabase, 'patients', appState.patients.map((p: any) => ({ ...p, updated_at: now })));
+        }
+        if (Array.isArray(appState.doctors) && appState.doctors.length > 0) {
+          await upsertTableSafe(supabase, 'doctors', appState.doctors.map((d: any) => ({ ...d, updated_at: now })));
+        }
+        if (Array.isArray(appState.referrars) && appState.referrars.length > 0) {
+          await upsertTableSafe(supabase, 'referrars', appState.referrars.map((r: any) => ({ ...r, updated_at: now })));
+        }
+        if (Array.isArray(appState.tests) && appState.tests.length > 0) {
+          await upsertTableSafe(supabase, 'tests', appState.tests.map((t: any) => ({ ...t, updated_at: now })));
+        }
+        if (Array.isArray(appState.reagents) && appState.reagents.length > 0) {
+          await upsertTableSafe(supabase, 'reagents', appState.reagents.map((r: any) => ({ ...r, updated_at: now })));
+        }
+        if (Array.isArray(appState.employees) && appState.employees.length > 0) {
+          await upsertTableSafe(supabase, 'employees', appState.employees.map((e: any) => ({ ...e, updated_at: now })));
+        }
+      } catch (masterSyncErr) {
+        console.warn("Master tables modular sync notice:", masterSyncErr);
+      }
+
+      if (hasAnySaveSuccess) {
         return { success: true };
       }
 
-      console.warn("Cloud sync had errors, data secured in local storage");
-      return { success: true, warning: 'Failed to save to modular tables', isOffline: true };
+      return { success: true, warning: 'Saved locally, check connectivity' };
     } catch (error: any) {
       console.error("Cloud save critical error:", error);
       return { success: true, warning: error?.message, isOffline: true };
@@ -1127,13 +1353,42 @@ export const dbService = {
   deleteExpense: async (date: string, id: number | string) => {
     try {
       const targetIdStr = String(id).trim();
+      const normDate = normalizeDate(date);
 
-      // Delete from detailed_expenses modular table directly (all historical and modern dates)
-      if (supabase) {
-        try {
-          await supabase.from('detailed_expenses').delete().eq('id', targetIdStr);
-        } catch (cloudDelErr) {
-          console.warn("Supabase detailed_expenses delete notice:", cloudDelErr);
+      if (isLegacyDate(normDate)) {
+        // Historical date (< 2026-08-01): Remove from ncd_state
+        if (supabase) {
+          try {
+            if (!cachedLegacyState) {
+              const { data } = await supabase.from('ncd_state').select('*').limit(1);
+              if (data && data.length > 0) {
+                cachedLegacyRecordId = data[0].id;
+                cachedLegacyState = typeof data[0].data === 'string' ? JSON.parse(data[0].data) : data[0].data;
+              }
+            }
+            if (cachedLegacyState?.detailedExpenses?.[normDate]) {
+              cachedLegacyState.detailedExpenses[normDate] = (cachedLegacyState.detailedExpenses[normDate] || []).filter(
+                (it: any) => String(it.id || '').trim() !== targetIdStr
+              );
+              await supabase.from('ncd_state').upsert({
+                id: cachedLegacyRecordId || MASTER_RECORD_ID,
+                data: cachedLegacyState,
+                updated_at: new Date().toISOString()
+              }, { onConflict: 'id' });
+              console.log(`[dbService] Deleted expense ${targetIdStr} from ncd_state for ${normDate}`);
+            }
+          } catch (cloudDelErr) {
+            console.warn("Legacy detailed_expenses delete notice:", cloudDelErr);
+          }
+        }
+      } else {
+        // Modern date (>= 2026-08-01): Delete from detailed_expenses modular table
+        if (supabase) {
+          try {
+            await supabase.from('detailed_expenses').delete().eq('id', targetIdStr);
+          } catch (cloudDelErr) {
+            console.warn("Supabase detailed_expenses delete notice:", cloudDelErr);
+          }
         }
       }
 
@@ -1145,36 +1400,72 @@ export const dbService = {
   
   saveExpensesDirectly: async (date: string, items: any[], fullDetailedExpenses?: any) => {
     try {
+      const normDate = normalizeDate(date);
       const now = new Date().toISOString();
 
-      // Save directly to modular table 'detailed_expenses' (all dates)
-      if (supabase) {
-        try {
-          const rows = (items || []).filter(it => it && !it.isDeleted).map((it, idx) => ({
-            id: String(it.id || `exp_${date.replace(/-/g, '')}_${idx}_${Date.now()}`),
-            date: date,
-            category: it.category || 'General',
-            sub_category: it.subCategory || it.sub_category || '',
-            description: it.description || '',
-            bill_amount: Number(it.billAmount || it.paidAmount || 0),
-            paid_amount: Number(it.paidAmount || it.billAmount || 0),
-            dept: it.dept || 'Diagnostic',
-            updated_at: now
-          }));
-
-          if (rows.length > 0) {
-            const { error: expErr } = await supabase
-              .from('detailed_expenses')
-              .upsert(rows, { onConflict: 'id' });
-
-            if (expErr) {
-              console.warn("Supabase direct detailed_expenses upsert notice:", expErr);
-            } else {
-              console.log(`[dbService] Successfully saved ${rows.length} items to detailed_expenses in Supabase`);
+      if (isLegacyDate(normDate)) {
+        // Historical date (< 2026-08-01): Save to ncd_state single table
+        if (supabase) {
+          try {
+            if (!cachedLegacyState) {
+              const { data } = await supabase.from('ncd_state').select('*').limit(1);
+              if (data && data.length > 0) {
+                cachedLegacyRecordId = data[0].id;
+                cachedLegacyState = typeof data[0].data === 'string' ? JSON.parse(data[0].data) : data[0].data;
+              }
             }
+            if (!cachedLegacyState) cachedLegacyState = {};
+            if (!cachedLegacyState.detailedExpenses) cachedLegacyState.detailedExpenses = {};
+
+            const validItems = (items || []).filter(it => it && !it.isDeleted).map((it, idx) => ({
+              ...it,
+              id: String(it.id || `exp_${normDate.replace(/-/g, '')}_${idx}_${Date.now()}`),
+              date: normDate,
+              dept: it.dept || 'Diagnostic'
+            }));
+
+            cachedLegacyState.detailedExpenses[normDate] = validItems;
+
+            await supabase.from('ncd_state').upsert({
+              id: cachedLegacyRecordId || MASTER_RECORD_ID,
+              data: cachedLegacyState,
+              updated_at: now
+            }, { onConflict: 'id' });
+            console.log(`[dbService] Successfully saved ${validItems.length} legacy items to ncd_state for ${normDate}`);
+          } catch (sbErr) {
+            console.warn("ncd_state direct save error for legacy expenses:", sbErr);
           }
-        } catch (sbErr) {
-          console.warn("Supabase detailed_expenses direct save error:", sbErr);
+        }
+      } else {
+        // Modern date (>= 2026-08-01): Save to modular table 'detailed_expenses'
+        if (supabase) {
+          try {
+            const rows = (items || []).filter(it => it && !it.isDeleted).map((it, idx) => ({
+              id: String(it.id || `exp_${normDate.replace(/-/g, '')}_${idx}_${Date.now()}`),
+              date: normDate,
+              category: it.category || 'General',
+              sub_category: it.subCategory || it.sub_category || '',
+              description: it.description || '',
+              bill_amount: Number(it.billAmount || it.paidAmount || 0),
+              paid_amount: Number(it.paidAmount || it.billAmount || 0),
+              dept: it.dept || 'Diagnostic',
+              updated_at: now
+            }));
+
+            if (rows.length > 0) {
+              const { error: expErr } = await supabase
+                .from('detailed_expenses')
+                .upsert(rows, { onConflict: 'id' });
+
+              if (expErr) {
+                console.warn("Supabase direct detailed_expenses upsert notice:", expErr);
+              } else {
+                console.log(`[dbService] Successfully saved ${rows.length} items to detailed_expenses in Supabase`);
+              }
+            }
+          } catch (sbErr) {
+            console.warn("Supabase detailed_expenses direct save error:", sbErr);
+          }
         }
       }
 

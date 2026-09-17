@@ -167,11 +167,12 @@ export function useAppData() {
     loadData();
 
     // REAL-TIME LISTENER: Listen for changes from other users
-    const subscription = dbService.subscribeToChanges((newData) => {
+    const subscription = dbService.subscribeToChanges(async (newData) => {
       if (newData && Object.keys(newData).length > 0) {
-        // Only update if the cloud is newer (simple timestamp check or always update)
-        // Here we always update to ensure all tabs see the same data
-        updateLocalState(newData);
+        const fullState = await dbService.loadFromCloud();
+        if (fullState && !fullState._error) {
+          updateLocalState(fullState);
+        }
       }
     });
 
