@@ -416,107 +416,98 @@ export const dbService = {
           if (masterRow && masterRow.id) {
             cachedLegacyRecordId = masterRow.id;
           }
-          // Process from oldest to newest so newest rows take precedence
-          [...legacyRecords].reverse().forEach((rec: any) => {
-            let rowData = rec.data;
-            if (typeof rowData === 'string') {
-              try { rowData = JSON.parse(rowData); } catch { rowData = null; }
+          
+          let rowData = masterRow.data;
+          if (typeof rowData === 'string') {
+            try { rowData = JSON.parse(rowData); } catch { rowData = null; }
+          }
+          if (rowData && typeof rowData === 'object') {
+            cachedLegacyState = { ...(cachedLegacyState || {}), ...rowData };
+
+            // Detailed Expenses from ncd_state (load ALL dates including historical and modern)
+            if (rowData.detailedExpenses && typeof rowData.detailedExpenses === 'object') {
+              if (!state.detailedExpenses) state.detailedExpenses = {};
+              Object.entries(rowData.detailedExpenses).forEach(([dKey, items]: [string, any]) => {
+                const normDate = (dKey || '').split(/[T ]/)[0].trim();
+                if (!normDate) return;
+                if (!state.detailedExpenses[normDate]) state.detailedExpenses[normDate] = [];
+                if (Array.isArray(items)) {
+                  items.forEach((it: any) => {
+                    if (!it || it.isDeleted) return;
+                    const itId = String(it.id || '');
+                    const exists = state.detailedExpenses[normDate].some((x: any) => String(x.id || '') === itId && itId !== '');
+                    if (!exists) {
+                      state.detailedExpenses[normDate].push({ ...it, date: normDate });
+                    }
+                  });
+                }
+              });
             }
-            if (rowData && typeof rowData === 'object') {
-              cachedLegacyState = { ...(cachedLegacyState || {}), ...rowData };
 
-              // Detailed Expenses from ncd_state (strictly dates before August 1, 2026)
-              if (rowData.detailedExpenses && typeof rowData.detailedExpenses === 'object') {
-                if (!state.detailedExpenses) state.detailedExpenses = {};
-                Object.entries(rowData.detailedExpenses).forEach(([dKey, items]: [string, any]) => {
-                  const normDate = (dKey || '').split(/[T ]/)[0].trim();
-                  if (!normDate || !isLegacyDate(normDate)) return;
-                  if (!state.detailedExpenses[normDate]) state.detailedExpenses[normDate] = [];
-                  if (Array.isArray(items)) {
-                    items.forEach((it: any) => {
-                      if (!it || it.isDeleted) return;
-                      const itId = String(it.id || '');
-                      const exists = state.detailedExpenses[normDate].some((x: any) => String(x.id || '') === itId && itId !== '');
-                      if (!exists) {
-                        state.detailedExpenses[normDate].push({ ...it, date: normDate });
-                      }
-                    });
-                  }
-                });
-              }
-
-              // Lab Invoices from ncd_state (strictly dates before August 1, 2026)
-              const labs = rowData.labInvoices || rowData.invoices || rowData.lab_invoices || rowData.diagnostic_invoices;
-              if (Array.isArray(labs) && labs.length > 0) {
-                const legacyLabs = labs.filter((x: any) => isLegacyDate(getRecordDate(x)));
-                state.labInvoices = mergeEntityList(state.labInvoices || [], legacyLabs, ['invoice_id', 'invoiceId', 'id']);
-              }
-
-              // Due Collections from ncd_state (strictly dates before August 1, 2026)
-              const dues = rowData.dueCollections || rowData.due_collections || rowData.dues || rowData.collections;
-              if (Array.isArray(dues) && dues.length > 0) {
-                const legacyDues = dues.filter((x: any) => isLegacyDate(getRecordDate(x)));
-                state.dueCollections = mergeEntityList(state.dueCollections || [], legacyDues, ['collection_id', 'collectionId', 'id']);
-              }
-
-              // Indoor Invoices from ncd_state (strictly dates before August 1, 2026)
-              const indoor = rowData.indoorInvoices || rowData.indoor_invoices || rowData.clinicInvoices;
-              if (Array.isArray(indoor) && indoor.length > 0) {
-                const legacyIndoor = indoor.filter((x: any) => isLegacyDate(getRecordDate(x)));
-                state.indoorInvoices = mergeEntityList(state.indoorInvoices || [], legacyIndoor, ['invoice_id', 'invoiceId', 'admission_id', 'id']);
-              }
-
-              // Purchase Invoices from ncd_state (strictly dates before August 1, 2026 - January to July 2026)
-              const purs = rowData.purchaseInvoices || rowData.purchase_invoices || rowData.purchases || rowData.medicinePurchases;
-              if (Array.isArray(purs) && purs.length > 0) {
-                const legacyPurs = purs.filter((x: any) => isLegacyDate(getRecordDate(x)));
-                state.purchaseInvoices = mergeEntityList(state.purchaseInvoices || [], legacyPurs, ['invoice_id', 'invoiceId', 'id']);
-              }
-
-              // Sales Invoices from ncd_state (strictly dates before August 1, 2026 - January to July 2026)
-              const sals = rowData.salesInvoices || rowData.sales_invoices || rowData.sales || rowData.medicineSales;
-              if (Array.isArray(sals) && sals.length > 0) {
-                const legacySals = sals.filter((x: any) => isLegacyDate(getRecordDate(x)));
-                state.salesInvoices = mergeEntityList(state.salesInvoices || [], legacySals, ['invoice_id', 'invoiceId', 'id']);
-              }
-
-              // Medicines from ncd_state
-              if (Array.isArray(rowData.medicines) && rowData.medicines.length > 0) {
-                state.medicines = mergeEntityList(state.medicines || [], rowData.medicines, ['id', 'name']);
-              }
-
-              // Entity lists from ncd_state
-              ['patients', 'doctors', 'referrars', 'tests', 'reagents', 'employees'].forEach(k => {
-                if (Array.isArray(rowData[k]) && rowData[k].length > 0) {
-                  state[k] = mergeEntityList(state[k] || [], rowData[k], ['id']);
-                }
-              });
-
-              // Dated activity records from ncd_state
-              ['reports', 'prescriptions', 'appointments', 'admissions'].forEach(k => {
-                if (Array.isArray(rowData[k]) && rowData[k].length > 0) {
-                  const legacyItems = rowData[k].filter((x: any) => isLegacyDate(getRecordDate(x)));
-                  state[k] = mergeEntityList(state[k] || [], legacyItems, ['id']);
-                }
-              });
-
-              // Settings and maps from ncd_state
-              ['diagnosticSettings', 'employeeReferrerMap', 'passwords', 'attendanceLog', 'leaveLog', 'monthlyRoster'].forEach(k => {
-                if (rowData[k] && typeof rowData[k] === 'object' && !state[k]) {
-                  state[k] = rowData[k];
-                }
-              });
-
-              if (Array.isArray(rowData.rtTemplates) && rowData.rtTemplates.length > 0 && (!state.rtTemplates || state.rtTemplates.length === 0)) {
-                state.rtTemplates = rowData.rtTemplates;
-              }
-
-              if (Array.isArray(rowData.consolidatedLabEntries) && rowData.consolidatedLabEntries.length > 0) {
-                const legacyCons = rowData.consolidatedLabEntries.filter((x: any) => isLegacyDate(x.date));
-                state.consolidatedLabEntries = mergeEntityList(state.consolidatedLabEntries || [], legacyCons, ['id', 'date']);
-              }
+            // Lab Invoices from ncd_state
+            const labs = rowData.labInvoices || rowData.invoices || rowData.lab_invoices || rowData.diagnostic_invoices;
+            if (Array.isArray(labs) && labs.length > 0) {
+              state.labInvoices = mergeEntityList(state.labInvoices || [], labs, ['invoice_id', 'invoiceId', 'id']);
             }
-          });
+
+            // Due Collections from ncd_state
+            const dues = rowData.dueCollections || rowData.due_collections || rowData.dues || rowData.collections;
+            if (Array.isArray(dues) && dues.length > 0) {
+              state.dueCollections = mergeEntityList(state.dueCollections || [], dues, ['collection_id', 'collectionId', 'id']);
+            }
+
+            // Indoor Invoices from ncd_state
+            const indoor = rowData.indoorInvoices || rowData.indoor_invoices || rowData.clinicInvoices;
+            if (Array.isArray(indoor) && indoor.length > 0) {
+              state.indoorInvoices = mergeEntityList(state.indoorInvoices || [], indoor, ['invoice_id', 'invoiceId', 'admission_id', 'id']);
+            }
+
+            // Purchase Invoices from ncd_state (all purchases preserved)
+            const purs = rowData.purchaseInvoices || rowData.purchase_invoices || rowData.purchases || rowData.medicinePurchases;
+            if (Array.isArray(purs) && purs.length > 0) {
+              state.purchaseInvoices = mergeEntityList(state.purchaseInvoices || [], purs, ['invoice_id', 'invoiceId', 'id']);
+            }
+
+            // Sales Invoices from ncd_state (all sales preserved)
+            const sals = rowData.salesInvoices || rowData.sales_invoices || rowData.sales || rowData.medicineSales;
+            if (Array.isArray(sals) && sals.length > 0) {
+              state.salesInvoices = mergeEntityList(state.salesInvoices || [], sals, ['invoice_id', 'invoiceId', 'id']);
+            }
+
+            // Medicines from ncd_state
+            if (Array.isArray(rowData.medicines) && rowData.medicines.length > 0) {
+              state.medicines = mergeEntityList(state.medicines || [], rowData.medicines, ['id', 'name']);
+            }
+
+            // Entity lists from ncd_state
+            ['patients', 'doctors', 'referrars', 'tests', 'reagents', 'employees'].forEach(k => {
+              if (Array.isArray(rowData[k]) && rowData[k].length > 0) {
+                state[k] = mergeEntityList(state[k] || [], rowData[k], ['id']);
+              }
+            });
+
+            // Dated activity records from ncd_state
+            ['reports', 'prescriptions', 'appointments', 'admissions'].forEach(k => {
+              if (Array.isArray(rowData[k]) && rowData[k].length > 0) {
+                state[k] = mergeEntityList(state[k] || [], rowData[k], ['id']);
+              }
+            });
+
+            // Settings and maps from ncd_state
+            ['diagnosticSettings', 'employeeReferrerMap', 'passwords', 'attendanceLog', 'leaveLog', 'monthlyRoster'].forEach(k => {
+              if (rowData[k] && typeof rowData[k] === 'object' && !state[k]) {
+                state[k] = rowData[k];
+              }
+            });
+
+            if (Array.isArray(rowData.rtTemplates) && rowData.rtTemplates.length > 0 && (!state.rtTemplates || state.rtTemplates.length === 0)) {
+              state.rtTemplates = rowData.rtTemplates;
+            }
+
+            if (Array.isArray(rowData.consolidatedLabEntries) && rowData.consolidatedLabEntries.length > 0) {
+              state.consolidatedLabEntries = mergeEntityList(state.consolidatedLabEntries || [], rowData.consolidatedLabEntries, ['id', 'date']);
+            }
+          }
         }
 
         // B. Merge entity tables from modular Supabase tables
@@ -974,32 +965,32 @@ export const dbService = {
 
           const legacyBase = cachedLegacyState && typeof cachedLegacyState === 'object' ? { ...cachedLegacyState } : {};
 
-          // Extract legacy dated records from appState (records before August 1, 2026)
-          const legacyPurchases = (appState.purchaseInvoices || []).filter((r: any) => isLegacyDate(getRecordDate(r)));
-          const legacySales = (appState.salesInvoices || []).filter((r: any) => isLegacyDate(getRecordDate(r)));
-          const legacyLabs = (appState.labInvoices || []).filter((r: any) => isLegacyDate(getRecordDate(r)));
-          const legacyDues = (appState.dueCollections || []).filter((r: any) => isLegacyDate(getRecordDate(r)));
-          const legacyIndoor = (appState.indoorInvoices || []).filter((r: any) => isLegacyDate(getRecordDate(r)));
-          const legacyConsolidated = (appState.consolidatedLabEntries || []).filter((r: any) => isLegacyDate(r.date));
-          const legacyReports = (appState.reports || []).filter((r: any) => isLegacyDate(getRecordDate(r)));
-          const legacyPrescriptions = (appState.prescriptions || []).filter((r: any) => isLegacyDate(getRecordDate(r)));
-          const legacyAppointments = (appState.appointments || []).filter((r: any) => isLegacyDate(getRecordDate(r)));
-          const legacyAdmissions = (appState.admissions || []).filter((r: any) => isLegacyDate(getRecordDate(r)));
+          // Extract all activity records from appState (comprehensive preservation in master archive)
+          const allPurchases = mergeEntityList(legacyBase.purchaseInvoices || [], appState.purchaseInvoices || [], ['invoice_id', 'invoiceId', 'id']);
+          const allSales = mergeEntityList(legacyBase.salesInvoices || [], appState.salesInvoices || [], ['invoice_id', 'invoiceId', 'id']);
+          const allLabs = mergeEntityList(legacyBase.labInvoices || [], appState.labInvoices || [], ['invoice_id', 'invoiceId', 'id']);
+          const allDues = mergeEntityList(legacyBase.dueCollections || [], appState.dueCollections || [], ['collection_id', 'collectionId', 'id']);
+          const allIndoor = mergeEntityList(legacyBase.indoorInvoices || [], appState.indoorInvoices || [], ['invoice_id', 'invoiceId', 'admission_id', 'id']);
+          const allConsolidated = mergeEntityList(legacyBase.consolidatedLabEntries || [], appState.consolidatedLabEntries || [], ['id', 'date']);
+          const allReports = mergeEntityList(legacyBase.reports || [], appState.reports || [], ['id']);
+          const allPrescriptions = mergeEntityList(legacyBase.prescriptions || [], appState.prescriptions || [], ['id']);
+          const allAppointments = mergeEntityList(legacyBase.appointments || [], appState.appointments || [], ['id']);
+          const allAdmissions = mergeEntityList(legacyBase.admissions || [], appState.admissions || [], ['id']);
 
-          // Filter legacy detailed expenses
-          const legacyExpenses: Record<string, any[]> = {};
+          // Combine all detailed expenses across all dates
+          const combinedExpenses: Record<string, any[]> = {};
           if (legacyBase.detailedExpenses && typeof legacyBase.detailedExpenses === 'object') {
             Object.entries(legacyBase.detailedExpenses).forEach(([k, v]) => {
-              if (isLegacyDate(k)) legacyExpenses[k] = v as any[];
+              if (k && Array.isArray(v)) combinedExpenses[k] = [...v];
             });
           }
           if (appState.detailedExpenses && typeof appState.detailedExpenses === 'object') {
             Object.entries(appState.detailedExpenses).forEach(([k, v]) => {
-              if (isLegacyDate(k)) legacyExpenses[k] = v as any[];
+              if (k && Array.isArray(v)) combinedExpenses[k] = [...v];
             });
           }
 
-          // Build complete legacy payload for ncd_state
+          // Build complete master payload for ncd_state (comprehensive zero-data-loss backup)
           const legacyPayload = {
             ...legacyBase,
             // Master catalogs & settings (preserved and synced)
@@ -1018,18 +1009,18 @@ export const dbService = {
             monthlyRoster: appState.monthlyRoster || legacyBase.monthlyRoster || {},
             rtTemplates: appState.rtTemplates || legacyBase.rtTemplates || [],
             
-            // Strictly historical activity records (< 2026-08-01)
-            purchaseInvoices: mergeEntityList(legacyBase.purchaseInvoices || [], legacyPurchases, ['invoice_id', 'invoiceId', 'id']),
-            salesInvoices: mergeEntityList(legacyBase.salesInvoices || [], legacySales, ['invoice_id', 'invoiceId', 'id']),
-            labInvoices: mergeEntityList(legacyBase.labInvoices || [], legacyLabs, ['invoice_id', 'invoiceId', 'id']),
-            dueCollections: mergeEntityList(legacyBase.dueCollections || [], legacyDues, ['collection_id', 'collectionId', 'id']),
-            indoorInvoices: mergeEntityList(legacyBase.indoorInvoices || [], legacyIndoor, ['invoice_id', 'invoiceId', 'admission_id', 'id']),
-            consolidatedLabEntries: mergeEntityList(legacyBase.consolidatedLabEntries || [], legacyConsolidated, ['id', 'date']),
-            reports: mergeEntityList(legacyBase.reports || [], legacyReports, ['id']),
-            prescriptions: mergeEntityList(legacyBase.prescriptions || [], legacyPrescriptions, ['id']),
-            appointments: mergeEntityList(legacyBase.appointments || [], legacyAppointments, ['id']),
-            admissions: mergeEntityList(legacyBase.admissions || [], legacyAdmissions, ['id']),
-            detailedExpenses: legacyExpenses,
+            // All activity records
+            purchaseInvoices: allPurchases,
+            salesInvoices: allSales,
+            labInvoices: allLabs,
+            dueCollections: allDues,
+            indoorInvoices: allIndoor,
+            consolidatedLabEntries: allConsolidated,
+            reports: allReports,
+            prescriptions: allPrescriptions,
+            appointments: allAppointments,
+            admissions: allAdmissions,
+            detailedExpenses: combinedExpenses,
             last_updated_at: now
           };
 
@@ -1371,40 +1362,38 @@ export const dbService = {
       const targetIdStr = String(id).trim();
       const normDate = normalizeDate(date);
 
-      if (isLegacyDate(normDate)) {
-        // Historical date (< 2026-08-01): Remove from ncd_state
-        if (supabase) {
-          try {
-            if (!cachedLegacyState) {
-              const { data } = await supabase.from('ncd_state').select('*').limit(1);
-              if (data && data.length > 0) {
-                cachedLegacyRecordId = data[0].id;
-                cachedLegacyState = typeof data[0].data === 'string' ? JSON.parse(data[0].data) : data[0].data;
-              }
+      // Dual-persistence: Always maintain in ncd_state master record
+      if (supabase) {
+        try {
+          if (!cachedLegacyState) {
+            const { data } = await supabase.from('ncd_state').select('*').limit(5);
+            if (data && data.length > 0) {
+              const masterRow = data.find((r: any) => r.id === MASTER_RECORD_ID) || data[0];
+              cachedLegacyRecordId = masterRow.id || MASTER_RECORD_ID;
+              cachedLegacyState = typeof masterRow.data === 'string' ? JSON.parse(masterRow.data) : masterRow.data;
             }
-            if (cachedLegacyState?.detailedExpenses?.[normDate]) {
-              cachedLegacyState.detailedExpenses[normDate] = (cachedLegacyState.detailedExpenses[normDate] || []).filter(
-                (it: any) => String(it.id || '').trim() !== targetIdStr
-              );
-              await supabase.from('ncd_state').upsert({
-                id: cachedLegacyRecordId || MASTER_RECORD_ID,
-                data: cachedLegacyState,
-                updated_at: new Date().toISOString()
-              }, { onConflict: 'id' });
-              console.log(`[dbService] Deleted expense ${targetIdStr} from ncd_state for ${normDate}`);
-            }
-          } catch (cloudDelErr) {
-            console.warn("Legacy detailed_expenses delete notice:", cloudDelErr);
           }
+          if (cachedLegacyState?.detailedExpenses?.[normDate]) {
+            cachedLegacyState.detailedExpenses[normDate] = (cachedLegacyState.detailedExpenses[normDate] || []).filter(
+              (it: any) => String(it.id || '').trim() !== targetIdStr
+            );
+            cachedLegacyState.last_updated_at = now;
+            await supabase.from('ncd_state').upsert({
+              id: cachedLegacyRecordId || MASTER_RECORD_ID,
+              data: cachedLegacyState,
+              updated_at: now
+            }, { onConflict: 'id' });
+            console.log(`[dbService] Deleted expense ${targetIdStr} from ncd_state for ${normDate}`);
+          }
+        } catch (cloudDelErr) {
+          console.warn("ncd_state detailed_expenses delete notice:", cloudDelErr);
         }
-      } else {
-        // Modern date (>= 2026-08-01): Delete from detailed_expenses modular table
-        if (supabase) {
-          try {
-            await supabase.from('detailed_expenses').delete().eq('id', targetIdStr);
-          } catch (cloudDelErr) {
-            console.warn("Supabase detailed_expenses delete notice:", cloudDelErr);
-          }
+
+        // Also delete from modular table if applicable
+        try {
+          await supabase.from('detailed_expenses').delete().eq('id', targetIdStr);
+        } catch (cloudDelErr) {
+          console.warn("Supabase detailed_expenses delete notice:", cloudDelErr);
         }
       }
 
@@ -1419,69 +1408,71 @@ export const dbService = {
       const normDate = normalizeDate(date);
       const now = new Date().toISOString();
 
-      if (isLegacyDate(normDate)) {
-        // Historical date (< 2026-08-01): Save to ncd_state single table
-        if (supabase) {
-          try {
-            if (!cachedLegacyState) {
-              const { data } = await supabase.from('ncd_state').select('*').limit(1);
-              if (data && data.length > 0) {
-                cachedLegacyRecordId = data[0].id;
-                cachedLegacyState = typeof data[0].data === 'string' ? JSON.parse(data[0].data) : data[0].data;
-              }
+      if (supabase) {
+        // 1. Always save to ncd_state master record (zero data loss across all dates)
+        try {
+          if (!cachedLegacyState) {
+            const { data } = await supabase.from('ncd_state').select('*').limit(5);
+            if (data && data.length > 0) {
+              const masterRow = data.find((r: any) => r.id === MASTER_RECORD_ID) || data[0];
+              cachedLegacyRecordId = masterRow.id || MASTER_RECORD_ID;
+              cachedLegacyState = typeof masterRow.data === 'string' ? JSON.parse(masterRow.data) : masterRow.data;
             }
-            if (!cachedLegacyState) cachedLegacyState = {};
-            if (!cachedLegacyState.detailedExpenses) cachedLegacyState.detailedExpenses = {};
-
-            const validItems = (items || []).filter(it => it && !it.isDeleted).map((it, idx) => ({
-              ...it,
-              id: String(it.id || `exp_${normDate.replace(/-/g, '')}_${idx}_${Date.now()}`),
-              date: normDate,
-              dept: it.dept || 'Diagnostic'
-            }));
-
-            cachedLegacyState.detailedExpenses[normDate] = validItems;
-
-            await supabase.from('ncd_state').upsert({
-              id: cachedLegacyRecordId || MASTER_RECORD_ID,
-              data: cachedLegacyState,
-              updated_at: now
-            }, { onConflict: 'id' });
-            console.log(`[dbService] Successfully saved ${validItems.length} legacy items to ncd_state for ${normDate}`);
-          } catch (sbErr) {
-            console.warn("ncd_state direct save error for legacy expenses:", sbErr);
           }
+          if (!cachedLegacyState) cachedLegacyState = {};
+          if (!cachedLegacyState.detailedExpenses) cachedLegacyState.detailedExpenses = {};
+
+          const validItems = (items || []).filter(it => it && !it.isDeleted).map((it, idx) => ({
+            ...it,
+            id: String(it.id || `exp_${normDate.replace(/-/g, '')}_${idx}_${Date.now()}`),
+            date: normDate,
+            dept: it.dept || 'Diagnostic'
+          }));
+
+          // Merge updated items for this date
+          cachedLegacyState.detailedExpenses[normDate] = validItems;
+
+          // If fullDetailedExpenses is passed from state, preserve all other existing dates
+          if (fullDetailedExpenses && typeof fullDetailedExpenses === 'object') {
+            Object.entries(fullDetailedExpenses).forEach(([k, v]) => {
+              if (k && k !== normDate && Array.isArray(v)) {
+                cachedLegacyState.detailedExpenses[k] = v;
+              }
+            });
+          }
+
+          cachedLegacyState.last_updated_at = now;
+
+          await supabase.from('ncd_state').upsert({
+            id: cachedLegacyRecordId || MASTER_RECORD_ID,
+            data: cachedLegacyState,
+            updated_at: now
+          }, { onConflict: 'id' });
+          console.log(`[dbService] Successfully saved ${validItems.length} items to ncd_state for ${normDate}`);
+        } catch (sbErr) {
+          console.warn("ncd_state direct save error for expenses:", sbErr);
         }
-      } else {
-        // Modern date (>= 2026-08-01): Save to modular table 'detailed_expenses'
-        if (supabase) {
-          try {
-            const rows = (items || []).filter(it => it && !it.isDeleted).map((it, idx) => ({
-              id: String(it.id || `exp_${normDate.replace(/-/g, '')}_${idx}_${Date.now()}`),
-              date: normDate,
-              category: it.category || 'General',
-              sub_category: it.subCategory || it.sub_category || '',
-              description: it.description || '',
-              bill_amount: Number(it.billAmount || it.paidAmount || 0),
-              paid_amount: Number(it.paidAmount || it.billAmount || 0),
-              dept: it.dept || 'Diagnostic',
-              updated_at: now
-            }));
 
-            if (rows.length > 0) {
-              const { error: expErr } = await supabase
-                .from('detailed_expenses')
-                .upsert(rows, { onConflict: 'id' });
+        // 2. Also save to modular table 'detailed_expenses'
+        try {
+          const rows = (items || []).filter(it => it && !it.isDeleted).map((it, idx) => ({
+            id: String(it.id || `exp_${normDate.replace(/-/g, '')}_${idx}_${Date.now()}`),
+            date: normDate,
+            category: it.category || 'General',
+            sub_category: it.subCategory || it.sub_category || '',
+            description: it.description || '',
+            bill_amount: Number(it.billAmount || it.paidAmount || 0),
+            paid_amount: Number(it.paidAmount || it.billAmount || 0),
+            dept: it.dept || 'Diagnostic',
+            updated_at: now
+          }));
 
-              if (expErr) {
-                console.warn("Supabase direct detailed_expenses upsert notice:", expErr);
-              } else {
-                console.log(`[dbService] Successfully saved ${rows.length} items to detailed_expenses in Supabase`);
-              }
-            }
-          } catch (sbErr) {
-            console.warn("Supabase detailed_expenses direct save error:", sbErr);
+          if (rows.length > 0) {
+            await supabase.from('detailed_expenses').upsert(rows, { onConflict: 'id' });
+            console.log(`[dbService] Successfully synced ${rows.length} items to detailed_expenses in Supabase`);
           }
+        } catch (sbErr) {
+          console.warn("Supabase detailed_expenses direct save error:", sbErr);
         }
       }
 
@@ -1495,11 +1486,10 @@ export const dbService = {
   savePurchaseInvoiceDirectly: async (inv: any) => {
     try {
       if (!supabase) return { success: false, error: 'Supabase not connected' };
-      const recDate = getRecordDate(inv);
       const now = new Date().toISOString();
 
-      if (isLegacyDate(recDate)) {
-        // Historical date (< 2026-08-01): Save strictly to ncd_state
+      // 1. Always save to ncd_state master record
+      try {
         if (!cachedLegacyState) {
           const { data } = await supabase.from('ncd_state').select('*').order('updated_at', { ascending: false }).limit(5);
           if (data && data.length > 0) {
@@ -1513,20 +1503,24 @@ export const dbService = {
         cachedLegacyState.purchaseInvoices = mergeEntityList(existing, [inv], ['invoice_id', 'invoiceId', 'id']);
         cachedLegacyState.last_updated_at = now;
 
-        const { error } = await supabase.from('ncd_state').upsert({
+        await supabase.from('ncd_state').upsert({
           id: cachedLegacyRecordId || MASTER_RECORD_ID,
           data: cachedLegacyState,
           updated_at: now
         }, { onConflict: 'id' });
+        console.log("[dbService] Successfully saved purchase invoice to ncd_state:", inv.invoiceId);
+      } catch (sbErr) {
+        console.warn("[dbService] ncd_state purchase save notice:", sbErr);
+      }
 
-        if (error) {
-          console.warn("[dbService] Direct legacy purchase save warning:", error.message);
-        } else {
-          console.log("[dbService] Successfully saved legacy purchase directly to ncd_state:", inv.invoiceId);
+      // 2. If modern date, also sync to modular table
+      const recDate = getRecordDate(inv);
+      if (isMultiTableDate(recDate)) {
+        try {
+          await dbService.syncPurchaseInvoicesToModularTable([inv]);
+        } catch (modErr) {
+          console.warn("[dbService] Modular purchase save notice:", modErr);
         }
-      } else {
-        // Modern date (>= 2026-08-01): Save strictly to modular purchase_invoices table
-        await dbService.syncPurchaseInvoicesToModularTable([inv]);
       }
       return { success: true };
     } catch (e: any) {
@@ -1538,11 +1532,10 @@ export const dbService = {
   saveSalesInvoiceDirectly: async (inv: any) => {
     try {
       if (!supabase) return { success: false, error: 'Supabase not connected' };
-      const recDate = getRecordDate(inv);
       const now = new Date().toISOString();
 
-      if (isLegacyDate(recDate)) {
-        // Historical date (< 2026-08-01): Save strictly to ncd_state
+      // 1. Always save to ncd_state master record
+      try {
         if (!cachedLegacyState) {
           const { data } = await supabase.from('ncd_state').select('*').order('updated_at', { ascending: false }).limit(5);
           if (data && data.length > 0) {
@@ -1556,20 +1549,24 @@ export const dbService = {
         cachedLegacyState.salesInvoices = mergeEntityList(existing, [inv], ['invoice_id', 'invoiceId', 'id']);
         cachedLegacyState.last_updated_at = now;
 
-        const { error } = await supabase.from('ncd_state').upsert({
+        await supabase.from('ncd_state').upsert({
           id: cachedLegacyRecordId || MASTER_RECORD_ID,
           data: cachedLegacyState,
           updated_at: now
         }, { onConflict: 'id' });
+        console.log("[dbService] Successfully saved sales invoice to ncd_state:", inv.invoiceId);
+      } catch (sbErr) {
+        console.warn("[dbService] ncd_state sales save notice:", sbErr);
+      }
 
-        if (error) {
-          console.warn("[dbService] Direct legacy sales save warning:", error.message);
-        } else {
-          console.log("[dbService] Successfully saved legacy sales directly to ncd_state:", inv.invoiceId);
+      // 2. If modern date, also sync to modular table
+      const recDate = getRecordDate(inv);
+      if (isMultiTableDate(recDate)) {
+        try {
+          await dbService.syncSalesInvoicesToModularTable([inv]);
+        } catch (modErr) {
+          console.warn("[dbService] Modular sales save notice:", modErr);
         }
-      } else {
-        // Modern date (>= 2026-08-01): Save strictly to modular sales_invoices table
-        await dbService.syncSalesInvoicesToModularTable([inv]);
       }
       return { success: true };
     } catch (e: any) {
@@ -1583,7 +1580,16 @@ export const dbService = {
       if (!supabase || !invoiceId) return { success: true };
       const now = new Date().toISOString();
 
-      if (isLegacyDate(invoiceDate)) {
+      // Delete from ncd_state
+      try {
+        if (!cachedLegacyState) {
+          const { data } = await supabase.from('ncd_state').select('*').order('updated_at', { ascending: false }).limit(5);
+          if (data && data.length > 0) {
+            const masterRow = data.find((r: any) => r.id === MASTER_RECORD_ID) || data[0];
+            cachedLegacyRecordId = masterRow.id || MASTER_RECORD_ID;
+            cachedLegacyState = typeof masterRow.data === 'string' ? JSON.parse(masterRow.data) : masterRow.data;
+          }
+        }
         if (cachedLegacyState && Array.isArray(cachedLegacyState.purchaseInvoices)) {
           cachedLegacyState.purchaseInvoices = cachedLegacyState.purchaseInvoices.filter((x: any) => {
             const xId = String(x.invoiceId || x.invoice_id || x.id || '').trim();
@@ -1597,8 +1603,15 @@ export const dbService = {
             updated_at: now
           }, { onConflict: 'id' });
         }
-      } else {
+      } catch (delErr) {
+        console.warn("[dbService] ncd_state delete purchase notice:", delErr);
+      }
+
+      // Also delete from modular table
+      try {
         await supabase.from('purchase_invoices').delete().or(`invoice_id.eq.${invoiceId},id.eq.${invoiceId}`);
+      } catch (modDelErr) {
+        console.warn("[dbService] modular purchase delete notice:", modDelErr);
       }
       return { success: true };
     } catch (e) {
@@ -1612,7 +1625,16 @@ export const dbService = {
       if (!supabase || !invoiceId) return { success: true };
       const now = new Date().toISOString();
 
-      if (isLegacyDate(invoiceDate)) {
+      // Delete from ncd_state
+      try {
+        if (!cachedLegacyState) {
+          const { data } = await supabase.from('ncd_state').select('*').order('updated_at', { ascending: false }).limit(5);
+          if (data && data.length > 0) {
+            const masterRow = data.find((r: any) => r.id === MASTER_RECORD_ID) || data[0];
+            cachedLegacyRecordId = masterRow.id || MASTER_RECORD_ID;
+            cachedLegacyState = typeof masterRow.data === 'string' ? JSON.parse(masterRow.data) : masterRow.data;
+          }
+        }
         if (cachedLegacyState && Array.isArray(cachedLegacyState.salesInvoices)) {
           cachedLegacyState.salesInvoices = cachedLegacyState.salesInvoices.filter((x: any) => {
             const xId = String(x.invoiceId || x.invoice_id || x.id || '').trim();
@@ -1626,8 +1648,15 @@ export const dbService = {
             updated_at: now
           }, { onConflict: 'id' });
         }
-      } else {
+      } catch (delErr) {
+        console.warn("[dbService] ncd_state delete sales notice:", delErr);
+      }
+
+      // Also delete from modular table
+      try {
         await supabase.from('sales_invoices').delete().or(`invoice_id.eq.${invoiceId},id.eq.${invoiceId}`);
+      } catch (modDelErr) {
+        console.warn("[dbService] modular sales delete notice:", modDelErr);
       }
       return { success: true };
     } catch (e) {

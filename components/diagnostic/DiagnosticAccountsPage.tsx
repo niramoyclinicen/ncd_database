@@ -2023,10 +2023,12 @@ const DiagnosticAccountsPage: React.FC<any> = ({
             setSuccessMessage("খরচের ডাটা সফলভাবে সেভ হয়েছে।");
             setTimeout(() => setSuccessMessage(''), 4000);
 
-            // 2. Direct save to Supabase modular table (detailed_expenses)
-            dbService.saveExpensesDirectly(date, finalDiagItems, newState).catch(e => {
+            // 2. Direct save to Supabase modular table & ncd_state dual persistence
+            try {
+                await dbService.saveExpensesDirectly(date, finalDiagItems, newState);
+            } catch (e) {
                 console.warn("[DiagnosticAccounts] Direct expense save notice:", e);
-            });
+            }
 
             // 3. Sync full state
             const syncPayload: any = { detailedExpenses: newState };
@@ -2034,9 +2036,11 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                 syncPayload.reagents = updatedReagents;
             }
             if (performBlockingSync) {
-                performBlockingSync(syncPayload).catch(e => {
+                try {
+                    await performBlockingSync(syncPayload);
+                } catch (e) {
                     console.warn("[DiagnosticAccounts] Background blocking sync notice:", e);
-                });
+                }
             }
         } catch (err) {
             console.error("[DiagnosticAccounts] Critical error saving expense:", err);

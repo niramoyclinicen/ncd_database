@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Medicine, Employee, PurchaseInvoice, InvoiceItem, Doctor, SalesInvoice, SalesItem, DrugMonograph, IndoorInvoice } from './DiagnosticData';
 import { BackIcon, MapPinIcon, PhoneIcon, MedicineIcon, FileTextIcon, Pill, SearchIcon, Activity, SaveIcon, TrashIcon, PlusIcon, TrendingDownIcon, RefreshIcon, AlertCircle, EyeIcon, PrinterIcon, XIcon, EditIcon } from './Icons';
 import SearchableSelect from './SearchableSelect';
+import { dbService } from '../dbService';
 
 interface MedicinePageProps {
   onBack: () => void;
@@ -233,12 +234,26 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
 
   const [sellSearchName, setSellSearchName] = useState('');
   const [sellSearchDate, setSellSearchDate] = useState('');
-  const [sellSearchMonth, setSellSearchMonth] = useState<string>(new Date().getMonth().toString());
+  const [sellSearchMonth, setSellSearchMonth] = useState<string>('all');
   const [sellSearchYear, setSellSearchYear] = useState<string>(new Date().getFullYear().toString());
   const [suggestions, setSuggestions] = useState<Medicine[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [supplierSuggestions, setSupplierSuggestions] = useState<string[]>([]);
   const [showSupplierSuggestions, setShowSupplierSuggestions] = useState(false);
+
+  // Helper to parse Bengali numbers, formatted numbers with commas/currency symbols
+  const parseBengaliOrFormattedNumber = (val: any): number => {
+    if (val === null || val === undefined) return 0;
+    let s = String(val).trim();
+    const bnDigits: Record<string, string> = {
+      '০': '0', '১': '1', '২': '2', '৩': '3', '৪': '4',
+      '৫': '5', '৬': '6', '৭': '7', '৮': '8', '৯': '9'
+    };
+    s = s.replace(/[০-৯]/g, d => bnDigits[d] || d);
+    s = s.replace(/,/g, '').replace(/৳/g, '').replace(/Tk/gi, '').replace(/\s+/g, '');
+    const n = parseFloat(s);
+    return isNaN(n) ? 0 : n;
+  };
 
   // Helper for calculating last day of month
   const getLastDayOfMonth = (year: number, monthZeroIndexed: number) => {
@@ -334,12 +349,12 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
   };
 
   const handleSaveLumpSumPurchase = async () => {
-    const amount = Number(lumpSumPurchaseForm.totalAmount);
+    const amount = parseBengaliOrFormattedNumber(lumpSumPurchaseForm.totalAmount);
     if (!amount || amount <= 0) {
-      alert("অনুগ্রহ করে ক্রয়ের মোট টাকার পরিমাণ লিখুন!");
+      alert("অনুগ্রহ করে ক্রয়ের মোট টাকার পরিমাণ সঠিকভাবে লিখুন!");
       return;
     }
-    const paid = Number(lumpSumPurchaseForm.paidAmount || 0);
+    const paid = parseBengaliOrFormattedNumber(lumpSumPurchaseForm.paidAmount);
     const due = Math.max(0, amount - paid);
     const mZero = Number(lumpSumPurchaseForm.month);
     const yNum = Number(lumpSumPurchaseForm.year);
@@ -380,7 +395,11 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
     setLoading(true);
     try {
       // Direct write ensures instant persistence in database (ncd_state for < 2026-08-01, or purchase_invoices for >= 2026-08-01)
-      await dbService.savePurchaseInvoiceDirectly(newInv);
+      try {
+        await dbService.savePurchaseInvoiceDirectly(newInv);
+      } catch (dbErr) {
+        console.warn("[MedicinePage] Direct db purchase save notice:", dbErr);
+      }
 
       let newInvoicesArr = [...safeInvoices];
       if (lumpSumPurchaseForm.editingInvoiceId) {
@@ -389,15 +408,25 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
         newInvoicesArr = [newInv, ...newInvoicesArr];
       }
 
-      if (performBlockingSync) {
-        await performBlockingSync({ purchaseInvoices: newInvoicesArr });
-      }
       safeSetInvoices(newInvoicesArr);
+
+      // Set filter to the saved invoice's year and month so the user sees it immediately
+      setBuySearchYear(yNum.toString());
+      setBuySearchMonth(mZero.toString());
+
+      if (performBlockingSync) {
+        try {
+          await performBlockingSync({ purchaseInvoices: newInvoicesArr });
+        } catch (syncErr) {
+          console.warn("[MedicinePage] Blocking sync notice:", syncErr);
+        }
+      }
+
       setSuccessMessage(`${mName} ${yNum} এর এককালীন ক্রয় সফলভাবে সংরক্ষিত হয়েছে!`);
       setShowLumpSumPurchaseModal(false);
-    } catch (e) {
+    } catch (e: any) {
       console.error("Lump purchase save error:", e);
-      alert("এককালীন ক্রয় সেভ করার সময় সমস্যা হয়েছে।");
+      alert("এককালীন ক্রয় সেভ করার সময় সমস্যা হয়েছে: " + (e?.message || e));
     } finally {
       setLoading(false);
     }
@@ -407,17 +436,25 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
     if (!window.confirm('আপনি কি এই এককালীন ক্রয় এন্ট্রি মুছে ফেলতে চান?')) return;
     setLoading(true);
     try {
-      await dbService.deletePurchaseInvoiceDirectly(invoiceId, invoiceDate);
+      try {
+        await dbService.deletePurchaseInvoiceDirectly(invoiceId, invoiceDate);
+      } catch (dbErr) {
+        console.warn("[MedicinePage] Direct delete notice:", dbErr);
+      }
       const newInvoicesArr = safeInvoices.filter(x => x.invoiceId !== invoiceId);
       safeSetInvoices(newInvoicesArr);
       if (performBlockingSync) {
-        await performBlockingSync({ purchaseInvoices: newInvoicesArr });
+        try {
+          await performBlockingSync({ purchaseInvoices: newInvoicesArr });
+        } catch (syncErr) {
+          console.warn("[MedicinePage] Blocking sync notice:", syncErr);
+        }
       }
       setShowLumpSumPurchaseModal(false);
       setSuccessMessage('এককালীন ক্রয় সফলভাবে মুছে ফেলা হয়েছে।');
-    } catch (e) {
+    } catch (e: any) {
       console.error('Delete lump purchase error:', e);
-      alert('এককালীন ক্রয় মুছতে সমস্যা হয়েছে।');
+      alert('এককালীন ক্রয় মুছতে সমস্যা হয়েছে: ' + (e?.message || e));
     } finally {
       setLoading(false);
     }
@@ -460,12 +497,12 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
   };
 
   const handleSaveLumpSumSales = async () => {
-    const amount = Number(lumpSumSalesForm.totalAmount);
+    const amount = parseBengaliOrFormattedNumber(lumpSumSalesForm.totalAmount);
     if (!amount || amount <= 0) {
-      alert("অনুগ্রহ করে বিক্রয়ের মোট টাকার পরিমাণ লিখুন!");
+      alert("অনুগ্রহ করে বিক্রয়ের মোট টাকার পরিমাণ সঠিকভাবে লিখুন!");
       return;
     }
-    const paid = Number(lumpSumSalesForm.paidAmount || 0);
+    const paid = parseBengaliOrFormattedNumber(lumpSumSalesForm.paidAmount);
     const due = Math.max(0, amount - paid);
     const mZero = Number(lumpSumSalesForm.month);
     const yNum = Number(lumpSumSalesForm.year);
@@ -504,7 +541,11 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
     setLoading(true);
     try {
       // Direct write ensures instant persistence in database (ncd_state for < 2026-08-01, or sales_invoices for >= 2026-08-01)
-      await dbService.saveSalesInvoiceDirectly(newSalesInv);
+      try {
+        await dbService.saveSalesInvoiceDirectly(newSalesInv);
+      } catch (dbErr) {
+        console.warn("[MedicinePage] Direct db sales save notice:", dbErr);
+      }
 
       let newSalesArr = [...safeSalesInvoices];
       if (lumpSumSalesForm.editingInvoiceId) {
@@ -513,15 +554,25 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
         newSalesArr = [newSalesInv, ...newSalesArr];
       }
 
-      if (performBlockingSync) {
-        await performBlockingSync({ salesInvoices: newSalesArr });
-      }
       safeSetSalesInvoices(newSalesArr);
+
+      // Set filter to the saved invoice's year and month so the user sees it immediately
+      setSellSearchYear(yNum.toString());
+      setSellSearchMonth(mZero.toString());
+
+      if (performBlockingSync) {
+        try {
+          await performBlockingSync({ salesInvoices: newSalesArr });
+        } catch (syncErr) {
+          console.warn("[MedicinePage] Blocking sync notice:", syncErr);
+        }
+      }
+
       setSuccessMessage(`${mName} ${yNum} এর এককালীন বিক্রয় সফলভাবে সংরক্ষিত হয়েছে!`);
       setShowLumpSumSalesModal(false);
-    } catch (e) {
+    } catch (e: any) {
       console.error("Lump sales save error:", e);
-      alert("এককালীন বিক্রয় সেভ করার সময় সমস্যা হয়েছে।");
+      alert("এককালীন বিক্রয় সেভ করার সময় সমস্যা হয়েছে: " + (e?.message || e));
     } finally {
       setLoading(false);
     }
@@ -531,17 +582,25 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
     if (!window.confirm('আপনি কি এই এককালীন বিক্রয় এন্ট্রি মুছে ফেলতে চান?')) return;
     setLoading(true);
     try {
-      await dbService.deleteSalesInvoiceDirectly(invoiceId, invoiceDate);
+      try {
+        await dbService.deleteSalesInvoiceDirectly(invoiceId, invoiceDate);
+      } catch (dbErr) {
+        console.warn("[MedicinePage] Direct delete notice:", dbErr);
+      }
       const newSalesArr = safeSalesInvoices.filter(x => x.invoiceId !== invoiceId);
       safeSetSalesInvoices(newSalesArr);
       if (performBlockingSync) {
-        await performBlockingSync({ salesInvoices: newSalesArr });
+        try {
+          await performBlockingSync({ salesInvoices: newSalesArr });
+        } catch (syncErr) {
+          console.warn("[MedicinePage] Blocking sync notice:", syncErr);
+        }
       }
       setShowLumpSumSalesModal(false);
       setSuccessMessage('এককালীন বিক্রয় সফলভাবে মুছে ফেলা হয়েছে।');
-    } catch (e) {
+    } catch (e: any) {
       console.error('Delete lump sale error:', e);
-      alert('এককালীন বিক্রয় মুছতে সমস্যা হয়েছে।');
+      alert('এককালীন বিক্রয় মুছতে সমস্যা হয়েছে: ' + (e?.message || e));
     } finally {
       setLoading(false);
     }
@@ -3618,12 +3677,14 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
                 <div>
                   <label className="block text-xs font-bold text-amber-300 mb-1">মোট ক্রয়ের পরিমাণ (৳) *</label>
                   <input
-                    type="number"
+                    type="text"
+                    inputMode="decimal"
                     value={lumpSumPurchaseForm.totalAmount}
                     onChange={(e) => {
                       const tot = e.target.value;
-                      const paid = lumpSumPurchaseForm.paidAmount;
-                      const due = Math.max(0, Number(tot || 0) - Number(paid || 0));
+                      const totNum = parseBengaliOrFormattedNumber(tot);
+                      const paidNum = parseBengaliOrFormattedNumber(lumpSumPurchaseForm.paidAmount);
+                      const due = Math.max(0, totNum - paidNum);
                       setLumpSumPurchaseForm(prev => ({ ...prev, totalAmount: tot, dueAmount: due }));
                     }}
                     placeholder="মোট টাকা লিখুন"
@@ -3634,12 +3695,14 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
                 <div>
                   <label className="block text-xs font-bold text-emerald-300 mb-1">পরিশোধিত টাকা (৳)</label>
                   <input
-                    type="number"
+                    type="text"
+                    inputMode="decimal"
                     value={lumpSumPurchaseForm.paidAmount}
                     onChange={(e) => {
                       const paid = e.target.value;
-                      const tot = lumpSumPurchaseForm.totalAmount;
-                      const due = Math.max(0, Number(tot || 0) - Number(paid || 0));
+                      const paidNum = parseBengaliOrFormattedNumber(paid);
+                      const totNum = parseBengaliOrFormattedNumber(lumpSumPurchaseForm.totalAmount);
+                      const due = Math.max(0, totNum - paidNum);
                       setLumpSumPurchaseForm(prev => ({ ...prev, paidAmount: paid, dueAmount: due }));
                     }}
                     placeholder="পরিশোধ লিখুন"
@@ -3795,12 +3858,14 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
                 <div>
                   <label className="block text-xs font-bold text-emerald-300 mb-1">মোট বিক্রয় রেভিনিউ (৳) *</label>
                   <input
-                    type="number"
+                    type="text"
+                    inputMode="decimal"
                     value={lumpSumSalesForm.totalAmount}
                     onChange={(e) => {
                       const tot = e.target.value;
-                      const paid = lumpSumSalesForm.paidAmount;
-                      const due = Math.max(0, Number(tot || 0) - Number(paid || 0));
+                      const totNum = parseBengaliOrFormattedNumber(tot);
+                      const paidNum = parseBengaliOrFormattedNumber(lumpSumSalesForm.paidAmount);
+                      const due = Math.max(0, totNum - paidNum);
                       setLumpSumSalesForm(prev => ({ ...prev, totalAmount: tot, dueAmount: due }));
                     }}
                     placeholder="বিক্রয়ের মোট টাকা"
@@ -3811,12 +3876,14 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
                 <div>
                   <label className="block text-xs font-bold text-sky-300 mb-1">আদায়কৃত টাকা (৳)</label>
                   <input
-                    type="number"
+                    type="text"
+                    inputMode="decimal"
                     value={lumpSumSalesForm.paidAmount}
                     onChange={(e) => {
                       const paid = e.target.value;
-                      const tot = lumpSumSalesForm.totalAmount;
-                      const due = Math.max(0, Number(tot || 0) - Number(paid || 0));
+                      const paidNum = parseBengaliOrFormattedNumber(paid);
+                      const totNum = parseBengaliOrFormattedNumber(lumpSumSalesForm.totalAmount);
+                      const due = Math.max(0, totNum - paidNum);
                       setLumpSumSalesForm(prev => ({ ...prev, paidAmount: paid, dueAmount: due }));
                     }}
                     placeholder="নগদ আদায় লিখুন"
