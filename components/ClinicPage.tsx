@@ -2428,19 +2428,24 @@ const IndoorInvoicePage: React.FC<{
         return safe.some(i => i && (i.status === 'Deleted' || i.status === 'Cancelled'));
     }, [indoorInvoices]);
 
-    // Helper to determine if a service item belongs to Clinic Fund (Hospital Revenue) vs External Doctor Fees
+    // Helper to determine if a service item belongs to Clinic Fund (Hospital Revenue) vs External Doctor/Expense Fees
     const isItemClinicFund = (it: any): boolean => {
         if (!it) return false;
+        // Explicit user checkbox has absolute priority
         if (it.isClinicFund === true) return true;
+        if (it.isClinicFund === false) return false;
+        
         const typeLower = (it.service_type || '').trim().toLowerCase();
         const providerLower = (it.service_provider || '').trim().toLowerCase();
         
-        // Doctor services (surgeon, anesthetist, doctor round/prescription fees, etc.) are doctor fees
-        const isDoc = (doctorServiceTypes || []).some(d => typeLower.includes(d.toLowerCase())) ||
-                      typeLower.includes('surgeon') || typeLower.includes('anaesthetist') ||
-                      providerLower.startsWith('dr') || providerLower.includes('doctor');
+        // Doctor services (surgeon, anesthetist, doctor fees, staff cost, medicine, etc.) are external expenses / non-clinic funds
+        const isNonClinic = (doctorServiceTypes || []).some(d => typeLower.includes(d.toLowerCase())) ||
+                            typeLower.includes('surgeon') || typeLower.includes('anaesthetist') ||
+                            typeLower.includes('doctor') || typeLower.includes('staff') ||
+                            typeLower.includes('medicine') ||
+                            providerLower.startsWith('dr') || providerLower.includes('doctor');
         
-        if (isDoc) return false;
+        if (isNonClinic) return false;
         return true;
     };
 
@@ -2749,9 +2754,11 @@ const IndoorInvoicePage: React.FC<{
 
         if (field === 'service_type') {
             const typeLower = (value || '').trim().toLowerCase();
-            const isDoc = (doctorServiceTypes || []).some(type => typeLower.includes(type.toLowerCase())) ||
-                          typeLower.includes('surgeon') || typeLower.includes('anaesthetist');
-            const isClinicFund = !isDoc;
+            const isNonClinic = (doctorServiceTypes || []).some(type => typeLower.includes(type.toLowerCase())) ||
+                                typeLower.includes('surgeon') || typeLower.includes('anaesthetist') ||
+                                typeLower.includes('doctor') || typeLower.includes('staff') ||
+                                typeLower.includes('medicine') || typeLower.includes('discharge');
+            const isClinicFund = !isNonClinic;
             const rowIdx = updatedItems.findIndex(it => it.id === id);
             if (rowIdx !== -1) updatedItems[rowIdx].isClinicFund = isClinicFund;
         }
@@ -2842,15 +2849,22 @@ const IndoorInvoicePage: React.FC<{
             let newInvoicesArr = [...(Array.isArray(indoorInvoices) ? indoorInvoices : [])];
             if (selectedInvoiceId) {
                 if (isDateChanged) {
-                    newInvoicesArr = newInvoicesArr.filter(inv => inv.daily_id !== selectedInvoiceId && (inv as any).id !== selectedInvoiceId);
+                    newInvoicesArr = newInvoicesArr.filter(inv => {
+                        if (!inv) return false;
+                        const matchId = String(inv.daily_id || (inv as any).invoice_id || (inv as any).id || '').trim();
+                        return matchId !== selectedInvoiceId && matchId !== finalInvoice.daily_id;
+                    });
                     const newInvoice = { ...finalInvoice, created_at: now, last_modified: now, edit_history: [] };
                     newInvoicesArr.push(newInvoice);
                 } else {
-                    const idx = newInvoicesArr.findIndex(inv => 
-                        (inv.daily_id && inv.daily_id === selectedInvoiceId) ||
-                        ((inv as any).id && (inv as any).id === selectedInvoiceId) ||
-                        (finalInvoice.admission_id && inv.admission_id === finalInvoice.admission_id && inv.patient_id === finalInvoice.patient_id)
-                    );
+                    const idx = newInvoicesArr.findIndex(inv => {
+                        if (!inv) return false;
+                        const matchId = String(inv.daily_id || (inv as any).invoice_id || (inv as any).id || '').trim();
+                        if (matchId && matchId === selectedInvoiceId) return true;
+                        if (finalInvoice.daily_id && matchId && matchId === finalInvoice.daily_id) return true;
+                        if (finalInvoice.admission_id && inv.admission_id === finalInvoice.admission_id && inv.patient_id === finalInvoice.patient_id) return true;
+                        return false;
+                    });
                     if (idx >= 0) {
                         const { edit_history: oldHistory, ...invoiceSnapshot } = newInvoicesArr[idx];
                         const historyEntry = { ...invoiceSnapshot, snapshot_date: now, modified_by: finalInvoice.bill_created_by || 'System' };
@@ -3277,8 +3291,26 @@ const IndoorInvoicePage: React.FC<{
         if (!inv) return;
         const safePatients = Array.isArray(patients) ? patients : [];
         const patient = safePatients.find(p => p && p.pt_id === inv.patient_id);
-        const invDailyId = inv.daily_id || (inv as any).id || `CLIN-${inv.invoice_date || new Date().toISOString().split('T')[0]}-001`;
+        const originalInvoiceId = String(inv.daily_id || (inv as any).invoice_id || (inv as any).id || '').trim();
+        const invDailyId = originalInvoiceId || `CLIN-${inv.invoice_date || new Date().toISOString().split('T')[0]}-001`;
         const existingPC = Number(inv.special_commission || 0) || Number(inv.commission_paid || 0);
+
+        // Normalize items so legacy invoices also have accurate isClinicFund booleans
+        const loadedItems = (Array.isArray(inv.items) ? inv.items : []).map(it => {
+            if (!it) return it;
+            let fund = it.isClinicFund;
+            if (typeof fund !== 'boolean') {
+                const typeLower = (it.service_type || '').trim().toLowerCase();
+                const providerLower = (it.service_provider || '').trim().toLowerCase();
+                const isNonClinic = (doctorServiceTypes || []).some(d => typeLower.includes(d.toLowerCase())) ||
+                                    typeLower.includes('surgeon') || typeLower.includes('anaesthetist') ||
+                                    typeLower.includes('doctor') || typeLower.includes('staff') ||
+                                    typeLower.includes('medicine') || typeLower.includes('discharge') ||
+                                    providerLower.startsWith('dr') || providerLower.includes('doctor');
+                fund = !isNonClinic;
+            }
+            return { ...it, isClinicFund: fund };
+        });
         
         const cleanedInv: IndoorInvoice = {
             ...emptyIndoorInvoice,
@@ -3300,7 +3332,7 @@ const IndoorInvoicePage: React.FC<{
             serviceCategory: inv.serviceCategory || 'Hospital Service',
             subCategory: inv.subCategory || '',
             ot_details: inv.ot_details || '',
-            items: Array.isArray(inv.items) ? inv.items : [],
+            items: loadedItems,
             edit_history: Array.isArray(inv.edit_history) ? inv.edit_history : [],
             total_bill: Number(inv.total_bill) || 0,
             total_discount: Number(inv.total_discount) || 0,

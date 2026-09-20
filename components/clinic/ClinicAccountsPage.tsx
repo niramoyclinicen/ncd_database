@@ -922,14 +922,16 @@ const ClinicAccountsPage: React.FC<any> = ({
             return [
                 'surgeon', 'anaesthetist', 'obstetrician', 'midwife', 
                 'doctor round fee', 'doctor prescription fee', 'discharge writing fee',
-                'assistant_1', 'assistant_2'
+                'assistant_1', 'assistant_2', 'staff', 'medicine'
             ].some(d => t.includes(d)) || p.startsWith('dr') || p.includes('doctor');
         };
 
         const incomeItems = items.filter((it: any) => {
             if (!it) return false;
+            // Explicit user toggle has absolute priority:
             if (it.isClinicFund === true) return true;
-            if (it.isClinicFund === false && isDoc(it)) return false;
+            if (it.isClinicFund === false) return false;
+            // Fallback for legacy items where isClinicFund is undefined:
             return !isDoc(it);
         });
 
