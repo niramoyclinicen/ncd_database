@@ -459,7 +459,7 @@ export const dbService = {
             // Indoor Invoices from ncd_state
             const indoor = rowData.indoorInvoices || rowData.indoor_invoices || rowData.clinicInvoices;
             if (Array.isArray(indoor) && indoor.length > 0) {
-              state.indoorInvoices = mergeEntityList(state.indoorInvoices || [], indoor, ['invoice_id', 'invoiceId', 'admission_id', 'id']);
+              state.indoorInvoices = mergeEntityList(state.indoorInvoices || [], indoor, ['daily_id', 'invoice_id', 'invoiceId', 'id']);
             }
 
             // Purchase Invoices from ncd_state (all purchases preserved)
@@ -578,7 +578,7 @@ export const dbService = {
               paid_amount: Number(r.paid_amount || r.paidAmount || 0)
             };
           }).filter((r: any) => isMultiTableDate(getRecordDate(r)));
-          state.indoorInvoices = mergeEntityList(state.indoorInvoices, parsedIndoor, ['invoice_id', 'daily_id', 'id']);
+          state.indoorInvoices = mergeEntityList(state.indoorInvoices, parsedIndoor, ['daily_id', 'invoice_id', 'id']);
         }
 
         // Merge other entity collections
@@ -812,6 +812,31 @@ export const dbService = {
       if (!Array.isArray(state.admissions)) state.admissions = [];
       if (!Array.isArray(state.appointments)) state.appointments = [];
 
+      // Normalize and deduplicate indoor invoices to ensure single-table duplicates are merged
+      const seenIndoorKeys = new Set<string>();
+      state.indoorInvoices = (Array.isArray(state.indoorInvoices) ? state.indoorInvoices : [])
+        .map((inv: any) => {
+          const invId = String(inv.daily_id || inv.invoice_id || inv.invoiceId || inv.id || '').trim();
+          return {
+            ...inv,
+            daily_id: invId || inv.daily_id,
+            admission_date: inv.admission_date || inv.invoice_date || inv.date || '',
+            invoice_date: inv.invoice_date || inv.admission_date || inv.date || '',
+            status: inv.status || 'Posted'
+          };
+        })
+        .filter((inv: any) => {
+          if (!inv) return false;
+          const key = inv.daily_id 
+            ? `id:${inv.daily_id}` 
+            : `adm:${inv.admission_id || ''}-${inv.patient_name || ''}-${inv.admission_date || ''}-${inv.total_bill || 0}-${inv.paid_amount || 0}`;
+          if (seenIndoorKeys.has(key)) {
+            return false;
+          }
+          seenIndoorKeys.add(key);
+          return true;
+        });
+
       // Normalize purchase invoices
       state.purchaseInvoices = state.purchaseInvoices.map((inv: any) => {
         const invId = String(inv.invoiceId || inv.invoice_id || inv.id || '').trim();
@@ -959,7 +984,13 @@ export const dbService = {
           const allSales = mergeEntityList(legacyBase.salesInvoices || [], appState.salesInvoices || [], ['invoice_id', 'invoiceId', 'id']);
           const allLabs = mergeEntityList(legacyBase.labInvoices || [], appState.labInvoices || [], ['invoice_id', 'invoiceId', 'id']);
           const allDues = mergeEntityList(legacyBase.dueCollections || [], appState.dueCollections || [], ['collection_id', 'collectionId', 'id']);
-          const allIndoor = mergeEntityList(legacyBase.indoorInvoices || [], appState.indoorInvoices || [], ['invoice_id', 'invoiceId', 'admission_id', 'id']);
+          // For indoor invoices, appState is authoritative so deletions, cancellations, and duplicate removals are strictly preserved
+          const allIndoor = Array.isArray(appState.indoorInvoices)
+            ? appState.indoorInvoices
+            : (legacyBase.indoorInvoices || []);
+          if (cachedLegacyState) {
+            cachedLegacyState.indoorInvoices = allIndoor;
+          }
           // For consolidated lab entries, appState is authoritative so deletions are respected and never revived
           const allConsolidated = Array.isArray(appState.consolidatedLabEntries)
             ? appState.consolidatedLabEntries

@@ -608,9 +608,11 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
             diagUpto += diagTotal;
 
             const clinicToday = indoorInvoices.filter(inv => {
-                if (!inv) return false;
+                if (!inv || inv.isDeleted) return false;
+                const st = String(inv.status || '').toLowerCase().trim();
+                if (st === 'cancelled' || st === 'returned' || st === 'deleted') return false;
                 const dateToUse = inv.admission_date || inv.invoice_date;
-                return isSameDay(dateToUse, dateStr) && inv.status !== 'Cancelled' && inv.status !== 'Returned' && inv.status !== 'Deleted';
+                return isSameDay(dateToUse, dateStr);
             }).reduce((s, inv) => {
                 const items = Array.isArray(inv.items) ? inv.items : [];
                 const fundedRevenue = items.filter(it => it && it.isClinicFund).reduce((ss, ii) => ss + (Number(ii.payable_amount) || 0), 0);
@@ -878,9 +880,11 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
             }).reduce((s, dc) => s + dc.amount_collected, 0);
 
             const prevClinic = indoorInvoices.filter(inv => {
-                if (!inv) return false;
+                if (!inv || inv.isDeleted) return false;
+                const st = String(inv.status || '').toLowerCase().trim();
+                if (st === 'cancelled' || st === 'returned' || st === 'deleted') return false;
                 const dateToUse = inv.admission_date || inv.invoice_date;
-                return isBeforeSelectedMonth(dateToUse) && inv.status !== 'Cancelled' && inv.status !== 'Returned' && inv.status !== 'Deleted';
+                return isBeforeSelectedMonth(dateToUse);
             }).reduce((acc, inv) => {
                 const items = Array.isArray(inv.items) ? inv.items : [];
                 const netIncomeForInv = items.filter((it: any) => it && it.isClinicFund).reduce((s: number, i: any) => s + (i.payable_amount || 0), 0);
@@ -899,9 +903,11 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
             const prevMedSalesOutdoor = safeSalesInvoices.filter(inv => inv && isBeforeSelectedMonth(getInvDate(inv)) && inv.status !== 'Cancelled' && inv.status !== 'Returned' && inv.status !== 'Deleted').reduce((s, i) => s + getInvNet(i), 0);
             const safeIndoorInvoices = Array.isArray(indoorInvoices) ? indoorInvoices : [];
             const prevMedSalesIndoor = safeIndoorInvoices.filter(inv => {
-                if (!inv) return false;
+                if (!inv || inv.isDeleted) return false;
+                const st = String(inv.status || '').toLowerCase().trim();
+                if (st === 'cancelled' || st === 'returned' || st === 'deleted') return false;
                 const dateToUse = inv.admission_date || inv.invoice_date || (inv as any).date || (inv as any).created_date;
-                return isBeforeSelectedMonth(dateToUse) && inv.status !== 'Cancelled' && inv.status !== 'Returned' && inv.status !== 'Deleted';
+                return isBeforeSelectedMonth(dateToUse);
             }).reduce((s, inv) => {
                 const items = Array.isArray(inv.items) ? inv.items : [];
                 return s + items.filter(it => it && (it.service_type === 'Medicine' || it.service_type === 'ঔষধ' || (it.service_type || '').toLowerCase().includes('med'))).reduce((ss, it) => ss + (Number(it.payable_amount) || Number(it.line_total) || ((Number(it.service_charge || 0)) * (Number(it.quantity || 1))) || 0), 0);
@@ -959,9 +965,11 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
         });
 
         const clinicRevenueCurrent = indoorInvoices.filter(inv => {
-            if (!inv) return false;
+            if (!inv || inv.isDeleted) return false;
+            const st = String(inv.status || '').toLowerCase().trim();
+            if (st === 'cancelled' || st === 'returned' || st === 'deleted') return false;
             const dateToUse = inv.admission_date || inv.invoice_date;
-            return isSelectedMonth(dateToUse) && inv.status !== 'Cancelled' && inv.status !== 'Returned' && inv.status !== 'Deleted';
+            return isSelectedMonth(dateToUse);
         }).reduce((acc, inv) => {
             const items = Array.isArray(inv.items) ? inv.items : [];
             const netIncomeForInv = items.filter((it: any) => it && it.isClinicFund).reduce((s: number, i: any) => s + (Number(i.payable_amount) || 0), 0);
@@ -985,9 +993,11 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
         const medSalesOutdoor = safeSalesInvoices.filter(inv => inv && isSelectedMonth(getInvDate(inv)) && inv.status !== 'Cancelled' && inv.status !== 'Returned' && inv.status !== 'Deleted').reduce((s, i) => s + getInvNet(i), 0);
         const safeIndoorInvoices = Array.isArray(indoorInvoices) ? indoorInvoices : [];
         const medSalesIndoor = safeIndoorInvoices.filter(inv => {
-            if (!inv) return false;
+            if (!inv || inv.isDeleted) return false;
+            const st = String(inv.status || '').toLowerCase().trim();
+            if (st === 'cancelled' || st === 'returned' || st === 'deleted') return false;
             const dateToUse = inv.admission_date || inv.invoice_date || (inv as any).date || (inv as any).created_date;
-            return isSelectedMonth(dateToUse) && inv.status !== 'Cancelled' && inv.status !== 'Returned' && inv.status !== 'Deleted';
+            return isSelectedMonth(dateToUse);
         }).reduce((s, inv) => {
             const items = Array.isArray(inv.items) ? inv.items : [];
             return s + items.filter(it => it && (it.service_type === 'Medicine' || it.service_type === 'ঔষধ' || (it.service_type || '').toLowerCase().includes('med'))).reduce((ss, it) => ss + (Number(it.payable_amount) || Number(it.line_total) || ((Number(it.service_charge || 0)) * (Number(it.quantity || 1))) || 0), 0);

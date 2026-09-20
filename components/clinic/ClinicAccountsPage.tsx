@@ -669,6 +669,7 @@ const ClinicAccountsPage: React.FC<any> = ({
     const [invoiceMonthSearch, setInvoiceMonthSearch] = useState<number | ''>('');
     const [invoiceYearSearch, setInvoiceYearSearch] = useState<number | ''>('');
     const [pcFilter, setPcFilter] = useState<'all' | 'with_pc' | 'without_pc'>('all');
+    const [hideCancelledInCollection, setHideCancelledInCollection] = useState(true);
 
     const navigate = useNavigate();
     const [expSearch, setExpSearch] = useState('');
@@ -1109,6 +1110,8 @@ const ClinicAccountsPage: React.FC<any> = ({
         }).reduce((sum: any, dc: any) => sum + (dc.amount_collected || 0), 0);
 
         const collectionByCategory = dayInvoices.reduce((acc, inv) => {
+            const st = String(inv.status || '').toLowerCase().trim();
+            if (st === 'cancelled' || st === 'returned' || st === 'deleted' || inv.isDeleted) return acc;
             const catData = categorizeInvoiceData(inv);
             acc.admFee += catData.admFee;
             acc.oxygen += catData.oxygen;
@@ -1125,7 +1128,8 @@ const ClinicAccountsPage: React.FC<any> = ({
         }, { admFee: 0, oxygen: 0, conservative: 0, nvd: 0, dc: 0, lscs_ot: 0, gb_ot: 0, others_ot: 0, dressing: 0, others: 0, totalPC: 0 });
 
         const totalClinicNetOnly = dayInvoices.reduce((sum: any, inv: any) => {
-             if (inv.status === 'Cancelled' || inv.status === 'Returned' || inv.status === 'Deleted') return sum;
+             const st = String(inv.status || '').toLowerCase().trim();
+             if (st === 'cancelled' || st === 'returned' || st === 'deleted' || inv.isDeleted) return sum;
              const catData = categorizeInvoiceData(inv);
              return sum + catData.clinicNet;
         }, 0);
@@ -1165,6 +1169,10 @@ const ClinicAccountsPage: React.FC<any> = ({
         const safeInvoices = Array.isArray(invoices) ? invoices : [];
         const rawFiltered = safeInvoices.filter((inv: any) => {
             if (!inv) return false;
+            if (hideCancelledInCollection) {
+                const st = String(inv.status || '').toLowerCase().trim();
+                if (st === 'cancelled' || st === 'deleted' || st === 'returned' || inv.isDeleted) return false;
+            }
             const dateToUse = inv.admission_date || inv.invoice_date;
             if (isTodayFilter) return dateToUse === selectedDate;
             if (!dateToUse || typeof dateToUse !== 'string') return false;
@@ -1175,7 +1183,11 @@ const ClinicAccountsPage: React.FC<any> = ({
         });
 
         const mapped = rawFiltered.map((inv: any) => {
-            const catData = categorizeInvoiceData(inv);
+            const st = String(inv.status || '').toLowerCase().trim();
+            const isInactive = st === 'cancelled' || st === 'deleted' || st === 'returned' || inv.isDeleted;
+            const catData = isInactive
+                ? { admFee: 0, lscs_ot: 0, gb_ot: 0, others_ot: 0, nvd: 0, dc: 0, conservative: 0, oxygen: 0, dressing: 0, others: 0, pcAmount: 0, clinicNet: 0 }
+                : categorizeInvoiceData(inv);
             return {
                 ...inv,
                 admFeeCol: catData.admFee,
@@ -1254,7 +1266,7 @@ const ClinicAccountsPage: React.FC<any> = ({
 
             return false;
         });
-    }, [invoices, isTodayFilter, selectedDate, selectedMonth, selectedYear, invoiceSearch, pcFilter, categorizeInvoiceData]);
+    }, [invoices, isTodayFilter, selectedDate, selectedMonth, selectedYear, invoiceSearch, pcFilter, hideCancelledInCollection, categorizeInvoiceData]);
 
     const indoorJournalData = useMemo(() => {
         const safeInvoices = Array.isArray(invoices) ? invoices : [];
@@ -1286,7 +1298,8 @@ const ClinicAccountsPage: React.FC<any> = ({
         });
 
         const totals = filtered.reduce((acc, inv) => {
-            if (inv.status !== 'Cancelled' && inv.status !== 'Returned' && inv.status !== 'Deleted') {
+            const st = String(inv.status || '').toLowerCase().trim();
+            if (!inv.isDeleted && st !== 'cancelled' && st !== 'returned' && st !== 'deleted') {
                 acc.totalBill += inv.total_bill || 0;
                 acc.totalPaid += inv.paid_amount || 0;
                 acc.totalDue += inv.due_bill || 0;
@@ -1298,7 +1311,8 @@ const ClinicAccountsPage: React.FC<any> = ({
     }, [invoices, invoiceSearch, invoiceDateSearch, invoiceMonthSearch, invoiceYearSearch, selectedDate]);
     const reportTotals = useMemo(() => {
         return collectionReportData.reduce((acc, curr) => {
-            if (curr.status !== 'Cancelled' && curr.status !== 'Returned' && curr.status !== 'Deleted') {
+            const st = String(curr.status || '').toLowerCase().trim();
+            if (!curr.isDeleted && st !== 'cancelled' && st !== 'returned' && st !== 'deleted') {
                 acc.admFee += curr.admFeeCol;
                 if (curr.admFeeCol > 0) acc.admFeeCount++;
 
@@ -1934,18 +1948,42 @@ const ClinicAccountsPage: React.FC<any> = ({
                     <div className="animate-fade-in space-y-6 w-full">
                         <div className="bg-slate-800 p-4 sm:p-8 rounded-3xl border border-slate-700 shadow-2xl flex flex-col gap-6 w-full">
                             <div className="flex flex-wrap justify-between items-center gap-4 border-b border-slate-700 pb-4 no-print">
-                                <div className="flex items-center gap-4">
+                                <div className="flex flex-wrap items-center gap-3">
                                     <h3 className="text-xl font-black text-white uppercase tracking-tighter">Patient Collection Report</h3>
                                     <div className="flex bg-slate-900 p-1 rounded-2xl border border-slate-700">
                                         <button onClick={() => setIsTodayFilter(true)} className={`px-4 py-2 rounded-xl text-xs font-black uppercase transition-all ${isTodayFilter && selectedDate === new Date().toISOString().split('T')[0] ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-400 hover:text-slate-200'}`}>Today's Collection</button>
                                         <button onClick={() => setIsTodayFilter(false)} className={`px-4 py-2 rounded-xl text-xs font-black uppercase transition-all ${!isTodayFilter ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:text-slate-200'}`}>Monthly View</button>
                                     </div>
-                                    {!isTodayFilter && (
-                                        <div className="flex flex-col items-start bg-emerald-900/20 border border-emerald-500/30 px-4 py-1 rounded-2xl">
-                                            <span className="text-[8px] font-black text-emerald-500 uppercase tracking-widest">Total Collection</span>
-                                            <span className="text-sm font-black text-emerald-400">৳{reportTotals.paidTotal.toLocaleString()}</span>
+                                    
+                                    {/* Top Summary Cards (Collection, PC, and Clinic Net) */}
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <div className="flex flex-col items-start bg-emerald-900/25 border border-emerald-500/40 px-3.5 py-1 rounded-2xl shadow-sm">
+                                            <span className="text-[8px] font-black text-emerald-400 uppercase tracking-widest">Total Collection</span>
+                                            <span className="text-sm font-black text-emerald-300">৳{reportTotals.paidTotal.toLocaleString()}</span>
                                         </div>
-                                    )}
+                                        <div className="flex flex-col items-start bg-rose-900/25 border border-rose-500/40 px-3.5 py-1 rounded-2xl shadow-sm">
+                                            <span className="text-[8px] font-black text-rose-400 uppercase tracking-widest">Total PC</span>
+                                            <span className="text-sm font-black text-rose-300">৳{reportTotals.pc.toLocaleString()}</span>
+                                        </div>
+                                        <div className="flex flex-col items-start bg-sky-900/35 border-2 border-sky-400/60 px-4 py-1 rounded-2xl shadow-md ring-2 ring-sky-500/20">
+                                            <span className="text-[8px] font-black text-sky-300 uppercase tracking-widest flex items-center gap-1.5">
+                                                <span className="w-1.5 h-1.5 rounded-full bg-sky-400 animate-pulse"></span>
+                                                Clinic Net (হসপিটাল নিট)
+                                            </span>
+                                            <span className="text-base font-black text-sky-200">৳{reportTotals.netClinic.toLocaleString()}</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Cancelled/Deleted toggle button */}
+                                    <button
+                                        type="button"
+                                        onClick={() => setHideCancelledInCollection(prev => !prev)}
+                                        className={`px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all border ${hideCancelledInCollection ? 'bg-slate-900 text-slate-400 hover:text-slate-200 border-slate-700' : 'bg-amber-900/30 text-amber-300 border-amber-500/50'}`}
+                                        title="বাতিল ও ডিলিট ইনভয়েস দেখানো বা লুকানোর অপশন"
+                                    >
+                                        {hideCancelledInCollection ? '👁️ বাতিল/ডিলিট লুকানো আছে' : '👁️ বাতিল/ডিলিট দেখানো হচ্ছে'}
+                                    </button>
+
                                     <div className="flex items-center gap-2 bg-slate-900/50 p-1 rounded-2xl border border-slate-700">
                                         <label className="text-[10px] font-black text-slate-500 uppercase ml-2">Custom Date:</label>
                                         <input 
@@ -2098,7 +2136,7 @@ const ClinicAccountsPage: React.FC<any> = ({
                                                         <span className="text-slate-500 font-mono">৳ 0</span>
                                                     )}
                                                 </td>
-                                                <td className="p-2 text-right font-black text-sky-300 bg-blue-900/10 border-l-2 border-blue-800/30">৳ {inv.netClinicCol.toLocaleString()}</td>
+                                                <td className="p-2 text-right font-black text-sky-300 bg-blue-900/10 border-l-2 border-blue-800/30">৳ {(inv.status === 'Cancelled' || inv.status === 'Returned' || inv.status === 'Deleted') ? '0' : inv.netClinicCol.toLocaleString()}</td>
                                                 <td className="p-2 text-center"><span className="text-[7px] font-black uppercase px-1 rounded bg-slate-900">{inv.status}</span></td>
                                                 <td className="p-2 text-center" onClick={e => e.stopPropagation()}>
                                                     <button 

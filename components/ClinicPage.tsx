@@ -2319,6 +2319,7 @@ const IndoorInvoicePage: React.FC<{
     const [selectedAdmission, setSelectedAdmission] = useState<AdmissionRecord | null>(null);
     const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
     const [applyPC, setApplyPC] = useState(false); 
+    const [invoiceSubTab, setInvoiceSubTab] = useState<'both' | 'form' | 'journal'>('both');
     const [subCategories, setSubCategories] = useState<{id: string, name: string, mainCategory?: string}[]>(() => {
         try {
             return JSON.parse(localStorage.getItem('ncd_clinic_subcategories') || '[]');
@@ -2858,7 +2859,7 @@ const IndoorInvoicePage: React.FC<{
                 await performBlockingSync({ indoorInvoices: newInvoicesArr });
             }
             setIndoorInvoices(newInvoicesArr);
-            setSuccessMessage("ইনভয়েস বাতিল (Cancelled) করা হয়েছে। একাউন্টসে কোনো প্রভাব পড়বে না।");
+            setSuccessMessage(`ইনভয়েস (${inv.daily_id || ''}) বাতিল (Cancelled) করা হয়েছে। একাউন্টসে কোনো প্রভাব পড়বে না।`);
         } catch (err) {
             console.error("Cancel error:", err);
         } finally {
@@ -2909,6 +2910,65 @@ const IndoorInvoicePage: React.FC<{
         } catch (err) {
             console.error("Restore all error:", err);
             alert("রিস্টোর করার সময় ত্রুটি হয়েছে।");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Calculate duplicates count in indoorInvoices
+    const duplicateCount = useMemo(() => {
+        const safeInvoices = Array.isArray(indoorInvoices) ? indoorInvoices : [];
+        const seen = new Set<string>();
+        let dups = 0;
+        for (const inv of safeInvoices) {
+            if (!inv) continue;
+            const key = inv.daily_id 
+                ? `id:${inv.daily_id}` 
+                : `adm:${inv.admission_id || ''}-${inv.patient_name || ''}-${inv.admission_date || ''}-${inv.total_bill || 0}-${inv.paid_amount || 0}`;
+            if (seen.has(key)) {
+                dups++;
+            } else {
+                seen.add(key);
+            }
+        }
+        return dups;
+    }, [indoorInvoices]);
+
+    const handleDeduplicateInvoices = async () => {
+        if (!window.confirm("আপনি কি অতিরিক্ত ডুপ্লিকেট ইনভয়েসগুলো মুছে ফেলে প্রতিটি ইনভয়েসের কেবল একটি সঠিক কপি রাখতে চান? এটি ক্লাউড ডাটাবেজেও সিঙ্ক হবে।")) return;
+        setLoading(true);
+        try {
+            const safeInvoices = Array.isArray(indoorInvoices) ? indoorInvoices : [];
+            const seenKeys = new Set<string>();
+            const deduplicated: IndoorInvoice[] = [];
+            let removedCount = 0;
+
+            for (const inv of safeInvoices) {
+                if (!inv) continue;
+                const key = inv.daily_id 
+                    ? `id:${inv.daily_id}` 
+                    : `adm:${inv.admission_id || ''}-${inv.patient_name || ''}-${inv.admission_date || ''}-${inv.total_bill || 0}-${inv.paid_amount || 0}`;
+                if (seenKeys.has(key)) {
+                    removedCount++;
+                    continue;
+                }
+                seenKeys.add(key);
+                deduplicated.push(inv);
+            }
+
+            if (removedCount === 0) {
+                alert("কোনো ডুপ্লিকেট ইনভয়েস পাওয়া যায়নি। আপনার ইনভয়েস ডাটা সম্পূর্ণ সঠিক রয়েছে।");
+                return;
+            }
+
+            if (performBlockingSync) {
+                await performBlockingSync({ indoorInvoices: deduplicated });
+            }
+            setIndoorInvoices(deduplicated);
+            setSuccessMessage(`সফলভাবে ${removedCount} টি অতিরিক্ত ডুপ্লিকেট ইনভয়েস মুছে একটি করে মূল কপি সংরক্ষিত হয়েছে!`);
+        } catch (err) {
+            console.error("Deduplication error:", err);
+            alert("ডুপ্লিকেট মোছার সময় একটি ত্রুটি হয়েছে।");
         } finally {
             setLoading(false);
         }
@@ -3011,11 +3071,14 @@ const IndoorInvoicePage: React.FC<{
                 const success = await performBlockingSync({ indoorInvoices: newInvoicesArr });
                 if (success) {
                     setIndoorInvoices(newInvoicesArr);
-                    setSuccessMessage("ইনভয়েস সফলভাবে ডিলিট করা হয়েছে।");
+                    setSuccessMessage(`ইনভয়েস (${inv.daily_id || ''}) সফলভাবে ডিলিট করা হয়েছে এবং একাউন্টস থেকে বাদ দেওয়া হয়েছে।`);
+                } else {
+                    setIndoorInvoices(newInvoicesArr);
+                    setSuccessMessage(`ইনভয়েস (${inv.daily_id || ''}) ডিলিট করা হয়েছে (লোকালি সংরক্ষিত)।`);
                 }
             } else {
                 setIndoorInvoices(newInvoicesArr);
-                setSuccessMessage("Invoice Marked as Deleted Locally!");
+                setSuccessMessage(`ইনভয়েস (${inv.daily_id || ''}) সফলভাবে ডিলিট করা হয়েছে।`);
             }
         } catch (err) {
             console.error("Delete error:", err);
@@ -3110,11 +3173,11 @@ const IndoorInvoicePage: React.FC<{
             <div className="space-y-2">
                 <div className="flex justify-between items-center text-slate-500 text-[11px] font-bold">
                     <span>Total Bill:</span>
-                    <span className="text-slate-300">৳{bill.toLocaleString()}</span>
+                    <span className="text-slate-300">{bill.toLocaleString()}</span>
                 </div>
                 <div className={`flex justify-between items-center ${color} text-xl font-black border-t border-slate-800/50 pt-2`}>
                     <span className="text-[10px] uppercase text-slate-500 tracking-tighter">Hospital Net</span>
-                    <span>৳{net.toLocaleString()}</span>
+                    <span>{net.toLocaleString()}</span>
                 </div>
             </div>
         </div>
@@ -3191,11 +3254,74 @@ const IndoorInvoicePage: React.FC<{
                 <SummaryCard title="Yearly Hospital Cash" bill={stats.year.totalBill} net={stats.year.hospitalNet} color="text-purple-400" />
                 <div className="bg-slate-900 p-4 rounded-xl border border-slate-800 text-center shadow-lg shadow-black/20 flex flex-col justify-center">
                     <h4 className="text-slate-500 text-[10px] uppercase font-black tracking-widest mb-1">Total Outstanding Due</h4>
-                    <p className="text-2xl font-black text-rose-500">৳{stats.totalDue.toLocaleString()}</p>
+                    <p className="text-2xl font-black text-rose-500">{stats.totalDue.toLocaleString()}</p>
                 </div>
             </div>
 
-            <div id="indoor-invoice-form-section" className="bg-slate-900 p-6 rounded-3xl border border-slate-800 shadow-2xl shadow-black/40 scroll-mt-6">
+            {/* Sub-Navigation: Switch between Form, Master Journal, or Both */}
+            <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-900/90 p-2.5 rounded-2xl border border-slate-800 shadow-xl">
+                <div className="flex flex-wrap items-center gap-2">
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setInvoiceSubTab('form');
+                            setTimeout(() => {
+                                document.getElementById('indoor-invoice-form-section')?.scrollIntoView({ behavior: 'smooth' });
+                            }, 50);
+                        }}
+                        className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer ${
+                            invoiceSubTab === 'form' 
+                                ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40 border border-blue-400' 
+                                : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                        }`}
+                    >
+                        <PlusIcon size={16} /> ➕ নতুন ইনভয়েস ফর্ম
+                    </button>
+                    <button
+                        type="button"
+                        id="master-journal-nav-btn"
+                        onClick={() => {
+                            setInvoiceSubTab('journal');
+                            setTimeout(() => {
+                                document.getElementById('master-journal-section')?.scrollIntoView({ behavior: 'smooth' });
+                            }, 50);
+                        }}
+                        className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer ${
+                            invoiceSubTab === 'journal' 
+                                ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-900/40 border border-blue-400' 
+                                : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                        }`}
+                    >
+                        <DatabaseIcon size={16} /> 📋 Master Journal: Saved Indoor Invoices ({indoorInvoices.length})
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setInvoiceSubTab('both')}
+                        className={`px-3 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer ${
+                            invoiceSubTab === 'both' 
+                                ? 'bg-slate-800 text-cyan-400 border border-cyan-500/30 font-bold' 
+                                : 'text-slate-500 hover:text-slate-300'
+                        }`}
+                    >
+                        📑 উভয় ভিউ (Both)
+                    </button>
+                </div>
+
+                <div className="flex items-center gap-2">
+                    {duplicateCount > 0 && (
+                        <button
+                            type="button"
+                            onClick={handleDeduplicateInvoices}
+                            className="px-3.5 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold flex items-center gap-1.5 animate-pulse cursor-pointer shadow"
+                        >
+                            🧹 ডুপ্লিকেট ইনভয়েস সরান ({duplicateCount})
+                        </button>
+                    )}
+                </div>
+            </div>
+
+            {(invoiceSubTab === 'both' || invoiceSubTab === 'form') && (
+                <div id="indoor-invoice-form-section" className="bg-slate-900 p-6 rounded-3xl border border-slate-800 shadow-2xl shadow-black/40 scroll-mt-6">
                 <div className="flex flex-wrap items-center justify-between gap-4 mb-6 border-b border-slate-800 pb-4">
                     <h3 className="text-xl font-black text-white uppercase tracking-tighter flex items-center gap-3">
                         <span className="p-2 bg-blue-500/20 rounded-lg text-blue-400"><DatabaseIcon size={24}/></span>
@@ -3578,41 +3704,39 @@ const IndoorInvoicePage: React.FC<{
                                 
                                 <div className="flex justify-between items-center text-slate-400 border-b border-slate-800/50 pb-4">
                                     <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Gross Amount</span> 
-                                    <span className="font-black text-slate-300 text-xl">৳{Number(formData.total_bill || 0).toLocaleString()}</span>
+                                    <span className="font-black text-slate-300 text-xl">{Number(formData.total_bill || 0).toLocaleString()}</span>
                                 </div>
                                 
                                 <div className="flex justify-between items-center text-slate-400 border-b border-slate-800/50 pb-4">
                                     <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Service Discount</span> 
-                                    <span className="font-black text-rose-400/60 text-lg">৳{Number(formData.total_discount || 0).toLocaleString()}</span>
+                                    <span className="font-black text-rose-400/60 text-lg">{Number(formData.total_discount || 0).toLocaleString()}</span>
                                 </div>
 
                                 <div className="flex justify-between items-center text-amber-400 bg-amber-900/5 p-4 rounded-xl border border-amber-500/10 transition-all focus-within:border-amber-500/30">
                                     <span className="text-[10px] font-black uppercase tracking-widest">Special Discount</span> 
                                     <div className="relative">
-                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-amber-600 font-bold">৳</span>
-                                        <input type="number" name="special_discount_amount" value={formData.special_discount_amount} onChange={handleInputChange} onFocus={e=>e.target.select()} className="bg-slate-950 text-amber-400 w-36 pl-8 pr-3 py-2 text-right font-black border border-slate-800 rounded-lg focus:ring-2 focus:ring-amber-500 outline-none text-lg shadow-inner"/>
+                                        <input type="number" name="special_discount_amount" value={formData.special_discount_amount} onChange={handleInputChange} onFocus={e=>e.target.select()} className="bg-slate-950 text-amber-400 w-36 px-3 py-2 text-right font-black border border-slate-800 rounded-lg focus:ring-2 focus:ring-amber-500 outline-none text-lg shadow-inner"/>
                                     </div>
                                 </div>
 
                                 <div className="bg-gradient-to-r from-blue-600/10 to-indigo-600/10 p-5 rounded-2xl border border-blue-500/20 my-6 shadow-inner">
                                     <div className="flex justify-between items-center">
                                         <span className="text-xs font-black uppercase tracking-[0.2em] text-blue-300">Net Payable Amount</span> 
-                                        <span className="text-4xl font-black drop-shadow-lg text-white">৳{Number(formData.net_payable || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                        <span className="text-4xl font-black drop-shadow-lg text-white">{Number(formData.net_payable || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                                     </div>
                                 </div>
 
                                 <div className="flex justify-between items-center text-emerald-400 bg-emerald-900/5 p-4 rounded-xl border border-emerald-500/10 transition-all focus-within:border-emerald-500/30">
                                     <span className="text-[10px] font-black uppercase tracking-widest">Cash Received</span> 
                                     <div className="relative">
-                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-600 font-bold">৳</span>
-                                        <input type="number" name="paid_amount" value={formData.paid_amount} onChange={handleInputChange} onFocus={e=>e.target.select()} className="bg-slate-950 text-emerald-400 w-36 pl-8 pr-3 py-2 text-right font-black border border-slate-800 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none text-lg shadow-inner"/>
+                                        <input type="number" name="paid_amount" value={formData.paid_amount} onChange={handleInputChange} onFocus={e=>e.target.select()} className="bg-slate-950 text-emerald-400 w-36 px-3 py-2 text-right font-black border border-slate-800 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none text-lg shadow-inner"/>
                                     </div>
                                 </div>
 
                                 <div className="flex justify-between items-center pt-4 px-2">
                                     <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Balance Due</span> 
                                     <span className={`text-3xl font-black ${(formData.due_bill || 0) > 0 ? 'text-rose-500 animate-pulse' : 'text-emerald-500'}`}>
-                                        ৳{Number(formData.due_bill || 0).toLocaleString()}
+                                        {Number(formData.due_bill || 0).toLocaleString()}
                                     </span>
                                 </div>
                             </div>
@@ -3666,14 +3790,14 @@ const IndoorInvoicePage: React.FC<{
                                         </div>
                                         <div className="grid grid-cols-3 gap-4 text-[11px] text-gray-700">
                                             <div><span className="text-gray-400 font-bold uppercase">Invoice Date:</span> <span className="font-black">{snapshot.invoice_date}</span></div>
-                                            <div><span className="text-gray-400 font-bold uppercase">Total Bill:</span> <span className="font-black">৳{Number(snapshot.total_bill || 0).toFixed(2)}</span></div>
-                                            <div><span className="text-gray-400 font-bold uppercase">Paid:</span> <span className="font-black">৳{Number(snapshot.paid_amount || 0).toFixed(2)}</span></div>
+                                            <div><span className="text-gray-400 font-bold uppercase">Total Bill:</span> <span className="font-black">{Number(snapshot.total_bill || 0).toFixed(2)}</span></div>
+                                            <div><span className="text-gray-400 font-bold uppercase">Paid:</span> <span className="font-black">{Number(snapshot.paid_amount || 0).toFixed(2)}</span></div>
                                             <div className="col-span-3 bg-white p-2 rounded border border-gray-100">
                                                 <span className="text-gray-400 font-bold uppercase block mb-1">Items:</span> 
                                                 <div className="flex flex-wrap gap-2">
                                                     {(Array.isArray(snapshot.items) ? snapshot.items : []).map((it: any, i: number) => it && (
                                                         <span key={i} className="bg-gray-100 px-2 py-0.5 rounded text-[10px] font-bold text-gray-600 border border-gray-200">
-                                                            {it.service_type || 'Unknown'} (৳{Number(it.payable_amount || 0).toFixed(2)})
+                                                            {it.service_type || 'Unknown'} ({Number(it.payable_amount || 0).toFixed(2)})
                                                         </span>
                                                     ))}
                                                 </div>
@@ -3688,16 +3812,38 @@ const IndoorInvoicePage: React.FC<{
                                     </h4>
                                     <div className="grid grid-cols-3 gap-4 text-[11px] text-gray-800">
                                         <div><span className="text-emerald-600/50 font-bold uppercase">Invoice Date:</span> <span className="font-black">{historyInvoice.invoice_date}</span></div>
-                                        <div><span className="text-emerald-600/50 font-bold uppercase">Total Bill:</span> <span className="font-black">৳{Number(historyInvoice.total_bill || 0).toFixed(2)}</span></div>
-                                        <div><span className="text-emerald-600/50 font-bold uppercase">Paid:</span> <span className="font-black">৳{Number(historyInvoice.paid_amount || 0).toFixed(2)}</span></div>
+                                        <div><span className="text-emerald-600/50 font-bold uppercase">Total Bill:</span> <span className="font-black">{Number(historyInvoice.total_bill || 0).toFixed(2)}</span></div>
+                                        <div><span className="text-emerald-600/50 font-bold uppercase">Paid:</span> <span className="font-black">{Number(historyInvoice.paid_amount || 0).toFixed(2)}</span></div>
                                     </div>
                                 </div>
                             </div>
                         </div>
                     </div>
                 )}
+                </div>
+            )}
                 
-                <div className="mt-8">
+            {(invoiceSubTab === 'both' || invoiceSubTab === 'journal') && (
+                <div id="master-journal-section" className="bg-white p-6 rounded-3xl border border-gray-200 shadow-xl scroll-mt-6">
+                    {duplicateCount > 0 && (
+                        <div className="mb-4 bg-purple-500/10 border border-purple-500/30 rounded-xl p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm">
+                            <div className="flex items-center gap-2.5">
+                                <AlertCircle className="w-5 h-5 text-purple-600 shrink-0" />
+                                <div>
+                                    <div className="text-xs font-black text-purple-900">ডুপ্লিকেট ইনভয়েস চিহ্নিত হয়েছে ({duplicateCount} টি অতিরিক্ত কপি)</div>
+                                    <div className="text-[11px] text-purple-700 font-medium">অতীতের সিঙ্গেল টেবিল (ncd_state) এ থাকা ট্রিপল বা ডুপ্লিকেট ইনভয়েসগুলো থেকে অতিরিক্ত কপি মুছে একটি সঠিক কপি রাখা হবে।</div>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={handleDeduplicateInvoices}
+                                disabled={loading}
+                                className="inline-flex items-center gap-1.5 bg-purple-600 hover:bg-purple-700 text-white px-3.5 py-1.5 rounded-lg text-xs font-bold shadow transition-all shrink-0 cursor-pointer"
+                            >
+                                🧹 ডুপ্লিকেট মুছে ১টি রাখুন (Clean Duplicates)
+                            </button>
+                        </div>
+                    )}
                     {hasDeletedInvoices && (
                         <div className="mb-4 bg-amber-500/10 border border-amber-500/30 rounded-xl p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm">
                             <div className="flex items-center gap-2.5">
@@ -3715,10 +3861,38 @@ const IndoorInvoicePage: React.FC<{
                             </button>
                         </div>
                     )}
-                    <div className="flex flex-col md:flex-row items-start md:items-center gap-4 mb-4">
-                        <h3 className="text-gray-500 font-black uppercase text-xs tracking-widest whitespace-nowrap flex items-center gap-2">
-                            <DatabaseIcon size={14} className="text-blue-600" /> Master Journal: Saved Indoor Invoices
-                        </h3>
+                    <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-4 border-b border-gray-100 pb-4">
+                        <div className="flex items-center gap-3">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    if (invoiceSubTab === 'journal') {
+                                        setInvoiceSubTab('both');
+                                    }
+                                    document.getElementById('master-journal-section')?.scrollIntoView({ behavior: 'smooth' });
+                                }}
+                                className="text-gray-800 hover:text-blue-600 font-black uppercase text-sm tracking-wider whitespace-nowrap flex items-center gap-2 transition-colors cursor-pointer"
+                            >
+                                <DatabaseIcon size={18} className="text-blue-600" /> Master Journal: Saved Indoor Invoices
+                                <span className="bg-blue-100 text-blue-800 text-xs px-2.5 py-0.5 rounded-full font-bold">
+                                    {indoorInvoices.length}
+                                </span>
+                            </button>
+                            {invoiceSubTab === 'journal' && (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setInvoiceSubTab('form');
+                                        setTimeout(() => {
+                                            document.getElementById('indoor-invoice-form-section')?.scrollIntoView({ behavior: 'smooth' });
+                                        }, 50);
+                                    }}
+                                    className="text-xs text-blue-600 hover:text-blue-800 font-bold underline flex items-center gap-1 cursor-pointer ml-2"
+                                >
+                                    ➕ নতুন ইনভয়েস ফর্মে যান
+                                </button>
+                            )}
+                        </div>
                         <div className="flex flex-wrap gap-2">
                             <div className="relative w-48">
                                 <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
@@ -3763,10 +3937,10 @@ const IndoorInvoicePage: React.FC<{
                                     </tr>
                                     <tr className="bg-blue-50/50 text-[10px] border-t border-gray-200">
                                         <th colSpan={4} className="p-2 text-right text-gray-500 font-black uppercase tracking-widest">Filtered Totals:</th>
-                                        <th className="p-2 text-right text-blue-800 font-black">৳{tableTotals.total.toLocaleString(undefined, {minimumFractionDigits: 2})}</th>
-                                        <th className="p-2 text-right text-emerald-700 font-black">৳{tableTotals.paid.toLocaleString(undefined, {minimumFractionDigits: 2})}</th>
-                                        <th className="p-2 text-right text-red-700 font-black">৳{tableTotals.due.toLocaleString(undefined, {minimumFractionDigits: 2})}</th>
-                                        <th className="p-2 text-right text-blue-900 font-black">৳{tableTotals.net.toLocaleString(undefined, {minimumFractionDigits: 2})}</th>
+                                        <th className="p-2 text-right text-blue-800 font-black">{tableTotals.total.toLocaleString(undefined, {minimumFractionDigits: 2})}</th>
+                                        <th className="p-2 text-right text-emerald-700 font-black">{tableTotals.paid.toLocaleString(undefined, {minimumFractionDigits: 2})}</th>
+                                        <th className="p-2 text-right text-red-700 font-black">{tableTotals.due.toLocaleString(undefined, {minimumFractionDigits: 2})}</th>
+                                        <th className="p-2 text-right text-blue-900 font-black">{tableTotals.net.toLocaleString(undefined, {minimumFractionDigits: 2})}</th>
                                         <th colSpan={2}></th>
                                     </tr>
                                 </thead>
@@ -3802,19 +3976,19 @@ const IndoorInvoicePage: React.FC<{
                                                 })()}
                                             </div>
                                         </td>
-                                        <td className="p-3 text-right font-bold font-mono">৳{Number(inv.total_bill || 0).toFixed(2)}</td>
-                                        <td className="p-3 text-right text-emerald-600 font-black font-mono">৳{Number(inv.paid_amount || 0).toFixed(2)}</td>
-                                        <td className="p-3 text-right text-rose-600 font-black font-mono">৳{Number(inv.due_bill || 0).toFixed(2)}</td>
+                                        <td className="p-3 text-right font-bold font-mono">{Number(inv.total_bill || 0).toFixed(2)}</td>
+                                        <td className="p-3 text-right text-emerald-600 font-black font-mono">{Number(inv.paid_amount || 0).toFixed(2)}</td>
+                                        <td className="p-3 text-right text-rose-600 font-black font-mono">{Number(inv.due_bill || 0).toFixed(2)}</td>
                                         <td className="p-3 text-right text-sky-600 font-bold font-mono">
                                             {(() => {
-                                                if (inv.status === 'Cancelled' || inv.status === 'Deleted') return '৳0.00';
+                                                if (inv.status === 'Cancelled' || inv.status === 'Deleted') return '0.00';
                                                 const items = Array.isArray(inv.items) ? inv.items : [];
                                                 const nonFundedCost = items
                                                     .filter(it => it && !it.isClinicFund)
                                                     .reduce((s, it) => s + (it.payable_amount || 0), 0);
                                                 const pcAmount = (inv.special_commission || 0) + (inv.commission_paid || 0);
                                                 const net = (inv.paid_amount || 0) - nonFundedCost - pcAmount;
-                                                return `৳${(inv.status === 'Returned' ? -net : net).toFixed(2)}`;
+                                                return (inv.status === 'Returned' ? -net : net).toFixed(2);
                                             })()}
                                         </td>
                                         <td className="p-3 text-center"><span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase ${inv.status==='Returned'?'bg-rose-600 text-white':(inv.status==='Cancelled'||inv.status==='Deleted')?'bg-slate-700 text-slate-300':'bg-blue-600 text-white'}`}>{inv.status}</span></td>
@@ -3853,7 +4027,7 @@ const IndoorInvoicePage: React.FC<{
                         </div>
                     </div>
                 </div>
-            </div>
+            )}
             {confirmModal.isOpen && (
                 <div className="fixed inset-0 bg-black/90 z-[10000] flex items-center justify-center p-4 backdrop-blur-2xl animate-in fade-in duration-300">
                     <div className="bg-slate-900 border border-slate-700 w-full max-w-sm rounded-[2.5rem] p-10 shadow-2xl shadow-black/50 relative overflow-hidden group">
@@ -4078,19 +4252,36 @@ const BedManagementPage: React.FC<{ admissions: AdmissionRecord[]; setAdmissions
         { id: 'cabin', name: 'ক্যাবিন', beds: ['Cabin-01', 'Cabin-02', 'Cabin-03'] }
     ];
 
+    const allBeds = useMemo(() => {
+        return wards.flatMap(w => w.beds);
+    }, [wards]);
+
     const getBedStatus = (bedId: string) => {
         const safeAdmissions = Array.isArray(admissions) ? admissions : [];
         return safeAdmissions.find(a => a && a.bed_no === bedId && !a.discharge_date);
     };
 
+    const occupiedCount = useMemo(() => {
+        return allBeds.filter(b => !!getBedStatus(b)).length;
+    }, [allBeds, admissions]);
+
+    const availableCount = allBeds.length - occupiedCount;
+
     const handleFreeBed = async (bedId: string) => {
         const admission = getBedStatus(bedId);
         if (!admission) return;
         
-        if (window.confirm(`Are you sure you want to manually FREE bed ${bedId}? This will remove the bed assignment from ${admission.patient_name}.`)) {
+        const todayStr = new Date().toISOString().split('T')[0];
+        const confirmMsg = `আপনি কি নিশ্চিত যে ${bedId} বেডটি রিলিজ (খালি) করতে চান?\n\nরোগীর নাম: ${admission.patient_name || 'N/A'}\nভর্তি আইডি: ${admission.admission_id || 'N/A'}\nভর্তি তারিখ: ${admission.admission_date || 'N/A'}\n\nরিলিজ করলে বেডটি তাৎক্ষণিক 'Available' (খালি) হয়ে যাবে এবং ডাটাবেজে আপডেট হয়ে যাবে।`;
+        
+        if (window.confirm(confirmMsg)) {
             const newAdmissions = admissions.map(adm => {
                 if (adm.admission_id === admission.admission_id) {
-                    return { ...adm, bed_no: '' };
+                    return { 
+                        ...adm, 
+                        bed_no: '',
+                        discharge_date: adm.discharge_date || todayStr 
+                    };
                 }
                 return adm;
             });
@@ -4099,11 +4290,11 @@ const BedManagementPage: React.FC<{ admissions: AdmissionRecord[]; setAdmissions
                 const success = await performBlockingSync({ admissions: newAdmissions });
                 if (success) {
                     setAdmissions(newAdmissions);
-                    setSuccessMessage(`Bed ${bedId} has been freed to online cloud.`);
+                    setSuccessMessage(`বেড ${bedId} সফলভাবে রিলিজ (খালি) করা হয়েছে।`);
                 }
             } else {
                 setAdmissions(newAdmissions);
-                setSuccessMessage(`Bed ${bedId} has been freed.`);
+                setSuccessMessage(`বেড ${bedId} সফলভাবে রিলিজ (খালি) করা হয়েছে।`);
             }
         }
     };
@@ -4130,60 +4321,125 @@ const BedManagementPage: React.FC<{ admissions: AdmissionRecord[]; setAdmissions
     };
 
     return (
-        <div className="bg-slate-950 p-8 rounded-[2.5rem] border border-slate-800 shadow-2xl">
-            <div className="flex justify-between items-center mb-8 border-slate-800 pb-6 border-b">
-                <h3 className="text-2xl font-black text-white uppercase tracking-tighter flex items-center gap-3">
-                    <Armchair className="text-blue-400 drop-shadow-[0_0_8px_rgba(59,130,246,0.4)]" size={28} /> Bed Status Dashboard
-                </h3>
-                <button onClick={handlePrintBedMap} className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center gap-2 border border-slate-700 shadow-lg">
-                    <PrinterIcon size={14}/> Print Bed Map
-                </button>
+        <div className="bg-slate-950 p-6 sm:p-8 rounded-[2.5rem] border border-slate-800 shadow-2xl space-y-8">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-slate-800 pb-6 border-b">
+                <div>
+                    <h3 className="text-2xl font-black text-white uppercase tracking-tighter flex items-center gap-3">
+                        <Armchair className="text-blue-400 drop-shadow-[0_0_8px_rgba(59,130,246,0.4)]" size={28} /> Bed Status Dashboard
+                    </h3>
+                    <p className="text-xs text-slate-400 font-medium mt-1">ক্লিনিকের সকল বেড ও কেবিনের লাইভ অকুপেন্সি এবং তাৎক্ষণিক রিলিজ কন্ট্রোল</p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                    {/* Summary Badges */}
+                    <div className="flex items-center gap-2 bg-slate-900 px-3.5 py-2 rounded-xl border border-slate-800">
+                        <span className="text-[11px] text-slate-400 font-bold uppercase">মোট বেড:</span>
+                        <span className="text-sm font-black text-white">{allBeds.length}</span>
+                    </div>
+                    <div className="flex items-center gap-2 bg-rose-950/40 px-3.5 py-2 rounded-xl border border-rose-500/30">
+                        <span className="text-[11px] text-rose-300 font-bold uppercase">ভর্তি আছে:</span>
+                        <span className="text-sm font-black text-rose-400">{occupiedCount}</span>
+                    </div>
+                    <div className="flex items-center gap-2 bg-emerald-950/40 px-3.5 py-2 rounded-xl border border-emerald-500/30">
+                        <span className="text-[11px] text-emerald-300 font-bold uppercase">খালি বেড:</span>
+                        <span className="text-sm font-black text-emerald-400">{availableCount}</span>
+                    </div>
+                    <button onClick={handlePrintBedMap} className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-4 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center gap-2 border border-slate-700 shadow-lg cursor-pointer ml-auto md:ml-0">
+                        <PrinterIcon size={14}/> Print Bed Map
+                    </button>
+                </div>
             </div>
+
+            {/* Instruction Guide Banner */}
+            <div className="bg-blue-950/40 border border-blue-600/30 rounded-2xl p-4 text-xs text-slate-300 shadow-lg">
+                <div className="flex items-start gap-3">
+                    <AlertCircle className="w-5 h-5 text-blue-400 shrink-0 mt-0.5" />
+                    <div className="space-y-1">
+                        <div className="text-sm font-black text-blue-200">বেড রিলিজের নিয়মাবলি (Bed Release System):</div>
+                        <div className="text-slate-300 leading-relaxed">
+                            <span className="font-bold text-amber-300">১. স্বয়ংক্রিয় রিলিজ:</span> রোগী ছুটি দেওয়ার সময় <b>"INDOOR INVOICE"</b> এ <b>"Discharge Date"</b> দিয়ে ইনভয়েস সেভ করলেই বেডটি অটোমেটিক রিলিজ হয়ে যায়।<br/>
+                            <span className="font-bold text-emerald-300">২. ম্যানুয়াল রিলিজ:</span> অথবা নিচের অকুপাইড (লাল রঙের) যেকোনো বেড থেকে সরাসরি <b>"🔓 বেড রিলিজ করুন"</b> বাটনে ক্লিক করে তাৎক্ষণিক বেড খালি করা যায়।
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div className="space-y-12">
                 {(Array.isArray(wards) ? wards : []).map(ward => ward && (
                     <div key={ward.id} className="animate-fade-in">
                         <div className="flex items-center gap-4 mb-6">
-                            <h4 className="text-xs font-black text-slate-500 uppercase tracking-[0.3em]">{ward.name}</h4>
+                            <h4 className="text-xs font-black text-slate-400 uppercase tracking-[0.3em] flex items-center gap-2">
+                                <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                                {ward.name}
+                            </h4>
                             <div className="h-px bg-slate-800 flex-1"></div>
                         </div>
-                        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
                             {(Array.isArray(ward.beds) ? ward.beds : []).map(bedId => {
                                 const admission = getBedStatus(bedId);
                                 const isOccupied = !!admission;
                                 return (
-                                    <div key={bedId} className={`relative p-5 rounded-[2rem] border transition-all duration-500 flex flex-col justify-between h-44 shadow-2xl overflow-hidden group ${isOccupied ? 'bg-gradient-to-br from-rose-600 to-rose-900 border-rose-500/30 shadow-rose-950/50' : 'bg-gradient-to-br from-emerald-500 to-emerald-800 border-emerald-400/30 shadow-emerald-950/50'}`}>
+                                    <div key={bedId} className={`relative p-5 rounded-[2rem] border transition-all duration-500 flex flex-col justify-between min-h-[220px] shadow-2xl overflow-hidden group ${isOccupied ? 'bg-gradient-to-br from-rose-700 via-rose-800 to-rose-950 border-rose-500/40 shadow-rose-950/60 ring-1 ring-rose-500/20' : 'bg-gradient-to-br from-emerald-600 via-emerald-700 to-emerald-900 border-emerald-400/40 shadow-emerald-950/60 ring-1 ring-emerald-400/20'}`}>
                                         {/* Glossy Overlay */}
                                         <div className="absolute inset-0 bg-gradient-to-tr from-white/10 to-transparent pointer-events-none opacity-50 group-hover:opacity-80 transition-opacity"></div>
                                         <div className="absolute -top-24 -right-24 w-48 h-48 bg-white/5 rounded-full blur-3xl group-hover:bg-white/10 transition-all duration-700"></div>
                                         
                                         <div className="flex justify-between items-start relative z-10">
                                             <div className="flex flex-col">
-                                                <span className="text-2xl font-black text-white drop-shadow-lg tracking-tighter">{bedId}</span>
-                                                <span className="text-[8px] text-white/50 font-black uppercase tracking-widest">{ward.name}</span>
+                                                <span className="text-xl font-black text-white drop-shadow-lg tracking-tighter">{bedId}</span>
+                                                <span className="text-[9px] text-white/70 font-black uppercase tracking-widest">{ward.name}</span>
                                             </div>
                                             {isOccupied ? (
-                                                <button onClick={() => handleFreeBed(bedId)} className="p-2.5 bg-black/20 hover:bg-rose-500 text-white rounded-2xl transition-all shadow-lg backdrop-blur-md border border-white/10 group-hover:scale-110" title="Free Bed Manually">
-                                                    <TrashIcon size={16}/>
+                                                <button 
+                                                    onClick={() => handleFreeBed(bedId)} 
+                                                    className="p-2 bg-black/30 hover:bg-rose-600 text-white rounded-xl transition-all shadow-lg backdrop-blur-md border border-white/20 hover:scale-110 cursor-pointer" 
+                                                    title="ম্যানুয়ালি বেড খালি করুন"
+                                                >
+                                                    <TrashIcon size={14}/>
                                                 </button>
-                                            ) : <Armchair className="w-8 h-8 text-white/20 drop-shadow-sm group-hover:text-white/40 transition-colors"/>}
+                                            ) : (
+                                                <Armchair className="w-7 h-7 text-white/30 drop-shadow-sm group-hover:text-white/60 transition-colors"/>
+                                            )}
                                         </div>
                                         
                                         {isOccupied ? (
-                                            <div className="mt-2 relative z-10">
-                                                <div className="text-sm text-white font-black truncate drop-shadow-md mb-0.5" title={admission.patient_name}>{admission.patient_name}</div>
-                                                <div className="text-[10px] text-rose-200 font-bold truncate tracking-wider uppercase opacity-80">ID: {admission.admission_id}</div>
-                                                <div className="mt-3 flex items-center gap-2">
-                                                    <div className="h-1.5 w-1.5 rounded-full bg-rose-400 animate-pulse"></div>
-                                                    <span className="text-[9px] text-white font-black bg-white/10 px-2.5 py-1 rounded-lg border border-white/10 uppercase tracking-widest">Occupied</span>
+                                            <div className="mt-2 relative z-10 flex flex-col justify-between flex-1">
+                                                <div>
+                                                    <div className="text-base text-white font-black truncate drop-shadow-md" title={admission.patient_name}>
+                                                        {admission.patient_name}
+                                                    </div>
+                                                    <div className="text-[11px] text-rose-200 font-bold truncate tracking-wider uppercase mt-0.5">
+                                                        ID: {admission.admission_id}
+                                                    </div>
+                                                    {admission.doctor_name && (
+                                                        <div className="text-[10px] text-rose-200/80 font-medium truncate mt-0.5">
+                                                            Dr: {admission.doctor_name}
+                                                        </div>
+                                                    )}
+                                                    <div className="mt-2 flex items-center gap-2">
+                                                        <div className="h-2 w-2 rounded-full bg-rose-400 animate-pulse"></div>
+                                                        <span className="text-[9px] text-white font-black bg-black/30 px-2.5 py-0.5 rounded-lg border border-white/10 uppercase tracking-widest">Occupied</span>
+                                                    </div>
                                                 </div>
+
+                                                {/* Prominent Manual Bed Release Button */}
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleFreeBed(bedId)}
+                                                    className="w-full mt-3 py-2 px-3 bg-black/40 hover:bg-rose-600 active:scale-95 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 border border-white/20 transition-all shadow-md cursor-pointer hover:shadow-lg backdrop-blur-sm"
+                                                >
+                                                    🔓 বেড রিলিজ করুন
+                                                </button>
                                             </div>
                                         ) : (
                                             <div className="mt-auto relative z-10">
                                                 <div className="flex items-center gap-2 mb-2">
-                                                    <div className="h-1.5 w-1.5 rounded-full bg-emerald-400"></div>
-                                                    <span className="text-[9px] text-emerald-100 font-black uppercase tracking-widest opacity-60">Ready for use</span>
+                                                    <div className="h-2 w-2 rounded-full bg-emerald-400"></div>
+                                                    <span className="text-[10px] text-emerald-100 font-black uppercase tracking-widest opacity-80">Ready for use</span>
                                                 </div>
-                                                <div className="text-[10px] text-white font-black bg-white/10 px-4 py-1.5 rounded-xl border border-white/10 uppercase tracking-[0.2em] shadow-inner text-center backdrop-blur-sm group-hover:bg-white/20 transition-all">Available</div>
+                                                <div className="text-xs text-white font-black bg-white/15 px-4 py-2 rounded-xl border border-white/20 uppercase tracking-[0.2em] shadow-inner text-center backdrop-blur-sm group-hover:bg-white/25 transition-all">
+                                                    Available (খালি)
+                                                </div>
                                             </div>
                                         )}
                                     </div>
