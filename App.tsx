@@ -13,6 +13,8 @@ import DoctorPortal from './components/DoctorPortal';
 import DepartmentLogin from './components/DepartmentLogin';
 import LabLogin from './components/LabLogin';
 import AdminSettings from './components/AdminSettings';
+import { ClinicLogo } from './components/ClinicLogo';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { useAppData } from './useAppData';
 
 const SidebarLayout = ({ children, onLogout }: { children: React.ReactNode, onLogout: () => void }) => {
@@ -53,9 +55,7 @@ const SidebarLayout = ({ children, onLogout }: { children: React.ReactNode, onLo
       >
         <div className="p-5 flex items-center justify-between border-b border-slate-800">
           <div className="flex items-center gap-3 cursor-pointer" onClick={() => handleNavigate('/')}>
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-sky-500 to-cyan-400 flex items-center justify-center shadow-lg shadow-sky-500/20">
-              <Activity className="text-white" size={20} />
-            </div>
+            <ClinicLogo size="sm" showAura={false} />
             <div>
               <h1 className="text-base font-bold bg-clip-text text-transparent bg-gradient-to-r from-sky-400 to-cyan-300">
                 Niramoy Clinic
@@ -317,18 +317,20 @@ const AppContent = () => {
             onLoginSuccess={handleLoginSuccess}
             onBack={() => navigate('/')}
           >
-            <ClinicPage 
-              onBack={() => navigate('/')}
-              patients={data.patients} setPatients={data.setPatients}
-              doctors={data.doctors} setDoctors={data.setDoctors}
-              referrars={data.referrars} setReferrars={data.setReferrars}
-              employees={data.employees}
-              medicines={data.medicines} setMedicines={data.setMedicines}
-              admissions={data.admissions} setAdmissions={data.setAdmissions}
-              indoorInvoices={data.indoorInvoices} setIndoorInvoices={data.setIndoorInvoices}
-              detailedExpenses={data.detailedExpenses}
-              performBlockingSync={data.performBlockingSync}
-            />
+            <ErrorBoundary fallbackTitle="ক্লিনিক ম্যানেজমেন্টে ত্রুটি হয়েছে" onBack={() => navigate('/')}>
+              <ClinicPage 
+                onBack={() => navigate('/')}
+                patients={data.patients || []} setPatients={data.setPatients}
+                doctors={data.doctors || []} setDoctors={data.setDoctors}
+                referrars={data.referrars || []} setReferrars={data.setReferrars}
+                employees={data.employees || []}
+                medicines={data.medicines || []} setMedicines={data.setMedicines}
+                admissions={data.admissions || []} setAdmissions={data.setAdmissions}
+                indoorInvoices={data.indoorInvoices || []} setIndoorInvoices={data.setIndoorInvoices}
+                detailedExpenses={data.detailedExpenses || {}}
+                performBlockingSync={data.performBlockingSync}
+              />
+            </ErrorBoundary>
           </RequireAuth>
         } />
 

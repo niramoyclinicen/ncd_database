@@ -6,6 +6,7 @@ import {
   TrendingUpIcon
 } from './Icons';
 import { ViewState } from '../types';
+import { ClinicLogo } from './ClinicLogo';
 
 interface DashboardProps {
   onLogout: () => void;
@@ -90,12 +91,13 @@ const MedicalHexLogo = ({ isMobile = false }: { isMobile?: boolean }) => {
 const MiniMedicalHexLogo = () => {
   const hexClip = 'polygon(25% 5%, 75% 5%, 100% 50%, 75% 95%, 25% 95%, 0% 50%)';
   return (
-    <div className="relative flex items-center justify-center shrink-0 w-8 h-8 group">
+    <div className="relative flex items-center justify-center shrink-0 w-9 h-9 group">
+      <div className="absolute -inset-1 rounded-full bg-cyan-400/30 blur-sm pointer-events-none animate-pulse" />
       <div 
-        className="w-8 h-8 bg-gradient-to-br from-blue-600 via-cyan-500 to-teal-500 shadow-[0_0_12px_rgba(34,211,238,0.85)] flex items-center justify-center border border-white/50 animate-pulse"
+        className="w-9 h-9 bg-gradient-to-br from-blue-600 via-cyan-500 to-teal-400 shadow-[0_0_16px_rgba(34,211,238,0.9)] flex items-center justify-center border border-white/60 transition-transform duration-300 group-active:scale-95"
         style={{ clipPath: hexClip }}
       >
-        <span className="text-[10.5px] font-black text-white tracking-tight font-sans drop-shadow-sm">NcD</span>
+        <span className="text-[11px] font-black text-white tracking-tight font-sans drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">NcD</span>
       </div>
     </div>
   );
@@ -214,20 +216,15 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onNavigate }) => {
           <BackgroundRose />
       </div>
 
-      {/* DESKTOP & TABLET VIEW - Single Cohesive Screen (Zero Scrolling), All Elements Visible at Once */}
-      <div className="hidden md:flex flex-1 flex-col w-full max-w-6xl mx-auto px-4 md:px-6 pt-5 md:pt-7 pb-3 md:pb-4 z-10 h-full max-h-full overflow-hidden justify-start lg:justify-between">
+      {/* DESKTOP & TABLET VIEW - Responsive Single Cohesive Screen, All Elements Visible at Once */}
+      <div className="hidden md:flex flex-1 flex-col w-full max-w-6xl mx-auto px-4 md:px-6 pt-5 md:pt-6 pb-3 md:pb-4 z-10 h-full max-h-full overflow-y-auto md:overflow-y-visible lg:overflow-hidden justify-between">
           
           {/* HEADER - Compact horizontal row with 3-line stacked info, comfortably padded from top */}
           <header className="flex-none flex flex-row items-center justify-between gap-3 md:gap-4 lg:gap-6 w-full animate-fade-in-down pt-1 pb-1">
               <div className="flex-shrink-0 hover:scale-105 transition-transform duration-500 origin-left flex items-center">
-                 {/* Tablet View: Dedicated Round Shape Logo */}
-                 <div className="hidden md:flex lg:hidden">
-                   <TabletMedicalRoundLogo />
-                 </div>
-                 {/* Desktop View: Original Hex Logo (Untouched) */}
-                 <div className="hidden lg:flex">
-                   <MedicalHexLogo />
-                 </div>
+                 {/* Unified Prestigious Logo across Desktop and Tablet, automatically reflects Admin custom logo if set */}
+                 <ClinicLogo size="xl" className="hidden lg:flex" />
+                 <ClinicLogo size="lg" className="hidden md:flex lg:hidden" />
               </div>
               <div className="flex flex-col items-end justify-center text-right">
                   {/* Line 1: Clinic Name in English */}
@@ -257,13 +254,13 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onNavigate }) => {
           </header>
 
           {/* GRID SECTION - Spacious, comfortable distance from header and balanced layout */}
-          <main className="flex-none flex flex-col items-center justify-center w-full max-w-5xl mx-auto relative mt-8 sm:mt-10 md:mt-14 lg:my-auto">
+          <main className="flex-none flex flex-col items-center justify-center w-full max-w-5xl mx-auto relative my-auto">
               
               {/* 2x2 Grid Container with Dead-Center Floating Marketing Management Badge */}
               <div className="relative w-full px-1 sm:px-2 md:px-4">
                 
                 {/* 2x2 Grid with generous vertical gap between top and bottom boxes to clear the center badge */}
-                <div className="grid grid-cols-2 gap-x-6 sm:gap-x-10 md:gap-x-8 lg:gap-x-32 gap-y-6 sm:gap-y-8 md:gap-y-16 lg:gap-y-20 xl:gap-y-24 w-full relative z-10">
+                <div className="grid grid-cols-2 gap-x-6 sm:gap-x-10 md:gap-x-12 lg:gap-x-32 gap-y-12 sm:gap-y-14 md:gap-y-16 lg:gap-y-20 xl:gap-y-24 w-full relative z-10">
                   <DashboardButton 
                     label={
                         <>
@@ -418,52 +415,52 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onNavigate }) => {
           </footer>
       </div>
 
-      {/* DEDICATED MOBILE VIEW (< md screens: Smartphones) - Single Static View (No Scrolling), Full Feature & Design Fidelity */}
-      <div className="flex md:hidden flex-1 flex-col w-full max-w-md mx-auto px-3 pt-3 pb-2 xs:pt-3.5 xs:pb-2.5 z-10 justify-between h-[100dvh] max-h-[100dvh] overflow-hidden">
+      {/* DEDICATED MOBILE VIEW (< md screens: Smartphones) - Responsive, Touch-Friendly, Full Feature & Visual Polish */}
+      <div className="flex md:hidden flex-1 flex-col w-full max-w-md mx-auto px-3.5 py-3 xs:px-4 xs:py-3.5 z-10 justify-between min-h-full overflow-y-auto scrollbar-none">
         
-        {/* MOBILE HEADER - 3-Line Stacked Structure with Compact Logo */}
+        {/* MOBILE HEADER - 3-Line Stacked Structure with Glowing Compact Logo */}
         <header className="flex-none flex flex-col items-center justify-center w-full animate-fade-in-down pt-0.5">
-          {/* Minimized Logo on top */}
-          <div className="mb-0.5 flex items-center justify-center">
-            <MiniMedicalHexLogo />
+          {/* Minimized Logo on top with glowing halo - unified with desktop and admin settings */}
+          <div className="mb-1 flex items-center justify-center">
+            <ClinicLogo size="sm" />
           </div>
 
           {/* Line 1: Clinic Name in English */}
-          <h1 className="text-[1.2rem] xs:text-[1.35rem] font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-sky-400 via-cyan-200 to-blue-500 drop-shadow-[0_0_12px_rgba(56,189,248,0.5)] font-sans tracking-tight text-center leading-tight">
+          <h1 className="text-[1.28rem] xs:text-[1.42rem] font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-sky-400 via-cyan-100 to-blue-400 drop-shadow-[0_0_12px_rgba(56,189,248,0.5)] font-sans tracking-tight text-center leading-tight">
             Niramoy Clinic & Diagnostic
           </h1>
           
-          {/* Line 2: Address */}
-          <div className="flex items-center justify-center gap-1.5 text-teal-200/90 text-[11.5px] xs:text-xs font-medium mt-0.5">
+          {/* Line 2: Address with MapPin */}
+          <div className="flex items-center justify-center gap-1.5 text-teal-200/90 text-[11.5px] xs:text-xs font-medium mt-1">
             <MapPinIcon className="w-3.5 h-3.5 text-teal-400 shrink-0" />
-            <span className="text-[11.5px] xs:text-xs">এনায়েতপুর মন্ডলপাড়া, সিরাজগঞ্জ</span>
+            <span>এনায়েতপুর মন্ডলপাড়া, সিরাজগঞ্জ</span>
           </div>
 
-          {/* Line 3: Phone Number */}
-          <div className="flex items-center justify-center mt-0.5">
+          {/* Line 3: Direct Tap-To-Call Phone Pill */}
+          <div className="flex items-center justify-center mt-1">
             <a 
               href="tel:01730923007" 
-              className="inline-flex items-center gap-1.5 text-cyan-300 font-bold tracking-wider px-3 py-0.5 rounded-full bg-cyan-950/70 border border-cyan-500/40 hover:border-cyan-300 active:border-cyan-300 hover:bg-cyan-900/60 active:bg-cyan-900/80 hover:shadow-[0_0_15px_rgba(6,182,212,0.4)] hover:scale-105 active:scale-95 transition-all duration-300 text-xs"
+              className="inline-flex items-center gap-1.5 text-cyan-300 font-bold tracking-wider px-3.5 py-1 rounded-full bg-cyan-950/80 border border-cyan-500/50 hover:border-cyan-300 active:border-cyan-300 active:scale-95 transition-all duration-300 text-xs shadow-[0_0_12px_rgba(6,182,212,0.35)]"
             >
               <PhoneIcon className="w-3 h-3 text-cyan-400 shrink-0 animate-pulse" />
               <span>01730-923007</span>
             </a>
           </div>
 
-          <div className="w-24 h-[1px] bg-gradient-to-r from-transparent via-cyan-500/60 to-transparent mx-auto mt-1 opacity-80" />
+          <div className="w-28 h-[1px] bg-gradient-to-r from-transparent via-cyan-500/60 to-transparent mx-auto mt-1.5 opacity-80" />
         </header>
 
-        {/* MOBILE CORE 5 MANAGEMENT MODULES - 2x2 with balanced vertical centering */}
-        <main className="flex-1 flex flex-col justify-center items-center w-full py-0 my-auto animate-fade-in-up" style={{ animationDelay: '150ms' }}>
+        {/* MOBILE CORE 5 MANAGEMENT MODULES - 2x2 with centered floating Marketing Badge */}
+        <main className="flex-1 flex flex-col justify-center items-center w-full py-3 my-auto animate-fade-in-up" style={{ animationDelay: '150ms' }}>
           <div className="relative w-full max-w-sm mx-auto flex items-center justify-center">
             
-            {/* 2x2 Management Grid with gap-y-11 xs:gap-y-12 to clearly separate top two and bottom two boxes */}
-            <div className="grid grid-cols-2 gap-x-2.5 xs:gap-x-3 gap-y-11 xs:gap-y-12 w-full">
+            {/* 2x2 Management Grid with generous vertical gap for the center badge */}
+            <div className="grid grid-cols-2 gap-x-3 gap-y-12 xs:gap-y-14 w-full">
               {/* Diagnostic Management */}
               <DashboardButton 
                 label={
                   <>
-                    <span className="block text-[12px] xs:text-[13px] font-extrabold text-white mb-0.5 tracking-normal transition-colors duration-300 group-hover:text-cyan-200 group-active:text-cyan-200">
+                    <span className="block text-[12.5px] xs:text-[13.5px] font-extrabold text-white mb-0.5 tracking-normal transition-colors duration-300 group-hover:text-cyan-200 group-active:text-cyan-200">
                       ডায়াগনস্টিক ম্যানেজমেন্ট
                     </span>
                     <span className="block text-[8px] xs:text-[8.5px] font-bold text-cyan-400 mt-0.5 tracking-wider uppercase transition-colors duration-300 group-hover:text-cyan-300 group-active:text-cyan-300">
@@ -483,7 +480,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onNavigate }) => {
               <DashboardButton 
                 label={
                   <>
-                    <span className="block text-[12px] xs:text-[13px] font-extrabold text-white mb-0.5 tracking-normal transition-colors duration-300 group-hover:text-emerald-200 group-active:text-emerald-200">
+                    <span className="block text-[12.5px] xs:text-[13.5px] font-extrabold text-white mb-0.5 tracking-normal transition-colors duration-300 group-hover:text-emerald-200 group-active:text-emerald-200">
                       ক্লিনিক ম্যানেজমেন্ট
                     </span>
                     <span className="block text-[8px] xs:text-[8.5px] font-bold text-emerald-400 mt-0.5 tracking-wider uppercase transition-colors duration-300 group-hover:text-emerald-300 group-active:text-emerald-300">
@@ -503,7 +500,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onNavigate }) => {
               <DashboardButton 
                 label={
                   <>
-                    <span className="block text-[12px] xs:text-[13px] font-extrabold text-white mb-0.5 tracking-normal transition-colors duration-300 group-hover:text-rose-200 group-active:text-rose-200">
+                    <span className="block text-[12.5px] xs:text-[13.5px] font-extrabold text-white mb-0.5 tracking-normal transition-colors duration-300 group-hover:text-rose-200 group-active:text-rose-200">
                       মেডিসিন ম্যানেজমেন্ট
                     </span>
                     <span className="block text-[8px] xs:text-[8.5px] font-bold text-rose-400 mt-0.5 tracking-wider uppercase transition-colors duration-300 group-hover:text-rose-300 group-active:text-rose-300">
@@ -523,7 +520,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onNavigate }) => {
               <DashboardButton 
                 label={
                   <>
-                    <span className="block text-[12px] xs:text-[13px] font-extrabold text-white mb-0.5 tracking-normal transition-colors duration-300 group-hover:text-amber-200 group-active:text-amber-200">
+                    <span className="block text-[12.5px] xs:text-[13.5px] font-extrabold text-white mb-0.5 tracking-normal transition-colors duration-300 group-hover:text-amber-200 group-active:text-amber-200">
                       অ্যাকাউন্টিং ম্যানেজমেন্ট
                     </span>
                     <span className="block text-[8px] xs:text-[8.5px] font-bold text-amber-400 mt-0.5 tracking-wider uppercase transition-colors duration-300 group-hover:text-amber-300 group-active:text-amber-300">
@@ -544,13 +541,13 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onNavigate }) => {
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-30 animate-fade-in-up" style={{ animationDelay: '250ms' }}>
               <button 
                 onClick={() => onNavigate(ViewState.MARKETING)}
-                className="pointer-events-auto group relative flex items-center justify-center gap-2 px-3.5 py-1.5 xs:px-4.5 xs:py-2 rounded-full border-2 border-purple-400/90 hover:border-purple-300 active:border-purple-300 bg-gradient-to-r from-slate-950/95 via-purple-950/95 to-slate-950/95 backdrop-blur-2xl shadow-[0_0_28px_rgba(168,85,247,0.9),0_8px_20px_rgba(0,0,0,0.7)] hover:shadow-[0_0_45px_rgba(168,85,247,1)] active:shadow-[0_0_35px_rgba(168,85,247,0.9)] hover:scale-105 active:scale-95 transition-all duration-300 cursor-pointer"
+                className="pointer-events-auto group relative flex items-center justify-center gap-2 px-4 py-2 xs:px-5 xs:py-2.5 rounded-full border-2 border-purple-400/90 hover:border-purple-300 active:border-purple-300 bg-gradient-to-r from-slate-950/95 via-purple-950/95 to-slate-950/95 backdrop-blur-2xl shadow-[0_0_30px_rgba(168,85,247,0.85),0_8px_20px_rgba(0,0,0,0.7)] active:scale-95 transition-all duration-300 cursor-pointer"
                 title="মার্কেটিং ম্যানেজমেন্ট (Marketing Management)"
               >
                 {/* Perimeter Glow Aura */}
-                <div className="absolute -inset-1 rounded-full bg-gradient-to-r from-purple-600 via-fuchsia-500 to-pink-600 opacity-0 group-hover:opacity-90 group-active:opacity-90 blur-md transition-all duration-300 -z-10 pointer-events-none" />
+                <div className="absolute -inset-1 rounded-full bg-gradient-to-r from-purple-600 via-fuchsia-500 to-pink-600 opacity-60 group-active:opacity-100 blur-md transition-all duration-300 -z-10 pointer-events-none" />
 
-                <div className="p-1.5 rounded-full bg-purple-500/30 text-purple-300 border border-purple-400/60 group-hover:scale-110 group-active:scale-110 group-hover:bg-purple-500 group-active:bg-purple-500 group-hover:text-white group-active:text-white transition-all duration-300 shadow-inner">
+                <div className="p-1.5 rounded-full bg-purple-500/30 text-purple-300 border border-purple-400/60 group-active:scale-110 group-active:bg-purple-500 group-active:text-white transition-all duration-300 shadow-inner">
                   <TrendingUpIcon className="w-4 h-4 xs:w-4.5 xs:h-4.5" />
                 </div>
                 <div className="text-left">
@@ -572,68 +569,68 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onNavigate }) => {
           </div>
         </main>
 
-        {/* MOBILE QUICK PORTALS & SYSTEM - Compact for Single Static View */}
-        <footer className="flex-none w-full pt-1.5 pb-0.5 z-20 animate-fade-in-up" style={{ animationDelay: '300ms' }}>
-          <div className="flex items-center justify-center gap-2 mb-1">
-            <div className="h-[1px] bg-slate-800/80 flex-1" />
-            <span className="text-[9px] font-black uppercase tracking-widest text-slate-400/80">
+        {/* MOBILE QUICK PORTALS & SYSTEM - Refined 44px+ Touch-Friendly Buttons */}
+        <footer className="flex-none w-full pt-2 pb-1 z-20 animate-fade-in-up" style={{ animationDelay: '300ms' }}>
+          <div className="flex items-center justify-center gap-2 mb-2">
+            <div className="h-[1px] bg-gradient-to-r from-transparent to-slate-800 flex-1" />
+            <span className="text-[9.5px] font-black uppercase tracking-widest text-slate-400/90 px-1">
               Quick Portals & System
             </span>
-            <div className="h-[1px] bg-slate-800/80 flex-1" />
+            <div className="h-[1px] bg-gradient-to-l from-transparent to-slate-800 flex-1" />
           </div>
 
-          <div className="grid grid-cols-2 gap-2 w-full">
+          <div className="grid grid-cols-2 gap-2.5 w-full">
             {/* Doctor Portal */}
             <button 
               onClick={() => onNavigate(ViewState.DOCTOR_LOGIN)} 
-              className="group relative flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-xl bg-slate-900/90 border border-blue-500/40 text-blue-300 font-bold transition-all duration-300 hover:border-blue-400 active:border-blue-400 hover:bg-gradient-to-r hover:from-blue-950/80 hover:to-blue-900/60 active:bg-blue-950/80 hover:text-white active:text-white hover:shadow-[0_4px_20px_rgba(59,130,246,0.35)] active:shadow-[0_4px_15px_rgba(59,130,246,0.35)] hover:scale-105 active:scale-95 backdrop-blur-md cursor-pointer"
+              className="group relative flex items-center justify-center gap-2 min-h-[44px] py-2 px-2.5 rounded-xl bg-slate-900/90 border border-blue-500/40 text-blue-300 font-bold transition-all duration-300 hover:border-blue-400 active:border-blue-400 hover:bg-gradient-to-r hover:from-blue-950/80 hover:to-blue-900/60 active:bg-blue-950/80 hover:text-white active:text-white hover:shadow-[0_4px_20px_rgba(59,130,246,0.35)] active:shadow-[0_4px_15px_rgba(59,130,246,0.35)] active:scale-95 backdrop-blur-md cursor-pointer"
             >
-              <span className="p-1 rounded-full bg-blue-500/20 text-blue-400 border border-blue-400/30 group-hover:bg-blue-500 group-active:bg-blue-500 group-hover:text-white group-active:text-white transition-all duration-300 shadow-inner">
+              <span className="p-1 rounded-full bg-blue-500/20 text-blue-400 border border-blue-400/30 group-active:bg-blue-500 group-active:text-white transition-all duration-300 shadow-inner">
                 <StethoscopeIcon className="w-3.5 h-3.5" />
               </span>
-              <span className="text-[11px] xs:text-xs font-bold whitespace-nowrap">Doctor Portal</span>
+              <span className="text-[11.5px] xs:text-xs font-bold whitespace-nowrap">Doctor Portal</span>
             </button>
 
             {/* Lab Reporting */}
             <button 
               onClick={() => onNavigate(ViewState.LAB_LOGIN)} 
-              className="group relative flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-xl bg-slate-900/90 border border-cyan-500/40 text-cyan-300 font-bold transition-all duration-300 hover:border-cyan-400 active:border-cyan-400 hover:bg-gradient-to-r hover:from-cyan-950/80 hover:to-cyan-900/60 active:bg-cyan-950/80 hover:text-white active:text-white hover:shadow-[0_4px_20px_rgba(6,182,212,0.35)] active:shadow-[0_4px_15px_rgba(6,182,212,0.35)] hover:scale-105 active:scale-95 backdrop-blur-md cursor-pointer"
+              className="group relative flex items-center justify-center gap-2 min-h-[44px] py-2 px-2.5 rounded-xl bg-slate-900/90 border border-cyan-500/40 text-cyan-300 font-bold transition-all duration-300 hover:border-cyan-400 active:border-cyan-400 hover:bg-gradient-to-r hover:from-cyan-950/80 hover:to-cyan-900/60 active:bg-cyan-950/80 hover:text-white active:text-white hover:shadow-[0_4px_20px_rgba(6,182,212,0.35)] active:shadow-[0_4px_15px_rgba(6,182,212,0.35)] active:scale-95 backdrop-blur-md cursor-pointer"
             >
-              <span className="p-1 rounded-full bg-cyan-500/20 text-cyan-400 border border-cyan-400/30 group-hover:bg-cyan-500 group-active:bg-cyan-500 group-hover:text-white group-active:text-white transition-all duration-300 shadow-inner">
+              <span className="p-1 rounded-full bg-cyan-500/20 text-cyan-400 border border-cyan-400/30 group-active:bg-cyan-500 group-active:text-white transition-all duration-300 shadow-inner">
                 <FileTextIcon className="w-3.5 h-3.5" />
               </span>
-              <span className="text-[11px] xs:text-xs font-bold whitespace-nowrap">Lab Reporting</span>
+              <span className="text-[11.5px] xs:text-xs font-bold whitespace-nowrap">Lab Reporting</span>
             </button>
 
             {/* Settings */}
             <button 
               onClick={() => onNavigate(ViewState.ADMIN_SETTINGS)} 
-              className="group relative flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-xl bg-slate-900/90 border border-slate-700/80 text-slate-300 font-bold transition-all duration-300 hover:border-purple-400/70 active:border-purple-400/70 hover:bg-gradient-to-r hover:from-purple-950/80 hover:to-slate-900/80 active:bg-purple-950/80 hover:text-purple-200 active:text-purple-200 hover:shadow-[0_4px_20px_rgba(168,85,247,0.3)] active:shadow-[0_4px_15px_rgba(168,85,247,0.3)] hover:scale-105 active:scale-95 backdrop-blur-md cursor-pointer"
+              className="group relative flex items-center justify-center gap-2 min-h-[44px] py-2 px-2.5 rounded-xl bg-slate-900/90 border border-slate-700/80 text-slate-300 font-bold transition-all duration-300 hover:border-purple-400/70 active:border-purple-400/70 hover:bg-gradient-to-r hover:from-purple-950/80 hover:to-slate-900/80 active:bg-purple-950/80 hover:text-purple-200 active:text-purple-200 hover:shadow-[0_4px_20px_rgba(168,85,247,0.3)] active:shadow-[0_4px_15px_rgba(168,85,247,0.3)] active:scale-95 backdrop-blur-md cursor-pointer"
             >
-              <span className="p-1 rounded-full bg-slate-800 text-slate-400 border border-slate-700/60 group-hover:bg-purple-500/30 group-active:bg-purple-500/30 group-hover:text-purple-300 group-active:text-purple-300 group-hover:rotate-90 group-active:rotate-90 transition-all duration-500 shadow-inner">
+              <span className="p-1 rounded-full bg-slate-800 text-slate-400 border border-slate-700/60 group-active:bg-purple-500/30 group-active:text-purple-300 transition-all duration-300 shadow-inner">
                 <SettingsIcon className="w-3.5 h-3.5" />
               </span>
-              <span className="text-[11px] xs:text-xs font-bold whitespace-nowrap">Settings</span>
+              <span className="text-[11.5px] xs:text-xs font-bold whitespace-nowrap">Settings</span>
             </button>
 
             {/* Admin Logout */}
             <button 
               onClick={onLogout} 
-              className="group relative flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-xl bg-slate-900/90 border border-slate-700/80 text-slate-300 font-bold transition-all duration-300 hover:border-rose-500/70 active:border-rose-500/70 hover:bg-gradient-to-r hover:from-rose-950/80 hover:to-slate-900/80 active:bg-rose-950/80 hover:text-rose-200 active:text-rose-200 hover:shadow-[0_4px_20px_rgba(244,63,94,0.3)] active:shadow-[0_4px_15px_rgba(244,63,94,0.3)] hover:scale-105 active:scale-95 backdrop-blur-md cursor-pointer"
+              className="group relative flex items-center justify-center gap-2 min-h-[44px] py-2 px-2.5 rounded-xl bg-slate-900/90 border border-slate-700/80 text-slate-300 font-bold transition-all duration-300 hover:border-rose-500/70 active:border-rose-500/70 hover:bg-gradient-to-r hover:from-rose-950/80 hover:to-slate-900/80 active:bg-rose-950/80 hover:text-rose-200 active:text-rose-200 hover:shadow-[0_4px_20px_rgba(244,63,94,0.3)] active:shadow-[0_4px_15px_rgba(244,63,94,0.3)] active:scale-95 backdrop-blur-md cursor-pointer"
             >
-              <span className="p-1 rounded-full bg-slate-800 text-rose-400 border border-slate-700/60 group-hover:bg-rose-500/30 group-active:bg-rose-500/30 group-hover:text-rose-300 group-active:text-rose-300 group-hover:-translate-x-0.5 group-active:-translate-x-0.5 transition-all duration-300 shadow-inner">
+              <span className="p-1 rounded-full bg-slate-800 text-rose-400 border border-slate-700/60 group-active:bg-rose-500/30 group-active:text-rose-300 transition-all duration-300 shadow-inner">
                 <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
                   <polyline points="16 17 21 12 16 7"></polyline>
                   <line x1="21" y1="12" x2="9" y2="12"></line>
                 </svg>
               </span>
-              <span className="text-[11px] xs:text-xs font-bold whitespace-nowrap">Admin Logout</span>
+              <span className="text-[11.5px] xs:text-xs font-bold whitespace-nowrap">Admin Logout</span>
             </button>
           </div>
 
-          <div className="mt-1 text-center text-slate-500/60 text-[9px] font-medium tracking-wide">
-            &copy; 2024 NiramoyClinic. All rights reserved.
+          <div className="mt-2 text-center text-slate-500/60 text-[9.5px] font-medium tracking-wide">
+            Niramoy Clinic & Diagnostic • All rights reserved
           </div>
         </footer>
       </div>

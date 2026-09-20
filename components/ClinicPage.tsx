@@ -5,6 +5,7 @@ import SearchableSelect from './SearchableSelect';
 import PatientInfoPage from './PatientInfoPage';
 import DoctorInfoPage from './DoctorInfoPage';
 import ReferrerInfoPage from './ReferrerInfoPage';
+import ErrorBoundary from './ErrorBoundary';
 import { BackIcon, ClinicIcon, StethoscopeIcon, ClipboardIcon, FileTextIcon, SettingsIcon, UserPlusIcon, Armchair, Activity, SaveIcon, MoneyIcon, TrashIcon, PrinterIcon, EyeIcon, SearchIcon, PlusIcon, RefreshIcon, Database as DatabaseIcon, Plus, Save, Trash2, Loader2, Trash2Icon, AlertCircle, UsersIcon, EditIcon, ClipboardList as LayoutIcon } from './Icons';
 
 // Fixed Clinic Config
@@ -2441,8 +2442,8 @@ const IndoorInvoicePage: React.FC<{
     const activeEmployees = useMemo(() => (Array.isArray(employees) ? employees : []).filter(e => e && e.status === 'Active'), [employees]);
 
     const employeeOptions = useMemo(() => {
-        const safeEmployees = Array.isArray(employees) ? employees : [];
-        const activeList = safeEmployees.filter(emp => emp && emp.status !== 'Released');
+        const safeEmployees = (Array.isArray(employees) ? employees : []).filter(emp => emp && typeof emp === 'object' && emp.emp_name);
+        const activeList = safeEmployees.filter(emp => emp.status !== 'Released');
         const listToUse = activeList.length > 0 ? activeList : safeEmployees;
 
         const opts = listToUse.map(emp => ({
@@ -2451,7 +2452,7 @@ const IndoorInvoicePage: React.FC<{
             details: [emp.emp_id ? `ID: ${emp.emp_id}` : '', emp.job_position || emp.designation, emp.department, emp.mobile ? `📞 ${emp.mobile}` : ''].filter(Boolean).join(' | ')
         }));
 
-        if (!opts.some(o => o.name.toLowerCase() === 'admin')) {
+        if (!opts.some(o => o && o.name && o.name.toLowerCase() === 'admin')) {
             opts.unshift({
                 id: 'Admin',
                 name: 'Admin',
@@ -4276,29 +4277,41 @@ const ClinicPage: React.FC<ClinicPageProps> = ({
                     {successMessage && <div className="fixed top-20 right-5 bg-green-600 text-white px-6 py-3 rounded shadow-xl z-50 animate-bounce">{successMessage}</div>}
                     
                     <div className={activeTab === 'admission' ? 'block' : 'hidden'}>
-                        <AdmissionAndTreatmentPage performBlockingSync={performBlockingSync} admissions={admissions} setAdmissions={setAdmissions} patients={patients} setPatients={setPatients} doctors={doctors} setDoctors={setDoctors} referrars={referrars} setReferrars={setReferrars} employees={employees} medicines={medicines} setMedicines={setMedicines} indications={indications} setIndications={setIndications} services={services} setServices={setServices} setSuccessMessage={setSuccessMessage} drugDemands={drugDemands} setDrugDemands={setDrugDemands} admissionData={admissionFormData} setAdmissionData={setAdmissionFormData} />
+                        <ErrorBoundary fallbackTitle="অ্যাডমিশন ও ট্রিটমেন্ট মডিউলে ত্রুটি হয়েছে">
+                            <AdmissionAndTreatmentPage performBlockingSync={performBlockingSync} admissions={admissions} setAdmissions={setAdmissions} patients={patients} setPatients={setPatients} doctors={doctors} setDoctors={setDoctors} referrars={referrars} setReferrars={setReferrars} employees={employees} medicines={medicines} setMedicines={setMedicines} indications={indications} setIndications={setIndications} services={services} setServices={setServices} setSuccessMessage={setSuccessMessage} drugDemands={drugDemands} setDrugDemands={setDrugDemands} admissionData={admissionFormData} setAdmissionData={setAdmissionFormData} />
+                        </ErrorBoundary>
                     </div>
 
                     <div className={activeTab === 'patient_info' ? 'block' : 'hidden'}>
                         <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-2xl">
-                            <PatientInfoPage patients={patients} setPatients={setPatients} isEmbedded={false} performBlockingSync={performBlockingSync} />
+                            <ErrorBoundary fallbackTitle="পেশেন্ট ইনফো মডিউলে ত্রুটি হয়েছে">
+                                <PatientInfoPage patients={patients} setPatients={setPatients} isEmbedded={false} performBlockingSync={performBlockingSync} />
+                            </ErrorBoundary>
                         </div>
                     </div>
 
                     <div className={activeTab === 'bed_status' ? 'block' : 'hidden'}>
-                        <BedManagementPage admissions={admissions} setAdmissions={setAdmissions} setSuccessMessage={setSuccessMessage} performBlockingSync={performBlockingSync} />
+                        <ErrorBoundary fallbackTitle="বেড স্ট্যাটাস মডিউলে ত্রুটি হয়েছে">
+                            <BedManagementPage admissions={admissions} setAdmissions={setAdmissions} setSuccessMessage={setSuccessMessage} performBlockingSync={performBlockingSync} />
+                        </ErrorBoundary>
                     </div>
 
                     <div className={activeTab === 'invoice' ? 'block' : 'hidden'}>
-                        <IndoorInvoicePage admissions={admissions} doctors={doctors} referrars={referrars} employees={employees} indoorInvoices={indoorInvoices} setIndoorInvoices={setIndoorInvoices} setSuccessMessage={setSuccessMessage} medicines={medicines} setAdmissions={setAdmissions} detailedExpenses={detailedExpenses} patients={patients} performBlockingSync={performBlockingSync} />
+                        <ErrorBoundary fallbackTitle="ইনডোর ইনভয়েস মডিউলে ত্রুটি হয়েছে">
+                            <IndoorInvoicePage admissions={admissions} doctors={doctors} referrars={referrars} employees={employees} indoorInvoices={indoorInvoices} setIndoorInvoices={setIndoorInvoices} setSuccessMessage={setSuccessMessage} medicines={medicines} setAdmissions={setAdmissions} detailedExpenses={detailedExpenses} patients={patients} performBlockingSync={performBlockingSync} />
+                        </ErrorBoundary>
                     </div>
 
                     <div className={activeTab === 'due_collection' ? 'block' : 'hidden'}>
-                        <ClinicDueCollectionPage indoorInvoices={indoorInvoices} setIndoorInvoices={setIndoorInvoices} clinicDueCollections={clinicDueCollections} setClinicDueCollections={setClinicDueCollections} employees={employees} setSuccessMessage={setSuccessMessage} performBlockingSync={performBlockingSync} />
+                        <ErrorBoundary fallbackTitle="ক্লিনিক বকেয়া আদায় মডিউলে ত্রুটি হয়েছে">
+                            <ClinicDueCollectionPage indoorInvoices={indoorInvoices} setIndoorInvoices={setIndoorInvoices} clinicDueCollections={clinicDueCollections} setClinicDueCollections={setClinicDueCollections} employees={employees} setSuccessMessage={setSuccessMessage} performBlockingSync={performBlockingSync} />
+                        </ErrorBoundary>
                     </div>
 
                     <div className={activeTab === 'report_summary' ? 'block' : 'hidden'}>
-                        <ReportSummaryPage admissions={admissions} doctors={doctors} patients={patients} onOpenRxMaster={() => setShowRxMaster(true)} />
+                        <ErrorBoundary fallbackTitle="রিপোর্ট সামারি মডিউলে ত্রুটি হয়েছে">
+                            <ReportSummaryPage admissions={admissions} doctors={doctors} patients={patients} onOpenRxMaster={() => setShowRxMaster(true)} />
+                        </ErrorBoundary>
                     </div>
                 </div>
             </div>

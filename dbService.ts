@@ -2838,6 +2838,7 @@ export interface ClinicProfile {
   licenseNo: string;
   regNo: string;
   emergencyHotline: string;
+  logoUrl?: string;
 }
 
 export const defaultClinicProfile: ClinicProfile = {
@@ -2850,7 +2851,8 @@ export const defaultClinicProfile: ClinicProfile = {
   website: 'www.niramoyclinic.com',
   licenseNo: 'HSM41671',
   regNo: 'REG-2024-SRJ-881',
-  emergencyHotline: '01730 923007'
+  emergencyHotline: '01730 923007',
+  logoUrl: ''
 };
 
 export interface PrintSettings {

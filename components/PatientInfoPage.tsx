@@ -103,7 +103,7 @@ const AddressPieChart: React.FC<{ patients: Patient[], onAreaClick?: (area: stri
                             className="hover:opacity-80 transition-opacity cursor-pointer" 
                             onClick={() => onAreaClick && slice.name !== 'Others' && onAreaClick(slice.name)}
                         >
-                            <title>{slice.name}: {slice.value} ({(slice.percent * 100).toFixed(1)}%)</title>
+                            <title>{`${slice.name}: ${slice.value} (${(slice.percent * 100).toFixed(1)}%)`}</title>
                         </path>
                     ))}
                     {/* Inner hole for donut chart look */}
@@ -178,7 +178,7 @@ const PatientInfoPage: React.FC<PatientInfoPageProps> = ({
   }, [patients]);
 
   const filteredPatients = useMemo(() => {
-    const safePatients = Array.isArray(patients) ? patients : [];
+    const safePatients = (Array.isArray(patients) ? patients : []).filter(p => p && typeof p === 'object' && p.pt_id);
     if (!searchTerm.trim()) return safePatients;
     
     const term = searchTerm.toLowerCase().trim();
@@ -194,10 +194,10 @@ const PatientInfoPage: React.FC<PatientInfoPageProps> = ({
     );
   }, [searchTerm, patients]);
 
-  const uniqueNames = useMemo(() => Array.from(new Set((Array.isArray(patients) ? patients : []).map(p => p?.pt_name).filter(Boolean))).slice(0, 100), [patients]);
-  const uniqueAddresses = useMemo(() => Array.from(new Set((Array.isArray(patients) ? patients : []).map(p => p?.address).filter(Boolean))).slice(0, 50), [patients]);
-  const uniqueThanas = useMemo(() => Array.from(new Set((Array.isArray(patients) ? patients : []).map(p => p?.thana).filter(Boolean))).slice(0, 50), [patients]);
-  const uniqueDistricts = useMemo(() => Array.from(new Set((Array.isArray(patients) ? patients : []).map(p => p?.district).filter(Boolean))).slice(0, 50), [patients]);
+  const uniqueNames = useMemo(() => Array.from(new Set((Array.isArray(patients) ? patients : []).filter(p => p && typeof p === 'object').map(p => p?.pt_name).filter(Boolean))).slice(0, 100), [patients]);
+  const uniqueAddresses = useMemo(() => Array.from(new Set((Array.isArray(patients) ? patients : []).filter(p => p && typeof p === 'object').map(p => p?.address).filter(Boolean))).slice(0, 50), [patients]);
+  const uniqueThanas = useMemo(() => Array.from(new Set((Array.isArray(patients) ? patients : []).filter(p => p && typeof p === 'object').map(p => p?.thana).filter(Boolean))).slice(0, 50), [patients]);
+  const uniqueDistricts = useMemo(() => Array.from(new Set((Array.isArray(patients) ? patients : []).filter(p => p && typeof p === 'object').map(p => p?.district).filter(Boolean))).slice(0, 50), [patients]);
 
   useEffect(() => {
     if (successMessage) {
@@ -445,7 +445,7 @@ const PatientInfoPage: React.FC<PatientInfoPageProps> = ({
         )}
       
       <div className="flex flex-col xl:flex-row gap-6">
-          {!isEmbedded && patients.length > 0 && (
+          {!isEmbedded && (Array.isArray(patients) ? patients : []).length > 0 && (
               <div className="w-full xl:w-1/4 min-w-[260px] order-2 xl:order-1">
                   <AddressPieChart patients={patients} onAreaClick={(area) => setSearchTerm(area)} />
               </div>
@@ -484,7 +484,7 @@ const PatientInfoPage: React.FC<PatientInfoPageProps> = ({
                     <div className="flex items-center gap-4 text-xs font-medium">
                         <div className="bg-slate-950 px-3 py-1.5 rounded-lg border border-slate-800">
                             <span className="text-slate-500 mr-2">Total Patients:</span>
-                            <span className="text-blue-400">{patients.length.toLocaleString()}</span>
+                            <span className="text-blue-400">{(Array.isArray(patients) ? patients : []).length.toLocaleString()}</span>
                         </div>
                         {searchTerm && (
                             <div className="bg-slate-950 px-3 py-1.5 rounded-lg border border-slate-800">
@@ -690,7 +690,7 @@ const PatientInfoPage: React.FC<PatientInfoPageProps> = ({
                     {filteredPatients.length === 0 ? (
                         <tr><td colSpan={7} className="px-6 py-8 text-center text-slate-400 text-sm font-semibold">No patients found.</td></tr>
                     ) : (
-                        filteredPatients.slice(0, 100).map((patient) => (
+                        (Array.isArray(filteredPatients) ? filteredPatients : []).filter(p => p && p.pt_id).slice(0, 100).map((patient) => (
                           <tr
                             key={patient.pt_id}
                             onClick={() => { setFormData(patient); setSelectedPatientId(patient.pt_id); setIsEditing(false); window.scrollTo({top: 0, behavior: 'smooth'}); }}
@@ -732,7 +732,7 @@ const PatientInfoPage: React.FC<PatientInfoPageProps> = ({
                 {filteredPatients.length === 0 ? (
                     <div className="p-8 text-center text-slate-400 text-sm font-medium">No patients found.</div>
                 ) : (
-                    filteredPatients.slice(0, 50).map((patient) => (
+                    (Array.isArray(filteredPatients) ? filteredPatients : []).filter(p => p && p.pt_id).slice(0, 50).map((patient) => (
                         <div 
                             key={patient.pt_id}
                             onClick={() => { setFormData(patient); setSelectedPatientId(patient.pt_id); setIsEditing(false); window.scrollTo({top: 0, behavior: 'smooth'}); }}

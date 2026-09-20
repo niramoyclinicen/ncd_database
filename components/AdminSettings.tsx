@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { BackIcon, SettingsIcon, SaveIcon, DownloadIcon, TrashIcon, DatabaseIcon, RefreshIcon, Activity, UsersIcon, PrinterIcon, PlusIcon, XIcon } from './Icons';
 import { DepartmentPasswords } from '../types';
 import { dbService, ClinicProfile, PrintSettings, StaffAccount, SMSGatewaySettings, AutoBackupSettings, defaultClinicProfile, defaultPrintSettings, defaultStaffAccounts, defaultSMSGatewaySettings, defaultAutoBackupSettings } from '../dbService';
-import { MessageSquare, Clock, ShieldCheck, CheckCircle2, Send, HardDrive, FileJson, ArrowDownToLine } from 'lucide-react';
+import { MessageSquare, Clock, ShieldCheck, CheckCircle2, Send, HardDrive, FileJson, ArrowDownToLine, Upload, Trash2 } from 'lucide-react';
+import { ClinicLogo } from './ClinicLogo';
 
 import { generateOfflineViewer } from '../utils/portableBackup';
 
@@ -262,6 +263,58 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({
   const handleCheckMedicineStats = async () => {
     const stats = await dbService.getMedicineModularStats();
     setMedicineStats(stats);
+  };
+
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      alert('লোগো ফাইলের সাইজ ৫MB এর কম হতে হবে!');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new window.Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const maxDim = 320;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > maxDim) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          }
+        } else {
+          if (height > maxDim) {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          const optimizedB64 = canvas.toDataURL('image/png', 0.92);
+          setClinicProfile(prev => ({ ...prev, logoUrl: optimizedB64 }));
+          setSuccessMsg('✓ লোগো সফলভাবে লোড হয়েছে! পরিবর্তনের জন্য নিচে "প্রোফাইল সংরক্ষণ করুন" চাপুন।');
+          setTimeout(() => setSuccessMsg(''), 5000);
+        }
+      };
+      img.src = event.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveLogo = () => {
+    setClinicProfile(prev => ({ ...prev, logoUrl: '' }));
+    setSuccessMsg('✓ কাস্টম লোগো সরানো হয়েছে। সিস্টেমের ডিফল্ট লোগো প্রদর্শিত হবে।');
+    setTimeout(() => setSuccessMsg(''), 4000);
   };
 
   const handleSaveClinicProfile = (e: React.FormEvent) => {
@@ -679,6 +732,57 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({
                 >
                   <SaveIcon size={16} /> {isSavingProfile ? 'সংরক্ষণ হচ্ছে...' : 'প্রোফাইল সংরক্ষণ করুন'}
                 </button>
+              </div>
+
+              {/* Organization Logo Customizer & Live Preview */}
+              <div className="p-5 rounded-2xl bg-slate-900/90 border border-slate-800 shadow-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5">
+                <div className="flex items-center gap-4">
+                  <div className="relative group">
+                    <ClinicLogo size="lg" logoUrl={clinicProfile.logoUrl} />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2 flex-wrap">
+                      <span>প্রতিষ্ঠানের অফিসিয়াল লোগো (Organization Logo)</span>
+                      {clinicProfile.logoUrl ? (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                          কাস্টম লোগো সক্রিয়
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">
+                          সিস্টেম ডিফল্ট লোগো
+                        </span>
+                      )}
+                    </h3>
+                    <p className="text-xs text-slate-400 mt-1 max-w-lg">
+                      এডমিন এখান থেকে নিজস্ব ক্লিনিক বা ডায়াগনস্টিক সেন্টারের যেকোনো লোগো (PNG / JPG / WebP) আপলোড করতে পারবেন। এটি সাথে সাথে ড্যাশবোর্ড, হেডার ও সব রিপোর্টে কার্যকর হবে।
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2.5 shrink-0 w-full sm:w-auto">
+                  <label className="flex-1 sm:flex-none cursor-pointer px-4 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-900/30 active:scale-95">
+                    <Upload size={15} />
+                    <span>{clinicProfile.logoUrl ? 'লোগো পরিবর্তন করুন' : 'নতুন লোগো আপলোড'}</span>
+                    <input
+                      type="file"
+                      accept="image/png, image/jpeg, image/webp"
+                      className="hidden"
+                      onChange={handleLogoUpload}
+                    />
+                  </label>
+
+                  {clinicProfile.logoUrl && (
+                    <button
+                      type="button"
+                      onClick={handleRemoveLogo}
+                      className="px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-rose-900/40 border border-slate-700 hover:border-rose-500/50 text-slate-300 hover:text-rose-300 font-bold text-xs flex items-center justify-center gap-1.5 transition-all active:scale-95"
+                      title="ডিফল্ট লোগো ফিরিয়ে আনুন"
+                    >
+                      <Trash2 size={14} />
+                      <span>মুছুন</span>
+                    </button>
+                  )}
+                </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
