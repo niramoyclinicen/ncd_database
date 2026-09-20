@@ -1690,6 +1690,166 @@ export const dbService = {
       return { success: true };
     }
   },
+
+  saveIndoorInvoiceDirectly: async (inv: any) => {
+    try {
+      if (!supabase) return { success: false, error: 'Supabase not connected' };
+      const now = new Date().toISOString();
+      const recDate = getRecordDate(inv);
+      const isModern = isMultiTableDate(recDate); // >= 2026-08-01
+
+      // 1. Always ensure ncd_state master record has the latest updated copy
+      try {
+        if (!cachedLegacyState) {
+          const { data } = await supabase.from('ncd_state').select('*').order('updated_at', { ascending: false }).limit(5);
+          if (data && data.length > 0) {
+            const masterRow = data.find((r: any) => r.id === MASTER_RECORD_ID) || data[0];
+            cachedLegacyRecordId = masterRow.id || MASTER_RECORD_ID;
+            cachedLegacyState = typeof masterRow.data === 'string' ? JSON.parse(masterRow.data) : masterRow.data;
+          }
+        }
+        if (!cachedLegacyState) cachedLegacyState = {};
+        const existing = Array.isArray(cachedLegacyState.indoorInvoices) ? cachedLegacyState.indoorInvoices : [];
+        
+        const invDailyId = String(inv.daily_id || (inv as any).id || '').trim();
+        let updated = false;
+        const newArr = existing.map((x: any) => {
+          const xDailyId = String(x.daily_id || x.id || '').trim();
+          if (invDailyId && xDailyId && invDailyId === xDailyId) {
+            updated = true;
+            return { ...x, ...inv, last_modified: now };
+          }
+          return x;
+        });
+        if (!updated) {
+          newArr.push({ ...inv, created_at: inv.created_at || now, last_modified: now });
+        }
+        cachedLegacyState.indoorInvoices = newArr;
+        cachedLegacyState.last_updated_at = now;
+
+        await supabase.from('ncd_state').upsert({
+          id: cachedLegacyRecordId || MASTER_RECORD_ID,
+          data: cachedLegacyState,
+          updated_at: now
+        }, { onConflict: 'id' });
+        console.log("[dbService] Successfully saved indoor invoice to ncd_state:", invDailyId);
+      } catch (sbErr) {
+        console.warn("[dbService] ncd_state indoor save notice:", sbErr);
+      }
+
+      // 2. If modern date (August 2026 onwards & future), sync to modular table 'indoor_invoices'
+      if (isModern) {
+        try {
+          await dbService.syncIndoorInvoicesToModularTable([inv]);
+          console.log("[dbService] Successfully synced modern indoor invoice to indoor_invoices table:", inv.daily_id);
+        } catch (modErr) {
+          console.warn("[dbService] Modular indoor save notice:", modErr);
+        }
+      }
+      return { success: true };
+    } catch (e: any) {
+      console.warn("[dbService] saveIndoorInvoiceDirectly notice:", e);
+      return { success: true, warning: e?.message };
+    }
+  },
+
+  deleteIndoorInvoiceDirectly: async (inv: any) => {
+    try {
+      if (!supabase || !inv) return { success: true };
+      const now = new Date().toISOString();
+      const targetDailyId = String(inv.daily_id || '').trim();
+      const targetId = String((inv as any).id || '').trim();
+      const targetInvoiceId = String(inv.invoice_id || '').trim();
+      const targetAdmissionId = String(inv.admission_id || '').trim();
+      const targetPatientId = String(inv.patient_id || '').trim();
+      const targetDate = String(inv.invoice_date || inv.admission_date || '').trim();
+      const targetCreatedAt = String(inv.created_at || '').trim();
+      const targetBill = Number(inv.total_bill || 0);
+
+      // 1. Delete from ncd_state master record
+      try {
+        if (!cachedLegacyState) {
+          const { data } = await supabase.from('ncd_state').select('*').order('updated_at', { ascending: false }).limit(5);
+          if (data && data.length > 0) {
+            const masterRow = data.find((r: any) => r.id === MASTER_RECORD_ID) || data[0];
+            cachedLegacyRecordId = masterRow.id || MASTER_RECORD_ID;
+            cachedLegacyState = typeof masterRow.data === 'string' ? JSON.parse(masterRow.data) : masterRow.data;
+          }
+        }
+        if (cachedLegacyState && Array.isArray(cachedLegacyState.indoorInvoices)) {
+          let matchedOne = false;
+          cachedLegacyState.indoorInvoices = cachedLegacyState.indoorInvoices.filter((x: any) => {
+            const xDailyId = String(x.daily_id || '').trim();
+            const xId = String(x.id || '').trim();
+            const xInvoiceId = String(x.invoice_id || '').trim();
+            
+            // If explicit unique id matches
+            if (targetId && xId && targetId === xId) return false;
+            
+            // If targetDailyId matches
+            if (targetDailyId && xDailyId && targetDailyId === xDailyId) {
+              if (targetCreatedAt && x.created_at && targetCreatedAt !== String(x.created_at).trim()) {
+                return true; // Keep other duplicate with different creation date
+              }
+              if (!matchedOne) {
+                matchedOne = true;
+                return false;
+              }
+              return false;
+            }
+            if (targetInvoiceId && xInvoiceId && targetInvoiceId === xInvoiceId) return false;
+
+            // Match by admission_id + patient_id + invoice_date + total_bill
+            if (targetAdmissionId && x.admission_id && targetAdmissionId === String(x.admission_id).trim()) {
+              if (targetPatientId === String(x.patient_id || '').trim() && targetDate === String(x.invoice_date || '').trim()) {
+                if (Math.abs(Number(x.total_bill || 0) - targetBill) < 0.01) {
+                  if (!matchedOne) {
+                    matchedOne = true;
+                    return false;
+                  }
+                }
+              }
+            }
+            return true;
+          });
+          cachedLegacyState.last_updated_at = now;
+
+          await supabase.from('ncd_state').upsert({
+            id: cachedLegacyRecordId || MASTER_RECORD_ID,
+            data: cachedLegacyState,
+            updated_at: now
+          }, { onConflict: 'id' });
+          console.log(`[dbService] Deleted indoor invoice from ncd_state: ${targetDailyId || targetId}`);
+        }
+      } catch (delErr) {
+        console.warn("[dbService] ncd_state delete indoor notice:", delErr);
+      }
+
+      // 2. Also delete from modular table 'indoor_invoices' (cleans both modern records and any legacy duplicates)
+      try {
+        const orConditions = [];
+        if (targetId) orConditions.push(`id.eq.${targetId}`);
+        if (targetDailyId) {
+          orConditions.push(`daily_id.eq.${targetDailyId}`);
+          orConditions.push(`invoice_id.eq.${targetDailyId}`);
+          orConditions.push(`id.eq.${targetDailyId}`);
+        }
+        if (targetInvoiceId) orConditions.push(`invoice_id.eq.${targetInvoiceId}`);
+        
+        if (orConditions.length > 0) {
+          await supabase.from('indoor_invoices').delete().or(orConditions.join(','));
+          console.log(`[dbService] Deleted indoor invoice from modular table: ${targetDailyId || targetId}`);
+        }
+      } catch (modDelErr) {
+        console.warn("[dbService] modular indoor delete notice:", modDelErr);
+      }
+
+      return { success: true };
+    } catch (e) {
+      console.warn("[dbService] deleteIndoorInvoiceDirectly notice:", e);
+      return { success: true };
+    }
+  },
   
   acquireLock: async (moduleName: string, userId: string) => { return { success: true }; },
   releaseLock: async (moduleName: string, userId: string) => { },

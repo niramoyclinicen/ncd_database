@@ -7,6 +7,8 @@ import DoctorInfoPage from './DoctorInfoPage';
 import ReferrerInfoPage from './ReferrerInfoPage';
 import ErrorBoundary from './ErrorBoundary';
 import { BackIcon, ClinicIcon, StethoscopeIcon, ClipboardIcon, FileTextIcon, SettingsIcon, UserPlusIcon, Armchair, Activity, SaveIcon, MoneyIcon, TrashIcon, PrinterIcon, EyeIcon, SearchIcon, PlusIcon, RefreshIcon, Database as DatabaseIcon, Plus, Save, Trash2, Loader2, Trash2Icon, AlertCircle, UsersIcon, EditIcon, ClipboardList as LayoutIcon } from './Icons';
+import { dbService } from '../dbService';
+import { CheckCircle2, AlertTriangle, Sparkles } from 'lucide-react';
 
 // Fixed Clinic Config
 const CLINIC_REGISTRATION = 'HSM76710';
@@ -2357,6 +2359,38 @@ const IndoorInvoicePage: React.FC<{
         onConfirm: () => {},
     });
 
+    // Faded background overlay state for save/update/delete operations
+    const [actionState, setActionState] = useState<{
+        isLoading: boolean;
+        text: string;
+        subText?: string;
+        type?: 'save' | 'update' | 'delete' | 'restore' | 'cancel' | 'clean';
+    }>({
+        isLoading: false,
+        text: '',
+        subText: '',
+    });
+
+    // Prominent success modal state with explicit unlock
+    const [prominentSuccess, setProminentSuccess] = useState<{
+        isOpen: boolean;
+        title: string;
+        message: string;
+    }>({
+        isOpen: false,
+        title: '',
+        message: '',
+    });
+
+    useEffect(() => {
+        if (prominentSuccess.isOpen) {
+            const timer = setTimeout(() => {
+                setProminentSuccess({ isOpen: false, title: '', message: '' });
+            }, 4500);
+            return () => clearTimeout(timer);
+        }
+    }, [prominentSuccess.isOpen]);
+
     const filteredInvoices = useMemo(() => {
         const isDueSearch = tableSearchTerm.toLowerCase() === 'due';
         const safeInvoices = Array.isArray(indoorInvoices) ? indoorInvoices : [];
@@ -2394,27 +2428,75 @@ const IndoorInvoicePage: React.FC<{
         return safe.some(i => i && (i.status === 'Deleted' || i.status === 'Cancelled'));
     }, [indoorInvoices]);
 
+    // Helper to determine if a service item belongs to Clinic Fund (Hospital Revenue) vs External Doctor Fees
+    const isItemClinicFund = (it: any): boolean => {
+        if (!it) return false;
+        if (it.isClinicFund === true) return true;
+        const typeLower = (it.service_type || '').trim().toLowerCase();
+        const providerLower = (it.service_provider || '').trim().toLowerCase();
+        
+        // Doctor services (surgeon, anesthetist, doctor round/prescription fees, etc.) are doctor fees
+        const isDoc = (doctorServiceTypes || []).some(d => typeLower.includes(d.toLowerCase())) ||
+                      typeLower.includes('surgeon') || typeLower.includes('anaesthetist') ||
+                      providerLower.startsWith('dr') || providerLower.includes('doctor');
+        
+        if (isDoc) return false;
+        return true;
+    };
+
+    // Calculate fair Clinic Net: ensures hospital services are counted and prevents uncollected doctor fees from generating false negative balances
+    const calculateInvoiceClinicNet = (inv: IndoorInvoice): number => {
+        if (!inv || inv.status === 'Cancelled' || inv.status === 'Deleted') return 0;
+        
+        const items = Array.isArray(inv.items) ? inv.items : [];
+        const totalBill = Number(inv.total_bill || 0);
+        const paidAmount = Number(inv.paid_amount || 0);
+        const pcAmount = Number(inv.special_commission || 0) + Number(inv.commission_paid || 0);
+        const specialDiscount = Number(inv.special_discount_amount || 0);
+
+        let clinicFundRevenue = 0;
+        let doctorNonFundFees = 0;
+
+        if (items.length > 0) {
+            items.forEach((it: any) => {
+                if (!it) return;
+                const amt = Number(it.payable_amount ?? it.line_total ?? 0);
+                if (isItemClinicFund(it)) {
+                    clinicFundRevenue += amt;
+                } else {
+                    doctorNonFundFees += amt;
+                }
+            });
+        } else {
+            clinicFundRevenue = totalBill;
+        }
+
+        let net = 0;
+        if (totalBill > 0 && doctorNonFundFees > 0) {
+            // When invoice has doctor charges and clinic charges:
+            // Proportionally allocate collected cash so uncollected doctor balance doesn't show as a minus
+            const clinicRatio = Math.max(0, Math.min(1, clinicFundRevenue / totalBill));
+            const realizedClinicCash = paidAmount * clinicRatio;
+            net = realizedClinicCash - specialDiscount - pcAmount;
+        } else {
+            // Pure clinic charges: collected cash minus discounts & PC
+            net = paidAmount - specialDiscount - pcAmount;
+        }
+
+        if (inv.status === 'Returned') {
+            return -Math.abs(net);
+        }
+        return Math.max(0, Math.round(net * 100) / 100);
+    };
+
     const tableTotals = useMemo(() => {
         return filteredInvoices.reduce((acc, inv) => {
             if (inv.status !== 'Cancelled' && inv.status !== 'Deleted') {
                 acc.total += (inv.total_bill || 0);
                 acc.paid += (inv.paid_amount || 0);
                 acc.due += (inv.due_bill || 0);
-                
-                // Calculate Clinic Net for this invoice
-                const items = Array.isArray(inv.items) ? inv.items : [];
-                const nonFundedCost = items
-                    .filter(it => it && !it.isClinicFund)
-                    .reduce((s, it) => s + (it.payable_amount || 0), 0);
-                const pcAmount = (inv.special_commission || 0) + (inv.commission_paid || 0);
-                
-                if (inv.status === 'Returned') {
-                    acc.net -= ((inv.paid_amount || 0) - nonFundedCost - pcAmount);
-                } else {
-                    acc.net += ((inv.paid_amount || 0) - nonFundedCost - pcAmount);
-                }
+                acc.net += calculateInvoiceClinicNet(inv);
             }
-            
             return acc;
         }, { total: 0, paid: 0, due: 0, net: 0 });
     }, [filteredInvoices]);
@@ -2486,16 +2568,9 @@ const IndoorInvoicePage: React.FC<{
                               : dateToUse.startsWith(period);
 
                 if (isMatch && inv.status !== 'Cancelled' && inv.status !== 'Deleted') {
-                    const items = Array.isArray(inv.items) ? inv.items : [];
-                    const nonFundedCost = items
-                        .filter(it => it && !it.isClinicFund)
-                        .reduce((s, it) => s + (it.payable_amount || 0), 0);
-                    
-                    const pcAmount = (inv.special_commission || 0) + (inv.commission_paid || 0);
-                    
                     if (inv.status !== 'Returned') {
                         totalBill += (inv.total_bill || 0);
-                        hospitalNet += ((inv.paid_amount || 0) - nonFundedCost - pcAmount);
+                        hospitalNet += calculateInvoiceClinicNet(inv);
                     }
                 }
                 
@@ -2506,12 +2581,7 @@ const IndoorInvoicePage: React.FC<{
                                         : (typeof returnDate === 'string' && returnDate.startsWith(period));
                     
                     if (isReturnMatch) {
-                        const items = Array.isArray(inv.items) ? inv.items : [];
-                        const nonFundedCost = items
-                            .filter(it => it && !it.isClinicFund)
-                            .reduce((s, it) => s + (it.payable_amount || 0), 0);
-                        const pcAmount = (inv.special_commission || 0) + (inv.commission_paid || 0);
-                        hospitalNet -= ((inv.paid_amount || 0) - nonFundedCost - pcAmount);
+                        hospitalNet += calculateInvoiceClinicNet(inv); // calculateInvoiceClinicNet returns negative for Returned
                     }
                 }
             });
@@ -2678,7 +2748,10 @@ const IndoorInvoicePage: React.FC<{
         }
 
         if (field === 'service_type') {
-            const isClinicFund = clinicFundServiceTypes.some(type => value.toLowerCase().includes(type.toLowerCase()));
+            const typeLower = (value || '').trim().toLowerCase();
+            const isDoc = (doctorServiceTypes || []).some(type => typeLower.includes(type.toLowerCase())) ||
+                          typeLower.includes('surgeon') || typeLower.includes('anaesthetist');
+            const isClinicFund = !isDoc;
             const rowIdx = updatedItems.findIndex(it => it.id === id);
             if (rowIdx !== -1) updatedItems[rowIdx].isClinicFund = isClinicFund;
         }
@@ -2689,7 +2762,7 @@ const IndoorInvoicePage: React.FC<{
 
     const handleAddServiceItem = () => {
         const items = Array.isArray(formData.items) ? formData.items : [];
-        const newItem: ServiceItem = { id: Date.now(), service_type: '', service_provider: '', service_charge: 0, quantity: 1, line_total: 0, discount: 0, payable_amount: 0, note: '', isClinicFund: false };
+        const newItem: ServiceItem = { id: Date.now(), service_type: '', service_provider: '', service_charge: 0, quantity: 1, line_total: 0, discount: 0, payable_amount: 0, note: '', isClinicFund: true };
         const updatedItems = [...items, newItem];
         const totals = calculateTotals(updatedItems, 0, formData.paid_amount || 0, formData.special_discount_amount || 0);
         setFormData(prev => ({ ...prev, items: updatedItems, ...totals }));
@@ -2720,6 +2793,15 @@ const IndoorInvoicePage: React.FC<{
 
     const executeSaveInvoice = async () => {
         setConfirmModal(prev => ({ ...prev, isOpen: false }));
+        const isEditing = Boolean(selectedInvoiceId);
+        setActionState({
+            isLoading: true,
+            text: isEditing ? 'ইনভয়েস আপডেট হচ্ছে...' : 'ইনভয়েস সেভ হচ্ছে...',
+            subText: isEditing 
+                ? 'পরিবর্তিত তথ্য ডাটাবেজে আপডেট হচ্ছে, অনুগ্রহ করে অপেক্ষা করুন...' 
+                : 'নতুন ইনভয়েসটি ডাটাবেজে সংরক্ষণ করা হচ্ছে, অনুগ্রহ করে অপেক্ষা করুন...',
+            type: isEditing ? 'update' : 'save'
+        });
         setLoading(true);
         try {
             const safeInvoices = Array.isArray(indoorInvoices) ? indoorInvoices : [];
@@ -2738,7 +2820,6 @@ const IndoorInvoicePage: React.FC<{
                 const count = safeInvoices.filter(i => i && i.invoice_date === dateToUse).length + 1;
                 const newId = `CLIN-${dateToUse}-${String(count).padStart(3, '0')}`;
                 finalInvoice.daily_id = newId;
-                setSuccessMessage(`তারিখ পরিবর্তনের কারণে নতুন আইডি ${newId} তৈরি করা হয়েছে।`);
             }
 
             const now = new Date().toISOString();
@@ -2784,32 +2865,38 @@ const IndoorInvoicePage: React.FC<{
                 newInvoicesArr.push(newInvoice);
             }
 
+            // 1. Direct database save according to January-July 2026 (ncd_state) vs August 2026+ (indoor_invoices)
+            await dbService.saveIndoorInvoiceDirectly(finalInvoice);
+
+            // 2. Perform blocking cloud sync
             if (performBlockingSync) {
-                const success = await performBlockingSync({ indoorInvoices: newInvoicesArr, admissions: newAdmissions });
-                if (success) {
-                    setIndoorInvoices(newInvoicesArr);
-                    setAdmissions(newAdmissions);
-                    setSuccessMessage("ডাটা সেভ হয়েছে");
-                    setFormData(emptyIndoorInvoice);
-                    setSelectedAdmission(null);
-                    setSelectedInvoiceId(null);
-                    setApplyPC(false);
-                } else {
-                    alert("সার্ভারে ডাটা সেভ করতে ব্যর্থ হয়েছে। দয়া করে আপনার ইন্টারনেট চেক করুন।");
-                }
-            } else {
-                setIndoorInvoices(newInvoicesArr);
-                setAdmissions(newAdmissions);
-                setSuccessMessage("Indoor Invoice Saved Locally!");
-                setFormData(emptyIndoorInvoice);
-                setSelectedAdmission(null);
-                setSelectedInvoiceId(null);
-                setApplyPC(false);
+                await performBlockingSync({ indoorInvoices: newInvoicesArr, admissions: newAdmissions });
             }
+
+            setIndoorInvoices(newInvoicesArr);
+            setAdmissions(newAdmissions);
+
+            // Clear form and unlock UI for new work
+            setFormData(emptyIndoorInvoice);
+            setSelectedAdmission(null);
+            setSelectedInvoiceId(null);
+            setApplyPC(false);
+
+            const successMsg = isEditing 
+                ? `ইনভয়েস (${finalInvoice.daily_id || ''}) সফলভাবে আপডেট করা হয়েছে!`
+                : `ইনভয়েস (${finalInvoice.daily_id || ''}) সফলভাবে তৈরি ও সংরক্ষণ করা হয়েছে!`;
+            
+            setSuccessMessage(successMsg);
+            setProminentSuccess({
+                isOpen: true,
+                title: isEditing ? 'ইনভয়েস আপডেট সফল!' : 'ইনভয়েস সংরক্ষণ সফল!',
+                message: successMsg,
+            });
         } catch (error) {
             console.error("Error saving invoice:", error);
             alert("ইনভয়েস সেভ করার সময় একটি ত্রুটি হয়েছে।");
         } finally {
+            setActionState({ isLoading: false, text: '', subText: '' });
             setLoading(false);
         }
     };
@@ -2817,18 +2904,30 @@ const IndoorInvoicePage: React.FC<{
     // Unique match checker to ensure actions affect ONLY one target invoice
     const isTargetInvoice = (item: IndoorInvoice, target: IndoorInvoice) => {
         if (!item || !target) return false;
+        if (item === target) return true;
+        // Match by explicit unique ID
+        const targetId = (target as any).id || (target as any)._uid;
+        const itemId = (item as any).id || (item as any)._uid;
+        if (targetId && itemId && String(targetId).trim() === String(itemId).trim()) {
+            return true;
+        }
         // Match by valid non-empty daily_id
         if (target.daily_id && item.daily_id && typeof target.daily_id === 'string' && target.daily_id.trim() && item.daily_id.trim()) {
-            return target.daily_id.trim() === item.daily_id.trim();
-        }
-        // Match by id
-        if ((target as any).id && (item as any).id) {
-            return (target as any).id === (item as any).id;
+            if (target.daily_id.trim() === item.daily_id.trim()) {
+                if (target.created_at && item.created_at && target.created_at !== item.created_at) {
+                    return false;
+                }
+                return true;
+            }
+            return false;
         }
         // Match by admission_id + patient_id + invoice_date
         if (target.admission_id && item.admission_id && target.admission_id === item.admission_id) {
             if (target.patient_id === item.patient_id && (target.invoice_date || '') === (item.invoice_date || '')) {
-                return true;
+                if (target.created_at && item.created_at && target.created_at !== item.created_at) {
+                    return false;
+                }
+                return Math.abs((target.total_bill || 0) - (item.total_bill || 0)) < 0.01;
             }
         }
         return false;
@@ -2844,6 +2943,12 @@ const IndoorInvoicePage: React.FC<{
 
     const handleCancelInvoice = async (inv: IndoorInvoice) => {
         if (!window.confirm(`ভুল এন্ট্রি হলে 'Cancel' করুন। এটি একাউন্টে কোনো প্রভাব ফেলবে না (ক্যাশ ইন বা খরচ কোনোটাই পরিবর্তন হবে না)।`)) return;
+        setActionState({
+            isLoading: true,
+            text: 'ইনভয়েস বাতিল হচ্ছে...',
+            subText: 'ইনভয়েসটির স্ট্যাটাস Cancelled করা হচ্ছে, অনুগ্রহ করে অপেক্ষা করুন...',
+            type: 'cancel'
+        });
         setLoading(true);
         try {
             const safeInvoices = Array.isArray(indoorInvoices) ? indoorInvoices : [];
@@ -2855,19 +2960,36 @@ const IndoorInvoicePage: React.FC<{
                 }
                 return item;
             });
+            
+            // Direct save to update status in appropriate table
+            await dbService.saveIndoorInvoiceDirectly({ ...inv, status: 'Cancelled' });
+
             if (performBlockingSync) {
                 await performBlockingSync({ indoorInvoices: newInvoicesArr });
             }
             setIndoorInvoices(newInvoicesArr);
-            setSuccessMessage(`ইনভয়েস (${inv.daily_id || ''}) বাতিল (Cancelled) করা হয়েছে। একাউন্টসে কোনো প্রভাব পড়বে না।`);
+            const msg = `ইনভয়েস (${inv.daily_id || ''}) বাতিল (Cancelled) করা হয়েছে। একাউন্টসে কোনো প্রভাব পড়বে না।`;
+            setSuccessMessage(msg);
+            setProminentSuccess({
+                isOpen: true,
+                title: 'ইনভয়েস বাতিল করা হয়েছে',
+                message: msg
+            });
         } catch (err) {
             console.error("Cancel error:", err);
         } finally {
+            setActionState({ isLoading: false, text: '', subText: '' });
             setLoading(false);
         }
     };
 
     const handleRestoreInvoice = async (inv: IndoorInvoice) => {
+        setActionState({
+            isLoading: true,
+            text: 'ইনভয়েস রিস্টোর হচ্ছে...',
+            subText: 'ইনভয়েসটি পুনরায় সচল করা হচ্ছে, অনুগ্রহ করে অপেক্ষা করুন...',
+            type: 'restore'
+        });
         setLoading(true);
         try {
             const safeInvoices = Array.isArray(indoorInvoices) ? indoorInvoices : [];
@@ -2879,20 +3001,36 @@ const IndoorInvoicePage: React.FC<{
                 }
                 return item;
             });
+            
+            await dbService.saveIndoorInvoiceDirectly({ ...inv, status: 'Posted' });
+
             if (performBlockingSync) {
                 await performBlockingSync({ indoorInvoices: newInvoicesArr });
             }
             setIndoorInvoices(newInvoicesArr);
-            setSuccessMessage(`রোগী "${inv.patient_name}" এর ইনভয়েস সফলভাবে সচল (Restore) করা হয়েছে।`);
+            const msg = `রোগী "${inv.patient_name}" এর ইনভয়েস সফলভাবে সচল (Restore) করা হয়েছে।`;
+            setSuccessMessage(msg);
+            setProminentSuccess({
+                isOpen: true,
+                title: 'ইনভয়েস রিস্টোর সম্পন্ন!',
+                message: msg
+            });
         } catch (err) {
             console.error("Restore error:", err);
         } finally {
+            setActionState({ isLoading: false, text: '', subText: '' });
             setLoading(false);
         }
     };
 
     const handleRestoreAllDeletedInvoices = async () => {
         if (!window.confirm("আপনি কি পূর্বে ভুলবশত ডিলিট/বাতিল হওয়া সকল ইনভয়েস পুনরায় সচল (Restore to Active) করতে চান?")) return;
+        setActionState({
+            isLoading: true,
+            text: 'সকল ইনভয়েস রিস্টোর হচ্ছে...',
+            subText: 'বাতিল ও ডিলিট হওয়া সকল ইনভয়েস সচল করা হচ্ছে...',
+            type: 'restore'
+        });
         setLoading(true);
         try {
             const safeInvoices = Array.isArray(indoorInvoices) ? indoorInvoices : [];
@@ -2906,11 +3044,18 @@ const IndoorInvoicePage: React.FC<{
                 await performBlockingSync({ indoorInvoices: newInvoicesArr });
             }
             setIndoorInvoices(newInvoicesArr);
-            setSuccessMessage("সকল ডিলিট/বাতিল হওয়া ইনভয়েস সফলভাবে সচল (Restore) করা হয়েছে!");
+            const msg = "সকল ডিলিট/বাতিল হওয়া ইনভয়েস সফলভাবে সচল (Restore) করা হয়েছে!";
+            setSuccessMessage(msg);
+            setProminentSuccess({
+                isOpen: true,
+                title: 'রিস্টোর সম্পন্ন!',
+                message: msg
+            });
         } catch (err) {
             console.error("Restore all error:", err);
             alert("রিস্টোর করার সময় ত্রুটি হয়েছে।");
         } finally {
+            setActionState({ isLoading: false, text: '', subText: '' });
             setLoading(false);
         }
     };
@@ -2935,13 +3080,19 @@ const IndoorInvoicePage: React.FC<{
     }, [indoorInvoices]);
 
     const handleDeduplicateInvoices = async () => {
-        if (!window.confirm("আপনি কি অতিরিক্ত ডুপ্লিকেট ইনভয়েসগুলো মুছে ফেলে প্রতিটি ইনভয়েসের কেবল একটি সঠিক কপি রাখতে চান? এটি ক্লাউড ডাটাবেজেও সিঙ্ক হবে।")) return;
+        if (!window.confirm("আপনি কি অতিরিক্ত ডুপ্লিকেট ইনভয়েসগুলো মুছে ফেলে প্রতিটি ইনভয়েসের কেবল একটি সঠিক কপি রাখতে চান? এটি ডাটাবেজ থেকেও স্থায়ীভাবে মুছে যাবে।")) return;
+        setActionState({
+            isLoading: true,
+            text: 'ডুপ্লিকেট ইনভয়েস ক্লিন হচ্ছে...',
+            subText: 'অতিরিক্ত ডুপ্লিকেট ইনভয়েস ডাটাবেজ থেকে মুছে ফেলা হচ্ছে, অনুগ্রহ করে অপেক্ষা করুন...',
+            type: 'clean'
+        });
         setLoading(true);
         try {
             const safeInvoices = Array.isArray(indoorInvoices) ? indoorInvoices : [];
             const seenKeys = new Set<string>();
             const deduplicated: IndoorInvoice[] = [];
-            let removedCount = 0;
+            const toDelete: IndoorInvoice[] = [];
 
             for (const inv of safeInvoices) {
                 if (!inv) continue;
@@ -2949,27 +3100,40 @@ const IndoorInvoicePage: React.FC<{
                     ? `id:${inv.daily_id}` 
                     : `adm:${inv.admission_id || ''}-${inv.patient_name || ''}-${inv.admission_date || ''}-${inv.total_bill || 0}-${inv.paid_amount || 0}`;
                 if (seenKeys.has(key)) {
-                    removedCount++;
+                    toDelete.push(inv);
                     continue;
                 }
                 seenKeys.add(key);
                 deduplicated.push(inv);
             }
 
-            if (removedCount === 0) {
+            if (toDelete.length === 0) {
                 alert("কোনো ডুপ্লিকেট ইনভয়েস পাওয়া যায়নি। আপনার ইনভয়েস ডাটা সম্পূর্ণ সঠিক রয়েছে।");
                 return;
+            }
+
+            // Permanently remove duplicates from database (both ncd_state and modular table)
+            for (const inv of toDelete) {
+                await dbService.deleteIndoorInvoiceDirectly(inv);
             }
 
             if (performBlockingSync) {
                 await performBlockingSync({ indoorInvoices: deduplicated });
             }
             setIndoorInvoices(deduplicated);
-            setSuccessMessage(`সফলভাবে ${removedCount} টি অতিরিক্ত ডুপ্লিকেট ইনভয়েস মুছে একটি করে মূল কপি সংরক্ষিত হয়েছে!`);
+
+            const msg = `সফলভাবে ${toDelete.length}টি অতিরিক্ত ডুপ্লিকেট ইনভয়েস ডাটাবেজ থেকে মুছে একটি করে মূল কপি সংরক্ষিত হয়েছে!`;
+            setSuccessMessage(msg);
+            setProminentSuccess({
+                isOpen: true,
+                title: 'ডুপ্লিকেট ক্লিন সম্পন্ন!',
+                message: msg
+            });
         } catch (err) {
             console.error("Deduplication error:", err);
             alert("ডুপ্লিকেট মোছার সময় একটি ত্রুটি হয়েছে।");
         } finally {
+            setActionState({ isLoading: false, text: '', subText: '' });
             setLoading(false);
         }
     };
@@ -3055,35 +3219,56 @@ const IndoorInvoicePage: React.FC<{
 
     const executeDeleteInvoice = async (inv: IndoorInvoice) => {
         setConfirmModal(prev => ({ ...prev, isOpen: false }));
+        setActionState({
+            isLoading: true,
+            text: 'ইনভয়েস ডিলিট হচ্ছে...',
+            subText: 'ডাটাবেজ ও ক্লাউড থেকে ইনভয়েসটি স্থায়ীভাবে মুছে ফেলা হচ্ছে, অনুগ্রহ করে অপেক্ষা করুন...',
+            type: 'delete'
+        });
         setLoading(true);
         try {
+            // 1. Direct database deletion:
+            // January-July 2026: removed from ncd_state
+            // August 2026 onwards: deleted from modular table indoor_invoices & updated in ncd_state
+            await dbService.deleteIndoorInvoiceDirectly(inv);
+
+            // 2. Remove the targeted invoice instance from state (handles multiple duplicates safely)
             const safeInvoices = Array.isArray(indoorInvoices) ? indoorInvoices : [];
-            let matched = false;
-            const newInvoicesArr = safeInvoices.map((i) => {
-                if (!matched && isTargetInvoice(i, inv)) {
-                    matched = true; // Only match the exact ONE target item
-                    return { ...i, status: 'Deleted' as const };
+            let removed = false;
+            const newInvoicesArr = safeInvoices.filter((i) => {
+                if (!removed && isTargetInvoice(i, inv)) {
+                    removed = true;
+                    return false; // remove this exact instance
                 }
-                return i;
+                return true;
             });
             
             if (performBlockingSync) {
-                const success = await performBlockingSync({ indoorInvoices: newInvoicesArr });
-                if (success) {
-                    setIndoorInvoices(newInvoicesArr);
-                    setSuccessMessage(`ইনভয়েস (${inv.daily_id || ''}) সফলভাবে ডিলিট করা হয়েছে এবং একাউন্টস থেকে বাদ দেওয়া হয়েছে।`);
-                } else {
-                    setIndoorInvoices(newInvoicesArr);
-                    setSuccessMessage(`ইনভয়েস (${inv.daily_id || ''}) ডিলিট করা হয়েছে (লোকালি সংরক্ষিত)।`);
-                }
-            } else {
-                setIndoorInvoices(newInvoicesArr);
-                setSuccessMessage(`ইনভয়েস (${inv.daily_id || ''}) সফলভাবে ডিলিট করা হয়েছে।`);
+                await performBlockingSync({ indoorInvoices: newInvoicesArr });
             }
+            setIndoorInvoices(newInvoicesArr);
+
+            // Clear form if the currently loaded invoice was the deleted one
+            if (selectedInvoiceId === inv.daily_id || selectedInvoiceId === (inv as any).id) {
+                setFormData(emptyIndoorInvoice);
+                setSelectedAdmission(null);
+                setSelectedInvoiceId(null);
+                setApplyPC(false);
+            }
+
+            const invIdStr = inv.daily_id || (inv as any).id || '';
+            const msg = `ইনভয়েস ${invIdStr ? `(${invIdStr})` : ''} সফলভাবে ডাটাবেজ থেকে মুছে ফেলা হয়েছে এবং একাউন্টস থেকে বাদ দেওয়া হয়েছে।`;
+            setSuccessMessage(msg);
+            setProminentSuccess({
+                isOpen: true,
+                title: 'ইনভয়েস ডিলিট সফল!',
+                message: msg
+            });
         } catch (err) {
             console.error("Delete error:", err);
             alert("ডিলিট করার সময় একটি ত্রুটি হয়েছে।");
         } finally {
+            setActionState({ isLoading: false, text: '', subText: '' });
             setLoading(false);
         }
     };
@@ -3197,7 +3382,7 @@ const IndoorInvoicePage: React.FC<{
         }
 
         const items = Array.isArray(inv.items) ? inv.items : [];
-        const incomeItems = items.filter((it: any) => it && it.isClinicFund === true);
+        const incomeItems = items.filter((it: any) => it && isItemClinicFund(it));
 
         let admFee = 0, oxygen = 0, dressing = 0, conservative = 0, nvd = 0, dc = 0, lscs_ot = 0, gb_ot = 0, others_ot = 0, others = 0;
 
@@ -3237,17 +3422,80 @@ const IndoorInvoicePage: React.FC<{
             }
         });
 
-        const totalRevenue = incomeItems.reduce((s, it) => s + it.payable_amount, 0);
+        const totalRevenue = incomeItems.length > 0
+            ? incomeItems.reduce((s, it) => s + (it.payable_amount || 0), 0)
+            : (items.length === 0 ? Number(inv.total_bill || 0) : 0);
         // Deduct PC Amount: Sum of special_commission and commission_paid
         const pcAmount = (inv.special_commission || 0) + (inv.commission_paid || 0);
         // Deduct Special Discounts and PC from the Hospital's Gain
-        const clinicNet = totalRevenue - (inv.special_discount_amount || 0) - pcAmount;
+        const rawNet = totalRevenue - (inv.special_discount_amount || 0) - pcAmount;
+        const clinicNet = inv.status === 'Returned' ? -Math.abs(rawNet) : Math.max(0, rawNet);
 
         return { admFee, oxygen, conservative, nvd, dc, lscs_ot, gb_ot, others_ot, dressing, others, pcAmount, clinicNet };
     };
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-6 relative">
+            {/* Full-screen Faded Background Overlay for Delete/Update/Save Operations */}
+            {actionState.isLoading && (
+                <div className="fixed inset-0 z-[9999] bg-slate-950/80 backdrop-blur-sm flex flex-col items-center justify-center p-4 transition-all duration-300 select-none">
+                    <div className="bg-slate-900/95 border-2 border-slate-700/80 rounded-2xl p-8 max-w-md w-full text-center shadow-2xl shadow-black/80 flex flex-col items-center space-y-4 animate-in fade-in zoom-in-95 duration-200">
+                        <div className="relative flex items-center justify-center">
+                            <div className="w-16 h-16 rounded-full border-4 border-slate-800 border-t-blue-500 animate-spin flex items-center justify-center"></div>
+                            <div className="absolute">
+                                {actionState.type === 'delete' && <Trash2 className="w-6 h-6 text-rose-400 animate-pulse" />}
+                                {actionState.type === 'clean' && <DatabaseIcon className="w-6 h-6 text-amber-400 animate-pulse" />}
+                                {actionState.type === 'update' && <RefreshIcon className="w-6 h-6 text-blue-400 animate-pulse" />}
+                                {actionState.type === 'save' && <Save className="w-6 h-6 text-emerald-400 animate-pulse" />}
+                                {(!actionState.type || actionState.type === 'restore' || actionState.type === 'cancel') && <Loader2 className="w-6 h-6 text-blue-400 animate-spin" />}
+                            </div>
+                        </div>
+                        <div className="space-y-2">
+                            <h3 className="text-xl font-black text-white tracking-wide">
+                                {actionState.text}
+                            </h3>
+                            {actionState.subText && (
+                                <p className="text-xs text-slate-400 leading-relaxed max-w-xs mx-auto">
+                                    {actionState.subText}
+                                </p>
+                            )}
+                        </div>
+                        <div className="inline-flex items-center gap-2 px-3 py-1 bg-slate-800/80 rounded-full border border-slate-700/50 text-[11px] text-slate-400">
+                            <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
+                            ডাটাবেজ প্রসেসিং ও নিরাপত্তা লক সক্রিয় রয়েছে
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Prominent Success Modal with explicit Unlock button */}
+            {prominentSuccess.isOpen && (
+                <div className="fixed inset-0 z-[9999] bg-slate-950/70 backdrop-blur-sm flex flex-col items-center justify-center p-4 transition-all duration-300 select-none">
+                    <div className="bg-gradient-to-b from-slate-900 to-slate-950 border-2 border-emerald-500/50 rounded-2xl p-7 max-w-md w-full text-center shadow-2xl shadow-emerald-950/40 flex flex-col items-center space-y-4 animate-in fade-in zoom-in-95 duration-200">
+                        <div className="w-16 h-16 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shadow-lg shadow-emerald-500/20">
+                            <CheckCircle2 className="w-10 h-10 animate-bounce" />
+                        </div>
+                        <div className="space-y-1.5">
+                            <h3 className="text-2xl font-black text-emerald-400 tracking-tight">
+                                {prominentSuccess.title}
+                            </h3>
+                            <p className="text-sm font-medium text-slate-300 leading-relaxed px-2">
+                                {prominentSuccess.message}
+                            </p>
+                        </div>
+                        <div className="w-full pt-2">
+                            <button
+                                onClick={() => setProminentSuccess({ isOpen: false, title: '', message: '' })}
+                                className="w-full py-3 px-6 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black rounded-xl shadow-lg shadow-emerald-600/30 transition-all flex items-center justify-center gap-2 text-sm uppercase tracking-wider cursor-pointer"
+                            >
+                                <CheckCircle2 className="w-4 h-4" />
+                                ঠিক আছে (আনলক করুন)
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <div className="grid grid-cols-4 gap-4">
                 <SummaryCard title="Today Hospital Cash" bill={stats.today.totalBill} net={stats.today.hospitalNet} color="text-emerald-400" />
                 <SummaryCard title="Monthly Hospital Cash" bill={stats.month.totalBill} net={stats.month.hospitalNet} color="text-blue-400" />
@@ -3982,13 +4230,8 @@ const IndoorInvoicePage: React.FC<{
                                         <td className="p-3 text-right text-sky-600 font-bold font-mono">
                                             {(() => {
                                                 if (inv.status === 'Cancelled' || inv.status === 'Deleted') return '0.00';
-                                                const items = Array.isArray(inv.items) ? inv.items : [];
-                                                const nonFundedCost = items
-                                                    .filter(it => it && !it.isClinicFund)
-                                                    .reduce((s, it) => s + (it.payable_amount || 0), 0);
-                                                const pcAmount = (inv.special_commission || 0) + (inv.commission_paid || 0);
-                                                const net = (inv.paid_amount || 0) - nonFundedCost - pcAmount;
-                                                return (inv.status === 'Returned' ? -net : net).toFixed(2);
+                                                const net = calculateInvoiceClinicNet(inv);
+                                                return net.toFixed(2);
                                             })()}
                                         </td>
                                         <td className="p-3 text-center"><span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase ${inv.status==='Returned'?'bg-rose-600 text-white':(inv.status==='Cancelled'||inv.status==='Deleted')?'bg-slate-700 text-slate-300':'bg-blue-600 text-white'}`}>{inv.status}</span></td>

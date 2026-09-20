@@ -916,13 +916,32 @@ const ClinicAccountsPage: React.FC<any> = ({
         }
 
         const items = Array.isArray(inv.items) ? inv.items : [];
-        const incomeItems = items.filter((it: any) => it && it.isClinicFund === true);
-        const totalRevenue = incomeItems.reduce((s, it) => s + it.payable_amount, 0);
+        const isDoc = (it: any) => {
+            const t = (it?.service_type || '').toLowerCase();
+            const p = (it?.service_provider || '').toLowerCase();
+            return [
+                'surgeon', 'anaesthetist', 'obstetrician', 'midwife', 
+                'doctor round fee', 'doctor prescription fee', 'discharge writing fee',
+                'assistant_1', 'assistant_2'
+            ].some(d => t.includes(d)) || p.startsWith('dr') || p.includes('doctor');
+        };
+
+        const incomeItems = items.filter((it: any) => {
+            if (!it) return false;
+            if (it.isClinicFund === true) return true;
+            if (it.isClinicFund === false && isDoc(it)) return false;
+            return !isDoc(it);
+        });
+
+        const totalRevenue = incomeItems.length > 0
+            ? incomeItems.reduce((s, it) => s + (it.payable_amount || 0), 0)
+            : (items.length === 0 ? Number(inv.total_bill || 0) : 0);
         
         // FIX: Subtract due collections from clinicNet to prevent double-counting when Due Collection is added later
         const allDues = (dueCollections || []).filter((dc: any) => dc.invoice_id === inv.invoice_id).reduce((s: any, dc: any) => s + (dc.amount_collected || 0), 0);
         const pcAmount = (inv.special_commission || 0) + (inv.commission_paid || 0);
-        const clinicNet = totalRevenue - (inv.special_discount_amount || 0) - pcAmount - allDues;
+        const rawClinicNet = totalRevenue - (inv.special_discount_amount || 0) - pcAmount - allDues;
+        const clinicNet = inv.status === 'Returned' ? -Math.abs(rawClinicNet) : Math.max(0, rawClinicNet);
 
         // Ratio to distribute deductions (commission + discount + dues) proportionally across categories
         const ratio = totalRevenue > 0 ? clinicNet / totalRevenue : 0;
@@ -1390,6 +1409,13 @@ const ClinicAccountsPage: React.FC<any> = ({
                     </div>
                     <table>
                         <thead>
+                            <tr class="bg-gray-100 font-black">
+                                <th colspan="15" class="text-right uppercase">Top Summary:</th>
+                                <th class="text-right">৳${reportTotals.paidTotal.toLocaleString()}</th>
+                                <th class="text-right bg-rose-50">৳${reportTotals.pc.toLocaleString()}</th>
+                                <th class="text-right bg-emerald-100 text-emerald-900 font-black">৳${reportTotals.netClinic.toLocaleString()}</th>
+                                <th></th>
+                            </tr>
                             <tr>
                                 <th>SL</th>
                                 <th>Adm. ID</th>
@@ -2079,8 +2105,37 @@ const ClinicAccountsPage: React.FC<any> = ({
 
                             <div className="overflow-x-auto min-h-[650px] border border-slate-700 rounded-xl bg-slate-950/20 shadow-inner w-full">
                                 <table className="w-full text-left text-[11px] border-collapse min-w-[1500px]">
-                                    <thead className="bg-slate-900/80 text-[9px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-700">
-                                        <tr>
+                                    <thead className="bg-slate-900 text-[9px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-700 sticky top-0 z-20 shadow-md">
+                                        {/* Top Column Summary Row - Perfectly aligned directly above the columns */}
+                                        <tr className="bg-slate-950/95 text-slate-400 border-b border-slate-800">
+                                            <th colSpan={15} className="p-2 text-right uppercase tracking-widest text-[9px] font-black text-slate-400">
+                                                কলাম সামারি (Top Summary) :
+                                            </th>
+                                            <th className="p-2 text-right bg-emerald-950/70 text-emerald-300 font-black font-mono text-xs border-r border-slate-800/60" title="মোট কালেকশন">
+                                                <span className="text-[7px] block text-emerald-500 font-sans uppercase">Total Paid</span>
+                                                ৳{reportTotals.paidTotal.toLocaleString()}
+                                            </th>
+                                            <th className="p-2 text-right bg-rose-950/70 text-rose-300 font-black font-mono text-xs border-r border-slate-800/60" title="মোট পিসি কমিশন">
+                                                <span className="text-[7px] block text-rose-500 font-sans uppercase">Total PC</span>
+                                                ৳{reportTotals.pc.toLocaleString()}
+                                            </th>
+                                            {/* Exact width and boundary alignment strictly for Clinic Net column */}
+                                            <th className="p-2 text-right bg-sky-950 text-sky-200 font-black border-l-2 border-r-2 border-sky-400/90 shadow-md ring-1 ring-sky-500/40" title="মোট ক্লিনিক নিট (হসপিটাল নিট)">
+                                                <div className="flex flex-col items-end">
+                                                    <span className="text-[8px] font-sans font-black text-sky-400 uppercase tracking-tight flex items-center gap-1">
+                                                        <span className="w-1.5 h-1.5 rounded-full bg-sky-400 animate-pulse"></span>
+                                                        Net Total
+                                                    </span>
+                                                    <span className="text-sm font-mono font-black text-sky-200">
+                                                        ৳{reportTotals.netClinic.toLocaleString()}
+                                                    </span>
+                                                </div>
+                                            </th>
+                                            <th colSpan={2} className="bg-slate-950/95"></th>
+                                        </tr>
+
+                                        {/* Standard Column Headers */}
+                                        <tr className="bg-slate-900/90 border-b border-slate-700">
                                             <th className="p-2 whitespace-nowrap">SL</th>
                                             <th className="p-2 whitespace-nowrap">Adm. ID</th>
                                             <th className="p-2 whitespace-nowrap">Date</th>
@@ -2098,7 +2153,14 @@ const ClinicAccountsPage: React.FC<any> = ({
                                             <th className="p-2 text-right">Misc</th>
                                             <th className="p-2 text-right bg-emerald-900/10 text-emerald-100 font-black">Paid Total</th>
                                             <th className="p-2 text-right bg-rose-900/10 text-rose-300 font-black border-l-2 border-rose-800/30">PC (Comm)</th>
-                                            <th className="p-2 text-right bg-blue-900/10 text-sky-200 font-black border-l-2 border-blue-800/30">Clinic Net</th>
+                                            <th className="p-2 text-right bg-blue-900/20 text-sky-200 font-black border-l-2 border-r-2 border-blue-500/40">
+                                                <div className="flex flex-col items-end">
+                                                    <span className="text-sky-300">Clinic Net</span>
+                                                    <span className="text-[10px] font-mono text-sky-300 font-bold bg-sky-950/80 px-1.5 py-0.5 rounded border border-sky-500/40 mt-0.5 whitespace-nowrap">
+                                                        ৳{reportTotals.netClinic.toLocaleString()}
+                                                    </span>
+                                                </div>
+                                            </th>
                                             <th className="p-2 text-center">Status</th>
                                             <th className="p-2 text-center whitespace-nowrap">Action</th>
                                         </tr>
