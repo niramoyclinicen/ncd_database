@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Patient, Doctor, Employee, LabInvoice, LabInvoiceItem, emptyLabInvoice, Referrar, Reagent, Test, testCategories, DiagnosticSubPage } from './DiagnosticData';
 import { formatDateTime } from '../utils/dateUtils';
+import { dbService } from '../dbService';
 import SearchableSelect from './SearchableSelect';
 import PatientInfoPage from './PatientInfoPage';
 import DoctorInfoPage from './DoctorInfoPage';
@@ -660,60 +661,6 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
         onConfirm: () => executeSave()
     });
   };
-  
-  /*
-  const executeSave_CORRUPTED = async () => {
-    const currentDateTime = formatDateTime(new Date());
-    const invoiceToSave = { 
-      ...formData, 
-      last_modified: currentDateTime,
-      total_amount: totals.totalAmount,
-      net_payable: totals.netPayable,
-      due_amount: totals.dueAmount,
-      status: totals.status
-    };
-
-    // Duplicate check in local buffer first
-    const safeInvoices = Array.isArray(invoices) ? invoices : [];
-    if (!isEditing && safeInvoices.some(inv => inv && inv.invoice_id === invoiceToSave.invoice_id)) {
-      alert('সতর্কতা: এই ইনভয়েস আ�    // If performBlockingSync is available, use it to ensure cloud save
-    if (performBlockingSync) {
-      try {
-        console.log("Initiating Cloud Save for Invoice:", invoiceToSave.invoice_id);
-        const success = await performBlockingSync({ labInvoices: newInvoices });
-        
-        if (success) {
-          // Sync successful - only now update the local state and reset form
-          setInvoices(newInvoices);
-          setSuccessMessage('ডাটা সেভ হয়েছে');
-          resetForm();
-        } else {
-          // Error modal is handled by App.tsx, we keep form data intact for retry
-          console.error("Cloud save returned unsuccessful status.");
-        }
-      } catch (err) {
-        alert("ইন্টারনেট সংযোগ বিচ্ছিন্ন হয়েছে। ডাটা সেভ করা যায়নি। সংযোগ ফিরে আসলে আবার চেষ্টা করুন।");
-      }
-    } else {
-pdate the local state and reset form
-          setInvoices(newInvoices);
-          setSuccessMessage('ডাটা সঠিকভাবে সেভ হয়েছে!');
-          resetForm();
-        } else {
-          // Error modal is handled by App.tsx, we keep form data intact for retry
-          console.error("Cloud save returned unsuccessful status.");
-        }
-      } catch (err) {
-        alert("ইন্টারনেট সংযোগ বিচ্ছিন্ন হয়েছে। ডাটা সেভ করা যায়নি। সংযোগ ফিরে আসলে আবার চেষ্টা করুন।");
-      }
-    } else {
-      // Offline mode fallback (Development only)
-      setInvoices(newInvoices);
-      setSuccessMessage('সতর্কতা: অফলাইন মোডে সেভ করা হয়েছে (Not Synced to Cloud)');
-      resetForm();
-    }
-  };
-  */
 
   const executeSave = async () => {
     setConfirmModal(prev => ({ ...prev, isOpen: false }));
@@ -774,7 +721,14 @@ pdate the local state and reset form
           });
       }
 
-      // If performBlockingSync is available, use it to ensure cloud save
+      // 1. Direct database save respecting July 2026 (ncd_state) vs August 2026+ (lab_invoices)
+      try {
+        await dbService.saveLabInvoiceDirectly(invoiceToSave);
+      } catch (directErr) {
+        console.warn("Direct lab invoice save warning:", directErr);
+      }
+
+      // 2. If performBlockingSync is available, use it to ensure cloud save
       if (performBlockingSync) {
         try {
           const syncPayload: any = { labInvoices: newInvoices };

@@ -854,16 +854,24 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
 
         const getInvNet = (inv: any) => {
             if (!inv) return 0;
-            if (typeof inv.netPayable === 'number' && !isNaN(inv.netPayable)) return inv.netPayable;
-            if (typeof inv.net_payable === 'number' && !isNaN(inv.net_payable)) return inv.net_payable;
-            if (typeof inv.paidAmount === 'number' && !isNaN(inv.paidAmount) && inv.paidAmount > 0) return inv.paidAmount;
-            if (typeof inv.paid_amount === 'number' && !isNaN(inv.paid_amount) && inv.paid_amount > 0) return inv.paid_amount;
-            const tot = Number(inv.totalAmount) || Number(inv.total_amount) || Number(inv.total_bill) || 0;
-            const disc = Number(inv.discount) || Number(inv.discount_amount) || Number(inv.total_discount) || 0;
+            const net = Number(inv.netPayable ?? inv.net_payable);
+            if (!isNaN(net) && net > 0) return net;
+            const paid = Number(inv.paidAmount ?? inv.paid_amount);
+            if (!isNaN(paid) && paid > 0) return paid;
+            const tot = Number(inv.totalAmount ?? inv.total_amount ?? inv.total_bill ?? 0);
+            const disc = Number(inv.discount ?? inv.discount_amount ?? inv.total_discount ?? 0);
             if (tot > 0) return Math.max(0, tot - disc);
-            if (Array.isArray(inv.items)) {
-                return inv.items.reduce((sum: number, it: any) => sum + (Number(it.lineTotalSell) || Number(it.lineTotalBuy) || Number(it.payable_amount) || ((Number(it.unitPriceSell || it.unitPriceBuy || it.price || 0)) * (Number(it.qtySelling || it.qtyBuying || it.quantity || 1))) || 0), 0);
+            if (Array.isArray(inv.items) && inv.items.length > 0) {
+                const calculated = inv.items.reduce((sum: number, it: any) => {
+                    const line = Number(it.lineTotalBuy ?? it.lineTotalSell ?? it.payable_amount ?? it.line_total);
+                    if (!isNaN(line) && line > 0) return sum + line;
+                    const price = Number(it.unitPriceBuy ?? it.unitPriceSell ?? it.price ?? 0);
+                    const qty = Number(it.qtyBuying ?? it.qtySelling ?? it.quantity ?? 1);
+                    return sum + (price * qty);
+                }, 0);
+                if (calculated > 0) return Math.max(0, calculated - disc);
             }
+            if (!isNaN(net)) return net;
             return 0;
         };
 

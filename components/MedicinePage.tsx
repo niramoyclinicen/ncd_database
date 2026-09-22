@@ -947,7 +947,7 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
           const newMedsArr = [...safeMedicines];
           // If editing, reverse the previous invoice items quantities first
           if(buyViewMode === 'edit' && editingPurchaseId) {
-              const oldInv = safeInvoices.find(x => x && x.invoiceId === editingPurchaseId);
+              const oldInv = safeInvoices.find(x => x && (x.invoiceId === editingPurchaseId || x.id === editingPurchaseId));
               if(oldInv && Array.isArray(oldInv.items)) {
                   oldInv.items.forEach(oldItem => {
                       if (!oldItem) return;
@@ -957,9 +957,31 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
               }
           }
 
-          // Apply current form quantities
-          (purchaseFormData.items || []).forEach(item => {
-              if (!item) return;
+          // Sanitize items array to ensure clean numeric values and complete properties
+          const sanitizedItems = (purchaseFormData.items || []).map((it, idx) => {
+              const qBuying = Number(it.qtyBuying) || 0;
+              const buyP = Number(it.unitPriceBuy) || 0;
+              const sellP = Number(it.unitPriceSell) || 0;
+              const lineT = Number(it.lineTotalBuy) || (buyP * qBuying);
+              return {
+                  ...it,
+                  id: it.id || `MED-ITEM-${Date.now()}-${idx}`,
+                  tradeName: String(it.tradeName || '').trim(),
+                  genericName: String(it.genericName || '').trim(),
+                  formulation: it.formulation || 'Tab',
+                  strength: String(it.strength || '').trim(),
+                  unitPriceBuy: buyP,
+                  unitPriceSell: sellP,
+                  qtyBuying: qBuying,
+                  lineTotalBuy: lineT,
+                  stock: Number(it.stock) || 0,
+                  defaultFrequency: it.defaultFrequency || '',
+                  expiryDate: it.expiryDate || ''
+              };
+          });
+
+          // Apply current form quantities to medicines stock
+          sanitizedItems.forEach(item => {
               const mIdx = newMedsArr.findIndex(m => m && m.id === item.id);
               if (mIdx >= 0) { 
                   newMedsArr[mIdx] = { 
@@ -987,39 +1009,66 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
               }
           });
 
+          // Accurately and synchronously compute financial amounts directly from sanitized items
+          const subTotal = sanitizedItems.reduce((sum, it) => sum + it.lineTotalBuy, 0);
+          const disc = Number(purchaseFormData.discount) || 0;
+          const net = Math.max(0, subTotal - disc);
+          const paid = Number(purchaseFormData.paidAmount) || 0;
+          const due = Math.max(0, net - paid);
+
+          const invId = String(purchaseFormData.invoiceId || editingPurchaseId || `PUR-${Date.now()}`).trim();
+          const defaultDate = (buySearchYear !== 'all' && buySearchMonth !== 'all')
+              ? `${buySearchYear}-${String(parseInt(buySearchMonth) + 1).padStart(2, '0')}-01`
+              : new Date().toISOString().split('T')[0];
+          const invDate = purchaseFormData.invoiceDate || defaultDate;
+
           const savedInvoice: PurchaseInvoice = {
               ...purchaseFormData,
+              id: invId,
+              invoiceId: invId,
+              invoiceDate: invDate,
+              items: sanitizedItems,
+              totalAmount: subTotal,
+              discount: disc,
+              netPayable: net,
+              paidAmount: paid,
+              dueAmount: due,
               status: finalStatus as any,
               createdDate: purchaseFormData.createdDate || new Date().toISOString()
           };
 
-          let newInvoicesArr = [...safeInvoices];
-          if (buyViewMode === 'edit') {
-              newInvoicesArr = newInvoicesArr.map(inv => inv.invoiceId === editingPurchaseId ? savedInvoice : inv);
-          } else {
-              newInvoicesArr = [ savedInvoice, ...newInvoicesArr ];
+          // 1. Direct database persistence (writes to both ncd_state and modular purchase_invoices table)
+          try {
+              await dbService.savePurchaseInvoiceDirectly(savedInvoice);
+          } catch (dbErr) {
+              console.warn("[MedicinePage] Direct purchase save notice:", dbErr);
           }
 
-          if (performBlockingSync) {
-              const success = await performBlockingSync({ medicines: newMedsArr, purchaseInvoices: newInvoicesArr });
-              if (success) {
-                  safeSetMedicines(newMedsArr);
-                  safeSetInvoices(newInvoicesArr);
-                  setSuccessMessage("ক্রয় ইনভয়েস সফলভাবে সেভ হয়েছে!");
-                  setBuyViewMode('list');
-                  setEditingPurchaseId(null);
-                  setIsOpeningStock(false);
-                  setViewingPurchaseInvoice(savedInvoice);
-              }
+          let newInvoicesArr = [...safeInvoices];
+          if (buyViewMode === 'edit') {
+              newInvoicesArr = newInvoicesArr.map(inv => (inv && (inv.invoiceId === editingPurchaseId || inv.id === editingPurchaseId)) ? savedInvoice : inv);
           } else {
-              safeSetMedicines(newMedsArr);
-              safeSetInvoices(newInvoicesArr);
-              setSuccessMessage(buyViewMode === 'edit' ? "ক্রয় ইনভয়েস আপডেট হয়েছে!" : "ক্রয় ইনভয়েস সফলভাবে সেভ হয়েছে!");
-              setBuyViewMode('list');
-              setEditingPurchaseId(null);
-              setIsOpeningStock(false);
-              setViewingPurchaseInvoice(savedInvoice);
+              newInvoicesArr = [ savedInvoice, ...newInvoicesArr.filter(x => x && x.invoiceId !== invId && x.id !== invId) ];
           }
+
+          // 2. Automatically align month/year filters so that the user immediately sees the saved voucher in the list
+          const [invY, invM] = invDate.split('-');
+          if (invY && invM) {
+              setBuySearchYear(invY);
+              setBuySearchMonth((parseInt(invM) - 1).toString());
+          }
+
+          // 3. Update global application state & trigger blocking cloud sync
+          if (performBlockingSync) {
+              await performBlockingSync({ medicines: newMedsArr, purchaseInvoices: newInvoicesArr });
+          }
+          safeSetMedicines(newMedsArr);
+          safeSetInvoices(newInvoicesArr);
+          setSuccessMessage(buyViewMode === 'edit' ? "ক্রয় ইনভয়েস সফলভাবে আপডেট হয়েছে!" : "ক্রয় ইনভয়েস সফলভাবে সেভ হয়েছে!");
+          setBuyViewMode('list');
+          setEditingPurchaseId(null);
+          setIsOpeningStock(false);
+          setViewingPurchaseInvoice(savedInvoice);
       } catch (err) {
           console.error("Save error:", err);
           alert("ডাটা সেভ করার সময় একটি ত্রুটি হয়েছে।");
@@ -1052,6 +1101,13 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
         });
 
         const newInvoicesArr = safeInvoices.filter(x => x && x.invoiceId !== inv.invoiceId);
+
+        // Direct delete from database
+        try {
+            await dbService.deletePurchaseInvoiceDirectly(inv.invoiceId, inv.invoiceDate);
+        } catch (delErr) {
+            console.warn("[MedicinePage] Direct purchase delete notice:", delErr);
+        }
 
         if (performBlockingSync) {
             const success = await performBlockingSync({ medicines: newMedsArr, purchaseInvoices: newInvoicesArr });
@@ -1114,11 +1170,43 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
               if (mIdx >= 0) newMedsArr[mIdx] = { ...newMedsArr[mIdx], stock: Math.max(0, (newMedsArr[mIdx].stock || 0) - (newItem.qtySelling || 0)) };
           });
 
+          const salesSubTotal = (salesFormData.items || []).reduce((sum, item) => {
+              const line = Number(item.lineTotalSell) || ((Number(item.unitPriceSell) || 0) * (Number(item.qtySelling) || 0));
+              return sum + line;
+          }, 0);
+          const salesDisc = Number(salesFormData.discount) || 0;
+          const salesNet = Math.max(0, salesSubTotal - salesDisc);
+          const salesPaid = Number(salesFormData.paidAmount) || 0;
+          const salesDue = Math.max(0, salesNet - salesPaid);
+          const slId = String(salesFormData.invoiceId || editingInvoiceId || `SL-${Date.now()}`).trim();
+          const slDate = salesFormData.invoiceDate || new Date().toISOString().split('T')[0];
+
+          const savedSalesInvoice: SalesInvoice = {
+              ...salesFormData,
+              id: slId,
+              invoiceId: slId,
+              invoiceDate: slDate,
+              totalAmount: salesSubTotal,
+              discount: salesDisc,
+              netPayable: salesNet,
+              paidAmount: salesPaid,
+              dueAmount: salesDue,
+              status: 'Posted',
+              createdDate: salesFormData.createdDate || new Date().toISOString()
+          };
+
+          // Direct database persistence
+          try {
+              await dbService.saveSalesInvoiceDirectly(savedSalesInvoice);
+          } catch (dbErr) {
+              console.warn("[MedicinePage] Direct sales save notice:", dbErr);
+          }
+
           let newSalesArr = [...safeSalesInvoices];
           if (sellViewMode === 'edit') {
-              newSalesArr = newSalesArr.map(inv => inv.invoiceId === editingInvoiceId ? { ...salesFormData, status: 'Posted' } : inv);
+              newSalesArr = newSalesArr.map(inv => (inv && inv.invoiceId === editingInvoiceId) ? savedSalesInvoice : inv);
           } else {
-              newSalesArr = [ { ...salesFormData, status: 'Posted', createdDate: new Date().toISOString() }, ...newSalesArr ];
+              newSalesArr = [ savedSalesInvoice, ...newSalesArr.filter(x => x && x.invoiceId !== slId && x.id !== slId) ];
           }
 
           if (performBlockingSync) {
@@ -1167,6 +1255,13 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
         });
         
         const newSalesArr = safeSalesInvoices.filter(x => x && x.invoiceId !== inv.invoiceId);
+
+        // Direct delete from database
+        try {
+            await dbService.deleteSalesInvoiceDirectly(inv.invoiceId, inv.invoiceDate);
+        } catch (delErr) {
+            console.warn("[MedicinePage] Direct sales delete notice:", delErr);
+        }
     
         if (performBlockingSync) {
             const success = await performBlockingSync({ medicines: newMedsArr, salesInvoices: newSalesArr });
@@ -1879,9 +1974,12 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
               <button 
                 onClick={() => {
                   const newId = `PUR-${Date.now()}`;
+                  const defaultDate = (buySearchYear !== 'all' && buySearchMonth !== 'all')
+                    ? `${buySearchYear}-${String(parseInt(buySearchMonth) + 1).padStart(2, '0')}-01`
+                    : new Date().toISOString().split('T')[0];
                   setPurchaseFormData({
                     invoiceId: newId,
-                    invoiceDate: new Date().toISOString().split('T')[0],
+                    invoiceDate: defaultDate,
                     source: '',
                     items: [],
                     totalAmount: 0,

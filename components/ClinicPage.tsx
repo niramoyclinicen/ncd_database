@@ -2927,20 +2927,11 @@ const IndoorInvoicePage: React.FC<{
         }
         // Match by valid non-empty daily_id
         if (target.daily_id && item.daily_id && typeof target.daily_id === 'string' && target.daily_id.trim() && item.daily_id.trim()) {
-            if (target.daily_id.trim() === item.daily_id.trim()) {
-                if (target.created_at && item.created_at && target.created_at !== item.created_at) {
-                    return false;
-                }
-                return true;
-            }
-            return false;
+            return target.daily_id.trim() === item.daily_id.trim();
         }
         // Match by admission_id + patient_id + invoice_date
         if (target.admission_id && item.admission_id && target.admission_id === item.admission_id) {
             if (target.patient_id === item.patient_id && (target.invoice_date || '') === (item.invoice_date || '')) {
-                if (target.created_at && item.created_at && target.created_at !== item.created_at) {
-                    return false;
-                }
                 return Math.abs((target.total_bill || 0) - (item.total_bill || 0)) < 0.01;
             }
         }
