@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Medicine, Employee, PurchaseInvoice, InvoiceItem, Doctor, SalesInvoice, SalesItem, DrugMonograph, IndoorInvoice } from './DiagnosticData';
 import { BackIcon, MapPinIcon, PhoneIcon, MedicineIcon, FileTextIcon, Pill, SearchIcon, Activity, SaveIcon, TrashIcon, PlusIcon, TrendingDownIcon, RefreshIcon, AlertCircle, EyeIcon, PrinterIcon, XIcon, EditIcon } from './Icons';
+import { CheckCircle2, Trash2, Loader2 } from 'lucide-react';
 import SearchableSelect from './SearchableSelect';
 import { dbService } from '../dbService';
 
@@ -173,6 +174,14 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
       message: '',
       onConfirm: () => {},
   });
+
+  // Dedicated blocking progress & success overlay state for sales item/record deletion
+  const [deleteProgressState, setDeleteProgressState] = useState<{
+    isDeleting: boolean;
+    step: string;
+    isSuccess: boolean;
+    message: string;
+  } | null>(null);
 
   const [editingPurchaseId, setEditingPurchaseId] = useState<string | null>(null);
   const [isOpeningStock, setIsOpeningStock] = useState(false);
@@ -579,30 +588,52 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
   };
 
   const handleDeleteLumpSumSales = async (invoiceId: string, invoiceDate?: string) => {
-    if (!window.confirm('আপনি কি এই এককালীন বিক্রয় এন্ট্রি মুছে ফেলতে চান?')) return;
-    setLoading(true);
-    try {
-      try {
-        await dbService.deleteSalesInvoiceDirectly(invoiceId, invoiceDate);
-      } catch (dbErr) {
-        console.warn("[MedicinePage] Direct delete notice:", dbErr);
-      }
-      const newSalesArr = safeSalesInvoices.filter(x => x.invoiceId !== invoiceId);
-      safeSetSalesInvoices(newSalesArr);
-      if (performBlockingSync) {
-        try {
-          await performBlockingSync({ salesInvoices: newSalesArr });
-        } catch (syncErr) {
-          console.warn("[MedicinePage] Blocking sync notice:", syncErr);
+    const targetInv = safeSalesInvoices.find(x => x && (x.invoiceId === invoiceId || x.id === invoiceId));
+    if (targetInv) {
+      handleDeleteSaleWithConfirmation(targetInv);
+    } else {
+      setConfirmModal({
+        isOpen: true,
+        title: '⚠️ এককালীন বিক্রয় ডিলিট নিশ্চিতকরণ',
+        message: `আপনি কি নিশ্চিতভাবে এই এককালীন বিক্রয় এন্ট্রি মুছে ফেলতে চান?\n\n• আইডি: ${invoiceId}\n• তারিখ: ${invoiceDate || 'N/A'}\n\n⚠️ এটি অনলাইন ডাটাবেজ (Supabase) এবং সেলস তালিকা থেকে সম্পূর্ণ মুছে যাবে।`,
+        onConfirm: async () => {
+          setConfirmModal(prev => ({ ...prev, isOpen: false }));
+          setDeleteProgressState({
+            isDeleting: true,
+            step: 'অনলাইন ডেটাবেজ থেকে এককালীন বিক্রয় মুছে ফেলা হচ্ছে...',
+            isSuccess: false,
+            message: ''
+          });
+          try {
+            try {
+              await dbService.deleteSalesInvoiceDirectly(invoiceId, invoiceDate);
+            } catch (dbErr) {
+              console.warn("[MedicinePage] Direct delete notice:", dbErr);
+            }
+            const newSalesArr = safeSalesInvoices.filter(x => x.invoiceId !== invoiceId && x.id !== invoiceId);
+            safeSetSalesInvoices(newSalesArr);
+            if (performBlockingSync) {
+              try {
+                await performBlockingSync({ salesInvoices: newSalesArr });
+              } catch (syncErr) {
+                console.warn("[MedicinePage] Blocking sync notice:", syncErr);
+              }
+            }
+            setShowLumpSumSalesModal(false);
+            setDeleteProgressState({
+              isDeleting: false,
+              step: '',
+              isSuccess: true,
+              message: 'এককালীন বিক্রয় সফলভাবে মুছে ফেলা হয়েছে।'
+            });
+            setTimeout(() => setDeleteProgressState(null), 1400);
+          } catch (e: any) {
+            console.error('Delete lump sale error:', e);
+            setDeleteProgressState(null);
+            alert('এককালীন বিক্রয় মুছতে সমস্যা হয়েছে: ' + (e?.message || e));
+          }
         }
-      }
-      setShowLumpSumSalesModal(false);
-      setSuccessMessage('এককালীন বিক্রয় সফলভাবে মুছে ফেলা হয়েছে।');
-    } catch (e: any) {
-      console.error('Delete lump sale error:', e);
-      alert('এককালীন বিক্রয় মুছতে সমস্যা হয়েছে: ' + (e?.message || e));
-    } finally {
-      setLoading(false);
+      });
     }
   };
 
@@ -917,6 +948,20 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
 
   const removePurchaseItem = (index: number) => { setPurchaseFormData(prev => ({ ...prev, items: prev.items.filter((_, i) => i !== index) })); };
   const removeSalesItem = (index: number) => { setSalesFormData(prev => ({ ...prev, items: prev.items.filter((_, i) => i !== index) })); };
+
+  const handleRemoveSalesItemWithConfirm = (index: number) => {
+    const item = salesFormData.items[index];
+    if (!item) return;
+    setConfirmModal({
+      isOpen: true,
+      title: '⚠️ ঔষধ আইটেম অপসারণ নিশ্চিতকরণ',
+      message: `আপনি কি "${item.tradeName || 'এই ঔষধটি'}" বিক্রয় তালিকা থেকে মুছে ফেলতে চান?\n\n• পরিমাণ: ${item.qtySelling || 1}\n• মূল্য: ৳${Number(item.lineTotalSell || 0).toFixed(2)}`,
+      onConfirm: () => {
+        setConfirmModal(prev => ({ ...prev, isOpen: false }));
+        removeSalesItem(index);
+      }
+    });
+  };
 
   const handleSavePurchase = async () => {
       if (!purchaseFormData.source) { 
@@ -1233,6 +1278,101 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
       }
   };
 
+  const handleDeleteSaleWithConfirmation = (inv: SalesInvoice) => {
+    const isLump = isLumpSumSale(inv);
+    const invId = inv.invoiceId || (inv as any).id || '';
+    const cust = inv.customerName || (isLump ? 'এককালীন ফার্মেসি বিক্রয়' : 'ক্রেতা');
+    const amount = Number(inv.netPayable || inv.totalAmount || 0).toFixed(2);
+    const itemsCount = Array.isArray(inv.items) ? inv.items.length : 0;
+
+    setConfirmModal({
+      isOpen: true,
+      title: '⚠️ মেডিসিন সেলস রেকর্ড ডিলিট নিশ্চিতকরণ',
+      message: `আপনি কি নিশ্চিতভাবে এই মেডিসিন সেলস রেকর্ডটি (${invId}) ডিলিট করতে চান?\n\n• বিবরণ/ক্রেতা: ${cust}\n• সর্বমোট বিল: ৳${amount}\n• তারিখ: ${inv.invoiceDate || 'N/A'}\n• মোট আইটেম: ${itemsCount} টি\n\n⚠️ সতর্কতা: ডিলিট নিশ্চিত করলে অনলাইন ডেটাবেজ (Supabase) এবং সেলস তালিকা থেকে এটি স্থায়ীভাবে মুছে ফেলা হবে এবং সংশ্লিষ্ট ওষুধের স্টক পুনরুদ্ধার হবে।`,
+      onConfirm: () => executeDeleteSale(inv)
+    });
+  };
+
+  const executeDeleteSale = async (inv: SalesInvoice) => {
+    setConfirmModal(prev => ({ ...prev, isOpen: false }));
+    const invId = inv.invoiceId || (inv as any).id;
+    const invDate = inv.invoiceDate || (inv as any).date;
+
+    setDeleteProgressState({
+      isDeleting: true,
+      step: `অনলাইন ডেটাবেজ (Supabase) থেকে মেডিসিন সেলস (${invId}) ডিলিট করা হচ্ছে...`,
+      isSuccess: false,
+      message: ''
+    });
+
+    try {
+      // 1. Restore medicine stock if not lump sum
+      let newMedsArr = [...safeMedicines];
+      if (!isLumpSumSale(inv) && Array.isArray(inv.items) && inv.items.length > 0) {
+        newMedsArr = safeMedicines.map(m => {
+          if (!m) return m;
+          const returnedItem = inv.items.find(it => it && it.id === m.id);
+          if (returnedItem) {
+            return { ...m, stock: (m.stock || 0) + (Number(returnedItem.qtySelling) || 0) };
+          }
+          return m;
+        });
+      }
+
+      // 2. Direct database delete
+      try {
+        await dbService.deleteSalesInvoiceDirectly(invId, invDate);
+      } catch (delErr) {
+        console.warn("[MedicinePage] Direct sales delete notice:", delErr);
+      }
+
+      // 3. Update local sales state
+      const newSalesArr = safeSalesInvoices.filter(x => x && x.invoiceId !== invId && x.id !== invId);
+
+      setDeleteProgressState(prev => prev ? {
+        ...prev,
+        step: 'ক্লাউড ডেটাবেজে পরিবর্তন সিঙ্ক করা হচ্ছে...'
+      } : null);
+
+      if (performBlockingSync) {
+        try {
+          await performBlockingSync({ medicines: newMedsArr, salesInvoices: newSalesArr });
+        } catch (syncErr) {
+          console.warn("[MedicinePage] Blocking sync notice:", syncErr);
+        }
+      }
+
+      safeSetMedicines(newMedsArr);
+      safeSetSalesInvoices(newSalesArr);
+      setShowLumpSumSalesModal(false);
+
+      // 4. Show success in overlay
+      setDeleteProgressState({
+        isDeleting: false,
+        step: '',
+        isSuccess: true,
+        message: `মেডিসিন সেলস রেকর্ড (${invId}) সফলভাবে ডিলিট ও সিঙ্ক সম্পন্ন হয়েছে!`
+      });
+
+      setSuccessMessage(`মেডিসিন সেলস (${invId}) সফলভাবে মুছে ফেলা হয়েছে`);
+
+      setTimeout(() => {
+        setDeleteProgressState(null);
+      }, 1500);
+    } catch (err: any) {
+      console.error("Delete sale error:", err);
+      setDeleteProgressState({
+        isDeleting: false,
+        step: '',
+        isSuccess: false,
+        message: 'ডিলিট করার সময় ত্রুটি হয়েছে: ' + (err?.message || 'অজানা ত্রুটি')
+      });
+      setTimeout(() => {
+        setDeleteProgressState(null);
+      }, 2500);
+    }
+  };
+
   const handleReturnSale = (inv: SalesInvoice) => {
       setConfirmModal({
           isOpen: true,
@@ -1244,7 +1384,16 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
 
   const executeReturnSale = async (inv: SalesInvoice) => {
     setConfirmModal(prev => ({ ...prev, isOpen: false }));
-    setLoading(true);
+    const invId = inv.invoiceId || (inv as any).id;
+    const invDate = inv.invoiceDate || (inv as any).date;
+
+    setDeleteProgressState({
+      isDeleting: true,
+      step: `সেলস রিটার্ন প্রসেস এবং স্টক রিস্টোর করা হচ্ছে (${invId})...`,
+      isSuccess: false,
+      message: ''
+    });
+
     try {
         const newMedsArr = safeMedicines.map(m => {
             if (!m) return m;
@@ -1254,32 +1403,44 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
             return m;
         });
         
-        const newSalesArr = safeSalesInvoices.filter(x => x && x.invoiceId !== inv.invoiceId);
+        const newSalesArr = safeSalesInvoices.filter(x => x && x.invoiceId !== inv.invoiceId && x.id !== inv.invoiceId);
 
         // Direct delete from database
         try {
-            await dbService.deleteSalesInvoiceDirectly(inv.invoiceId, inv.invoiceDate);
+            await dbService.deleteSalesInvoiceDirectly(invId, invDate);
         } catch (delErr) {
             console.warn("[MedicinePage] Direct sales delete notice:", delErr);
         }
     
         if (performBlockingSync) {
-            const success = await performBlockingSync({ medicines: newMedsArr, salesInvoices: newSalesArr });
-            if (success) {
-                safeSetMedicines(newMedsArr);
-                safeSetSalesInvoices(newSalesArr);
-                setSuccessMessage("ডাটা সঠিকভাবে সেভ হয়েছে!");
-            }
-        } else {
-            safeSetMedicines(newMedsArr);
-            safeSetSalesInvoices(newSalesArr);
-            setSuccessMessage("Return Processed! Stock Restored.");
+            await performBlockingSync({ medicines: newMedsArr, salesInvoices: newSalesArr });
         }
-    } catch (err) {
+
+        safeSetMedicines(newMedsArr);
+        safeSetSalesInvoices(newSalesArr);
+        setSuccessMessage("Return Processed! Stock Restored.");
+
+        setDeleteProgressState({
+          isDeleting: false,
+          step: '',
+          isSuccess: true,
+          message: `বিক্রয় ইনভয়েস (${invId}) সফলভাবে ফেরত/বাতিল এবং স্টক রিস্টোর হয়েছে!`
+        });
+
+        setTimeout(() => {
+          setDeleteProgressState(null);
+        }, 1500);
+    } catch (err: any) {
         console.error("Return error:", err);
-        alert("ফেরত নেওয়ার সময় একটি ত্রুটি হয়েছে।");
-    } finally {
-        setLoading(false);
+        setDeleteProgressState({
+          isDeleting: false,
+          step: '',
+          isSuccess: false,
+          message: 'ফেরত নেওয়ার সময় একটি ত্রুটি হয়েছে: ' + (err?.message || 'অজানা ত্রুটি')
+        });
+        setTimeout(() => {
+          setDeleteProgressState(null);
+        }, 2500);
     }
   };
 
@@ -2736,14 +2897,17 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
                                             <div className="text-emerald-400 font-bold">আদায়: ৳{Number(inv.paidAmount || 0).toFixed(2)}</div>
                                             {Number(inv.dueAmount || 0) > 0 && <div className="text-rose-400 font-bold">বকেয়া: ৳{Number(inv.dueAmount || 0).toFixed(2)}</div>}
                                         </td>
-                                        <td className="p-4 text-center space-x-2" onClick={e=>e.stopPropagation()}>
-                                            <button onClick={() => handlePrintSale(inv)} className="text-sky-400 hover:text-white font-black uppercase text-[10px] border border-sky-800 px-3 py-1 rounded">Voucher</button>
+                                        <td className="p-4 text-center space-x-2 whitespace-nowrap" onClick={e=>e.stopPropagation()}>
+                                            <button onClick={() => handlePrintSale(inv)} className="text-sky-400 hover:text-white font-black uppercase text-[10px] border border-sky-800 px-2.5 py-1 rounded transition-colors">Voucher</button>
                                             {isLumpSumSale(inv) ? (
-                                                <button onClick={() => openEditLumpSumSales(inv)} className="text-emerald-400 hover:text-white font-black uppercase text-[10px] border border-emerald-800 px-3 py-1 rounded">এডিট</button>
+                                                <button onClick={() => openEditLumpSumSales(inv)} className="text-emerald-400 hover:text-white font-black uppercase text-[10px] border border-emerald-800 px-2.5 py-1 rounded transition-colors">এডিট</button>
                                             ) : (
-                                                <button onClick={() => startEditSale(inv)} className="text-amber-400 hover:text-white font-black uppercase text-[10px] border border-amber-800 px-3 py-1 rounded">Correct</button>
+                                                <button onClick={() => startEditSale(inv)} className="text-amber-400 hover:text-white font-black uppercase text-[10px] border border-amber-800 px-2.5 py-1 rounded transition-colors">Correct</button>
                                             )}
-                                            <button onClick={() => handleReturnSale(inv)} className="bg-rose-900/50 text-rose-400 hover:bg-rose-600 hover:text-white font-black uppercase text-[10px] border border-rose-800 px-3 py-1 rounded transition-all">Return</button>
+                                            <button onClick={() => handleReturnSale(inv)} className="bg-amber-900/40 text-amber-300 hover:bg-amber-600 hover:text-white font-black uppercase text-[10px] border border-amber-800 px-2.5 py-1 rounded transition-all">Return</button>
+                                            <button onClick={() => handleDeleteSaleWithConfirmation(inv)} className="bg-rose-900/60 text-rose-300 hover:bg-rose-600 hover:text-white font-black uppercase text-[10px] border border-rose-800 px-2.5 py-1 rounded transition-all inline-flex items-center gap-1 shadow-sm">
+                                                <Trash2 className="w-3 h-3" /> ডিলিট
+                                            </button>
                                         </td>
                                     </tr>
                                 ))}
@@ -2787,7 +2951,7 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
                     <button onClick={addSalesItem} className="bg-emerald-600 text-white px-10 py-4 rounded-xl hover:bg-emerald-500 font-black shadow-2xl transform active:scale-95 transition-all">Add Item</button>
                 </div>
             </div>
-            <div className="overflow-x-auto border-2 border-slate-700 rounded-2xl mb-8 shadow-2xl"><table className="w-full text-left border-collapse text-sm"><thead className="bg-slate-700 text-white"><tr><th className="p-4 uppercase text-xs font-black">X</th><th className="p-4 uppercase text-xs font-black">Medicine Info</th><th className="p-4 text-right uppercase text-xs font-black">Price</th><th className="p-4 text-center uppercase text-xs font-black">Qty</th><th className="p-4 text-right uppercase text-xs font-black">Line Total</th></tr></thead><tbody>{salesFormData.items.map((item, i) => (<tr key={i} className="border-b border-slate-700 bg-slate-800/50 hover:bg-slate-700 transition-colors"><td className="p-4 text-center"><button onClick={()=>removeSalesItem(i)} className="text-red-500 font-black bg-slate-900 w-10 h-10 rounded-full flex items-center justify-center border border-red-900">×</button></td><td className="p-4"><div className="font-black text-white text-lg">{item.tradeName} <span className="text-sm font-bold text-sky-400">({item.strength})</span></div><div className="text-xs text-slate-400 italic font-bold">{item.genericName}</div></td><td className="p-4 text-right text-slate-300 font-bold">{item.unitPriceSell.toFixed(2)}</td><td className="p-4 text-center font-black text-white text-2xl">{item.qtySelling}</td><td className="p-4 text-right font-black text-emerald-400 text-2xl">৳{item.lineTotalSell.toFixed(2)}</td></tr>))}</tbody></table></div>
+            <div className="overflow-x-auto border-2 border-slate-700 rounded-2xl mb-8 shadow-2xl"><table className="w-full text-left border-collapse text-sm"><thead className="bg-slate-700 text-white"><tr><th className="p-4 uppercase text-xs font-black">X</th><th className="p-4 uppercase text-xs font-black">Medicine Info</th><th className="p-4 text-right uppercase text-xs font-black">Price</th><th className="p-4 text-center uppercase text-xs font-black">Qty</th><th className="p-4 text-right uppercase text-xs font-black">Line Total</th></tr></thead><tbody>{salesFormData.items.map((item, i) => (<tr key={i} className="border-b border-slate-700 bg-slate-800/50 hover:bg-slate-700 transition-colors"><td className="p-4 text-center"><button onClick={()=>handleRemoveSalesItemWithConfirm(i)} className="text-red-500 font-black bg-slate-900 w-10 h-10 rounded-full flex items-center justify-center border border-red-900 hover:bg-red-600 hover:text-white transition-all shadow" title="আইটেমটি বিক্রয় ড্রাফট থেকে মুছুন">×</button></td><td className="p-4"><div className="font-black text-white text-lg">{item.tradeName} <span className="text-sm font-bold text-sky-400">({item.strength})</span></div><div className="text-xs text-slate-400 italic font-bold">{item.genericName}</div></td><td className="p-4 text-right text-slate-300 font-bold">{item.unitPriceSell.toFixed(2)}</td><td className="p-4 text-center font-black text-white text-2xl">{item.qtySelling}</td><td className="p-4 text-right font-black text-emerald-400 text-2xl">৳{item.lineTotalSell.toFixed(2)}</td></tr>))}</tbody></table></div>
             <div className="flex flex-col md:flex-row justify-end gap-6">
                 <div className="bg-slate-900 p-8 rounded-3xl border-2 border-slate-700 space-y-5 w-full md:w-[450px] shadow-2xl">
                     <div className="flex justify-between items-center text-slate-500 font-black uppercase text-xs tracking-widest"><span>Sub-Total Gross:</span> <span className="text-white text-2xl">৳{salesFormData.totalAmount.toFixed(2)}</span></div>
@@ -4040,6 +4204,68 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
         </div>
       )}
 
+      {/* Full-Screen Blocking Loading / Progress & Success Overlay for Sales Deletion */}
+      {deleteProgressState && (
+        <div className="fixed inset-0 bg-black/90 z-[10001] flex items-center justify-center p-4 backdrop-blur-md select-none cursor-wait">
+          <div className="bg-slate-900 border-2 border-slate-700 w-full max-w-md rounded-[2.5rem] p-8 shadow-2xl shadow-black/80 flex flex-col items-center text-center space-y-6 relative overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            {deleteProgressState.isDeleting ? (
+              <>
+                <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-rose-500 via-amber-500 to-rose-500 animate-pulse"></div>
+                <div className="relative w-24 h-24 flex items-center justify-center">
+                  <div className="absolute inset-0 rounded-full border-4 border-rose-500/20 border-t-rose-500 animate-spin"></div>
+                  <Loader2 className="w-10 h-10 text-rose-400 animate-spin" />
+                </div>
+                <div className="space-y-3">
+                  <h3 className="text-2xl font-black text-white uppercase tracking-tight">ডিলিট ও ক্লাউড সিঙ্ক চলছে...</h3>
+                  <p className="text-sm font-semibold text-slate-300">
+                    {deleteProgressState.step || 'অনলাইন ডেটাবেজ থেকে ডাটা ডিলিট ও সিঙ্ক করা হচ্ছে, অনুগ্রহ করে অপেক্ষা করুন...'}
+                  </p>
+                  <div className="bg-rose-950/60 text-rose-300 text-xs font-bold px-4 py-2.5 rounded-xl border border-rose-800/60 mt-2 flex items-center justify-center gap-2">
+                    <span>⚠️</span>
+                    <span>প্রক্রিয়া শেষ না হওয়া পর্যন্ত কোনো বাটনে ক্লিক বা পেজ পরিবর্তন করবেন না।</span>
+                  </div>
+                </div>
+              </>
+            ) : deleteProgressState.isSuccess ? (
+              <>
+                <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-500"></div>
+                <div className="w-24 h-24 rounded-full bg-emerald-500/20 border-2 border-emerald-500 flex items-center justify-center animate-in zoom-in duration-300 shadow-xl shadow-emerald-950/50">
+                  <CheckCircle2 className="w-12 h-12 text-emerald-400" />
+                </div>
+                <div className="space-y-2">
+                  <h3 className="text-2xl font-black text-emerald-400">সফলভাবে সম্পন্ন হয়েছে!</h3>
+                  <p className="text-sm font-bold text-slate-200">{deleteProgressState.message}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setDeleteProgressState(null)}
+                  className="px-8 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-lg shadow-emerald-900/40 active:scale-95"
+                >
+                  ঠিক আছে (OK)
+                </button>
+              </>
+            ) : (
+              <>
+                <div className="w-24 h-24 rounded-full bg-rose-500/20 border-2 border-rose-500 flex items-center justify-center">
+                  <AlertCircle className="w-12 h-12 text-rose-400" />
+                </div>
+                <div className="space-y-2">
+                  <h3 className="text-2xl font-black text-rose-400">ডিলিট প্রক্রিয়া ব্যর্থ</h3>
+                  <p className="text-sm text-slate-300">{deleteProgressState.message}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setDeleteProgressState(null)}
+                  className="px-8 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-all active:scale-95 border border-slate-700"
+                >
+                  বন্ধ করুন
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
       {confirmModal.isOpen && (
         <div className="fixed inset-0 bg-black/90 z-[10000] flex items-center justify-center p-4 backdrop-blur-2xl animate-in fade-in duration-300">
           <div className="bg-slate-900 border border-slate-700 w-full max-w-sm rounded-[2.5rem] p-10 shadow-2xl shadow-black/50 relative overflow-hidden group">
@@ -4049,7 +4275,7 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
                 <AlertCircle className="w-10 h-10 text-rose-400 animate-pulse" />
               </div>
               <h3 className="text-3xl font-black text-white uppercase tracking-tighter">{confirmModal.title}</h3>
-              <p className="text-slate-400 font-medium text-lg leading-relaxed">{confirmModal.message}</p>
+              <p className="text-slate-400 font-medium text-lg leading-relaxed whitespace-pre-line">{confirmModal.message}</p>
               <div className="flex gap-4 w-full pt-4">
                 <button 
                   onClick={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
