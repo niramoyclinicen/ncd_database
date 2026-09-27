@@ -470,48 +470,72 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
             const indoorIdsToDelete = new Set(selectedList.filter(s => s.type === 'INDOOR_INVOICE').map(s => s.originalId));
             const dueIdsToDelete = new Set(selectedList.filter(s => s.type === 'DUE_COLLECTION').map(s => s.originalId));
 
+            // Direct database deletions to guarantee persistence in Supabase
+            const deletePromises: Promise<any>[] = [];
+            labIdsToDelete.forEach(id => {
+                deletePromises.push(dbService.deleteLabInvoiceDirectly({ invoice_id: id, id }));
+            });
+            consIdsToDelete.forEach(id => {
+                deletePromises.push(dbService.deleteConsolidatedEntryDirectly(id));
+            });
+            indoorIdsToDelete.forEach(id => {
+                deletePromises.push(dbService.deleteIndoorInvoiceDirectly({ daily_id: id, invoice_id: id, id }));
+            });
+            dueIdsToDelete.forEach(id => {
+                deletePromises.push(dbService.deleteDueCollectionDirectly(id));
+            });
+            try {
+                await Promise.allSettled(deletePromises);
+            } catch (pErr) {
+                console.warn("Direct source deletion error:", pErr);
+            }
+
             // 1. Update labInvoices
-            if (labIdsToDelete.size > 0 && setLabInvoices) {
-                setLabInvoices(prev => prev.map(inv => {
-                    const idStr = String(inv.invoice_id || inv.daily_id);
-                    if (labIdsToDelete.has(idStr)) {
-                        return { ...inv, status: 'Cancelled', isDeleted: true };
-                    }
-                    return inv;
-                }));
+            const updatedLabs = (labInvoices || []).filter(inv => {
+                const idStr = String(inv.invoice_id || inv.daily_id || (inv as any).id);
+                return !labIdsToDelete.has(idStr);
+            });
+            if (setLabInvoices) {
+                setLabInvoices(updatedLabs);
             }
 
             // 2. Update consolidatedEntries
-            if (consIdsToDelete.size > 0) {
-                const updatedCons = consolidatedEntries.filter(e => !consIdsToDelete.has(String(e.id)));
-                setConsolidatedEntries(updatedCons);
-                if (setConsolidatedLabEntries) {
-                    setConsolidatedLabEntries(updatedCons);
-                }
-                dbService.saveConsolidatedEntries(updatedCons);
+            const updatedCons = (consolidatedEntries || []).filter(e => !consIdsToDelete.has(String(e.id)));
+            setConsolidatedEntries(updatedCons);
+            if (setConsolidatedLabEntries) {
+                setConsolidatedLabEntries(updatedCons);
             }
+            dbService.saveConsolidatedEntries(updatedCons);
 
             // 3. Update indoorInvoices
-            if (indoorIdsToDelete.size > 0 && setIndoorInvoices) {
-                setIndoorInvoices(prev => prev.map(inv => {
-                    const idStr = String(inv.invoice_id || inv.id);
-                    if (indoorIdsToDelete.has(idStr)) {
-                        return { ...inv, isDeleted: true, status: 'Deleted' };
-                    }
-                    return inv;
-                }));
+            const updatedIndoor = (indoorInvoices || []).filter(inv => {
+                const idStr = String(inv.daily_id || inv.invoice_id || (inv as any).id);
+                return !indoorIdsToDelete.has(idStr);
+            });
+            if (setIndoorInvoices) {
+                setIndoorInvoices(updatedIndoor);
             }
 
             // 4. Update dueCollections
-            if (dueIdsToDelete.size > 0 && setDueCollections) {
-                setDueCollections(prev => prev.filter(dc => {
-                    const idStr = String(dc.collection_id || dc.id);
-                    return !dueIdsToDelete.has(idStr);
-                }));
+            const updatedDues = (dueCollections || []).filter(dc => {
+                const idStr = String(dc.collection_id || dc.id);
+                return !dueIdsToDelete.has(idStr);
+            });
+            if (setDueCollections) {
+                setDueCollections(updatedDues);
             }
 
+            const syncPayload = {
+                labInvoices: updatedLabs,
+                consolidatedLabEntries: updatedCons,
+                indoorInvoices: updatedIndoor,
+                dueCollections: updatedDues
+            };
+
             if (performBlockingSync) {
-                await performBlockingSync();
+                await performBlockingSync(syncPayload);
+            } else {
+                await dbService.saveToCloud(syncPayload);
             }
 
             setSelectedSourceIds(new Set());

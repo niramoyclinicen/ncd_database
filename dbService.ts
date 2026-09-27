@@ -1231,47 +1231,9 @@ export const dbService = {
         console.warn("Modular table load notice:", modularErr);
       }
 
-      // 3. Consolidated Lab Entries handling: merge cloud entries with local storage entries non-destructively
-      try {
-        const localCons = dbService.getConsolidatedEntries();
-        state.consolidatedLabEntries = mergeEntityList(state.consolidatedLabEntries || [], localCons, ['id', 'date']);
-      } catch (consErr) {
-        if (!Array.isArray(state.consolidatedLabEntries) || state.consolidatedLabEntries.length === 0) {
-          state.consolidatedLabEntries = dbService.getConsolidatedEntries();
-        }
-      }
-
-      // 3.5 Merge local backup snapshots (offline cache, pre-migration snapshot, vault) into state non-destructively
-      try {
-        const localBkp = dbService.getLocalBackup();
-        if (localBkp && typeof localBkp === 'object') {
-          if (localBkp.detailedExpenses && typeof localBkp.detailedExpenses === 'object') {
-            if (!state.detailedExpenses) state.detailedExpenses = {};
-            Object.entries(localBkp.detailedExpenses).forEach(([k, v]) => {
-              const normK = normalizeDate(k) || k;
-              if (!normK) return;
-              if (!state.detailedExpenses[normK]) state.detailedExpenses[normK] = [];
-              const list = Array.isArray(v) ? v : (v && typeof v === 'object' ? Object.values(v) : []);
-              list.forEach((it: any) => {
-                if (!it || it.isDeleted) return;
-                const itId = String(it.id || '');
-                const exists = state.detailedExpenses[normK].some((x: any) => String(x.id || '') === itId && itId !== '');
-                if (!exists) {
-                  state.detailedExpenses[normK].push({ ...it, date: normK });
-                }
-              });
-            });
-          }
-          ['labInvoices', 'indoorInvoices', 'dueCollections', 'salesInvoices', 'purchaseInvoices', 'medicines', 'consolidatedLabEntries'].forEach(col => {
-            const src = localBkp[col];
-            if (Array.isArray(src) && src.length > 0) {
-              const idFields = col === 'dueCollections' ? ['collection_id', 'id'] : (col === 'consolidatedLabEntries' ? ['id', 'date'] : ['invoice_id', 'daily_id', 'invoiceId', 'id']);
-              state[col] = mergeEntityList(state[col] || [], src, idFields);
-            }
-          });
-        }
-      } catch (bkpErr) {
-        console.warn("Local backup merge notice:", bkpErr);
+      // 3. Consolidated Lab Entries handling: ensure array exists
+      if (!Array.isArray(state.consolidatedLabEntries)) {
+        state.consolidatedLabEntries = [];
       }
 
       // 4. Safe Unique ID normalization for detailedExpenses (Strictly preservation-oriented)
@@ -1586,36 +1548,11 @@ export const dbService = {
         state.consolidatedLabEntries = dbService.getConsolidatedEntries();
       }
 
-      // Safe Local Storage reconciliation: if localStorage has any expenses or invoices missing from cloud, merge them in!
+      // Update offline cache with the fresh state loaded from cloud
       try {
-        const localBackup = dbService.getLocalBackup();
-        if (localBackup && typeof localBackup === 'object') {
-          if (localBackup.detailedExpenses && typeof localBackup.detailedExpenses === 'object') {
-            if (!state.detailedExpenses) state.detailedExpenses = {};
-            Object.entries(localBackup.detailedExpenses).forEach(([dKey, items]: [string, any]) => {
-              const normDate = normalizeDate(dKey);
-              if (!normDate || !Array.isArray(items)) return;
-              if (!state.detailedExpenses[normDate]) state.detailedExpenses[normDate] = [];
-              items.forEach((it: any) => {
-                if (!it || it.isDeleted) return;
-                const itId = String(it.id || '');
-                const exists = state.detailedExpenses[normDate].some((x: any) => String(x.id || '') === itId && itId !== '');
-                if (!exists) {
-                  state.detailedExpenses[normDate].push({ ...it, date: normDate });
-                }
-              });
-            });
-          }
-          ['labInvoices', 'indoorInvoices', 'dueCollections', 'salesInvoices', 'purchaseInvoices'].forEach(col => {
-            if (Array.isArray(localBackup[col]) && localBackup[col].length > 0) {
-              const idFields = col === 'dueCollections' ? ['collection_id', 'id'] : ['invoice_id', 'daily_id', 'invoiceId', 'id'];
-              state[col] = mergeEntityList(state[col] || [], localBackup[col], idFields);
-            }
-          });
-        }
-      } catch (e) {
-        console.warn("Local backup reconciliation notice:", e);
-      }
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(state));
+        localStorage.setItem('ncd_offline_cache_v1', JSON.stringify(state));
+      } catch (cacheErr) {}
 
       // Reconcile monthlyAdjustments with local storage non-destructively
       if (!state.monthlyAdjustments || typeof state.monthlyAdjustments !== 'object') {
@@ -1677,16 +1614,37 @@ export const dbService = {
           const legacyBase = cachedLegacyState && typeof cachedLegacyState === 'object' ? { ...cachedLegacyState } : {};
 
           // Master payload for ncd_state stores 100% complete archive of all months (past, present, future)
-          const masterPurchases = mergeEntityList(legacyBase.purchaseInvoices || [], appState.purchaseInvoices || [], ['invoice_id', 'invoiceId', 'id']);
-          const masterSales = mergeEntityList(legacyBase.salesInvoices || [], appState.salesInvoices || [], ['invoice_id', 'invoiceId', 'id']);
-          const masterLabs = mergeEntityList(legacyBase.labInvoices || [], appState.labInvoices || [], ['invoice_id', 'invoiceId', 'id']);
-          const masterDues = mergeEntityList(legacyBase.dueCollections || [], appState.dueCollections || [], ['collection_id', 'collectionId', 'id']);
-          const masterIndoor = mergeEntityList(legacyBase.indoorInvoices || [], appState.indoorInvoices || [], ['daily_id', 'invoice_id', 'id']);
-          const masterConsolidated = mergeEntityList(legacyBase.consolidatedLabEntries || [], appState.consolidatedLabEntries || [], ['id', 'date']);
-          const masterReports = mergeEntityList(legacyBase.reports || [], appState.reports || [], ['id']);
-          const masterPrescriptions = mergeEntityList(legacyBase.prescriptions || [], appState.prescriptions || [], ['id']);
-          const masterAppointments = mergeEntityList(legacyBase.appointments || [], appState.appointments || [], ['id']);
-          const masterAdmissions = mergeEntityList(legacyBase.admissions || [], appState.admissions || [], ['id']);
+          // When appState provides active collections, respect deletions instead of blindly resurrecting old ghosts
+          const sanitizeList = (list: any[]) => Array.isArray(list) ? list.filter(x => x && !x.isDeleted && x.status !== 'Cancelled' && x.status !== 'Deleted') : [];
+
+          const masterPurchases = appState.purchaseInvoices !== undefined 
+            ? sanitizeList(appState.purchaseInvoices)
+            : sanitizeList(legacyBase.purchaseInvoices || []);
+
+          const masterSales = appState.salesInvoices !== undefined 
+            ? sanitizeList(appState.salesInvoices)
+            : sanitizeList(legacyBase.salesInvoices || []);
+
+          const masterLabs = appState.labInvoices !== undefined 
+            ? sanitizeList(appState.labInvoices)
+            : sanitizeList(legacyBase.labInvoices || []);
+
+          const masterDues = appState.dueCollections !== undefined 
+            ? sanitizeList(appState.dueCollections)
+            : sanitizeList(legacyBase.dueCollections || []);
+
+          const masterIndoor = appState.indoorInvoices !== undefined 
+            ? sanitizeList(appState.indoorInvoices)
+            : sanitizeList(legacyBase.indoorInvoices || []);
+
+          const masterConsolidated = appState.consolidatedLabEntries !== undefined 
+            ? sanitizeList(appState.consolidatedLabEntries)
+            : sanitizeList(legacyBase.consolidatedLabEntries || []);
+
+          const masterReports = appState.reports !== undefined ? (appState.reports || []) : (legacyBase.reports || []);
+          const masterPrescriptions = appState.prescriptions !== undefined ? (appState.prescriptions || []) : (legacyBase.prescriptions || []);
+          const masterAppointments = appState.appointments !== undefined ? (appState.appointments || []) : (legacyBase.appointments || []);
+          const masterAdmissions = appState.admissions !== undefined ? (appState.admissions || []) : (legacyBase.admissions || []);
 
           // Combine ALL detailed expenses across all dates (past, present, August, September, etc.)
           const masterExpenses: Record<string, any[]> = {};
@@ -1700,18 +1658,17 @@ export const dbService = {
             target[norm] = [...existing, ...filteredNew];
           }
 
-          if (legacyBase.detailedExpenses && typeof legacyBase.detailedExpenses === 'object') {
-            if (Array.isArray(legacyBase.detailedExpenses)) {
-              legacyBase.detailedExpenses.forEach((it: any) => combinedExpenses(masterExpenses, it?.date, [it]));
-            } else {
-              Object.entries(legacyBase.detailedExpenses).forEach(([k, v]) => combinedExpenses(masterExpenses, k, v));
-            }
-          }
-          if (appState.detailedExpenses && typeof appState.detailedExpenses === 'object') {
+          if (appState.detailedExpenses && typeof appState.detailedExpenses === 'object' && Object.keys(appState.detailedExpenses).length > 0) {
             if (Array.isArray(appState.detailedExpenses)) {
               appState.detailedExpenses.forEach((it: any) => combinedExpenses(masterExpenses, it?.date, [it]));
             } else {
               Object.entries(appState.detailedExpenses).forEach(([k, v]) => combinedExpenses(masterExpenses, k, v));
+            }
+          } else if (legacyBase.detailedExpenses && typeof legacyBase.detailedExpenses === 'object') {
+            if (Array.isArray(legacyBase.detailedExpenses)) {
+              legacyBase.detailedExpenses.forEach((it: any) => combinedExpenses(masterExpenses, it?.date, [it]));
+            } else {
+              Object.entries(legacyBase.detailedExpenses).forEach(([k, v]) => combinedExpenses(masterExpenses, k, v));
             }
           }
 
@@ -2979,6 +2936,136 @@ export const dbService = {
       return { success: true };
     } catch (e) {
       console.warn("[dbService] deleteLabInvoiceDirectly notice:", e);
+      return { success: true };
+    }
+  },
+
+  deleteDueCollectionDirectly: async (dueId: string) => {
+    try {
+      if (!dueId) return { success: true };
+      const now = new Date().toISOString();
+      const targetId = String(dueId).trim();
+
+      // Clean from localStorage cache
+      try {
+        const rawCache = localStorage.getItem('ncd_offline_cache_v1');
+        if (rawCache) {
+          const parsed = JSON.parse(rawCache);
+          if (Array.isArray(parsed.dueCollections)) {
+            parsed.dueCollections = parsed.dueCollections.filter((x: any) => {
+              const xId = String(x.collection_id || x.id || '').trim();
+              return xId !== targetId;
+            });
+            localStorage.setItem('ncd_offline_cache_v1', JSON.stringify(parsed));
+          }
+        }
+      } catch (cacheErr) {}
+
+      if (!supabase) return { success: true };
+
+      // 1. Delete from ncd_state
+      try {
+        if (!cachedLegacyState) {
+          const { data } = await supabase.from('ncd_state').select('*').order('updated_at', { ascending: false }).limit(5);
+          if (data && data.length > 0) {
+            const masterRow = data.find((r: any) => r.id === MASTER_RECORD_ID) || data[0];
+            cachedLegacyRecordId = masterRow.id || MASTER_RECORD_ID;
+            cachedLegacyState = typeof masterRow.data === 'string' ? JSON.parse(masterRow.data) : masterRow.data;
+          }
+        }
+        if (cachedLegacyState && Array.isArray(cachedLegacyState.dueCollections)) {
+          cachedLegacyState.dueCollections = cachedLegacyState.dueCollections.filter((x: any) => {
+            const xId = String(x.collection_id || x.id || '').trim();
+            return xId !== targetId;
+          });
+          cachedLegacyState.last_updated_at = now;
+
+          await supabase.from('ncd_state').upsert({
+            id: cachedLegacyRecordId || MASTER_RECORD_ID,
+            data: cachedLegacyState,
+            updated_at: now
+          }, { onConflict: 'id' });
+        }
+      } catch (delErr) {
+        console.warn("[dbService] ncd_state delete due collection notice:", delErr);
+      }
+
+      // 2. Delete from modular tables 'due_collections' and 'dues'
+      try {
+        await Promise.allSettled([
+          supabase.from('due_collections').delete().or(`collection_id.eq.${targetId},id.eq.${targetId}`),
+          supabase.from('dues').delete().or(`collection_id.eq.${targetId},id.eq.${targetId}`)
+        ]);
+      } catch (modDelErr) {
+        console.warn("[dbService] modular due delete notice:", modDelErr);
+      }
+
+      return { success: true };
+    } catch (e) {
+      console.warn("[dbService] deleteDueCollectionDirectly notice:", e);
+      return { success: true };
+    }
+  },
+
+  deleteConsolidatedEntryDirectly: async (entryId: string) => {
+    try {
+      if (!entryId) return { success: true };
+      const now = new Date().toISOString();
+      const targetId = String(entryId).trim();
+
+      // Clean from localStorage
+      try {
+        const rawLocal = localStorage.getItem('ncd_consolidated_lab_entries_v1');
+        if (rawLocal) {
+          const parsed = JSON.parse(rawLocal);
+          if (Array.isArray(parsed)) {
+            const filtered = parsed.filter((x: any) => String(x.id || '').trim() !== targetId);
+            localStorage.setItem('ncd_consolidated_lab_entries_v1', JSON.stringify(filtered));
+          }
+        }
+      } catch (cacheErr) {}
+
+      if (!supabase) return { success: true };
+
+      // 1. Delete from ncd_state
+      try {
+        if (!cachedLegacyState) {
+          const { data } = await supabase.from('ncd_state').select('*').order('updated_at', { ascending: false }).limit(5);
+          if (data && data.length > 0) {
+            const masterRow = data.find((r: any) => r.id === MASTER_RECORD_ID) || data[0];
+            cachedLegacyRecordId = masterRow.id || MASTER_RECORD_ID;
+            cachedLegacyState = typeof masterRow.data === 'string' ? JSON.parse(masterRow.data) : masterRow.data;
+          }
+        }
+        if (cachedLegacyState && Array.isArray(cachedLegacyState.consolidatedLabEntries)) {
+          cachedLegacyState.consolidatedLabEntries = cachedLegacyState.consolidatedLabEntries.filter((x: any) => {
+            return String(x.id || '').trim() !== targetId;
+          });
+          cachedLegacyState.last_updated_at = now;
+
+          await supabase.from('ncd_state').upsert({
+            id: cachedLegacyRecordId || MASTER_RECORD_ID,
+            data: cachedLegacyState,
+            updated_at: now
+          }, { onConflict: 'id' });
+        }
+      } catch (delErr) {
+        console.warn("[dbService] ncd_state delete consolidated entry notice:", delErr);
+      }
+
+      // 2. Delete from modular tables 'consolidated_lab_entries' and 'consolidated_entries'
+      try {
+        await Promise.allSettled([
+          supabase.from('consolidated_lab_entries').delete().eq('id', targetId),
+          supabase.from('consolidated_entries').delete().eq('id', targetId)
+        ]);
+      } catch (modDelErr) {
+        console.warn("[dbService] modular consolidated entry delete notice:", modDelErr);
+      }
+
+      return { success: true };
+    } catch (e) {
+      console.warn("[dbService] deleteConsolidatedEntryDirectly notice:", e);
       return { success: true };
     }
   },
