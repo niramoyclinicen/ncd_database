@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { PurchaseInvoice, SalesInvoice, IndoorInvoice } from '../DiagnosticData';
 import { MedicineIcon, BackIcon, MapPinIcon, PhoneIcon } from '../Icons';
+import { normalizeDate } from '../../dbService';
 
 interface MedicineAccountsPageProps {
   onBack: () => void;
@@ -29,45 +30,7 @@ const MedicineAccountsPage: React.FC<MedicineAccountsPageProps> = ({
         const safeIndoor = Array.isArray(indoorInvoices) ? indoorInvoices : [];
 
         const normalizeDateStr = (dateStr?: string | null): string => {
-            if (!dateStr || typeof dateStr !== 'string') return '';
-            const cleaned = dateStr.trim();
-            if (!cleaned) return '';
-            if (/^\d{4}-\d{2}-\d{2}/.test(cleaned)) {
-                return cleaned.substring(0, 10);
-            }
-            if (cleaned.includes('/')) {
-                const parts = cleaned.split('/');
-                if (parts.length === 3) {
-                    if (parts[2].length === 4) {
-                        const y = parts[2];
-                        const m = parts[1].padStart(2, '0');
-                        const d = parts[0].padStart(2, '0');
-                        return `${y}-${m}-${d}`;
-                    } else if (parts[0].length === 4) {
-                        const y = parts[0];
-                        const m = parts[1].padStart(2, '0');
-                        const d = parts[2].padStart(2, '0');
-                        return `${y}-${m}-${d}`;
-                    }
-                }
-            }
-            if (cleaned.includes('-')) {
-                const parts = cleaned.split('-');
-                if (parts.length === 3) {
-                    if (parts[2].length === 4) {
-                        const y = parts[2];
-                        const m = parts[1].padStart(2, '0');
-                        const d = parts[0].padStart(2, '0');
-                        return `${y}-${m}-${d}`;
-                    } else if (parts[0].length === 4) {
-                        const y = parts[0];
-                        const m = parts[1].padStart(2, '0');
-                        const d = parts[2].padStart(2, '0');
-                        return `${y}-${m}-${d}`;
-                    }
-                }
-            }
-            return cleaned;
+            return normalizeDate(dateStr);
         };
 
         const isSelectedMonth = (rawDate?: string | null) => {
@@ -94,6 +57,28 @@ const MedicineAccountsPage: React.FC<MedicineAccountsPageProps> = ({
             return inv?.invoiceDate || inv?.invoice_date || inv?.admission_date || inv?.date || inv?.createdDate || '';
         };
 
+        const getSafeInvAmount = (inv: any) => {
+            if (!inv) return 0;
+            const net = Number(inv.netPayable ?? inv.net_payable);
+            if (!isNaN(net) && net > 0) return net;
+            const paid = Number(inv.paidAmount ?? inv.paid_amount);
+            if (!isNaN(paid) && paid > 0) return paid;
+            const tot = Number(inv.totalAmount ?? inv.total_amount ?? 0);
+            const disc = Number(inv.discount ?? 0);
+            if (tot > 0) return Math.max(0, tot - disc);
+            if (Array.isArray(inv.items) && inv.items.length > 0) {
+                const calculated = inv.items.reduce((sum: number, it: any) => {
+                    const line = Number(it.lineTotalBuy ?? it.lineTotalSell ?? it.payable_amount ?? it.line_total);
+                    if (!isNaN(line) && line > 0) return sum + line;
+                    const price = Number(it.unitPriceBuy ?? it.unitPriceSell ?? it.price ?? 0);
+                    const qty = Number(it.qtyBuying ?? it.qtySelling ?? it.quantity ?? 1);
+                    return sum + (price * qty);
+                }, 0);
+                if (calculated > 0) return Math.max(0, calculated - disc);
+            }
+            return 0;
+        };
+
         // Calculate Current Month Stats
         // Exclude 'Initial' status from current expenses (Opening stock fix)
         const currentInvoices = safePurchases.filter(inv => {
@@ -112,8 +97,8 @@ const MedicineAccountsPage: React.FC<MedicineAccountsPageProps> = ({
         });
 
         // Summing values
-        const totalBuyCurrent = currentInvoices.reduce((sum, inv) => sum + (Number(inv.netPayable) || 0), 0);
-        const totalSellOutdoor = currentOutdoorSales.reduce((sum, inv) => sum + (Number(inv.netPayable) || 0), 0);
+        const totalBuyCurrent = currentInvoices.reduce((sum, inv) => sum + getSafeInvAmount(inv), 0);
+        const totalSellOutdoor = currentOutdoorSales.reduce((sum, inv) => sum + getSafeInvAmount(inv), 0);
         const totalSellIndoor = currentIndoorSales.reduce((sum, inv) => {
             const medItemsTotal = (inv.items || [])
                 .filter(it => it && (it.service_type === 'Medicine' || it.service_type === 'ঔষধ' || (it.service_type || '').toLowerCase().includes('med')))
@@ -127,12 +112,12 @@ const MedicineAccountsPage: React.FC<MedicineAccountsPageProps> = ({
         const prevPurchaseTotal = safePurchases.filter(inv => {
             if (!inv || inv.status === 'Cancelled' || inv.status === 'Initial' || inv.status === 'Deleted') return false;
             return isBeforeSelectedMonth(getInvDate(inv));
-        }).reduce((sum, inv) => sum + (Number(inv.netPayable) || 0), 0);
+        }).reduce((sum, inv) => sum + getSafeInvAmount(inv), 0);
 
         const prevOutdoorTotal = safeSales.filter(inv => {
             if (!inv || (inv as any).status === 'Cancelled' || (inv as any).status === 'Returned' || (inv as any).status === 'Deleted') return false;
             return isBeforeSelectedMonth(getInvDate(inv));
-        }).reduce((sum, inv) => sum + (Number(inv.netPayable) || 0), 0);
+        }).reduce((sum, inv) => sum + getSafeInvAmount(inv), 0);
 
         const prevIndoorTotal = safeIndoor.filter(inv => {
             if (!inv || inv.status === 'Cancelled' || inv.status === 'Returned' || inv.status === 'Deleted') return false;
@@ -160,7 +145,7 @@ const MedicineAccountsPage: React.FC<MedicineAccountsPageProps> = ({
             if (y === selectedYear && m >= 1 && m <= 12) {
                 const monthName = monthOptions[m - 1]?.name || `Month ${m}`;
                 if (!monthlyData[monthName]) monthlyData[monthName] = { buy: 0, sell: 0 };
-                monthlyData[monthName].buy += (Number(inv.netPayable) || 0);
+                monthlyData[monthName].buy += getSafeInvAmount(inv);
             }
         });
         safeSales.forEach(inv => {
@@ -171,7 +156,7 @@ const MedicineAccountsPage: React.FC<MedicineAccountsPageProps> = ({
             if (y === selectedYear && m >= 1 && m <= 12) {
                 const monthName = monthOptions[m - 1]?.name || `Month ${m}`;
                 if (!monthlyData[monthName]) monthlyData[monthName] = { buy: 0, sell: 0 };
-                monthlyData[monthName].sell += (Number(inv.netPayable) || 0);
+                monthlyData[monthName].sell += getSafeInvAmount(inv);
             }
         });
         safeIndoor.forEach(inv => {

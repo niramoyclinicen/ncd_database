@@ -19,7 +19,9 @@ import ConsolidatedAccountsPage from './ConsolidatedAccountsPage';
 interface AccountingPageProps {
   onBack: () => void;
   invoices: LabInvoice[];
+  setInvoices?: React.Dispatch<React.SetStateAction<LabInvoice[]>>;
   dueCollections: DueCollection[];
+  setDueCollections?: React.Dispatch<React.SetStateAction<DueCollection[]>>;
   detailedExpenses: Record<string, ExpenseItem[]>;
   setDetailedExpenses: React.Dispatch<React.SetStateAction<Record<string, ExpenseItem[]>>>;
   employees: Employee[];
@@ -27,6 +29,7 @@ interface AccountingPageProps {
   purchaseInvoices: PurchaseInvoice[];
   salesInvoices: SalesInvoice[];
   indoorInvoices: IndoorInvoice[];
+  setIndoorInvoices?: React.Dispatch<React.SetStateAction<IndoorInvoice[]>>;
   medicines: Medicine[];
   tests: Test[];
   reagents: Reagent[];
@@ -37,6 +40,8 @@ interface AccountingPageProps {
   setLeaveLog: React.Dispatch<React.SetStateAction<Record<string, any>>>;
   monthlyRoster: Record<string, string[]>;
   setMonthlyRoster: React.Dispatch<React.SetStateAction<Record<string, string[]>>>;
+  monthlyAdjustments?: Record<string, any>;
+  setMonthlyAdjustments?: React.Dispatch<React.SetStateAction<Record<string, any>>>;
   patients: Patient[];
   doctors: Doctor[];
   diagnosticSettings: any;
@@ -131,10 +136,10 @@ const BackgroundGraphic = () => (
 );
 
 const AccountingPage: React.FC<AccountingPageProps> = ({
-  onBack, invoices = [], dueCollections = [], detailedExpenses = {}, setDetailedExpenses, employees = [], setEmployees, reagents = [],
-  purchaseInvoices = [], salesInvoices = [], indoorInvoices = [], medicines = [], tests = [], setReagents,
+  onBack, invoices = [], setInvoices, dueCollections = [], setDueCollections, detailedExpenses = {}, setDetailedExpenses, employees = [], setEmployees, reagents = [],
+  purchaseInvoices = [], salesInvoices = [], indoorInvoices = [], setIndoorInvoices, medicines = [], tests = [], setReagents,
   attendanceLog = {}, setAttendanceLog, leaveLog = {}, setLeaveLog,
-  monthlyRoster = {}, setMonthlyRoster, patients = [], doctors = [],
+  monthlyRoster = {}, setMonthlyRoster, monthlyAdjustments, setMonthlyAdjustments, patients = [], doctors = [],
   diagnosticSettings = {}, setDiagnosticSettings, performBlockingSync,
   consolidatedLabEntries = [], setConsolidatedLabEntries
 }) => {
@@ -216,14 +221,21 @@ const AccountingPage: React.FC<AccountingPageProps> = ({
         <ConsolidatedAccountsPage
             onBack={() => setActiveView('main')}
             labInvoices={invoices}
+            setLabInvoices={setInvoices}
             dueCollections={dueCollections}
+            setDueCollections={setDueCollections}
             detailedExpenses={detailedExpenses}
+            setDetailedExpenses={setDetailedExpenses}
             employees={employees}
             purchaseInvoices={purchaseInvoices}
             salesInvoices={salesInvoices}
             indoorInvoices={indoorInvoices}
+            setIndoorInvoices={setIndoorInvoices}
             medicines={medicines}
             consolidatedLabEntries={consolidatedLabEntries}
+            setConsolidatedLabEntries={setConsolidatedLabEntries}
+            monthlyAdjustments={monthlyAdjustments}
+            setMonthlyAdjustments={setMonthlyAdjustments}
             performBlockingSync={performBlockingSync}
         />
     );

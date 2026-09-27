@@ -3,19 +3,26 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { LabInvoice, DueCollection, ExpenseItem, Employee, PurchaseInvoice, SalesInvoice, Medicine } from './DiagnosticData';
 import { IndoorInvoice } from './ClinicPage';
 import { BackIcon, FileTextIcon, UsersIcon, WalletIcon, MoneyIcon, TrendingDownIcon, ChartIcon, PlusIcon, Activity, TrashIcon, SaveIcon, PrinterIcon, ClinicIcon, EditIcon, XIcon, Plus } from './Icons';
-import { dbService } from '../dbService';
+import { dbService, normalizeDate } from '../dbService';
 
 interface ConsolidatedAccountsPageProps {
   onBack: () => void;
   labInvoices: LabInvoice[];
+  setLabInvoices?: React.Dispatch<React.SetStateAction<LabInvoice[]>>;
   dueCollections: DueCollection[];
+  setDueCollections?: React.Dispatch<React.SetStateAction<DueCollection[]>>;
   detailedExpenses: Record<string, ExpenseItem[]>;
+  setDetailedExpenses?: React.Dispatch<React.SetStateAction<Record<string, ExpenseItem[]>>>;
   employees: Employee[];
   purchaseInvoices: PurchaseInvoice[];
   salesInvoices: SalesInvoice[];
   indoorInvoices: IndoorInvoice[];
+  setIndoorInvoices?: React.Dispatch<React.SetStateAction<IndoorInvoice[]>>;
   medicines?: Medicine[];
   consolidatedLabEntries?: any[];
+  setConsolidatedLabEntries?: React.Dispatch<React.SetStateAction<any[]>>;
+  monthlyAdjustments?: Record<string, any>;
+  setMonthlyAdjustments?: React.Dispatch<React.SetStateAction<Record<string, any>>>;
   performBlockingSync?: (overrides?: any) => Promise<boolean>;
 }
 
@@ -147,12 +154,121 @@ const clinicExpenseCategories = [
     'Bank/NGO Installment', 'Mobile', 'Interest/Loan', 'Others', 'Old Loan Repay'
 ];
 
+function safeNum(val: any): number {
+    if (typeof val === 'number' && !isNaN(val)) return val;
+    return 0;
+}
+
+function normalizeDateStr(d: any): string {
+    return normalizeDate(d);
+}
+
+function isSameDay(d1: any, d2: any): boolean {
+    if (!d1 || !d2) return false;
+    const n1 = normalizeDate(d1);
+    const n2 = normalizeDate(d2);
+    return Boolean(n1 && n2 && n1 === n2);
+}
+
+function getLabInvDate(inv: any): string {
+    if (!inv) return '';
+    return inv.invoice_date || inv.date || inv.invoiceDate || inv.created_date || inv.created_at || '';
+}
+
+function isDiagDue(dc: any): boolean {
+    if (!dc) return false;
+    const invId = (dc.invoice_id || '').toUpperCase();
+    return !invId.startsWith('IND') && !invId.startsWith('CLIN');
+}
+
+function getExpAmount(e: any): number {
+    if (!e) return 0;
+    const v = e.paidAmount ?? e.paid_amount ?? e.billAmount ?? e.bill_amount ?? e.amount ?? e.cost ?? 0;
+    const n = Number(v);
+    return isNaN(n) ? 0 : n;
+}
+
+function getConsolidatedNet(e: any): number {
+    if (!e) return 0;
+    const gross = Number(e.grossAmount ?? e.gross_amount ?? e.total_amount ?? e.totalAmount) || 0;
+    const discount = Number(e.discountAmount ?? e.discount_amount ?? e.discount) || 0;
+    const net = Number(e.netPayable ?? e.net_payable ?? e.net_amount ?? e.netAmount) || Math.max(0, gross - discount);
+    let cash = Number(e.cashCollected ?? e.cash_collected ?? e.paid_amount ?? e.paidAmount ?? e.amount) || 0;
+    const due = Number(e.dueAmount ?? e.due_amount) || 0;
+    if (cash === 0 && due === 0 && net > 0) {
+        cash = net;
+    }
+    const docPC = Number(e.doctorCommissionPaid ?? e.doctor_commission_paid ?? e.commission_paid ?? e.commissionPaid) || 0;
+    const usgFee = Number(e.usgDoctorFeePaid ?? e.usg_doctor_fee_paid ?? e.usg_exam_charge) || 0;
+    return Math.max(0, cash - docPC - usgFee);
+}
+
 const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
-  onBack, labInvoices, dueCollections, detailedExpenses, employees, purchaseInvoices, salesInvoices, indoorInvoices, medicines = [], consolidatedLabEntries, performBlockingSync
+  onBack, labInvoices, setLabInvoices, dueCollections, setDueCollections, detailedExpenses, setDetailedExpenses, employees, purchaseInvoices, salesInvoices, indoorInvoices, setIndoorInvoices, medicines = [], consolidatedLabEntries, setConsolidatedLabEntries, monthlyAdjustments: propMonthlyAdjustments, setMonthlyAdjustments: propSetMonthlyAdjustments, performBlockingSync
 }) => {
-    const safeNum = (val: any) => {
-        if (typeof val === 'number' && !isNaN(val)) return val;
-        return 0;
+    const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth());
+    const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
+    const [activeTab, setActiveTab] = useState<'monthly_expense_sheet' | 'daily_collection' | 'daily_expense' | 'accounts' | 'shareholders' | 'money_mgmt' | 'final_status' | 'future_plans' | 'shareholder_mgmt' | 'company_collection'>('accounts');
+    const [deptFilter, setDeptFilter] = useState<'All' | 'Diagnostic' | 'Clinic'>('All');
+
+    const isSelectedMonth = (dateStr: any) => {
+        if (!dateStr) return false;
+        try {
+            const norm = normalizeDate(dateStr);
+            if (!norm) return false;
+            const parts = norm.split('-');
+            if (parts.length < 2) return false;
+            const y = Number(parts[0]);
+            const m = Number(parts[1]);
+            if (isNaN(y) || isNaN(m)) return false;
+            return m - 1 === selectedMonth && y === selectedYear;
+        } catch(e) { return false; }
+    };
+
+    const isBeforeSelectedMonth = (dateStr: any) => {
+        if (!dateStr) return false;
+        try {
+            const norm = normalizeDate(dateStr);
+            if (!norm) return false;
+            const parts = norm.split('-');
+            if (parts.length < 2) return false;
+            const y = Number(parts[0]);
+            const m = Number(parts[1]);
+            if (isNaN(y) || isNaN(m)) return false;
+            return y < selectedYear || (y === selectedYear && m - 1 < selectedMonth);
+        } catch(e) { return false; }
+    };
+
+    const getNetDiagCash = (inv: LabInvoice) => {
+        if (!inv) return 0;
+        const items = Array.isArray(inv.items) ? inv.items : [];
+        const usgFee = items.reduce((s, it) => s + ((Number(it?.usg_exam_charge) || 0) * (Number(it?.quantity) || 1)), 0);
+        const labFee = items.reduce((s, it) => s + ((Number(it?.extra_lab_fee) || 0) * (Number(it?.quantity) || 1)), 0);
+        const commPaid = Number(inv.commission_paid ?? (inv as any).commissionPaid) || 0;
+        let totalPaid = Number(inv.paid_amount ?? (inv as any).paidAmount) || 0;
+        const totalAmt = Number(inv.total_amount ?? (inv as any).totalAmount) || 0;
+        const discAmt = Number(inv.discount_amount ?? (inv as any).discountAmount) || 0;
+        const currentDue = Number(inv.due_amount ?? (inv as any).dueAmount) || 0;
+
+        if (totalPaid === 0 && currentDue <= 0 && totalAmt > 0) {
+            totalPaid = Math.max(0, totalAmt - discAmt);
+        }
+
+        const subsequentDues = (dueCollections || []).filter(dc => dc && dc.invoice_id === inv.invoice_id).reduce((s, dc) => s + (Number(dc.amount_collected) || 0), 0);
+        
+        let initialPaid = totalPaid;
+        if (subsequentDues > 0) {
+            if (totalPaid > subsequentDues && (totalPaid - subsequentDues + currentDue + discAmt >= totalAmt - 1)) {
+                initialPaid = Math.max(0, totalPaid - subsequentDues);
+            } else if (totalPaid >= subsequentDues && totalPaid === totalAmt - discAmt && currentDue <= 0.5) {
+                initialPaid = Math.max(0, totalPaid - subsequentDues);
+            } else if (totalPaid < subsequentDues) {
+                initialPaid = 0;
+            } else {
+                initialPaid = totalPaid;
+            }
+        }
+        return Math.max(0, initialPaid - usgFee - labFee - commPaid);
     };
 
     const [consolidatedEntries, setConsolidatedEntries] = useState<any[]>(() => {
@@ -168,11 +284,6 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
             setConsolidatedEntries(dbService.getConsolidatedEntries());
         }
     }, [consolidatedLabEntries]);
-
-    const [activeTab, setActiveTab] = useState<'monthly_expense_sheet' | 'daily_collection' | 'daily_expense' | 'accounts' | 'shareholders' | 'money_mgmt' | 'final_status' | 'future_plans' | 'shareholder_mgmt' | 'company_collection'>('accounts');
-    const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth());
-    const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
-    const [deptFilter, setDeptFilter] = useState<'All' | 'Diagnostic' | 'Clinic'>('All');
 
     const [dynamicShareholders, setDynamicShareholders] = useState<Shareholder[]>(() => {
         const saved = localStorage.getItem('ncd_shareholders');
@@ -197,35 +308,388 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
     const [showSaveConfirm, setShowSaveConfirm] = useState(false);
     const [saveSuccess, setSaveSuccess] = useState(false);
 
+    // --- Daily Collection Detail Modal & Source Deletion States ---
+    const [selectedDetailDate, setSelectedDetailDate] = useState<{ dateStr: string; displayDate: string } | null>(null);
+    const [selectedSourceIds, setSelectedSourceIds] = useState<Set<string>>(new Set());
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
+    const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (toastMessage) {
+            const timer = setTimeout(() => setToastMessage(null), 3500);
+            return () => clearTimeout(timer);
+        }
+    }, [toastMessage]);
+
+    // Calculate source items for the selected day in Daily Collection
+    const dateSources = useMemo(() => {
+        if (!selectedDetailDate) return [];
+        const targetDate = selectedDetailDate.dateStr;
+        const items: Array<{
+            id: string;
+            originalId: string;
+            type: 'LAB_INVOICE' | 'CONSOLIDATED_ENTRY' | 'INDOOR_INVOICE' | 'DUE_COLLECTION';
+            categoryLabel: string;
+            refNo: string;
+            details: string;
+            amount: number;
+            originalItem: any;
+        }> = [];
+
+        // 1. Diagnostic Lab Invoices
+        (labInvoices || []).forEach(inv => {
+            if (!inv || inv.status === 'Cancelled' || inv.status === 'Returned' || inv.status === 'Deleted' || inv.isDeleted) return;
+            const invDate = getLabInvDate(inv);
+            if (isSameDay(invDate, targetDate)) {
+                const netCash = getNetDiagCash(inv);
+                const testsStr = Array.isArray(inv.items) ? inv.items.map((it: any) => it.testName || it.test_name || it.name).filter(Boolean).join(', ') : '';
+                items.push({
+                    id: `lab_${inv.invoice_id || inv.daily_id}`,
+                    originalId: String(inv.invoice_id || inv.daily_id),
+                    type: 'LAB_INVOICE',
+                    categoryLabel: 'ডায়াগনস্টিক ইনভয়েস',
+                    refNo: String(inv.daily_id || inv.invoice_id || ''),
+                    details: `রোগী: ${inv.patient_name || inv.patient_id || 'N/A'} ${testsStr ? `(${testsStr})` : ''}`,
+                    amount: netCash,
+                    originalItem: inv
+                });
+            }
+        });
+
+        // 2. Consolidated Lab Entries
+        (consolidatedEntries || []).forEach(e => {
+            if (!e) return;
+            const rawDate = e.date || e.created_at || e.createdAt || e.entry_date || e.invoice_date || e.collection_date || '';
+            const normE = normalizeDateStr(rawDate);
+            let matches = isSameDay(rawDate, targetDate) || normE === targetDate;
+            if (!normE && e.id) {
+                const m = String(e.id).match(/(\d{4})[-_]?(\d{2})[-_]?(\d{2})/);
+                if (m && `${m[1]}-${m[2]}-${m[3]}` === targetDate) matches = true;
+            }
+            const dayNum = parseInt(targetDate.split('-')[2] || '1', 10);
+            const isMonthly = (e.entryType === 'monthly' || e.shift === 'Monthly' || !normE || normE.split('-').length < 3);
+            if (dayNum === 1 && isMonthly) {
+                const parts = targetDate.split('-');
+                const ey = Number(parts[0]);
+                const em = Number(parts[1]) - 1;
+                if (e.month !== undefined && e.year !== undefined && !isNaN(Number(e.month)) && !isNaN(Number(e.year))) {
+                    matches = Number(e.year) === ey && (Number(e.month) === em || Number(e.month) === em + 1);
+                }
+            }
+            if (matches) {
+                const net = getConsolidatedNet(e);
+                items.push({
+                    id: `cons_${e.id || Date.now()}`,
+                    originalId: String(e.id || ''),
+                    type: 'CONSOLIDATED_ENTRY',
+                    categoryLabel: 'কনসোলিডেটেড ল্যাব এন্ট্রি',
+                    refNo: String(e.id || 'N/A'),
+                    details: `শিফট/ধরণ: ${e.shift || e.entryType || 'সাধারণ'} ${e.notes ? `| ${e.notes}` : ''}`,
+                    amount: net,
+                    originalItem: e
+                });
+            }
+        });
+
+        // 3. Clinic Indoor Invoices
+        (indoorInvoices || []).forEach(inv => {
+            if (!inv || inv.isDeleted) return;
+            const st = String(inv.status || '').toLowerCase().trim();
+            if (st === 'cancelled' || st === 'returned' || st === 'deleted') return;
+            const dateToUse = inv.admission_date || inv.invoice_date;
+            if (isSameDay(dateToUse, targetDate)) {
+                const itemsList = Array.isArray(inv.items) ? inv.items : [];
+                const fundedRevenue = itemsList.filter(it => it && it.isClinicFund).reduce((ss, ii) => ss + (Number(ii.payable_amount) || 0), 0);
+                const pcAmount = (Number(inv.commission_paid) || 0) + (Number(inv.special_commission) || 0);
+                const specialDiscount = Number(inv.special_discount_amount) || 0;
+                const netAmount = fundedRevenue - pcAmount - specialDiscount;
+                items.push({
+                    id: `clinic_${inv.invoice_id || inv.id}`,
+                    originalId: String(inv.invoice_id || inv.id),
+                    type: 'INDOOR_INVOICE',
+                    categoryLabel: 'ক্লিনিক ইনডোর ইনভয়েস',
+                    refNo: String(inv.daily_id || inv.invoice_id || ''),
+                    details: `রোগী: ${inv.patient_name || 'N/A'} (বেড: ${inv.bed_number || 'N/A'})`,
+                    amount: netAmount,
+                    originalItem: inv
+                });
+            }
+        });
+
+        // 4. Due Collections
+        (dueCollections || []).forEach(dc => {
+            if (!dc || !isSameDay(dc.collection_date, targetDate)) return;
+            const amt = Number(dc.amount_collected) || 0;
+            const isDiag = isDiagDue(dc);
+            items.push({
+                id: `due_${dc.collection_id || dc.id}`,
+                originalId: String(dc.collection_id || dc.id),
+                type: 'DUE_COLLECTION',
+                categoryLabel: isDiag ? 'ডায়াগনস্টিক বকেয়া আদায়' : 'ক্লিনিক বকেয়া আদায়',
+                refNo: String(dc.collection_id || dc.invoice_id || ''),
+                details: `ইনভয়েস #: ${dc.invoice_id || 'N/A'} (আদায়কারী: ${dc.collected_by || 'Admin'})`,
+                amount: amt,
+                originalItem: dc
+            });
+        });
+
+        return items;
+    }, [selectedDetailDate, labInvoices, consolidatedEntries, indoorInvoices, dueCollections]);
+
+    const toggleSelectSource = (id: string) => {
+        setSelectedSourceIds(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+        });
+    };
+
+    const toggleSelectAllSources = () => {
+        if (selectedSourceIds.size === dateSources.length) {
+            setSelectedSourceIds(new Set());
+        } else {
+            setSelectedSourceIds(new Set(dateSources.map(s => s.id)));
+        }
+    };
+
+    const handleExecuteDeleteSources = async () => {
+        setShowDeleteConfirm(false);
+        setIsDeleting(true);
+
+        try {
+            const selectedList = dateSources.filter(s => selectedSourceIds.has(s.id));
+            if (selectedList.length === 0) {
+                setIsDeleting(false);
+                return;
+            }
+
+            const labIdsToDelete = new Set(selectedList.filter(s => s.type === 'LAB_INVOICE').map(s => s.originalId));
+            const consIdsToDelete = new Set(selectedList.filter(s => s.type === 'CONSOLIDATED_ENTRY').map(s => s.originalId));
+            const indoorIdsToDelete = new Set(selectedList.filter(s => s.type === 'INDOOR_INVOICE').map(s => s.originalId));
+            const dueIdsToDelete = new Set(selectedList.filter(s => s.type === 'DUE_COLLECTION').map(s => s.originalId));
+
+            // 1. Update labInvoices
+            if (labIdsToDelete.size > 0 && setLabInvoices) {
+                setLabInvoices(prev => prev.map(inv => {
+                    const idStr = String(inv.invoice_id || inv.daily_id);
+                    if (labIdsToDelete.has(idStr)) {
+                        return { ...inv, status: 'Cancelled', isDeleted: true };
+                    }
+                    return inv;
+                }));
+            }
+
+            // 2. Update consolidatedEntries
+            if (consIdsToDelete.size > 0) {
+                const updatedCons = consolidatedEntries.filter(e => !consIdsToDelete.has(String(e.id)));
+                setConsolidatedEntries(updatedCons);
+                if (setConsolidatedLabEntries) {
+                    setConsolidatedLabEntries(updatedCons);
+                }
+                dbService.saveConsolidatedEntries(updatedCons);
+            }
+
+            // 3. Update indoorInvoices
+            if (indoorIdsToDelete.size > 0 && setIndoorInvoices) {
+                setIndoorInvoices(prev => prev.map(inv => {
+                    const idStr = String(inv.invoice_id || inv.id);
+                    if (indoorIdsToDelete.has(idStr)) {
+                        return { ...inv, isDeleted: true, status: 'Deleted' };
+                    }
+                    return inv;
+                }));
+            }
+
+            // 4. Update dueCollections
+            if (dueIdsToDelete.size > 0 && setDueCollections) {
+                setDueCollections(prev => prev.filter(dc => {
+                    const idStr = String(dc.collection_id || dc.id);
+                    return !dueIdsToDelete.has(idStr);
+                }));
+            }
+
+            if (performBlockingSync) {
+                await performBlockingSync();
+            }
+
+            setSelectedSourceIds(new Set());
+            setToastMessage(`সফলভাবে ${selectedList.length} টি কালেকশন সোর্স ডিলিট করা হয়েছে!`);
+        } catch (err) {
+            console.error('Delete sources error:', err);
+            setToastMessage('ডিলিট করার সময় ত্রুটি ঘটেছে। অনুগ্রহ করে আবার চেষ্টা করুন।');
+        } finally {
+            setIsDeleting(false);
+        }
+    };
+
+    const convertBnToEn = (str: any): string => {
+        if (str === null || str === undefined) return '';
+        const bnToEnMap: Record<string, string> = { '০': '0', '১': '1', '২': '2', '৩': '3', '৪': '4', '৫': '5', '৬': '6', '৭': '7', '৮': '8', '৯': '9' };
+        return String(str).replace(/[০-৯]/g, ch => bnToEnMap[ch] || ch);
+    };
+
+    const convertEnToBn = (str: any): string => {
+        if (str === null || str === undefined) return '';
+        const enToBnMap: Record<string, string> = { '0': '০', '1': '১', '2': '২', '3': '৩', '4': '৪', '5': '৫', '6': '৬', '7': '৭', '8': '৮', '9': '৯' };
+        return String(str).replace(/[0-9]/g, ch => enToBnMap[ch] || ch);
+    };
+
     const getSafeAdj = (item: any): { profitDist: number; houseRent: number; loanInstallment: number } => {
-        if (typeof item === 'number') {
-            return { profitDist: isNaN(item) ? 0 : item, houseRent: 0, loanInstallment: 0 };
+        const parseVal = (v: any): number => {
+            if (v === null || v === undefined) return 0;
+            if (typeof v === 'number') return isNaN(v) ? 0 : v;
+            if (typeof v === 'string') {
+                const clean = convertBnToEn(v).replace(/,/g, '').trim();
+                const num = parseFloat(clean);
+                return isNaN(num) ? 0 : num;
+            }
+            return 0;
+        };
+
+        if (typeof item === 'number' || typeof item === 'string') {
+            return { profitDist: parseVal(item), houseRent: 0, loanInstallment: 0 };
         }
         if (item && typeof item === 'object') {
-            const pd = typeof item.profitDist === 'number' ? item.profitDist : parseFloat(item.profitDist) || 0;
-            const hr = typeof item.houseRent === 'number' ? item.houseRent : parseFloat(item.houseRent) || 0;
-            const li = typeof item.loanInstallment === 'number' ? item.loanInstallment : parseFloat(item.loanInstallment) || 0;
+            const pd = parseVal(item.profitDist ?? item.profit_dist ?? item.profit ?? item.amount ?? item.value ?? item.dist ?? item.dividend ?? item.profit_distribution ?? item.profitDistribution ?? item.distribution ?? item.netProfit ?? item.net_profit);
+            const hr = parseVal(item.houseRent ?? item.house_rent ?? item.rent);
+            const li = parseVal(item.loanInstallment ?? item.loan_installment ?? item.installment);
             return {
-                profitDist: isNaN(pd) ? 0 : pd,
-                houseRent: isNaN(hr) ? 0 : hr,
-                loanInstallment: isNaN(li) ? 0 : li,
+                profitDist: pd,
+                houseRent: hr,
+                loanInstallment: li,
             };
         }
+        return { profitDist: 0, houseRent: 0, loanInstallment: 0 };
+    };
+
+    const getSafeAdjForMonth = (year: number, month: number, adjustmentsObj: Record<string, any>): { profitDist: number; houseRent: number; loanInstallment: number } => {
+        if (!adjustmentsObj || typeof adjustmentsObj !== 'object') return { profitDist: 0, houseRent: 0, loanInstallment: 0 };
+
+        const mPadded1 = String(month + 1).padStart(2, '0');
+        const mPadded0 = String(month).padStart(2, '0');
+        const mNames = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
+        const mShort = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+        const mBn = ['জানুয়ারি', 'ফেব্রুয়ারি', 'মার্চ', 'এপ্রিল', 'মে', 'জুন', 'জুলাই', 'আগস্ট', 'সেপ্টেম্বর', 'অক্টোবর', 'নভেম্বর', 'ডিসেম্বর'];
+        const mBnAlt = ['জানুয়ারি', 'ফেব্রুয়ারি', 'মার্চ', 'এপ্রিল', 'মে', 'জুন', 'জুলাই', 'আগস্ট', 'সেপ্টেম্বর', 'অক্টোবর', 'নভেম্বর', 'ডিসেম্বর'];
+
+        const yBn = convertEnToBn(year);
+        const mBnNum1 = convertEnToBn(month + 1);
+        const mBnNum1Padded = convertEnToBn(mPadded1);
+        const mBnNum0 = convertEnToBn(month);
+        const mBnNum0Padded = convertEnToBn(mPadded0);
+
+        const candidateKeys = [
+            `${year}-${month}`,
+            `${year}-${month + 1}`,
+            `${year}-${mPadded1}`,
+            `${year}-${mPadded0}`,
+            `${month + 1}-${year}`,
+            `${mPadded1}-${year}`,
+            `${month}-${year}`,
+            `${mPadded0}-${year}`,
+            `${year}_${month}`,
+            `${year}_${month + 1}`,
+            `${year}_${mPadded1}`,
+            `${year}_${mPadded0}`,
+            `${mNames[month]}-${year}`,
+            `${mShort[month]}-${year}`,
+            `${mNames[month]}_${year}`,
+            `${mShort[month]}_${year}`,
+            `${mBn[month]}-${year}`,
+            `${mBnAlt[month]}-${year}`,
+            `${year}-${mNames[month]}`,
+            `${year}-${mShort[month]}`,
+            `${mBn[month]}_${year}`,
+            `${mBnAlt[month]}_${year}`,
+            `${year}_${mBn[month]}`,
+            `${year}_${mBnAlt[month]}`,
+            `${yBn}-${mBnNum1}`,
+            `${yBn}-${mBnNum1Padded}`,
+            `${yBn}-${mBnNum0}`,
+            `${yBn}-${mBnNum0Padded}`,
+            `${yBn}_${mBnNum1}`,
+            `${yBn}_${mBnNum1Padded}`,
+            `${yBn}_${mBnNum0}`,
+            `${yBn}_${mBnNum0Padded}`,
+            `${mBn[month]}-${yBn}`,
+            `${mBnAlt[month]}-${yBn}`,
+            `monthly_${year}_${month + 1}`,
+            `monthly_${year}_${mPadded1}`,
+            `adj_${year}_${month + 1}`,
+            `adj_${year}_${mPadded1}`,
+        ];
+
+        // 1. Pass 1: explicit candidate keys for non-zero values
+        for (const k of candidateKeys) {
+            if (adjustmentsObj[k] !== undefined && adjustmentsObj[k] !== null) {
+                const parsed = getSafeAdj(adjustmentsObj[k]);
+                if (parsed.profitDist > 0 || parsed.houseRent > 0 || parsed.loanInstallment > 0) {
+                    return parsed;
+                }
+            }
+        }
+
+        // 2. Pass 2: fuzzy scan of adjustmentsObj keys matching year and month name/number
+        for (const [k, v] of Object.entries(adjustmentsObj)) {
+            if (!v) continue;
+            const parsed = getSafeAdj(v);
+            if (parsed.profitDist <= 0 && parsed.houseRent <= 0 && parsed.loanInstallment <= 0) continue;
+
+            const kNorm = convertBnToEn(k).toLowerCase();
+            if (kNorm.includes(String(year))) {
+                if (
+                    kNorm.includes(mNames[month]) ||
+                    kNorm.includes(mShort[month]) ||
+                    kNorm.includes(mBn[month]) ||
+                    kNorm.includes(mBnAlt[month]) ||
+                    kNorm.includes(`-${month + 1}-`) ||
+                    kNorm.endsWith(`-${month + 1}`) ||
+                    kNorm.startsWith(`${month + 1}-`) ||
+                    kNorm.includes(`_${month + 1}_`) ||
+                    kNorm.endsWith(`_${month + 1}`) ||
+                    kNorm.startsWith(`${month + 1}_`) ||
+                    kNorm.includes(`-${mPadded1}-`) ||
+                    kNorm.endsWith(`-${mPadded1}`) ||
+                    kNorm.startsWith(`${mPadded1}-`) ||
+                    kNorm.includes(`_${mPadded1}_`) ||
+                    kNorm.endsWith(`_${mPadded1}`) ||
+                    kNorm.startsWith(`${mPadded1}_`) ||
+                    kNorm.includes(`-${month}-`) ||
+                    kNorm.endsWith(`-${month}`) ||
+                    kNorm.startsWith(`${month}-`) ||
+                    kNorm.includes(`_${month}_`) ||
+                    kNorm.endsWith(`_${month}`) ||
+                    kNorm.startsWith(`${month}_`)
+                ) {
+                    return parsed;
+                }
+            }
+        }
+
+        // 3. Pass 3: return first defined explicit key if any
+        for (const k of candidateKeys) {
+            if (adjustmentsObj[k] !== undefined && adjustmentsObj[k] !== null) {
+                return getSafeAdj(adjustmentsObj[k]);
+            }
+        }
+
         return { profitDist: 0, houseRent: 0, loanInstallment: 0 };
     };
 
     const [monthlyAdjustments, setMonthlyAdjustments] = useState<Record<string, { profitDist: number; houseRent: number; loanInstallment: number }>>(() => {
         try {
             const saved = localStorage.getItem('ncd_monthly_adjustments');
-            if (saved) {
-                const parsed = JSON.parse(saved);
-                if (parsed && typeof parsed === 'object') {
-                    const cleaned: Record<string, { profitDist: number; houseRent: number; loanInstallment: number }> = {};
-                    Object.entries(parsed).forEach(([k, v]) => {
-                        cleaned[k] = getSafeAdj(v);
-                    });
-                    return cleaned;
-                }
+            const initialObj = propMonthlyAdjustments && Object.keys(propMonthlyAdjustments).length > 0
+                ? propMonthlyAdjustments
+                : (saved ? JSON.parse(saved) : {});
+            if (initialObj && typeof initialObj === 'object') {
+                const cleaned: Record<string, { profitDist: number; houseRent: number; loanInstallment: number }> = {};
+                Object.entries(initialObj).forEach(([k, v]) => {
+                    cleaned[k] = getSafeAdj(v);
+                });
+                return cleaned;
             }
         } catch (e) {
             console.error('Failed to parse ncd_monthly_adjustments', e);
@@ -233,25 +697,62 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
         return {};
     });
 
+    useEffect(() => {
+        if (propMonthlyAdjustments && typeof propMonthlyAdjustments === 'object' && Object.keys(propMonthlyAdjustments).length > 0) {
+            setMonthlyAdjustments(prev => {
+                const cleaned: Record<string, { profitDist: number; houseRent: number; loanInstallment: number }> = { ...prev };
+                Object.entries(propMonthlyAdjustments).forEach(([k, v]) => {
+                    const parsed = getSafeAdj(v);
+                    const prevParsed = getSafeAdj(prev[k]);
+                    if (parsed.profitDist > 0 || parsed.houseRent > 0 || parsed.loanInstallment > 0) {
+                        cleaned[k] = parsed;
+                    } else if (prevParsed.profitDist > 0 || prevParsed.houseRent > 0 || prevParsed.loanInstallment > 0) {
+                        cleaned[k] = prevParsed;
+                    } else {
+                        cleaned[k] = parsed;
+                    }
+                });
+                try {
+                    localStorage.setItem('ncd_monthly_adjustments', JSON.stringify(cleaned));
+                } catch (e) {}
+                return cleaned;
+            });
+        }
+    }, [propMonthlyAdjustments]);
+
     const currentMonthKey = `${selectedYear}-${selectedMonth}`;
-    const adj = getSafeAdj(monthlyAdjustments[currentMonthKey]);
+    const adj = getSafeAdjForMonth(selectedYear, selectedMonth, monthlyAdjustments);
 
     const updateAdjustment = (field: 'profitDist' | 'houseRent' | 'loanInstallment', val: number) => {
         const safeVal = isNaN(val) ? 0 : Math.max(0, val);
-        setMonthlyAdjustments(prev => {
-            const current = getSafeAdj(prev[currentMonthKey]);
-            const updated = {
-                ...prev,
-                [currentMonthKey]: {
-                    ...current,
-                    [field]: safeVal
-                }
-            };
-            try {
-                localStorage.setItem('ncd_monthly_adjustments', JSON.stringify(updated));
-            } catch (e) {}
-            return updated;
-        });
+        const current = getSafeAdjForMonth(selectedYear, selectedMonth, monthlyAdjustments);
+        
+        const mPadded1 = String(selectedMonth + 1).padStart(2, '0');
+        const mPadded0 = String(selectedMonth).padStart(2, '0');
+        const k1 = `${selectedYear}-${selectedMonth}`;
+        const k2 = `${selectedYear}-${selectedMonth + 1}`;
+        const k3 = `${selectedYear}-${mPadded1}`;
+        const k4 = `${selectedYear}-${mPadded0}`;
+
+        const updatedItem = {
+            ...current,
+            [field]: safeVal
+        };
+
+        const updatedObj = {
+            ...monthlyAdjustments,
+            [k1]: updatedItem,
+            [k2]: updatedItem,
+            [k3]: updatedItem,
+            [k4]: updatedItem
+        };
+        setMonthlyAdjustments(updatedObj);
+        if (propSetMonthlyAdjustments) {
+            propSetMonthlyAdjustments(updatedObj);
+        }
+        try {
+            localStorage.setItem('ncd_monthly_adjustments', JSON.stringify(updatedObj));
+        } catch (e) {}
     };
 
     const [profitShareReportType, setProfitShareReportType] = useState<'monthly' | 'yearly' | 'custom'>('monthly');
@@ -271,12 +772,12 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
 
     const profitShareAdj = useMemo(() => {
         if (profitShareReportType === 'monthly') {
-            return getSafeAdj(monthlyAdjustments[currentMonthKey]);
+            return getSafeAdjForMonth(selectedYear, selectedMonth, monthlyAdjustments);
         } else if (profitShareReportType === 'yearly') {
             let total = 0;
+            const yNum = Number(profitShareYearStr) || selectedYear;
             for (let i = 0; i < 12; i++) {
-                const k = `${profitShareYearStr}-${i}`;
-                if (monthlyAdjustments[k]) total += (getSafeAdj(monthlyAdjustments[k]).profitDist || 0);
+                total += (getSafeAdjForMonth(yNum, i, monthlyAdjustments).profitDist || 0);
             }
             return { profitDist: total, houseRent: 0, loanInstallment: 0 };
         } else if (profitShareReportType === 'custom') {
@@ -299,7 +800,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
             return { profitDist: total, houseRent: 0, loanInstallment: 0 };
         }
         return { profitDist: 0, houseRent: 0, loanInstallment: 0 };
-    }, [profitShareReportType, currentMonthKey, profitShareYearStr, profitShareStartDate, profitShareEndDate, monthlyAdjustments]);
+    }, [profitShareReportType, currentMonthKey, selectedYear, selectedMonth, profitShareYearStr, profitShareStartDate, profitShareEndDate, monthlyAdjustments]);
 
     const updateProfitShareAdjustment = (field: 'profitDist', val: number) => {
         const safeVal = isNaN(val) ? 0 : Math.max(0, val);
@@ -435,26 +936,56 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
     const deletePlan = (id: string) => { if(confirm("পরিকল্পনাটি মুছে ফেলতে চান?")) setFuturePlans(futurePlans.filter(p => p.id !== id)); };
     const updatePlan = (id: string, field: keyof FuturePlan, val: any) => { setFuturePlans(prev => prev.map(p => p.id === id ? { ...p, [field]: val } : p)); };
 
+    const allFlatExpenses = useMemo(() => {
+        const list: any[] = [];
+        const pushExp = (it: any, fallbackDate?: string) => {
+            if (!it || it.isDeleted) return;
+            let normDate = normalizeDate(it.date || it.expense_date || it.created_at || fallbackDate || '');
+            if (!normDate && it.id) {
+                const m = String(it.id).match(/(\d{4})[-_]?(\d{2})[-_]?(\d{2})/);
+                if (m) normDate = `${m[1]}-${m[2]}-${m[3]}`;
+            }
+            if (!normDate && fallbackDate) normDate = normalizeDate(fallbackDate);
+            if (!normDate) normDate = new Date().toISOString().split('T')[0];
+            list.push({ ...it, date: normDate });
+        };
+
+        if (Array.isArray(detailedExpenses)) {
+            detailedExpenses.forEach(it => pushExp(it));
+        } else if (detailedExpenses && typeof detailedExpenses === 'object') {
+            Object.entries(detailedExpenses).forEach(([k, v]) => {
+                if (Array.isArray(v)) {
+                    v.forEach(it => pushExp(it, k));
+                } else if (v && typeof v === 'object') {
+                    if ((v as any).category || (v as any).amount !== undefined || (v as any).paidAmount !== undefined || (v as any).paid_amount !== undefined) {
+                        pushExp(v, k);
+                    } else {
+                        Object.values(v).forEach(sub => pushExp(sub, k));
+                    }
+                }
+            });
+        }
+        return list;
+    }, [detailedExpenses]);
+
     const expenseSheetData = useMemo(() => { try {
         const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
         const rows = [];
-        
-        // Fast index normalized date to list of expenses
         const normalizedExpsMap = new Map<string, any[]>();
-        Object.entries(detailedExpenses).forEach(([rawDateKey, items]) => {
-            if (!Array.isArray(items) || items.length === 0) return;
-            const normKey = (rawDateKey || '').split(/[T ]/)[0].trim();
+        allFlatExpenses.forEach(exp => {
+            const normKey = exp.date;
+            if (!normKey) return;
             if (!normalizedExpsMap.has(normKey)) {
                 normalizedExpsMap.set(normKey, []);
             }
-            normalizedExpsMap.get(normKey)!.push(...items);
+            normalizedExpsMap.get(normKey)!.push(exp);
         });
 
         for (let d = 1; d <= daysInMonth; d++) {
             const dateStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-            const expsForDay = normalizedExpsMap.get(dateStr) || detailedExpenses[dateStr] || [];
+            const expsForDay = normalizedExpsMap.get(dateStr) || [];
             
-            const dailyExps = expsForDay.filter(ex => {
+            const dailyExps = expsForDay.filter((ex: any) => {
                 if (!ex || ex.isDeleted) return false;
                 if (deptFilter === 'All') return true;
                 if (deptFilter === 'Diagnostic') {
@@ -468,34 +999,35 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
             const categorySums: Record<string, number> = {};
             expenseMapSequence.forEach(e => categorySums[e.key] = 0);
             dailyExps.forEach(exp => {
-                let catName = exp.category;
+                let catName = String(exp.category || '').trim();
 
-                // Mapping Diagnostic & Clinic categories to Consolidated keys
-                if (catName === 'Clinic development' || catName === 'Diagnostic development') catName = 'Clinic_Dev';
-                if (catName === 'Electricity bill' || catName === 'Paper / Dish / Wifi Bill') catName = 'Bills';
-                if (catName === 'Doctor donation & Vehicle service' || catName === 'Doctor donation') catName = 'Doctor donation';
-                if (catName === 'Instruments buy/ repair' || catName === 'Repair/Instruments') {
-                    if (exp.subCategory === 'Stationary' || exp.subCategory === 'Stationery') catName = 'Stationery';
+                // Mapping Diagnostic & Clinic categories to Consolidated keys (English & Bengali aliases)
+                if (catName === 'Clinic development' || catName === 'Diagnostic development' || catName === 'ক্লিনিক উন্নয়ন' || catName === 'ডায়াগনস্টিক উন্নয়ন' || catName === 'Clinic_Dev') catName = 'Clinic_Dev';
+                else if (catName === 'Electricity bill' || catName === 'Paper / Dish / Wifi Bill' || catName === 'Bills' || catName === 'বিদ্যুৎ বিল' || catName === 'বিদ্যুৎ+ পেপার+ ডিশ বিল' || catName === 'Dish Bill' || catName === 'Wifi Bill') catName = 'Bills';
+                else if (catName === 'Doctor donation & Vehicle service' || catName === 'Doctor donation' || catName === 'ডাক্তার ডোনেশন' || catName === 'ডাঃ ডোনেশন+ যাতায়াত' || catName === 'Donation') catName = 'Doctor donation';
+                else if (catName === 'Instruments buy/ repair' || catName === 'Repair/Instruments' || catName === 'Instruments' || catName === 'ইন্সট্রুমেন্ট' || catName === 'যন্ত্রপাতি') {
+                    if (exp.subCategory === 'Stationary' || exp.subCategory === 'Stationery' || exp.sub_category === 'Stationary' || exp.sub_category === 'Stationery') catName = 'Stationery';
                     else catName = 'Instruments';
                 }
-                if (catName === 'Maintenance') catName = 'Maintenance';
-                if (catName === 'License cost' || catName === 'License/Official') catName = 'License';
-                if (catName === 'X-ray Film buy') catName = 'X-Ray';
-                if (catName === 'Mobile buy/ Flexiload' || catName === 'Mobile') catName = 'Mobile';
-                if (catName === 'Press Cost') catName = 'Press';
-                if (catName === 'Food/Meal Cost' || catName === 'Food/Refreshment') catName = 'Food';
-                if (catName === 'Bank/NGO Installment' || catName === 'Interest/Loan') catName = 'Installment';
-                if (catName === 'Stationery') catName = 'Stationery';
-                if (catName === 'Stuff salary') catName = 'Stuff salary';
-                if (catName === 'Generator') catName = 'Generator';
-                if (catName === 'Marketing') catName = 'Marketing';
-                if (catName === 'Motorcycle') catName = 'Motorcycle';
-                if (catName === 'Reagent buy') catName = 'Reagent buy';
-                if (catName === 'House rent') catName = 'House rent';
-                if (catName === 'Electrical and Electronics') catName = 'Electrical and Electronics';
+                else if (catName === 'Maintenance' || catName === 'রক্ষণাবেক্ষণ') catName = 'Maintenance';
+                else if (catName === 'License cost' || catName === 'License/Official' || catName === 'License' || catName === 'লাইসেন্স') catName = 'License';
+                else if (catName === 'X-ray Film buy' || catName === 'X-Ray' || catName === 'এক্স-রে') catName = 'X-Ray';
+                else if (catName === 'Mobile buy/ Flexiload' || catName === 'Mobile' || catName === 'মোবাইল খরচ' || catName === 'মোবাইল') catName = 'Mobile';
+                else if (catName === 'Press Cost' || catName === 'Press' || catName === 'প্রেস') catName = 'Press';
+                else if (catName === 'Food/Meal Cost' || catName === 'Food/Refreshment' || catName === 'Food' || catName === 'খাবার' || catName === 'নাস্তা') catName = 'Food';
+                else if (catName === 'Bank/NGO Installment' || catName === 'Interest/Loan' || catName === 'Installment' || catName === 'কিস্তি') catName = 'Installment';
+                else if (catName === 'Stationery' || catName === 'Stationary' || catName === 'স্টেশনারী') catName = 'Stationery';
+                else if (catName === 'Stuff salary' || catName === 'Staff salary' || catName === 'Salary' || catName === 'স্টাফ বেতন' || catName === 'বেতন') catName = 'Stuff salary';
+                else if (catName === 'Generator' || catName === 'জেনারেটর') catName = 'Generator';
+                else if (catName === 'Marketing' || catName === 'মার্কেটিং') catName = 'Marketing';
+                else if (catName === 'Motorcycle' || catName === 'মোটর সাইকেল') catName = 'Motorcycle';
+                else if (catName === 'Reagent buy' || catName === 'Reagent' || catName === 'রিএজেন্ট') catName = 'Reagent buy';
+                else if (catName === 'House rent' || catName === 'Rent' || catName === 'বাড়ী ভাড়া' || catName === 'ভাড়া') catName = 'House rent';
+                else if (catName === 'Electrical and Electronics' || catName === 'ইলেকট্রিক্যাল ও ইলেকট্রনিক্স') catName = 'Electrical and Electronics';
+                else if (catName === 'Old Loan Repay' || catName === 'পূর্বের ঋণ পরিশোধ') catName = 'Old Loan Repay';
 
-                const matched = expenseMapSequence.find(e => e.key === catName);
-                const paidVal = Number(exp.paidAmount || exp.billAmount || 0);
+                const matched = expenseMapSequence.find(e => e.key === catName || e.label === catName || e.key.toLowerCase() === catName.toLowerCase());
+                const paidVal = getExpAmount(exp);
                 if (matched) categorySums[matched.key] += paidVal;
                 else categorySums['Others'] += paidVal;
             });
@@ -505,88 +1037,14 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
         const columnTotals: Record<string, number> = {};
         expenseMapSequence.forEach(e => { columnTotals[e.key] = rows.reduce((sum, row) => sum + row.categories[e.key], 0); });
         const grandTotal = rows.reduce((sum, row) => sum + row.total, 0);
-        return { rows, columnTotals, grandTotal }; } catch(e) { console.error('expenseSheetData error:', e); return { rows: [], columnTotals: {}, grandTotal: 0 }; } }, [detailedExpenses, selectedMonth, selectedYear, deptFilter]);
+        return { rows, columnTotals, grandTotal }; } catch(e) { console.error('expenseSheetData error:', e); return { rows: [], columnTotals: {}, grandTotal: 0 }; } }, [allFlatExpenses, selectedMonth, selectedYear, deptFilter]);
 
     const dailyCollectionData = useMemo(() => { try {
-    const normalizeDateStr = (d: any): string => {
-        if (!d) return '';
-        const str = String(d).trim().split(/[T ]/)[0];
-        if (str.includes('-')) {
-            const parts = str.split('-');
-            if (parts.length === 3) {
-                if (parts[0].length === 4) {
-                    return `${parts[0]}-${(parts[1] || '01').padStart(2, '0')}-${(parts[2] || '01').padStart(2, '0')}`;
-                } else if (parts[2].length === 4) {
-                    return `${parts[2]}-${(parts[1] || '01').padStart(2, '0')}-${(parts[0] || '01').padStart(2, '0')}`;
-                }
-            } else if (parts.length === 2 && parts[0].length === 4) {
-                return `${parts[0]}-${(parts[1] || '01').padStart(2, '0')}-01`;
-            }
-        } else if (str.includes('/')) {
-            const parts = str.split('/');
-            if (parts.length === 3) {
-                if (parts[0].length === 4) {
-                    return `${parts[0]}-${(parts[1] || '01').padStart(2, '0')}-${(parts[2] || '01').padStart(2, '0')}`;
-                } else if (parts[2].length === 4) {
-                    return `${parts[2]}-${(parts[1] || '01').padStart(2, '0')}-${(parts[0] || '01').padStart(2, '0')}`;
-                }
-            } else if (parts.length === 2 && parts[0].length === 4) {
-                return `${parts[0]}-${(parts[1] || '01').padStart(2, '0')}-01`;
-            }
-        }
-        return str;
-    };
-
-    const isSameDay = (d1: any, d2: any) => {
-        if (!d1 || !d2) return false;
-        const n1 = normalizeDateStr(d1);
-        const n2 = normalizeDateStr(d2);
-        return Boolean(n1 && n2 && n1 === n2);
-    };
-
-    const getLabInvDate = (inv: any): string => {
-        if (!inv) return '';
-        return inv.invoice_date || inv.date || inv.invoiceDate || inv.created_date || inv.created_at || '';
-    };
-
-    const isDiagDue = (dc: any) => {
-        if (!dc) return false;
-        const invId = (dc.invoice_id || '').toUpperCase();
-        return !invId.startsWith('IND') && !invId.startsWith('CLIN');
-    };
-
         const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
         const rawRows = [];
         let diagUpto = 0;
         let clinicUpto = 0;
         let lastDayWithData = -1;
-
-        const getNetDiagCash = (inv: LabInvoice) => {
-            if (!inv) return 0;
-            const items = Array.isArray(inv.items) ? inv.items : [];
-            const usgFee = items.reduce((s, it) => s + ((Number(it?.usg_exam_charge) || 0) * (Number(it?.quantity) || 1)), 0);
-            const labFee = items.reduce((s, it) => s + ((Number(it?.extra_lab_fee) || 0) * (Number(it?.quantity) || 1)), 0);
-            const commPaid = Number(inv.commission_paid) || 0;
-            const totalPaid = Number(inv.paid_amount) || 0;
-            const subsequentDues = dueCollections.filter(dc => dc && dc.invoice_id === inv.invoice_id).reduce((s, dc) => s + (Number(dc.amount_collected) || 0), 0);
-            const initialPaid = Math.max(0, totalPaid - subsequentDues);
-            return Math.max(0, initialPaid - usgFee - labFee - commPaid);
-        };
-
-        const getConsolidatedNet = (e: any) => {
-            if (!e) return 0;
-            const gross = Number(e.grossAmount) || 0;
-            const discount = Number(e.discountAmount) || 0;
-            const net = Number(e.netPayable) || Math.max(0, gross - discount);
-            let cash = Number(e.cashCollected) || 0;
-            const due = Number(e.dueAmount) || 0;
-            if (cash === 0 && due === 0 && net > 0) {
-                cash = net;
-            }
-            const docPC = Number(e.doctorCommissionPaid) || 0;
-            const usgFee = Number(e.usgDoctorFeePaid) || 0;
-            return Math.max(0, cash - docPC - usgFee);
-        };
 
         for (let d = 1; d <= daysInMonth; d++) {
             const dayStr = String(d).padStart(2, '0');
@@ -597,7 +1055,35 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                 const invDate = getLabInvDate(inv);
                 return isSameDay(invDate, dateStr);
             }).reduce((s, inv) => s + getNetDiagCash(inv), 0);
-            const diagConsolidatedToday = (consolidatedEntries || []).filter(e => e && isSameDay(e.date, dateStr)).reduce((s, e) => s + getConsolidatedNet(e), 0);
+            
+            const isEntryForDay = (e: any) => {
+                if (!e) return false;
+                const rawDate = e.date || e.created_at || e.createdAt || e.entry_date || e.invoice_date || e.collection_date || '';
+                if (isSameDay(rawDate, dateStr)) return true;
+                const normE = normalizeDateStr(rawDate);
+                if (normE === dateStr) return true;
+                if (!normE && e.id) {
+                    const m = String(e.id).match(/(\d{4})[-_]?(\d{2})[-_]?(\d{2})/);
+                    if (m && `${m[1]}-${m[2]}-${m[3]}` === dateStr) return true;
+                }
+                const isMonthlyEntry = (e.entryType === 'monthly' || e.shift === 'Monthly' || !normE || normE.split('-').length < 3);
+                if (d === 1 && isMonthlyEntry) {
+                    if (e.month !== undefined && e.year !== undefined && !isNaN(Number(e.month)) && !isNaN(Number(e.year))) {
+                        const em = Number(e.month);
+                        const ey = Number(e.year);
+                        return ey === selectedYear && (em === selectedMonth || em === selectedMonth + 1);
+                    }
+                    if (normE) {
+                        const parts = normE.split('-');
+                        const ey = Number(parts[0]);
+                        const em = Number(parts[1]);
+                        return ey === selectedYear && em === selectedMonth + 1;
+                    }
+                    return isSelectedMonth(rawDate);
+                }
+                return false;
+            };
+            const diagConsolidatedToday = (consolidatedEntries || []).filter(isEntryForDay).reduce((s, e) => s + getConsolidatedNet(e), 0);
             const diagToday = diagInvToday + diagConsolidatedToday;
 
             const diagDue = dueCollections.filter(dc => {
@@ -636,6 +1122,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
             const displayDate = `${dayStr}-${shortMonth}`;
             rawRows.push({
                 date: displayDate,
+                fullDate: dateStr,
                 diag: { today: diagToday, due: diagDue, total: diagTotal, upto: diagUpto },
                 clinic: { today: clinicToday, due: clinicDue, total: clinicTotal, upto: clinicUpto }
             });
@@ -656,20 +1143,35 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
         let clinicUpto = 0;
         let lastDayWithData = -1;
 
-        // Normalized date map for lookup
+        // Normalized date map for lookup (supports array and object detailedExpenses)
         const normalizedExpsMap = new Map<string, any[]>();
-        Object.entries(detailedExpenses).forEach(([rawDateKey, items]) => {
-            if (!Array.isArray(items) || items.length === 0) return;
-            const normKey = (rawDateKey || '').split(/[T ]/)[0].trim();
+        const addExpToMap = (ex: any, rawDateKey?: string) => {
+            if (!ex || ex.isDeleted) return;
+            let normKey = normalizeDate(ex.date || ex.expense_date || ex.created_at || rawDateKey || '');
+            if (!normKey && ex.id) {
+                const m = String(ex.id).match(/(\d{4})[-_]?(\d{2})[-_]?(\d{2})/);
+                if (m) normKey = `${m[1]}-${m[2]}-${m[3]}`;
+            }
+            if (!normKey && rawDateKey) normKey = normalizeDate(rawDateKey);
+            if (!normKey) return;
             if (!normalizedExpsMap.has(normKey)) {
                 normalizedExpsMap.set(normKey, []);
             }
-            normalizedExpsMap.get(normKey)!.push(...items);
-        });
+            normalizedExpsMap.get(normKey)!.push({ ...ex, date: normKey });
+        };
+
+        if (Array.isArray(detailedExpenses)) {
+            detailedExpenses.forEach(ex => addExpToMap(ex));
+        } else if (detailedExpenses && typeof detailedExpenses === 'object') {
+            Object.entries(detailedExpenses).forEach(([rawDateKey, items]: [string, any]) => {
+                const list = Array.isArray(items) ? items : (items && typeof items === 'object' ? Object.values(items) : []);
+                list.forEach(ex => addExpToMap(ex, rawDateKey));
+            });
+        }
 
         for (let d = 1; d <= daysInMonth; d++) {
             const dateStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-            const dailyExps = normalizedExpsMap.get(dateStr) || detailedExpenses[dateStr] || [];
+            const dailyExps = normalizedExpsMap.get(dateStr) || (detailedExpenses && typeof detailedExpenses === 'object' && !Array.isArray(detailedExpenses) ? detailedExpenses[dateStr] : []) || [];
 
             let diagToday = 0;
             let clinicToday = 0;
@@ -681,7 +1183,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
 
                 const isClinic = ex.dept === 'Clinic' || (!ex.dept && clinicExpenseCategories.includes(cat) && !diagExpenseCategories.includes(cat));
                 // default to diag if not clinic explicitly
-                const amt = Number(ex.paidAmount || ex.billAmount || 0);
+                const amt = getExpAmount(ex);
 
                 if (isClinic) {
                     clinicToday += amt;
@@ -748,105 +1250,6 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
     } catch (e) { console.error('statusReportData error:', e); return []; } }, [dailyCollectionData, dailyExpenseReportData]);
 
     const summary = useMemo(() => { try {
-    const normalizeDateStr = (d: any): string => {
-        if (!d) return '';
-        const str = String(d).trim().split(/[T ]/)[0];
-        if (str.includes('-')) {
-            const parts = str.split('-');
-            if (parts.length === 3) {
-                if (parts[0].length === 4) {
-                    return `${parts[0]}-${(parts[1] || '01').padStart(2, '0')}-${(parts[2] || '01').padStart(2, '0')}`;
-                } else if (parts[2].length === 4) {
-                    return `${parts[2]}-${(parts[1] || '01').padStart(2, '0')}-${(parts[0] || '01').padStart(2, '0')}`;
-                }
-            } else if (parts.length === 2 && parts[0].length === 4) {
-                return `${parts[0]}-${(parts[1] || '01').padStart(2, '0')}-01`;
-            }
-        } else if (str.includes('/')) {
-            const parts = str.split('/');
-            if (parts.length === 3) {
-                if (parts[0].length === 4) {
-                    return `${parts[0]}-${(parts[1] || '01').padStart(2, '0')}-${(parts[2] || '01').padStart(2, '0')}`;
-                } else if (parts[2].length === 4) {
-                    return `${parts[2]}-${(parts[1] || '01').padStart(2, '0')}-${(parts[0] || '01').padStart(2, '0')}`;
-                }
-            } else if (parts.length === 2 && parts[0].length === 4) {
-                return `${parts[0]}-${(parts[1] || '01').padStart(2, '0')}-01`;
-            }
-        }
-        return str;
-    };
-
-    const getLabInvDate = (inv: any): string => {
-        if (!inv) return '';
-        return inv.invoice_date || inv.date || inv.invoiceDate || inv.created_date || inv.created_at || '';
-    };
-
-    const isDiagDue = (dc: any) => {
-        if (!dc) return false;
-        const invId = (dc.invoice_id || '').toUpperCase();
-        return !invId.startsWith('IND') && !invId.startsWith('CLIN');
-    };
-
-    const isSameDay = (d1: any, d2: any) => {
-        if (!d1 || !d2) return false;
-        const n1 = normalizeDateStr(d1);
-        const n2 = normalizeDateStr(d2);
-        return Boolean(n1 && n2 && n1 === n2);
-    };
-
-        const isSelectedMonth = (dateStr: any) => {
-            if (!dateStr) return false;
-            try {
-                const norm = normalizeDateStr(dateStr);
-                const parts = norm.split('-');
-                if (parts.length < 2) return false;
-                const y = Number(parts[0]);
-                const m = Number(parts[1]);
-                if (isNaN(y) || isNaN(m)) return false;
-                return m - 1 === selectedMonth && y === selectedYear;
-            } catch(e) { return false; }
-        };
-        const isBeforeSelectedMonth = (dateStr: any) => {
-            if (!dateStr) return false;
-            try {
-                const norm = normalizeDateStr(dateStr);
-                const parts = norm.split('-');
-                if (parts.length < 2) return false;
-                const y = Number(parts[0]);
-                const m = Number(parts[1]);
-                if (isNaN(y) || isNaN(m)) return false;
-                return y < selectedYear || (y === selectedYear && m - 1 < selectedMonth);
-            } catch(e) { return false; }
-        };
-
-        const getNetDiagCash = (inv: LabInvoice) => {
-            if (!inv) return 0;
-            const items = Array.isArray(inv.items) ? inv.items : [];
-            const usgFee = items.reduce((s, it) => s + ((Number(it?.usg_exam_charge) || 0) * (Number(it?.quantity) || 1)), 0);
-            const labFee = items.reduce((s, it) => s + ((Number(it?.extra_lab_fee) || 0) * (Number(it?.quantity) || 1)), 0);
-            const commPaid = Number(inv.commission_paid) || 0;
-            const totalPaid = Number(inv.paid_amount) || 0;
-            const subsequentDues = dueCollections.filter(dc => dc && dc.invoice_id === inv.invoice_id).reduce((s, dc) => s + (Number(dc.amount_collected) || 0), 0);
-            const initialPaid = Math.max(0, totalPaid - subsequentDues);
-            return Math.max(0, initialPaid - usgFee - labFee - commPaid);
-        };
-
-        const getConsolidatedNet = (e: any) => {
-            if (!e) return 0;
-            const gross = Number(e.grossAmount) || 0;
-            const discount = Number(e.discountAmount) || 0;
-            const net = Number(e.netPayable) || Math.max(0, gross - discount);
-            let cash = Number(e.cashCollected) || 0;
-            const due = Number(e.dueAmount) || 0;
-            if (cash === 0 && due === 0 && net > 0) {
-                cash = net;
-            }
-            const docPC = Number(e.doctorCommissionPaid) || 0;
-            const usgFee = Number(e.usgDoctorFeePaid) || 0;
-            return Math.max(0, cash - docPC - usgFee);
-        };
-
         const getInvDate = (inv: any) => {
             if (!inv) return '';
             return inv.invoiceDate || inv.invoice_date || inv.date || inv.createdDate || inv.created_date || '';
@@ -876,12 +1279,40 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
         };
 
         const calcNetPrev = () => {
+            const isEntrySelectedMonth = (e: any) => {
+                if (!e) return false;
+                if (e.month !== undefined && e.year !== undefined && !isNaN(Number(e.month)) && !isNaN(Number(e.year))) {
+                    const em = Number(e.month);
+                    const ey = Number(e.year);
+                    return ey === selectedYear && (em === selectedMonth || em === selectedMonth + 1);
+                }
+                const rawDate = e.date || e.created_at || '';
+                const normE = normalizeDateStr(rawDate);
+                if (normE) {
+                    const parts = normE.split('-');
+                    const ey = Number(parts[0]);
+                    const em = Number(parts[1]);
+                    return ey === selectedYear && em === selectedMonth + 1;
+                }
+                return isSelectedMonth(rawDate);
+            };
+
+            const isEntryBeforeSelectedMonth = (e: any) => {
+                if (!e) return false;
+                if (e.month !== undefined && e.year !== undefined && !isNaN(Number(e.month)) && !isNaN(Number(e.year))) {
+                    const y = Number(e.year);
+                    const m = Number(e.month);
+                    return y < selectedYear || (y === selectedYear && m < selectedMonth);
+                }
+                return isBeforeSelectedMonth(e.date || e.created_at);
+            };
+
             const prevLab = (labInvoices || []).filter(inv => {
                 if (!inv || inv.status === 'Cancelled' || inv.status === 'Returned' || inv.status === 'Deleted') return false;
                 const invDate = getLabInvDate(inv);
                 return isBeforeSelectedMonth(invDate);
             }).reduce((s, i) => s + getNetDiagCash(i), 0);
-            const prevConsolidatedLab = (consolidatedEntries || []).filter(e => e && isBeforeSelectedMonth(e.date)).reduce((s, e) => s + getConsolidatedNet(e), 0);
+            const prevConsolidatedLab = (consolidatedEntries || []).filter(isEntryBeforeSelectedMonth).reduce((s, e) => s + getConsolidatedNet(e), 0);
             const prevLabDue = dueCollections.filter(dc => {
                 if (!dc || !isBeforeSelectedMonth(dc.collection_date) || !isDiagDue(dc)) return false;
                 return true;
@@ -926,10 +1357,10 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
             const prevMedPurch = safePurchaseInvoices.filter(inv => inv && isBeforeSelectedMonth(getInvDate(inv)) && inv.status !== 'Initial' && inv.status !== 'Cancelled' && inv.status !== 'Deleted').reduce((s, i) => s + getInvNet(i), 0);
             const prevCompany = companyCollections.filter(c => c && isBeforeSelectedMonth(c.date)).reduce((s, c) => s + c.amount, 0);
             let prevExp = 0;
-            Object.entries(detailedExpenses).forEach(([date, items]) => {
-                if (isBeforeSelectedMonth(date)) (items as ExpenseItem[]).forEach(it => {
-                    if (it && !it.isDeleted) prevExp += (Number(it.paidAmount) || 0);
-                });
+            allFlatExpenses.forEach(it => {
+                if (isBeforeSelectedMonth(it.date)) {
+                    prevExp += getExpAmount(it);
+                }
             });
 
             // Subtract all previous manual adjustments (profit distributions and house rent)
@@ -956,21 +1387,41 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
             const invDate = getLabInvDate(inv);
             return isSelectedMonth(invDate);
         }).reduce((s, inv) => s + getNetDiagCash(inv), 0);
-        const diagConsolidatedCurrent = (consolidatedEntries || []).filter(e => e && isSelectedMonth(e.date)).reduce((s, e) => s + getConsolidatedNet(e), 0);
+        const isEntrySelectedMonth = (e: any) => {
+            if (!e) return false;
+            if (e.month !== undefined && e.year !== undefined && !isNaN(Number(e.month)) && !isNaN(Number(e.year))) {
+                const em = Number(e.month);
+                const ey = Number(e.year);
+                return ey === selectedYear && (em === selectedMonth || em === selectedMonth + 1);
+            }
+            const rawDate = e.date || e.created_at || e.createdAt || e.entry_date || e.invoice_date || '';
+            const normE = normalizeDateStr(rawDate);
+            if (normE) {
+                const parts = normE.split('-');
+                const ey = Number(parts[0]);
+                const em = Number(parts[1]);
+                return ey === selectedYear && em === selectedMonth + 1;
+            }
+            if (!normE && e.id) {
+                const m = String(e.id).match(/(\d{4})[-_]?(\d{2})[-_]?(\d{2})/);
+                if (m) {
+                    const ey = Number(m[1]);
+                    const em = Number(m[2]);
+                    return ey === selectedYear && em === selectedMonth + 1;
+                }
+            }
+            return isSelectedMonth(rawDate);
+        };
+        const diagConsolidatedCurrent = (consolidatedEntries || []).filter(isEntrySelectedMonth).reduce((s, e) => s + getConsolidatedNet(e), 0);
         const diagCurrent = diagInvCurrent + diagConsolidatedCurrent;
         const diagDue = dueCollections.filter(dc => {
             if (!dc || !isSelectedMonth(dc.collection_date) || !isDiagDue(dc)) return false;
             return true;
         }).reduce((s, dc) => s + dc.amount_collected, 0);
 
-        let totalMonthlyOperatingExpenses = 0;
-        Object.entries(detailedExpenses).forEach(([date, items]) => {
-            if (isSelectedMonth(date)) (items as ExpenseItem[]).forEach(it => {
-                if (it && !it.isDeleted) {
-                    totalMonthlyOperatingExpenses += (Number(it.paidAmount) || 0);
-                }
-            });
-        });
+        let totalMonthlyOperatingExpenses = allFlatExpenses
+            .filter(it => isSelectedMonth(it.date))
+            .reduce((s, it) => s + getExpAmount(it), 0);
 
         const clinicRevenueCurrent = indoorInvoices.filter(inv => {
             if (!inv || inv.isDeleted) return false;
@@ -1024,39 +1475,40 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
 
         const groupedExp: Record<string, number> = {};
         expenseMapSequence.forEach(e => groupedExp[e.key] = 0);
-        Object.entries(detailedExpenses).forEach(([date, items]) => {
-            if (isSelectedMonth(date)) (items as ExpenseItem[]).forEach(it => {
-                if (it.isDeleted) return;
-                let catName = it.category;
+        allFlatExpenses
+            .filter(it => isSelectedMonth(it.date))
+            .forEach(it => {
+                let catName = String(it.category || '').trim();
 
-                // Mapping Diagnostic categories to Consolidated keys
-                if (catName === 'Clinic development' || catName === 'Diagnostic development') catName = 'Clinic_Dev';
-                if (catName === 'Electricity bill' || catName === 'Paper / Dish / Wifi Bill') catName = 'Bills';
-                if (catName === 'Doctor donation & Vehicle service' || catName === 'Doctor donation') catName = 'Doctor donation';
-                if (catName === 'Instruments buy/ repair' || catName === 'Repair/Instruments') {
-                    if (it.subCategory === 'Stationary' || it.subCategory === 'Stationery') catName = 'Stationery';
+                // Mapping Diagnostic & Clinic categories to Consolidated keys (English & Bengali aliases)
+                if (catName === 'Clinic development' || catName === 'Diagnostic development' || catName === 'ক্লিনিক উন্নয়ন' || catName === 'ডায়াগনস্টিক উন্নয়ন' || catName === 'Clinic_Dev') catName = 'Clinic_Dev';
+                else if (catName === 'Electricity bill' || catName === 'Paper / Dish / Wifi Bill' || catName === 'Bills' || catName === 'বিদ্যুৎ বিল' || catName === 'বিদ্যুৎ+ পেপার+ ডিশ বিল' || catName === 'Dish Bill' || catName === 'Wifi Bill') catName = 'Bills';
+                else if (catName === 'Doctor donation & Vehicle service' || catName === 'Doctor donation' || catName === 'ডাক্তার ডোনেশন' || catName === 'ডাঃ ডোনেশন+ যাতায়াত' || catName === 'Donation') catName = 'Doctor donation';
+                else if (catName === 'Instruments buy/ repair' || catName === 'Repair/Instruments' || catName === 'Instruments' || catName === 'ইন্সট্রুমেন্ট' || catName === 'যন্ত্রপাতি') {
+                    if (it.subCategory === 'Stationary' || it.subCategory === 'Stationery' || it.sub_category === 'Stationary' || it.sub_category === 'Stationery') catName = 'Stationery';
                     else catName = 'Instruments';
                 }
-                if (catName === 'Maintenance') catName = 'Maintenance';
-                if (catName === 'License cost' || catName === 'License/Official') catName = 'License';
-                if (catName === 'X-ray Film buy') catName = 'X-Ray';
-                if (catName === 'Mobile buy/ Flexiload' || catName === 'Mobile') catName = 'Mobile';
-                if (catName === 'Press Cost') catName = 'Press';
-                if (catName === 'Food/Meal Cost' || catName === 'Food/Refreshment') catName = 'Food';
-                if (catName === 'Bank/NGO Installment' || catName === 'Interest/Loan') catName = 'Installment';
-                if (catName === 'Stuff salary') catName = 'Stuff salary';
-                if (catName === 'Generator') catName = 'Generator';
-                if (catName === 'Marketing') catName = 'Marketing';
-                if (catName === 'Motorcycle') catName = 'Motorcycle';
-                if (catName === 'Reagent buy') catName = 'Reagent buy';
-                if (catName === 'House rent') catName = 'House rent';
-                if (catName === 'Electrical and Electronics') catName = 'Electrical and Electronics';
+                else if (catName === 'Maintenance' || catName === 'রক্ষণাবেক্ষণ') catName = 'Maintenance';
+                else if (catName === 'License cost' || catName === 'License/Official' || catName === 'License' || catName === 'লাইসেন্স') catName = 'License';
+                else if (catName === 'X-ray Film buy' || catName === 'X-Ray' || catName === 'এক্স-রে') catName = 'X-Ray';
+                else if (catName === 'Mobile buy/ Flexiload' || catName === 'Mobile' || catName === 'মোবাইল খরচ' || catName === 'মোবাইল') catName = 'Mobile';
+                else if (catName === 'Press Cost' || catName === 'Press' || catName === 'প্রেস') catName = 'Press';
+                else if (catName === 'Food/Meal Cost' || catName === 'Food/Refreshment' || catName === 'Food' || catName === 'খাবার' || catName === 'নাস্তা') catName = 'Food';
+                else if (catName === 'Bank/NGO Installment' || catName === 'Interest/Loan' || catName === 'Installment' || catName === 'কিস্তি') catName = 'Installment';
+                else if (catName === 'Stationery' || catName === 'Stationary' || catName === 'স্টেশনারী') catName = 'Stationery';
+                else if (catName === 'Stuff salary' || catName === 'Staff salary' || catName === 'Salary' || catName === 'স্টাফ বেতন' || catName === 'বেতন') catName = 'Stuff salary';
+                else if (catName === 'Generator' || catName === 'জেনারেটর') catName = 'Generator';
+                else if (catName === 'Marketing' || catName === 'মার্কেটিং') catName = 'Marketing';
+                else if (catName === 'Motorcycle' || catName === 'মোটর সাইকেল') catName = 'Motorcycle';
+                else if (catName === 'Reagent buy' || catName === 'Reagent' || catName === 'রিএজেন্ট') catName = 'Reagent buy';
+                else if (catName === 'House rent' || catName === 'Rent' || catName === 'বাড়ী ভাড়া' || catName === 'ভাড়া') catName = 'House rent';
+                else if (catName === 'Electrical and Electronics' || catName === 'ইলেকট্রিক্যাল ও ইলেকট্রনিক্স') catName = 'Electrical and Electronics';
+                else if (catName === 'Old Loan Repay' || catName === 'পূর্বের ঋণ পরিশোধ') catName = 'Old Loan Repay';
 
-                const mapping = expenseMapSequence.find(e => e.key === catName);
+                const mapping = expenseMapSequence.find(e => e.key === catName || e.label === catName || e.key.toLowerCase() === catName.toLowerCase());
                 const key = mapping ? mapping.key : 'Others';
-                groupedExp[key] += Number(it.paidAmount || it.billAmount || 0);
+                groupedExp[key] += getExpAmount(it);
             });
-        });
         const monthlyLoanRepayments = repayments.filter(r => isSelectedMonth(r.date)).reduce((s, r) => s + r.amount, 0);
         const totalExpenseTableOnly = Object.values(groupedExp).reduce((s, v) => s + (v as number), 0) + monthlyLoanRepayments + (safeNum(adj.loanInstallment));
         const netProfit = grandTotalCollection - totalExpenseTableOnly;
@@ -1248,6 +1700,9 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                             <div className="flex flex-col items-center mb-2 border-b-2 border-black pb-1 shrink-0 print:mb-1">
                                 <h1 className="text-xl font-black uppercase text-blue-900 leading-none">Niramoy Clinic & Diagnostic</h1>
                                 <h3 className="text-[10pt] font-bold uppercase tracking-widest mt-1">Collection Breakdown - {monthOptions[selectedMonth].name} {selectedYear}</h3>
+                                <div className="no-print mt-2 bg-indigo-50 border border-indigo-200 text-indigo-900 px-3 py-1.5 rounded-lg text-[11px] font-bold flex items-center gap-2">
+                                    <span>💡 যেকোনো তারিখের কালেকশন লাইনে ডাবল-ক্লিক (Double Click) করুন — সেদিনের কালেকশন সোর্স বিস্তারিত দেখতে ও ডিলিট করতে।</span>
+                                </div>
                             </div>
                             <table className="w-full border-collapse border-2 border-black text-[8pt] print:text-[8pt] table-fixed tracking-tighter">
                                 <thead>
@@ -1270,7 +1725,17 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                 </thead>
                                 <tbody>
                                     {dailyCollectionData.map((row, idx) => (
-                                        <tr key={idx} className="h-6 hover:bg-slate-50 transition-colors print:h-[5.5mm]">
+                                        <tr 
+                                            key={idx} 
+                                            onDoubleClick={() => {
+                                                if (row.fullDate) {
+                                                    setSelectedDetailDate({ dateStr: row.fullDate, displayDate: row.date });
+                                                    setSelectedSourceIds(new Set());
+                                                }
+                                            }}
+                                            className="h-6 hover:bg-amber-100/80 cursor-pointer transition-colors print:h-[5.5mm] select-none"
+                                            title="ডাবল ক্লিক করে সেদিনের কালেকশন বিস্তারিত দেখুন ও ডিলিট করুন"
+                                        >
                                             <td className="date-col border border-black p-0.5 sm:p-1 font-['JetBrains_Mono'] font-bold text-center whitespace-nowrap text-[8pt]">{row.date}</td>
                                             <td className="border border-black p-1 text-right">{row.diag.today > 0 ? safeNum(row.diag.today).toLocaleString() : ''}</td>
                                             <td className="border border-black p-1 text-right">{row.diag.due > 0 ? safeNum(row.diag.due).toLocaleString() : ''}</td>
@@ -1339,9 +1804,9 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
 
                 {/* 4. Accounts Sheet */}
                 {activeTab === 'accounts' && (
-                    <div id="section-accounts" className="relative animate-fade-in h-full">
-                        <button onClick={() => handlePrintSpecific('section-accounts')} className="no-print absolute top-2 right-2 p-2 bg-blue-600 text-white rounded-full shadow-lg"><FileTextIcon className="w-5 h-5" /></button>
-                        <main className="p-4 sm:p-6 max-w-[900px] mx-auto w-full bg-white text-black shadow-xl flex flex-col border border-gray-300 font-['Hind_Siliguri','SolaimanLipi','Noto_Serif_Bengali',sans-serif] min-h-0 print:border-none print:shadow-none print:m-0 print:p-0 print:max-w-none">
+                    <div id="section-accounts" className="relative animate-fade-in pb-20">
+                        <button onClick={() => handlePrintSpecific('section-accounts')} className="no-print absolute top-2 right-2 p-2 bg-blue-600 text-white rounded-full shadow-lg z-20"><FileTextIcon className="w-5 h-5" /></button>
+                        <main className="p-4 sm:p-6 max-w-[950px] mx-auto w-full bg-white text-black shadow-xl flex flex-col border border-gray-300 font-['Hind_Siliguri','SolaimanLipi','Noto_Serif_Bengali',sans-serif] print:border-none print:shadow-none print:m-0 print:p-0 print:max-w-none">
                             <div className="flex justify-between items-end mb-6 border-b-2 border-black pb-3.5 shrink-0">
                                 <div>
                                     <h1 className="text-2xl sm:text-[28px] font-black text-blue-900 tracking-wide font-['Hind_Siliguri','Noto_Serif_Bengali','Inter',sans-serif]">নিরাময় ক্লিনিক এন্ড ডায়াগনস্টিক</h1>
@@ -1351,14 +1816,14 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                     <h3 className="text-sm sm:text-base font-bold underline uppercase tracking-wider bg-gray-50 px-4 py-1.5 border border-black font-['Hind_Siliguri','SolaimanLipi',sans-serif]">অ্যাকাউন্টস শিট : {monthOptions[selectedMonth]?.bnName || monthOptions[selectedMonth]?.name}, {selectedYear}</h3>
                                 </div>
                             </div>
-                            <div className="grid grid-cols-2 gap-4 items-stretch flex-1 min-w-0 accounts-grid h-full mt-1">
-                                <div className="flex flex-col justify-between min-w-0 w-full h-full">
-                                    <div className="space-y-4 w-full">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start flex-1 min-w-0 accounts-grid mt-1">
+                                <div className="flex flex-col min-w-0 w-full space-y-3">
+                                    <div className="space-y-3 w-full">
                                         <div className="bg-gray-100 text-slate-900 border-2 border-black py-1.5 px-3 text-center font-black text-[15px] sm:text-base font-['Hind_Siliguri','SolaimanLipi',sans-serif] uppercase shadow-sm relative overflow-hidden tracking-wide h-9 flex items-center justify-center">
                                             <div className="absolute inset-0 opacity-10 pointer-events-none bg-[radial-gradient(#000_1px,transparent_1px)] [background-size:10px_10px]"></div>
                                             কালেকশন এর হিসাব
                                         </div>
-                                        <div className="space-y-3.5 w-full">
+                                        <div className="space-y-3 w-full">
                                             <div className="space-y-1">
                                                 <div className="text-[13.5px] font-black font-['Hind_Siliguri','SolaimanLipi',sans-serif] text-slate-900 underline mb-1 h-6 flex items-center">ক) ডায়াগনস্টিক হইতে :</div>
                                                 <table className="w-full border border-black border-collapse table-fixed">
@@ -1512,8 +1977,8 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                         </table>
                                     </div>
                                 </div>
-                                <div className="flex flex-col justify-between min-w-0 w-full h-full">
-                                    <div className="space-y-4 w-full flex-1 flex flex-col">
+                                <div className="flex flex-col min-w-0 w-full space-y-3">
+                                    <div className="space-y-3 w-full flex-1 flex flex-col">
                                         <div className="bg-gray-100 text-slate-900 border-2 border-black py-1.5 px-3 text-center font-black text-[15px] sm:text-base font-['Hind_Siliguri','SolaimanLipi',sans-serif] uppercase shadow-sm relative overflow-hidden tracking-wide h-9 flex items-center justify-center">
                                             <div className="absolute inset-0 opacity-10 pointer-events-none bg-[radial-gradient(#000_1px,transparent_1px)] [background-size:10px_10px]"></div>
                                             খরচের হিসাব
@@ -2133,8 +2598,13 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                 না
                             </button>
                             <button
-                                onClick={() => {
+                                onClick={async () => {
                                     setShowSaveConfirm(false);
+                                    if (performBlockingSync) {
+                                        await performBlockingSync({ monthlyAdjustments });
+                                    } else {
+                                        await dbService.saveToCloud({ monthlyAdjustments });
+                                    }
                                     setSaveSuccess(true);
                                     setTimeout(() => setSaveSuccess(false), 3000);
                                 }}
@@ -2154,6 +2624,250 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                         <SaveIcon size={14} className="text-white" />
                     </div>
                     <span className="font-bold text-sm font-['Hind_Siliguri']">সফলভাবে সেভ হয়েছে!</span>
+                </div>
+            )}
+
+            {/* Daily Collection Detail Breakdown Modal */}
+            {selectedDetailDate && (
+                <div className="fixed inset-0 z-[9990] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 overflow-y-auto no-print">
+                    <div className="bg-slate-900 border-2 border-slate-700 text-white rounded-3xl w-full max-w-5xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden animate-scale-in">
+                        {/* Modal Header */}
+                        <div className="bg-slate-800 p-4 sm:p-5 border-b border-slate-700 flex justify-between items-center shrink-0">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2.5 bg-indigo-600/30 text-indigo-400 rounded-2xl border border-indigo-500/40">
+                                    <FileTextIcon className="w-6 h-6" />
+                                </div>
+                                <div>
+                                    <h2 className="text-lg sm:text-xl font-black text-white font-['Hind_Siliguri']">
+                                        📅 কালেকশন সোর্স বিস্তারিত - {selectedDetailDate.displayDate}
+                                    </h2>
+                                    <p className="text-xs text-slate-400 font-mono">
+                                        তারিখ: {selectedDetailDate.dateStr} | মোট সোর্স এন্ট্রি: {dateSources.length} টি
+                                    </p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => {
+                                    setSelectedDetailDate(null);
+                                    setSelectedSourceIds(new Set());
+                                }}
+                                className="p-2 bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white rounded-full transition-colors"
+                            >
+                                <XIcon size={20} />
+                            </button>
+                        </div>
+
+                        {/* Overview Stats Bar */}
+                        <div className="p-4 bg-slate-950 border-b border-slate-800 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                            <div className="bg-blue-950/40 border border-blue-500/30 p-3 rounded-2xl">
+                                <span className="text-[10px] font-extrabold uppercase text-blue-400 block mb-1">ডায়াগনস্টিক কালেকশন</span>
+                                <span className="text-base font-black text-blue-300 font-mono">
+                                    ৳{dateSources.filter(s => s.type === 'LAB_INVOICE' || (s.type === 'DUE_COLLECTION' && s.categoryLabel.includes('ডায়াগনস্টিক')) || s.type === 'CONSOLIDATED_ENTRY').reduce((acc, curr) => acc + curr.amount, 0).toLocaleString()}
+                                </span>
+                            </div>
+                            <div className="bg-emerald-950/40 border border-emerald-500/30 p-3 rounded-2xl">
+                                <span className="text-[10px] font-extrabold uppercase text-emerald-400 block mb-1">ক্লিনিক কালেকশন</span>
+                                <span className="text-base font-black text-emerald-300 font-mono">
+                                    ৳{dateSources.filter(s => s.type === 'INDOOR_INVOICE' || (s.type === 'DUE_COLLECTION' && s.categoryLabel.includes('ক্লিনিক'))).reduce((acc, curr) => acc + curr.amount, 0).toLocaleString()}
+                                </span>
+                            </div>
+                            <div className="bg-amber-950/40 border border-amber-500/30 p-3 rounded-2xl">
+                                <span className="text-[10px] font-extrabold uppercase text-amber-400 block mb-1">সর্বমোট কালেকশন</span>
+                                <span className="text-base font-black text-amber-300 font-mono">
+                                    ৳{dateSources.reduce((acc, curr) => acc + curr.amount, 0).toLocaleString()}
+                                </span>
+                            </div>
+                            <div className="bg-rose-950/40 border border-rose-500/30 p-3 rounded-2xl">
+                                <span className="text-[10px] font-extrabold uppercase text-rose-400 block mb-1">নির্বাচিত সোর্স মোট</span>
+                                <span className="text-base font-black text-rose-300 font-mono">
+                                    ৳{dateSources.filter(s => selectedSourceIds.has(s.id)).reduce((acc, curr) => acc + curr.amount, 0).toLocaleString()} ({selectedSourceIds.size} টি)
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* Action controls */}
+                        <div className="p-3 sm:p-4 bg-slate-900 border-b border-slate-800 flex flex-wrap justify-between items-center gap-3 shrink-0">
+                            <label className="flex items-center gap-2 cursor-pointer select-none text-xs font-bold text-slate-300 hover:text-white">
+                                <input
+                                    type="checkbox"
+                                    checked={dateSources.length > 0 && selectedSourceIds.size === dateSources.length}
+                                    onChange={toggleSelectAllSources}
+                                    className="w-4 h-4 accent-indigo-500 rounded cursor-pointer"
+                                />
+                                <span>সবগুলো নির্বাচন করুন ({selectedSourceIds.size}/{dateSources.length})</span>
+                            </label>
+
+                            <button
+                                onClick={() => {
+                                    if (selectedSourceIds.size === 0) {
+                                        setToastMessage('ডিলিট করার জন্য অন্তত একটি সোর্স নির্বাচন করুন!');
+                                        return;
+                                    }
+                                    setShowDeleteConfirm(true);
+                                }}
+                                disabled={selectedSourceIds.size === 0}
+                                className="px-4 py-2 bg-rose-600 hover:bg-rose-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-black rounded-xl shadow-lg transition-all flex items-center gap-2 active:scale-95"
+                            >
+                                <TrashIcon size={14} />
+                                <span>নির্বাচিত সোর্স ডিলিট করুন ({selectedSourceIds.size})</span>
+                            </button>
+                        </div>
+
+                        {/* Source Items Table */}
+                        <div className="flex-1 overflow-y-auto p-4">
+                            {dateSources.length === 0 ? (
+                                <div className="text-center py-12 text-slate-500 font-bold font-['Hind_Siliguri']">
+                                    এই তারিখে কোনো পৃথক কালেকশন সোর্স ডাটা পাওয়া যায়নি।
+                                </div>
+                            ) : (
+                                <div className="overflow-x-auto border border-slate-800 rounded-2xl bg-slate-950">
+                                    <table className="w-full text-left text-xs border-collapse">
+                                        <thead>
+                                            <tr className="bg-slate-800 text-slate-300 font-black uppercase tracking-wider border-b border-slate-700">
+                                                <th className="p-3 text-center w-10">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={selectedSourceIds.size === dateSources.length}
+                                                        onChange={toggleSelectAllSources}
+                                                        className="w-4 h-4 accent-indigo-500 rounded cursor-pointer"
+                                                    />
+                                                </th>
+                                                <th className="p-3 w-12 text-center">SL</th>
+                                                <th className="p-3">সোর্স ক্যাটাগরি</th>
+                                                <th className="p-3">রেফারেন্স / আইডি</th>
+                                                <th className="p-3">বিস্তারিত বিবরণ</th>
+                                                <th className="p-3 text-right">পরিমাণ (৳)</th>
+                                                <th className="p-3 text-center w-24">অ্যাকশন</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-800/60">
+                                            {dateSources.map((item, idx) => {
+                                                const isSelected = selectedSourceIds.has(item.id);
+                                                return (
+                                                    <tr 
+                                                        key={item.id} 
+                                                        className={`transition-colors hover:bg-slate-800/80 ${isSelected ? 'bg-indigo-950/40' : 'odd:bg-slate-900/40'}`}
+                                                    >
+                                                        <td className="p-3 text-center">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={isSelected}
+                                                                onChange={() => toggleSelectSource(item.id)}
+                                                                className="w-4 h-4 accent-indigo-500 rounded cursor-pointer"
+                                                            />
+                                                        </td>
+                                                        <td className="p-3 text-center font-mono font-bold text-slate-400">{idx + 1}</td>
+                                                        <td className="p-3">
+                                                            <span className={`inline-block px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider ${
+                                                                item.type === 'LAB_INVOICE' ? 'bg-blue-900/60 text-blue-300 border border-blue-500/40' :
+                                                                item.type === 'CONSOLIDATED_ENTRY' ? 'bg-indigo-900/60 text-indigo-300 border border-indigo-500/40' :
+                                                                item.type === 'INDOOR_INVOICE' ? 'bg-emerald-900/60 text-emerald-300 border border-emerald-500/40' :
+                                                                'bg-amber-900/60 text-amber-300 border border-amber-500/40'
+                                                            }`}>
+                                                                {item.categoryLabel}
+                                                            </span>
+                                                        </td>
+                                                        <td className="p-3 font-mono font-black text-slate-200">#{item.refNo}</td>
+                                                        <td className="p-3 text-slate-300 font-medium max-w-xs truncate">{item.details}</td>
+                                                        <td className="p-3 text-right font-black font-mono text-emerald-400 text-sm">৳{item.amount.toLocaleString()}</td>
+                                                        <td className="p-3 text-center">
+                                                            <button
+                                                                onClick={() => {
+                                                                    setSelectedSourceIds(new Set([item.id]));
+                                                                    setShowDeleteConfirm(true);
+                                                                }}
+                                                                className="p-1.5 bg-rose-600/20 hover:bg-rose-600 text-rose-400 hover:text-white rounded-lg border border-rose-500/30 transition-all active:scale-95"
+                                                                title="এই সোর্স ডিলিট করুন"
+                                                            >
+                                                                <TrashIcon size={14} />
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Modal Footer */}
+                        <div className="p-4 bg-slate-800 border-t border-slate-700 flex justify-end shrink-0">
+                            <button
+                                onClick={() => {
+                                    setSelectedDetailDate(null);
+                                    setSelectedSourceIds(new Set());
+                                }}
+                                className="px-6 py-2.5 bg-slate-700 hover:bg-slate-600 text-white font-bold text-xs rounded-xl transition-colors"
+                            >
+                                বন্ধ করুন (Close)
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Delete Confirmation Dialog */}
+            {showDeleteConfirm && (
+                <div className="fixed inset-0 z-[9999] bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 no-print">
+                    <div className="bg-slate-900 border-2 border-rose-500/80 rounded-3xl p-6 max-w-md w-full shadow-2xl text-white space-y-4 animate-scale-in">
+                        <div className="flex items-center gap-3 border-b border-slate-800 pb-3">
+                            <div className="p-2.5 bg-rose-500/20 text-rose-400 rounded-2xl border border-rose-500/30">
+                                <TrashIcon size={24} />
+                            </div>
+                            <div>
+                                <h3 className="text-lg font-black text-rose-400 font-['Hind_Siliguri']">সোর্স ডাটা ডিলিট কনফার্মেশন</h3>
+                                <p className="text-xs text-slate-400">সতর্কতা: এটি স্থায়ীভাবে সিস্টেম থেকে মুছে যাবে</p>
+                            </div>
+                        </div>
+                        <p className="text-sm font-medium text-slate-200 leading-relaxed font-['Hind_Siliguri']">
+                            আপনি কি নিশ্চিত যে নির্বাচিত <span className="text-amber-400 font-black font-mono text-base px-1">{selectedSourceIds.size}</span> টি কালেকশন সোর্স ডাটা ডিলিট করতে চান?
+                        </p>
+                        <div className="p-3 bg-slate-950 rounded-2xl border border-slate-800 text-xs text-slate-400 font-bold">
+                            ⚠️ ডিলিট করার পর সংশ্লিষ্ট ডেইলি কালেকশন ও অ্যাকাউন্টস রিপোর্ট সাথে সাথেই স্বয়ংক্রিয়ভাবে আপডেট হয়ে যাবে।
+                        </div>
+                        <div className="flex items-center justify-end gap-3 pt-2">
+                            <button
+                                onClick={() => setShowDeleteConfirm(false)}
+                                className="px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition-colors"
+                            >
+                                না, বাতিল
+                            </button>
+                            <button
+                                onClick={handleExecuteDeleteSources}
+                                className="px-6 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-black text-xs transition-all shadow-lg shadow-rose-600/30 flex items-center gap-2 active:scale-95"
+                            >
+                                <TrashIcon size={14} />
+                                হ্যাঁ, ডিলিট করুন
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Screen-Wide Blocking Overlay during Delete */}
+            {isDeleting && (
+                <div className="fixed inset-0 z-[99999] bg-slate-950/90 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center select-none cursor-wait no-print">
+                    <div className="bg-slate-900 border-2 border-rose-500/80 rounded-3xl p-8 max-w-md w-full shadow-[0_0_60px_rgba(244,63,94,0.35)] animate-pulse flex flex-col items-center gap-4">
+                        <div className="w-16 h-16 border-4 border-rose-500 border-t-transparent rounded-full animate-spin mb-1"></div>
+                        <h3 className="text-xl font-black text-rose-400 font-['Hind_Siliguri']">ডাটা প্রসেসিং ও ডিলিট করা হচ্ছে...</h3>
+                        <p className="text-xs sm:text-sm font-bold text-slate-200 leading-relaxed font-['Hind_Siliguri']">
+                            অনুগ্রহ করে অপেক্ষা করুন। ডিলিটের সময় অন্য কোনো কাজ করা যাবে না।
+                        </p>
+                        <div className="text-[11px] font-mono text-amber-400 bg-slate-950 px-4 py-1.5 rounded-full border border-slate-800 font-bold">
+                            🔒 INTERACTION LOCKED DURING DELETE
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Dynamic Toast Message */}
+            {toastMessage && (
+                <div className="fixed bottom-8 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-6 py-3.5 rounded-2xl shadow-2xl z-[10000] flex items-center gap-3 animate-fade-in-up border border-indigo-500/40 text-xs sm:text-sm font-bold font-['Hind_Siliguri'] no-print">
+                    <div className="w-6 h-6 bg-indigo-500 text-white rounded-full flex items-center justify-center font-black">
+                        ✓
+                    </div>
+                    <span>{toastMessage}</span>
                 </div>
             )}
         </div>

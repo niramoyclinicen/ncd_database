@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Patient, Doctor, Employee, LabInvoice, LabInvoiceItem, emptyLabInvoice, Referrar, Reagent, Test, testCategories, DiagnosticSubPage } from './DiagnosticData';
 import { formatDateTime } from '../utils/dateUtils';
 import { dbService } from '../dbService';
@@ -64,6 +65,11 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState<boolean>(false);
   const handledInitialId = useRef<string | null>(null);
+
+  // In-App Invoice Deletion States
+  const [invoiceToDelete, setInvoiceToDelete] = useState<LabInvoice | null>(null);
+  const [isDeletingInvoice, setIsDeletingInvoice] = useState(false);
+  const [deleteSuccessMsg, setDeleteSuccessMsg] = useState<string | null>(null);
 
   useEffect(() => {
     if (initialInvoiceId && handledInitialId.current !== initialInvoiceId) {
@@ -434,6 +440,35 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
     setApplyPC(false);
     setBarcodeInput('');
     setErrors({});
+  };
+
+  const handleConfirmDeleteInvoice = async () => {
+    if (!invoiceToDelete) return;
+    const targetItem = invoiceToDelete;
+    setIsDeletingInvoice(true);
+    setInvoiceToDelete(null); // Close confirm prompt immediately to show blocking overlay
+    const targetId = String(targetItem.invoice_id || (targetItem as any).id || '').trim();
+    try {
+      await dbService.deleteLabInvoiceDirectly(targetItem);
+      const safeInvs = Array.isArray(invoices) ? invoices : [];
+      const updated = safeInvs.filter(inv => {
+        const id = String(inv.invoice_id || (inv as any).id || '').trim();
+        return id !== targetId;
+      });
+      setInvoices(updated);
+      if (selectedInvoiceId === targetId) {
+        resetForm();
+      }
+      if (performBlockingSync) {
+        await performBlockingSync({ labInvoices: updated });
+      }
+      setDeleteSuccessMsg(`ইনভয়েস #${targetId} ডাটাবেজ এবং অনলাইন থেকে সফলভাবে স্থায়ীভাবে মুছে ফেলা হয়েছে!`);
+    } catch (err) {
+      console.error("Delete invoice error:", err);
+      alert('ইনভয়েসটি মুছতে সমস্যা হয়েছে! দয়া করে ইন্টারনেট কানেকশন চেক করুন।');
+    } finally {
+      setIsDeletingInvoice(false);
+    }
   };
 
   const handleGetNewId = () => {
@@ -1246,7 +1281,7 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
                 <div className="flex items-center gap-3">
                     <div className="flex items-center gap-2">
                         <label htmlFor="invoice_id" className="font-bold text-slate-400 whitespace-nowrap text-[10px] uppercase tracking-tighter">Invoice Id:</label>
-                        <input type="text" id="invoice_id" name="invoice_id" disabled value={formData.invoice_id} className="w-28 border border-slate-700 rounded-md shadow-inner text-[10px] px-2 py-1 bg-slate-800 text-slate-400 font-mono" />
+                        <input type="text" id="invoice_id" name="invoice_id" disabled value={formData.invoice_id || ''} className="w-28 border border-slate-700 rounded-md shadow-inner text-[10px] px-2 py-1 bg-slate-800 text-slate-400 font-mono" />
                     </div>
                     
                     <div className="flex items-center gap-2.5 pl-3 border-l border-slate-700/50">
@@ -1269,7 +1304,7 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
                         type="text"
                         id="barcode_scanner_inv"
                         placeholder="Scan..."
-                        value={barcodeInput}
+                        value={barcodeInput || ''}
                         onChange={(e) => setBarcodeInput(e.target.value)}
                         onKeyDown={handleBarcodeScan}
                         className="w-32 py-1 px-2 border border-sky-500/30 bg-slate-950 text-white rounded text-[10px] font-mono focus:ring-1 focus:ring-sky-400 focus:outline-none placeholder:text-slate-700"
@@ -1323,7 +1358,7 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
                   <input 
                     type="text" 
                     placeholder="Khushi..."
-                    value={patientSearchFilters.name}
+                    value={patientSearchFilters.name || ''}
                     onChange={(e) => setPatientSearchFilters(prev => ({ ...prev, name: e.target.value }))}
                     className="w-full bg-slate-950/50 border-2 border-slate-800 focus:border-blue-500 rounded-xl py-3 pl-12 pr-4 text-sm text-white placeholder:text-slate-700 outline-none transition-all shadow-inner"
                     autoFocus
@@ -1335,7 +1370,7 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
                 <input 
                   type="text" 
                   placeholder="Age..."
-                  value={patientSearchFilters.age}
+                  value={patientSearchFilters.age || ''}
                   onChange={(e) => setPatientSearchFilters(prev => ({ ...prev, age: e.target.value }))}
                   className="w-full bg-slate-950/50 border-2 border-slate-800 focus:border-blue-500 rounded-xl py-3 px-4 text-sm text-white placeholder:text-slate-700 outline-none transition-all shadow-inner"
                 />
@@ -1345,7 +1380,7 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
                 <input 
                   type="text" 
                   placeholder="017..."
-                  value={patientSearchFilters.mobile}
+                  value={patientSearchFilters.mobile || ''}
                   onChange={(e) => setPatientSearchFilters(prev => ({ ...prev, mobile: e.target.value }))}
                   className="w-full bg-slate-950/50 border-2 border-slate-800 focus:border-blue-500 rounded-xl py-3 px-4 text-sm text-white placeholder:text-slate-700 outline-none transition-all shadow-inner"
                 />
@@ -1355,7 +1390,7 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
                 <input 
                   type="text" 
                   placeholder="Address..."
-                  value={patientSearchFilters.address}
+                  value={patientSearchFilters.address || ''}
                   onChange={(e) => setPatientSearchFilters(prev => ({ ...prev, address: e.target.value }))}
                   className="w-full bg-slate-950/50 border-2 border-slate-800 focus:border-blue-500 rounded-xl py-3 px-4 text-sm text-white placeholder:text-slate-700 outline-none transition-all shadow-inner"
                 />
@@ -1365,7 +1400,7 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
                 <input 
                   type="text" 
                   placeholder="Thana..."
-                  value={patientSearchFilters.thana}
+                  value={patientSearchFilters.thana || ''}
                   onChange={(e) => setPatientSearchFilters(prev => ({ ...prev, thana: e.target.value }))}
                   className="w-full bg-slate-950/50 border-2 border-slate-800 focus:border-blue-500 rounded-xl py-3 px-4 text-sm text-white placeholder:text-slate-700 outline-none transition-all shadow-inner"
                 />
@@ -1559,14 +1594,14 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-x-4 gap-y-5 items-start">
           <div className="lg:col-span-1">
             <label htmlFor="invoice_date" className={commonLabelClasses}>Date</label>
-            <input type="date" id="invoice_date" name="invoice_date" value={formData.invoice_date} onChange={handleInputChange} required className={`${commonInputClasses} h-10 px-1 text-[10px] ${errors.invoice_date ? 'border-red-500 ring-2 ring-red-500' : ''}`} />
+            <input type="date" id="invoice_date" name="invoice_date" value={formData.invoice_date || ''} onChange={handleInputChange} required className={`${commonInputClasses} h-10 px-1 text-[10px] ${errors.invoice_date ? 'border-red-500 ring-2 ring-red-500' : ''}`} />
           </div>
           <div className={`lg:col-span-4 rounded-md ${errors.patient_id ? 'ring-2 ring-red-500' : ''}`}>
              <SearchableSelect
                 theme="dark"
                 label="Patient"
                 options={(Array.isArray(patients) ? patients : []).map(p => ({ id: p.pt_id, name: p.pt_name, details: `ID: ${p.pt_id} | ${p.gender}, ${p.ageY}Y | ${p.address} | ${p.mobile}` }))}
-                value={formData.patient_id}
+                value={formData.patient_id || ''}
                 onChange={handlePatientSelect}
                 onAddNew={() => openAdvancedPatientSearch('')}
                 onEnter={(term) => openAdvancedPatientSearch(term)}
@@ -1624,7 +1659,7 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
           </div>
           <div className="lg:col-span-1">
             <label htmlFor="expected_delivery_time" className={commonLabelClasses}>Deliv.</label>
-            <input type="text" id="expected_delivery_time" name="expected_delivery_time" value={formData.expected_delivery_time} onChange={handleInputChange} className={`${commonInputClasses} h-10 px-1 text-xs`} placeholder="5 PM" />
+            <input type="text" id="expected_delivery_time" name="expected_delivery_time" value={formData.expected_delivery_time || ''} onChange={handleInputChange} className={`${commonInputClasses} h-10 px-1 text-xs`} placeholder="5 PM" />
           </div>
         </div>
 
@@ -1932,7 +1967,7 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
                 <th className="px-3 py-2.5 text-right text-xs font-mono font-black text-rose-400 bg-rose-900/30 border-l border-slate-800">
                     {Number(tableTotals.due || 0).toFixed(2)}
                 </th>
-                <th colSpan={2} className="px-3 py-2.5 text-left text-xs font-black text-cyan-300 border-l border-slate-800 bg-[#0a1329]">
+                <th colSpan={3} className="px-3 py-2.5 text-left text-xs font-black text-cyan-300 border-l border-slate-800 bg-[#0a1329]">
                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mr-1.5">Net Income:</span>
                     <span className="font-mono">{Number(tableTotals.income || 0).toFixed(2)}</span>
                 </th>
@@ -1950,6 +1985,7 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
                 <th scope="col" className="px-3 py-3 text-right text-[11px] font-black text-rose-400 uppercase tracking-wider">Due (৳)</th>
                 <th scope="col" className="px-3 py-3 text-center text-[11px] font-black text-cyan-400 uppercase tracking-wider">Status</th>
                 <th scope="col" className="px-3 py-3 text-left text-[11px] font-black text-slate-400 uppercase tracking-wider">Last Modified</th>
+                <th scope="col" className="px-3 py-3 text-center text-[11px] font-black text-rose-400 uppercase tracking-wider w-16">অ্যাকশন</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-cyan-950/60">
@@ -2031,12 +2067,25 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
                     <td className="px-3 py-2.5 whitespace-nowrap text-[10px] text-slate-400 font-mono">
                       {invoice.last_modified}
                     </td>
+                    <td className="px-3 py-2.5 whitespace-nowrap text-center" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setInvoiceToDelete(invoice);
+                        }}
+                        className="p-1.5 bg-rose-600/20 hover:bg-rose-600 text-rose-400 hover:text-white rounded-lg transition-all shadow border border-rose-500/30 cursor-pointer inline-flex items-center justify-center"
+                        title="ইনভয়েসটি মুছে ফেলুন (Delete Invoice)"
+                      >
+                        <TrashIcon size={14} />
+                      </button>
+                    </td>
                   </tr>
                 );
               })}
               {filteredInvoices.length === 0 && (
                 <tr>
-                    <td colSpan={11} className="px-6 py-16 text-center text-slate-500 italic uppercase font-black tracking-widest opacity-40 text-sm">
+                    <td colSpan={12} className="px-6 py-16 text-center text-slate-500 italic uppercase font-black tracking-widest opacity-40 text-sm">
                         কোন ইনভয়েস রেকর্ড পাওয়া যায়নি (No Invoices Found)
                     </td>
                 </tr>
@@ -2057,7 +2106,7 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
                   <td className="px-3 py-3 whitespace-nowrap text-xs text-rose-400 text-right font-mono font-black border-l border-slate-800">
                     ৳{Number(tableTotals.due || 0).toFixed(2)}
                   </td>
-                  <td colSpan={2} className="px-3 py-3 border-l border-slate-800"></td>
+                  <td colSpan={3} className="px-3 py-3 border-l border-slate-800"></td>
                 </tr>
               </tfoot>
             )}
@@ -2076,6 +2125,112 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
             <h2 className="text-3xl font-black uppercase tracking-[0.2em] mb-2 font-['Hind_Siliguri']">ডাটা সেভ হচ্ছে...</h2>
             <p className="text-blue-400 font-bold uppercase tracking-widest text-xs animate-pulse">Save operation in progress</p>
         </div>
+    )}
+
+    {/* In-App Confirmation Modal: Delete Lab Invoice */}
+    {invoiceToDelete && typeof document !== 'undefined' && createPortal(
+      <div className="fixed inset-0 z-[1000001] flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-fade-in pointer-events-auto">
+        <div className="bg-slate-900 border-2 border-rose-500 rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl text-center space-y-5">
+          <div className="w-16 h-16 bg-rose-500/20 text-rose-400 rounded-full flex items-center justify-center mx-auto text-3xl">
+            ⚠️
+          </div>
+          <div>
+            <h3 className="text-xl font-black text-white uppercase tracking-tight font-['Hind_Siliguri']">
+              ইনভয়েস মুছে ফেলার নিশ্চয়তা
+            </h3>
+            <p className="text-xs text-slate-300 font-bold mt-1">
+              আপনি কি নিশ্চিত যে এই ল্যাব ইনভয়েসটি স্থায়ীভাবে ডাটাবেজ ও অনলাইন থেকে মুছে ফেলতে চান?
+            </p>
+          </div>
+          <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 text-left text-xs space-y-2 font-mono">
+            <div className="flex justify-between text-slate-400">
+              <span>ইনভয়েস আইডি:</span>
+              <span className="text-sky-400 font-bold">#{invoiceToDelete.invoice_id}</span>
+            </div>
+            <div className="flex justify-between text-slate-400">
+              <span>তারিখ:</span>
+              <span className="text-white font-bold">{invoiceToDelete.invoice_date || (invoiceToDelete as any).date}</span>
+            </div>
+            <div className="flex justify-between text-slate-400">
+              <span>রোগীর নাম:</span>
+              <span className="text-white font-bold">{invoiceToDelete.patient_name}</span>
+            </div>
+            <div className="flex justify-between text-slate-400">
+              <span>মোট বিল:</span>
+              <span className="text-white font-bold">৳{Number(invoiceToDelete.total_amount || 0).toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between text-slate-400">
+              <span>পরিশোধিত:</span>
+              <span className="text-emerald-400 font-bold">৳{Number(invoiceToDelete.paid_amount || 0).toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between text-slate-400">
+              <span>বকেয়া:</span>
+              <span className="text-rose-400 font-bold">৳{Number(invoiceToDelete.due_amount || 0).toFixed(2)}</span>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3 pt-2">
+            <button
+              type="button"
+              disabled={isDeletingInvoice}
+              onClick={() => setInvoiceToDelete(null)}
+              className="py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-black rounded-2xl text-xs uppercase tracking-wider transition-all disabled:opacity-50 cursor-pointer"
+            >
+              বাতিল করুন
+            </button>
+            <button
+              type="button"
+              disabled={isDeletingInvoice}
+              onClick={handleConfirmDeleteInvoice}
+              className="py-3 bg-rose-600 hover:bg-rose-500 text-white font-black rounded-2xl text-xs uppercase tracking-wider transition-all shadow-xl shadow-rose-900/30 active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
+            >
+              {isDeletingInvoice ? 'মুছে ফেলা হচ্ছে...' : '🗑️ হ্যাঁ, মুছে ফেলুন'}
+            </button>
+          </div>
+        </div>
+      </div>,
+      document.body
+    )}
+
+    {/* Full-Screen Blocking Loading Overlay During Delete Operation */}
+    {isDeletingInvoice && typeof document !== 'undefined' && createPortal(
+      <div className="fixed inset-0 z-[1000003] bg-slate-950/90 backdrop-blur-xl flex flex-col items-center justify-center p-6 text-center select-none cursor-wait pointer-events-auto">
+        <div className="relative mb-8">
+          <div className="w-24 h-24 border-4 border-rose-500/20 border-t-rose-500 rounded-full animate-spin"></div>
+          <div className="absolute inset-0 flex items-center justify-center text-rose-500 text-3xl font-black">
+            🗑️
+          </div>
+        </div>
+        <h3 className="text-2xl font-black text-white mb-3 font-['Hind_Siliguri'] tracking-wide">
+          অনলাইনে ইনভয়েস মুছে ফেলা হচ্ছে...
+        </h3>
+        <p className="text-slate-300 font-medium text-sm max-w-md">
+          ক্লাউড ডাটাবেজ আপডেট সম্পন্ন না হওয়া পর্যন্ত অন্য কোনো কাজ করা যাবে না। অনুগ্রহ করে কিছুক্ষণ অপেক্ষা করুন।
+        </p>
+      </div>,
+      document.body
+    )}
+
+    {/* Success Notification Modal */}
+    {deleteSuccessMsg && typeof document !== 'undefined' && createPortal(
+      <div className="fixed inset-0 z-[1000002] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-fade-in pointer-events-auto">
+        <div className="bg-slate-900 border-2 border-emerald-500 p-6 sm:p-8 rounded-3xl max-w-md w-full text-center shadow-2xl space-y-4">
+          <div className="w-16 h-16 bg-emerald-500/20 text-emerald-400 rounded-full flex items-center justify-center mx-auto text-3xl font-bold">
+            ✓
+          </div>
+          <h3 className="text-xl font-black text-white font-['Hind_Siliguri']">ইনভয়েস মুছে ফেলা সফল হয়েছে</h3>
+          <p className="text-sm font-bold text-emerald-300">
+            {deleteSuccessMsg}
+          </p>
+          <button
+            type="button"
+            onClick={() => setDeleteSuccessMsg(null)}
+            className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-black rounded-2xl text-xs uppercase tracking-wider transition-all shadow-lg active:scale-95 cursor-pointer"
+          >
+            ঠিক আছে (OK)
+          </button>
+        </div>
+      </div>,
+      document.body
     )}
     </>
   );

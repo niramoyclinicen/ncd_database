@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { ViewState, UserRole, DepartmentPasswords } from './types';
-import { dbService } from './dbService';
+import { dbService, normalizeDate } from './dbService';
 import { mockPatients, mockDoctors, mockReferrars, mockTests, mockReagents, mockInvoices, mockDueCollections, mockEmployees, mockMedicines, mockPurchaseInvoices, mockSalesInvoices, mockAdmissions, mockIndoorInvoices, initialAppointments, initialClinicalDrugs, PrescriptionRecord, LabReport, ExpenseItem } from './components/DiagnosticData';
 
 export function useAppData() {
@@ -67,6 +67,13 @@ export function useAppData() {
   const [attendanceLog, setAttendanceLog] = useState<Record<string, any>>({});
   const [leaveLog, setLeaveLog] = useState<Record<string, any>>({});
   const [monthlyRoster, setMonthlyRoster] = useState<Record<string, string[]>>({});
+  const [monthlyAdjustments, setMonthlyAdjustments] = useState<Record<string, any>>(() => {
+    try {
+      return JSON.parse(localStorage.getItem('ncd_monthly_adjustments') || '{}');
+    } catch {
+      return {};
+    }
+  });
   const [diagnosticSettings, setDiagnosticSettings] = useState<any>(() => {
     const saved = localStorage.getItem('diag_settings');
     return saved ? JSON.parse(saved) : { customSubCategories: {}, trackedTests: [] };
@@ -81,43 +88,72 @@ export function useAppData() {
       let finalDataToLoad = loadedData;
       
       if (loadedData && !loadedData._error) {
-        if (localData && localData.last_updated_at && loadedData.last_updated_at) {
-            const localTime = new Date(localData.last_updated_at).getTime();
-            const cloudTime = new Date(loadedData.last_updated_at).getTime();
-            if (localTime > cloudTime) {
-                console.log("Local backup is newer than cloud. Using local backup to prevent data loss.");
-                finalDataToLoad = localData;
-                // Trigger a sync so the newer local data is pushed to the cloud
-                setTimeout(() => dbService.saveToCloud(localData), 2000);
+        // ALWAYS treat loadedData from cloud (which queries ncd_state + all modular tables) as master
+        // If localData has any additional offline records, merge them in non-destructively
+        if (localData && typeof localData === 'object') {
+          if (localData.detailedExpenses && typeof localData.detailedExpenses === 'object') {
+            if (!finalDataToLoad.detailedExpenses) finalDataToLoad.detailedExpenses = {};
+            const addLocalExp = (it: any, fallbackDateKey?: string) => {
+              if (!it || it.isDeleted) return;
+              const normDate = normalizeDate(it.date || it.expense_date || fallbackDateKey || '');
+              if (!normDate) return;
+              if (!finalDataToLoad.detailedExpenses[normDate]) finalDataToLoad.detailedExpenses[normDate] = [];
+              const itId = String(it.id || '');
+              const exists = finalDataToLoad.detailedExpenses[normDate].some((x: any) => String(x.id || '') === itId && itId !== '');
+              if (!exists) {
+                finalDataToLoad.detailedExpenses[normDate].push({ ...it, date: normDate });
+              }
+            };
+            if (Array.isArray(localData.detailedExpenses)) {
+              localData.detailedExpenses.forEach((it: any) => addLocalExp(it));
+            } else {
+              Object.entries(localData.detailedExpenses).forEach(([dKey, items]: [string, any]) => {
+                const list = Array.isArray(items) ? items : (items && typeof items === 'object' ? Object.values(items) : []);
+                list.forEach((it: any) => addLocalExp(it, dKey));
+              });
             }
+          }
+          ['labInvoices', 'indoorInvoices', 'dueCollections', 'salesInvoices', 'purchaseInvoices', 'medicines', 'consolidatedLabEntries'].forEach(col => {
+            const src = localData[col] || (col === 'consolidatedLabEntries' ? (localData.consolidated_lab_entries || localData.consolidatedEntries) : undefined);
+            if (Array.isArray(src) && src.length > 0) {
+              const idFields = col === 'dueCollections' ? ['collection_id', 'id'] : (col === 'consolidatedLabEntries' ? ['id', 'date'] : ['invoice_id', 'daily_id', 'invoiceId', 'id']);
+              finalDataToLoad[col] = dbService.mergeEntityList(finalDataToLoad[col] || [], src, idFields);
+            }
+          });
+          try {
+            const localCons = dbService.getConsolidatedEntries();
+            if (Array.isArray(localCons) && localCons.length > 0) {
+              finalDataToLoad.consolidatedLabEntries = dbService.mergeEntityList(finalDataToLoad.consolidatedLabEntries || [], localCons, ['id', 'date']);
+            }
+          } catch {}
         }
         
         if (Object.keys(finalDataToLoad).length > 0) {
-          updateLocalState(finalDataToLoad);
+          updateLocalState(finalDataToLoad, true);
         }
         setIsDataLoaded(true);
         setConnectionError(false);
       } else {
         if (localData) {
-            console.log("Cloud load failed, but found local data. Using local backup.");
-            updateLocalState(localData);
-            setIsDataLoaded(true);
-            setConnectionError(false);
+          console.log("Cloud load failed, but found local data. Using local backup.");
+          updateLocalState(localData, true);
+          setIsDataLoaded(true);
+          setConnectionError(false);
         } else {
-            // FALLBACK FOR TESTING: If no cloud and no local data, just use the mock data so the user can test the UI.
-            console.warn("Cloud and Local load failed. Falling back to default mock data for testing.");
-            setConnectionErrorMessage(loadedData ? loadedData._error : 'Unknown load error');
-            setIsDataLoaded(true); // Let the app load!
-            setConnectionError(false); // Remove the blocking error screen
+          // FALLBACK FOR TESTING: If no cloud and no local data, just use the mock data so the user can test the UI.
+          console.warn("Cloud and Local load failed. Falling back to default mock data for testing.");
+          setConnectionErrorMessage(loadedData ? loadedData._error : 'Unknown load error');
+          setIsDataLoaded(true); // Let the app load!
+          setConnectionError(false); // Remove the blocking error screen
         }
       }
     };
 
-    const updateLocalState = (data: any) => {
+    const updateLocalState = (data: any, isInitialLoad = false) => {
       if (!data) return;
       
-      // If the data from cloud is same or older than our last local save, ignore to prevent echo loops
-      if (lastSavedAtRef.current && data.last_updated_at && data.last_updated_at <= lastSavedAtRef.current) {
+      // If the data from cloud is same or older than our last local save, ignore to prevent echo loops (unless initial load)
+      if (!isInitialLoad && lastSavedAtRef.current && data.last_updated_at && data.last_updated_at <= lastSavedAtRef.current) {
         return;
       }
 
@@ -149,19 +185,95 @@ export function useAppData() {
       if (Array.isArray(data.salesInvoices)) setSalesInvoices(data.salesInvoices);
       if (Array.isArray(data.admissions)) setAdmissions(data.admissions);
       if (Array.isArray(data.indoorInvoices)) setIndoorInvoices(data.indoorInvoices);
-      if (data.detailedExpenses !== undefined) setDetailedExpenses(data.detailedExpenses || {});
+      if (data.detailedExpenses !== undefined) {
+        const raw = data.detailedExpenses || {};
+        const cleanObj: Record<string, ExpenseItem[]> = {};
+        const addExp = (it: any, fallbackKey?: string) => {
+          if (!it || it.isDeleted) return;
+          let normKey = normalizeDate(it.date || it.expense_date || fallbackKey || '');
+          if (!normKey && it.id) {
+            const m = String(it.id).match(/(\d{4})[-_]?(\d{2})[-_]?(\d{2})/);
+            if (m) normKey = `${m[1]}-${m[2]}-${m[3]}`;
+          }
+          if (!normKey && fallbackKey) normKey = normalizeDate(fallbackKey) || fallbackKey;
+          if (!normKey) return;
+          if (!cleanObj[normKey]) cleanObj[normKey] = [];
+          let expCounter = 0;
+          const itId = String(it.id || `exp_${normKey.replace(/-/g, '')}_${Date.now()}_${++expCounter}_${Math.random().toString(36).substring(2, 6)}`);
+          const expPaid = Number(it.paidAmount ?? it.paid_amount ?? it.amount ?? it.billAmount ?? it.bill_amount ?? 0);
+          const expBill = Number(it.billAmount ?? it.bill_amount ?? it.paidAmount ?? it.paid_amount ?? expPaid);
+          const expItem: ExpenseItem = {
+            ...it,
+            id: itId,
+            date: normKey,
+            paidAmount: expPaid,
+            paid_amount: expPaid,
+            billAmount: expBill,
+            bill_amount: expBill,
+            category: it.category || 'General',
+            subCategory: it.subCategory || it.sub_category || '',
+            description: it.description || '',
+            dept: it.dept || 'Diagnostic'
+          };
+          const existingIdx = cleanObj[normKey].findIndex((x: any) => String(x.id || '') === itId && itId !== '');
+          if (existingIdx >= 0) {
+            cleanObj[normKey][existingIdx] = { ...cleanObj[normKey][existingIdx], ...expItem };
+          } else {
+            cleanObj[normKey].push(expItem);
+          }
+        };
+        if (Array.isArray(raw)) {
+          raw.forEach((it: any) => addExp(it));
+        } else if (typeof raw === 'object' && raw !== null) {
+          Object.entries(raw).forEach(([dKey, items]: [string, any]) => {
+            const list = Array.isArray(items) ? items : (items && typeof items === 'object' ? Object.values(items) : []);
+            list.forEach((it: any) => addExp(it, dKey));
+          });
+        }
+        setDetailedExpenses(cleanObj);
+      }
       if (Array.isArray(data.prescriptions)) setPrescriptions(data.prescriptions);
       if (Array.isArray(data.appointments)) setAppointments(data.appointments);
       if (data.attendanceLog !== undefined) setAttendanceLog(data.attendanceLog || {});
       if (data.leaveLog !== undefined) setLeaveLog(data.leaveLog || {});
       if (data.monthlyRoster !== undefined) setMonthlyRoster(data.monthlyRoster || {});
+      if (data.monthlyAdjustments !== undefined && typeof data.monthlyAdjustments === 'object' && data.monthlyAdjustments !== null) {
+        setMonthlyAdjustments(prev => {
+          const merged = { ...prev, ...data.monthlyAdjustments };
+          try {
+            localStorage.setItem('ncd_monthly_adjustments', JSON.stringify(merged));
+          } catch {}
+          return merged;
+        });
+      }
       if (data.diagnosticSettings !== undefined) setDiagnosticSettings(data.diagnosticSettings || {});
       if (data.employeeReferrerMap !== undefined) setEmployeeReferrerMap(data.employeeReferrerMap || {});
-      if (Array.isArray(data.consolidatedLabEntries)) {
-        setConsolidatedLabEntries(data.consolidatedLabEntries);
-        dbService.saveConsolidatedEntries(data.consolidatedLabEntries);
+      if (Array.isArray(data.consolidatedLabEntries) && data.consolidatedLabEntries.length > 0) {
+        const localCons = dbService.getConsolidatedEntries();
+        const mergedCons = dbService.mergeEntityList(localCons, data.consolidatedLabEntries, ['id', 'date']);
+        setConsolidatedLabEntries(mergedCons);
+        dbService.saveConsolidatedEntries(mergedCons);
+      } else {
+        const localCons = dbService.getConsolidatedEntries();
+        if (localCons.length > 0) {
+          setConsolidatedLabEntries(localCons);
+        }
       }
-      if (data.passwords !== undefined) setPasswords(data.passwords || {});
+      if (data.passwords !== undefined && typeof data.passwords === 'object' && data.passwords !== null) {
+        const defaultPasswords = {
+          DIAGNOSTIC: 'diag123',
+          LAB_REPORTING: 'lab123',
+          CLINIC: 'clinic123',
+          ACCOUNTING: 'acc123',
+          MEDICINE: 'med123',
+          ADMIN: 'niramoy123'
+        };
+        const merged = { ...defaultPasswords, ...data.passwords };
+        setPasswords(merged);
+        try {
+          localStorage.setItem('ncd_passwords', JSON.stringify(merged));
+        } catch {}
+      }
     };
 
     loadData();
@@ -193,18 +305,23 @@ export function useAppData() {
 
   // Helper to get current state for syncing
   const getCurrentState = useCallback((overrides: any = {}) => {
+    let localAdj = {};
+    try {
+      localAdj = JSON.parse(localStorage.getItem('ncd_monthly_adjustments') || '{}');
+    } catch {}
     return {
       patients, doctors, referrars, tests, reagents, labInvoices, 
       dueCollections, reports, rtTemplates, employees, medicines, clinicalDrugs,
       purchaseInvoices, salesInvoices, admissions, indoorInvoices,
       detailedExpenses, prescriptions, appointments, attendanceLog, leaveLog, monthlyRoster,
+      monthlyAdjustments: { ...monthlyAdjustments, ...localAdj, ...(overrides?.monthlyAdjustments || {}) },
       diagnosticSettings, employeeReferrerMap,
       consolidatedLabEntries: (overrides && overrides.consolidatedLabEntries) || consolidatedLabEntries || dbService.getConsolidatedEntries(),
       passwords,
       last_updated_at: new Date().toISOString(),
       ...overrides
     };
-  }, [patients, doctors, referrars, tests, reagents, labInvoices, dueCollections, reports, rtTemplates, employees, medicines, clinicalDrugs, purchaseInvoices, salesInvoices, admissions, indoorInvoices, detailedExpenses, prescriptions, appointments, attendanceLog, leaveLog, monthlyRoster, diagnosticSettings, employeeReferrerMap, consolidatedLabEntries, passwords]);
+  }, [patients, doctors, referrars, tests, reagents, labInvoices, dueCollections, reports, rtTemplates, employees, medicines, clinicalDrugs, purchaseInvoices, salesInvoices, admissions, indoorInvoices, detailedExpenses, prescriptions, appointments, attendanceLog, leaveLog, monthlyRoster, monthlyAdjustments, diagnosticSettings, employeeReferrerMap, consolidatedLabEntries, passwords]);
 
   // Blocking Manual Sync Handler
   const performBlockingSync = useCallback(async (overrides?: any) => {
@@ -278,6 +395,12 @@ export function useAppData() {
     if (overrides?.monthlyRoster) {
       setMonthlyRoster(overrides.monthlyRoster);
     }
+    if (overrides?.monthlyAdjustments) {
+      setMonthlyAdjustments(overrides.monthlyAdjustments);
+      try {
+        localStorage.setItem('ncd_monthly_adjustments', JSON.stringify(overrides.monthlyAdjustments));
+      } catch (e) {}
+    }
     if (overrides?.rtTemplates) {
       setRtTemplates(overrides.rtTemplates);
     }
@@ -335,5 +458,5 @@ export function useAppData() {
 
   // --- HANDLERS ---
   
-  return { viewState, userRole, isAdminLoggedIn, isDataLoaded, connectionError, connectionErrorMessage, lastSavedAt, currentUserEmail, passwords, patients, doctors, referrars, tests, reagents, labInvoices, dueCollections, reports, rtTemplates, employees, medicines, clinicalDrugs, purchaseInvoices, salesInvoices, admissions, indoorInvoices, detailedExpenses, prescriptions, appointments, employeeReferrerMap, attendanceLog, leaveLog, monthlyRoster, diagnosticSettings, consolidatedLabEntries, setConsolidatedLabEntries, isSyncing, isManualSyncing, manualSyncError, syncError, lastManualSyncTime, setViewState, setUserRole, setIsAdminLoggedIn, setIsDataLoaded, setConnectionError, setConnectionErrorMessage, setLastSavedAt, setPasswords, setPatients, setDoctors, setReferrars, setTests, setReagents, setLabInvoices, setDueCollections, setReports, setRtTemplates, setEmployees, setMedicines, setClinicalDrugs, setPurchaseInvoices, setSalesInvoices, setAdmissions, setIndoorInvoices, setDetailedExpenses, setPrescriptions, setAppointments, setEmployeeReferrerMap, setAttendanceLog, setLeaveLog, setMonthlyRoster, setDiagnosticSettings, setIsSyncing, setIsManualSyncing, setManualSyncError, setSyncError, setLastManualSyncTime, getCurrentState, performBlockingSync, showSyncNotification };
+  return { viewState, userRole, isAdminLoggedIn, isDataLoaded, connectionError, connectionErrorMessage, lastSavedAt, currentUserEmail, passwords, patients, doctors, referrars, tests, reagents, labInvoices, dueCollections, reports, rtTemplates, employees, medicines, clinicalDrugs, purchaseInvoices, salesInvoices, admissions, indoorInvoices, detailedExpenses, prescriptions, appointments, employeeReferrerMap, attendanceLog, leaveLog, monthlyRoster, monthlyAdjustments, setMonthlyAdjustments, diagnosticSettings, consolidatedLabEntries, setConsolidatedLabEntries, isSyncing, isManualSyncing, manualSyncError, syncError, lastManualSyncTime, setViewState, setUserRole, setIsAdminLoggedIn, setIsDataLoaded, setConnectionError, setConnectionErrorMessage, setLastSavedAt, setPasswords, setPatients, setDoctors, setReferrars, setTests, setReagents, setLabInvoices, setDueCollections, setReports, setRtTemplates, setEmployees, setMedicines, setClinicalDrugs, setPurchaseInvoices, setSalesInvoices, setAdmissions, setIndoorInvoices, setDetailedExpenses, setPrescriptions, setAppointments, setEmployeeReferrerMap, setAttendanceLog, setLeaveLog, setMonthlyRoster, setDiagnosticSettings, setIsSyncing, setIsManualSyncing, setManualSyncError, setSyncError, setLastManualSyncTime, getCurrentState, performBlockingSync, showSyncNotification };
 }

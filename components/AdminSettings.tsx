@@ -438,6 +438,9 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({
 
   const handleSavePasswords = async (e: React.FormEvent) => {
     e.preventDefault();
+    try {
+      localStorage.setItem('ncd_passwords', JSON.stringify(localPasswords));
+    } catch {}
     if (setPasswords) setPasswords(localPasswords);
     if (onSave) onSave(localPasswords);
 
@@ -546,10 +549,16 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({
   };
 
   const processRestore = async (backup: any) => {
-    const entitiesFound = Object.entries(backup)
-      .filter(([_, v]) => Array.isArray(v) && v.length > 0)
-      .map(([k, v]) => `- ${k}: ${(v as any[]).length}`)
-      .join('\n');
+    const listEntries: string[] = [];
+    Object.entries(backup).forEach(([k, v]) => {
+      if (Array.isArray(v) && v.length > 0) {
+        listEntries.push(`- ${k}: ${v.length}`);
+      } else if (k === 'detailedExpenses' && v && typeof v === 'object') {
+        const count = Object.values(v).reduce((s: number, a: any) => s + (Array.isArray(a) ? a.length : 1), 0);
+        if (count > 0) listEntries.push(`- detailedExpenses: ${count}`);
+      }
+    });
+    const entitiesFound = listEntries.join('\n');
     
     if (!entitiesFound) {
       alert("পিক আপ করার মতো কোন ডাটা পাওয়া যায়নি! দয়া করে সঠিক কোডটি কপি করেছেন কিনা নিশ্চিত হয়ে নিন।");
@@ -562,8 +571,14 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({
     setIsRestoring(true);
     setRestoreProgress(0);
     try {
+      if (backup.consolidatedLabEntries && Array.isArray(backup.consolidatedLabEntries)) {
+        dbService.saveConsolidatedEntries(backup.consolidatedLabEntries);
+      }
       const success = await dbService.saveInChunks(backup, (p) => setRestoreProgress(p));
       if (success) {
+        if (performBlockingSync) {
+          await performBlockingSync(backup);
+        }
         alert("সফলভাবে ডাটা ক্লাউডে রিস্টোর করা হয়েছে! এখন অন্য সব কম্পিউটার থেকেও এই ডাটা দেখা যাবে।");
         window.location.reload();
       } else {

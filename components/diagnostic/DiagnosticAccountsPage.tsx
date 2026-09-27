@@ -3,7 +3,7 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { LabInvoice as Invoice, DueCollection, ExpenseItem, Employee, testCategories } from '../DiagnosticData';
 import { Activity, BackIcon, FileTextIcon, SearchIcon, PrinterIcon, XIcon, PlusIcon } from '../Icons';
 import { Settings } from 'lucide-react';
-import { dbService } from '../../dbService';
+import { dbService, normalizeDate } from '../../dbService';
 
 // --- Configuration & Data ---
 const expenseCategories = [
@@ -1183,10 +1183,11 @@ const DailyExpenseForm: React.FC<any> = ({
     const filteredSavedItems = useMemo(() => {
         const allItems: any[] = [];
         Object.entries(allDetailedExpenses || {}).forEach(([date, items]: [string, any]) => {
-            const [y, m] = date.split('-').map(Number);
+            const norm = normalizeDate(date);
+            const [y, m] = (norm || date).split('-').map(Number);
             
             let matchesTime = false;
-            if (searchMode === 'date') matchesTime = date === searchDate;
+            if (searchMode === 'date') matchesTime = (norm || date) === searchDate;
             else if (searchMode === 'month') matchesTime = (m - 1 === searchMonth && y === searchYear);
             else if (searchMode === 'year') matchesTime = y === searchYear;
             else if (searchMode === 'all') matchesTime = true;
@@ -1765,7 +1766,7 @@ const DailyExpenseForm: React.FC<any> = ({
                                     </td>
                                     <td className="py-3.5 px-3 text-slate-200 font-medium">{it.subCategory}</td>
                                     <td className="py-3.5 px-3 text-slate-300">{it.description}</td>
-                                    <td className="py-3.5 px-3 text-right font-black text-white text-sm">৳{it.paidAmount.toLocaleString()}</td>
+                                    <td className="py-3.5 px-3 text-right font-black text-white text-sm">৳{Number(it.paidAmount || it.paid_amount || it.amount || 0).toLocaleString()}</td>
                                     <td className="py-3.5 px-3 text-center">
                                         {it.isEdited ? (
                                             <span className="bg-amber-900/30 text-amber-300 px-2 py-1 rounded text-[10px] font-bold uppercase border border-amber-500/40" title={`Edited at ${it.lastEditedAt}`}>Edited</span>
@@ -2175,18 +2176,36 @@ const DiagnosticAccountsPage: React.FC<any> = ({
         const rows = [];
         const categories = expenseCategories;
 
+        const expMap = new Map<string, any[]>();
+        const addExp = (it: any, fallbackDate?: string) => {
+            if (!it || it.isDeleted) return;
+            const norm = normalizeDate(it.date || fallbackDate || '');
+            if (!norm) return;
+            if (!expMap.has(norm)) expMap.set(norm, []);
+            expMap.get(norm)!.push(it);
+        };
+        if (Array.isArray(detailedExpenses)) {
+            detailedExpenses.forEach(it => addExp(it));
+        } else if (detailedExpenses && typeof detailedExpenses === 'object') {
+            Object.entries(detailedExpenses).forEach(([date, items]: any) => {
+                const list = Array.isArray(items) ? items : (items && typeof items === 'object' ? Object.values(items) : []);
+                list.forEach((it: any) => addExp(it, date));
+            });
+        }
+
         for (let d = 1; d <= daysInMonth; d++) {
             const dateStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-            const dailyExps = ((detailedExpenses && detailedExpenses[dateStr]) || []).filter((it: any) => !it.isDeleted && (it.dept === 'Diagnostic' || (!it.dept && categories.includes(it.category))));
+            const dailyExps = (expMap.get(dateStr) || []).filter((it: any) => !it.isDeleted && (it.dept === 'Diagnostic' || (!it.dept && categories.includes(it.category))));
             
             const categorySums: Record<string, number> = {};
             categories.forEach(cat => categorySums[cat] = 0);
             
             dailyExps.forEach(exp => {
+                const amt = Number(exp.paidAmount ?? exp.paid_amount ?? exp.amount ?? 0);
                 if (categories.includes(exp.category)) {
-                    categorySums[exp.category] += exp.paidAmount;
+                    categorySums[exp.category] += amt;
                 } else {
-                    categorySums['Others'] = (categorySums['Others'] || 0) + exp.paidAmount;
+                    categorySums['Others'] = (categorySums['Others'] || 0) + amt;
                 }
             });
             
@@ -2207,16 +2226,27 @@ const DiagnosticAccountsPage: React.FC<any> = ({
         const expensesByCategory: Record<string, number> = {};
         expenseCategories.forEach(cat => expensesByCategory[cat] = 0);
         
-        Object.entries(detailedExpenses || {}).forEach(([date, items]: any) => {
-            const [y, m] = date.split('-').map(Number);
-            if (m - 1 === selectedMonth && y === selectedYear && Array.isArray(items)) {
-                items.forEach((it: any) => {
-                    if (!it.isDeleted && (it.dept === 'Diagnostic' || (!it.dept && expenseCategories.includes(it.category)))) {
-                        expensesByCategory[it.category] = (expensesByCategory[it.category] || 0) + it.paidAmount;
-                    }
-                });
+        const addMonthlyExp = (it: any, fallbackDate?: string) => {
+            if (!it || it.isDeleted) return;
+            const norm = normalizeDate(it.date || fallbackDate || '');
+            if (!norm) return;
+            const [y, m] = norm.split('-').map(Number);
+            if (m - 1 === selectedMonth && y === selectedYear) {
+                if (!it.isDeleted && (it.dept === 'Diagnostic' || (!it.dept && expenseCategories.includes(it.category)))) {
+                    const amt = Number(it.paidAmount ?? it.paid_amount ?? it.amount ?? 0);
+                    expensesByCategory[it.category] = (expensesByCategory[it.category] || 0) + amt;
+                }
             }
-        });
+        };
+
+        if (Array.isArray(detailedExpenses)) {
+            detailedExpenses.forEach(it => addMonthlyExp(it));
+        } else if (detailedExpenses && typeof detailedExpenses === 'object') {
+            Object.entries(detailedExpenses).forEach(([date, items]: any) => {
+                const list = Array.isArray(items) ? items : (items && typeof items === 'object' ? Object.values(items) : []);
+                list.forEach((it: any) => addMonthlyExp(it, date));
+            });
+        }
 
         const totalExpense = Object.values(expensesByCategory).reduce((s, v) => s + v, 0);
         return { expensesByCategory, totalExpense };
@@ -2245,10 +2275,13 @@ const DiagnosticAccountsPage: React.FC<any> = ({
 
     const detailTableData = useMemo(() => {
         const filtered = (invoices || []).filter((inv: any) => {
-            if (detailViewMode === 'today') return inv.invoice_date === todayStr;
-            if (detailViewMode === 'date') return inv.invoice_date === selectedDate;
+            const rawDate = inv.invoice_date || inv.date || inv.invoiceDate || inv.created_at || '';
+            const normDate = normalizeDate(rawDate);
+            if (detailViewMode === 'today') return normDate === todayStr || rawDate === todayStr;
+            if (detailViewMode === 'date') return normDate === selectedDate || rawDate === selectedDate;
             
-            const [y, m] = (inv.invoice_date || '').split('-').map(Number);
+            if (!normDate) return true;
+            const [y, m] = normDate.split('-').map(Number);
             if (detailViewMode === 'month') return (m - 1) === selectedMonth && y === selectedYear;
             if (detailViewMode === 'year') return y === selectedYear;
             
@@ -2334,10 +2367,13 @@ const DiagnosticAccountsPage: React.FC<any> = ({
 
     const diagStats = useMemo(() => {
         const baseFiltered = (invoices || []).filter((inv: any) => {
-            if (detailViewMode === 'today') return inv.invoice_date === todayStr;
-            if (detailViewMode === 'date') return inv.invoice_date === selectedDate;
+            const rawDate = inv.invoice_date || inv.date || inv.invoiceDate || inv.created_at || '';
+            const normDate = normalizeDate(rawDate);
+            if (detailViewMode === 'today') return normDate === todayStr || rawDate === todayStr;
+            if (detailViewMode === 'date') return normDate === selectedDate || rawDate === selectedDate;
             
-            const [y, m] = (inv.invoice_date || '').split('-').map(Number);
+            if (!normDate) return true;
+            const [y, m] = normDate.split('-').map(Number);
             if (detailViewMode === 'month') return (m - 1) === selectedMonth && y === selectedYear;
             if (detailViewMode === 'year') return y === selectedYear;
             return true;
@@ -2386,42 +2422,74 @@ const DiagnosticAccountsPage: React.FC<any> = ({
 
     const stats = useMemo(() => {
         const parseDateParts = (raw: any) => {
-            if (!raw) return { y: 0, m: 0, d: 0, isoDate: '' };
+            if (!raw && raw !== 0) return { y: 0, m: 0, d: 0, isoDate: '' };
+            const norm = normalizeDate(raw);
+            if (norm) {
+                const parts = norm.split('-').map(Number);
+                return { y: parts[0] || 0, m: parts[1] || 0, d: parts[2] || 0, isoDate: norm };
+            }
             const str = String(raw).trim();
             const dateOnly = str.split(/[T ]/)[0];
-            if (dateOnly.includes('-')) {
-                const parts = dateOnly.split('-');
-                if (parts[0].length === 4) {
-                    return { y: parseInt(parts[0], 10), m: parseInt(parts[1], 10), d: parseInt(parts[2], 10), isoDate: `${parseInt(parts[0], 10)}-${String(parseInt(parts[1], 10)).padStart(2, '0')}-${String(parseInt(parts[2], 10)).padStart(2, '0')}` };
-                } else if (parts[2]?.length === 4) {
-                    return { y: parseInt(parts[2], 10), m: parseInt(parts[1], 10), d: parseInt(parts[0], 10), isoDate: `${parseInt(parts[2], 10)}-${String(parseInt(parts[1], 10)).padStart(2, '0')}-${String(parseInt(parts[0], 10)).padStart(2, '0')}` };
-                }
-            } else if (dateOnly.includes('/')) {
-                const parts = dateOnly.split('/');
-                if (parts[2]?.length === 4) {
-                    return { y: parseInt(parts[2], 10), m: parseInt(parts[1], 10), d: parseInt(parts[0], 10), isoDate: `${parseInt(parts[2], 10)}-${String(parseInt(parts[1], 10)).padStart(2, '0')}-${String(parseInt(parts[0], 10)).padStart(2, '0')}` };
-                }
-            }
-            const dt = new Date(str);
-            if (!isNaN(dt.getTime())) {
-                return { y: dt.getFullYear(), m: dt.getMonth() + 1, d: dt.getDate(), isoDate: `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}` };
-            }
             return { y: 0, m: 0, d: 0, isoDate: dateOnly };
         };
 
         const getRangeStats = (rangeType: 'daily' | 'monthly' | 'yearly') => {
-            const relevantInvoices = (invoices || []).filter((inv: any) => {
-                if (!inv || inv.status === 'Cancelled' || inv.status === 'Returned') return false;
-                const dParts = parseDateParts(inv.invoice_date);
-                if (rangeType === 'daily') return dParts.isoDate === selectedDate || inv.invoice_date === selectedDate;
+            // First find relevant consolidated entries for this range
+            const relevantConsolidated = (consolidatedEntries || []).filter((e: any) => {
+                if (!e) return false;
+                const rawDate = e.date || e.created_at || e.createdAt || e.entry_date || e.invoice_date || '';
+                const dParts = parseDateParts(rawDate);
+                const hasValidDate = dParts.y > 0 && dParts.m > 0;
+
+                if (rangeType === 'daily') {
+                    if (dParts.isoDate === selectedDate || rawDate === selectedDate) return true;
+                    if (!dParts.isoDate && e.id) {
+                        const m = String(e.id).match(/(\d{4})[-_]?(\d{2})[-_]?(\d{2})/);
+                        if (m && `${m[1]}-${m[2]}-${m[3]}` === selectedDate) return true;
+                    }
+                    return false;
+                }
+                if (rangeType === 'monthly') {
+                    if (hasValidDate && (dParts.m - 1) === selectedMonth && dParts.y === selectedYear) {
+                        return true;
+                    }
+                    if (e.month !== undefined && e.year !== undefined && !isNaN(Number(e.month)) && !isNaN(Number(e.year))) {
+                        const em = Number(e.month);
+                        const ey = Number(e.year);
+                        return ey === selectedYear && (em === selectedMonth || em === selectedMonth + 1);
+                    }
+                    if (!hasValidDate && e.id) {
+                        const m = String(e.id).match(/(\d{4})[-_]?(\d{2})[-_]?(\d{2})/);
+                        if (m) {
+                            const ey = Number(m[1]);
+                            const em = Number(m[2]);
+                            return ey === selectedYear && em === selectedMonth + 1;
+                        }
+                    }
+                    return false;
+                }
+                if (hasValidDate && dParts.y === selectedYear) return true;
+                if (e.year !== undefined && Number(e.year) === selectedYear) return true;
+                return false;
+            });
+
+            // If consolidated entries exist for this period, take precedence and skip individual invoices to prevent double counting
+            const hasConsolidatedForPeriod = relevantConsolidated.length > 0;
+
+            const relevantInvoices = hasConsolidatedForPeriod ? [] : (invoices || []).filter((inv: any) => {
+                if (!inv || inv.status === 'Cancelled' || inv.status === 'Returned' || inv.status === 'Deleted') return false;
+                const rawDate = inv.invoice_date || inv.date || inv.invoiceDate || inv.created_date || inv.created_at || '';
+                const dParts = parseDateParts(rawDate);
+                if (rangeType === 'daily') return dParts.isoDate === selectedDate || rawDate === selectedDate;
                 if (rangeType === 'monthly') return (dParts.m - 1) === selectedMonth && dParts.y === selectedYear;
                 return dParts.y === selectedYear;
             });
             const relevantDueColls = (dueCollections || []).filter((dc: any) => {
                 if (!dc) return false;
                 const isDiag = !dc.invoice_id || !dc.invoice_id.toUpperCase().startsWith('IND');
-                const dParts = parseDateParts(dc.collection_date);
-                if (rangeType === 'daily') return (dParts.isoDate === selectedDate || dc.collection_date === selectedDate) && isDiag;
+                const rawDate = dc.collection_date || dc.date || dc.created_at || '';
+                const dParts = parseDateParts(rawDate);
+                if (rangeType === 'daily') return (dParts.isoDate === selectedDate || rawDate === selectedDate) && isDiag;
                 if (rangeType === 'monthly') return (dParts.m - 1) === selectedMonth && dParts.y === selectedYear && isDiag;
                 return dParts.y === selectedYear && isDiag;
             });
@@ -2430,12 +2498,31 @@ const DiagnosticAccountsPage: React.FC<any> = ({
             
             relevantInvoices.forEach((inv: any) => {
                 const allDuesForInv = (dueCollections || []).filter((dc: any) => dc.invoice_id === inv.invoice_id).reduce((s: any, c: any) => s + (Number(c.amount_collected) || 0), 0);
-                const initialPaid = Math.max(0, (Number(inv.paid_amount) || 0) - allDuesForInv);
-                const totAmount = Number(inv.total_amount) || (initialPaid > 0 ? initialPaid : 0);
+                const totalAmt = Number(inv.total_amount ?? inv.totalAmount) || 0;
+                const discAmt = Number(inv.discount_amount ?? inv.discountAmount) || 0;
+                const currentDue = Number(inv.due_amount ?? inv.dueAmount) || 0;
+                const rawPaid = Number(inv.paid_amount ?? inv.paidAmount) || 0;
+
+                let initialPaid = rawPaid;
+                if (initialPaid === 0 && currentDue <= 0 && totalAmt > 0) {
+                    initialPaid = Math.max(0, totalAmt - discAmt);
+                }
+                if (allDuesForInv > 0) {
+                    if (rawPaid > allDuesForInv && (rawPaid - allDuesForInv + currentDue + discAmt >= totalAmt - 1)) {
+                        initialPaid = Math.max(0, rawPaid - allDuesForInv);
+                    } else if (rawPaid >= allDuesForInv && rawPaid === totalAmt - discAmt && currentDue <= 0.5) {
+                        initialPaid = Math.max(0, rawPaid - allDuesForInv);
+                    } else if (rawPaid < allDuesForInv) {
+                        initialPaid = 0;
+                    } else {
+                        initialPaid = rawPaid;
+                    }
+                }
+                const totAmount = totalAmt || (initialPaid > 0 ? initialPaid : 0);
                 const ratio = totAmount > 0 ? (initialPaid / totAmount) : 0;
                 
                 // Calculate actual commission factor based on "Commission Paid" box
-                const actualCommPaid = Number(inv.commission_paid) || 0;
+                const actualCommPaid = Number(inv.commission_paid ?? (inv as any).commissionPaid) || 0;
                 const commFactor = initialPaid > 0 ? Math.min(1, actualCommPaid / initialPaid) : 0;
 
                 const items = Array.isArray(inv.items) && inv.items.length > 0 ? inv.items : null;
@@ -2461,25 +2548,24 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                 }
             });
 
-            // Merge Daily Consolidated Entries
-            const relevantConsolidated = (consolidatedEntries || []).filter((e: any) => {
-                if (!e || !e.date) return false;
-                const dParts = parseDateParts(e.date);
-                if (rangeType === 'daily') return (dParts.isoDate === selectedDate || e.date === selectedDate);
-                if (rangeType === 'monthly') return (dParts.m - 1) === selectedMonth && dParts.y === selectedYear;
-                return dParts.y === selectedYear;
-            });
-
             relevantConsolidated.forEach((e: any) => {
                 const b = e.breakdown || {};
-                const grossSum = (Number(e.grossAmount) || 0);
-                const cash = (Number(e.cashCollected) || 0);
-                const docPC = (Number(e.doctorCommissionPaid) || 0);
-                const usgFee = (Number(e.usgDoctorFeePaid) || 0);
+                const grossSum = Number(e.grossAmount ?? e.gross_amount ?? e.total_amount ?? e.totalAmount) || 0;
+                const discount = Number(e.discountAmount ?? e.discount_amount ?? e.discount) || 0;
+                const net = Number(e.netPayable ?? e.net_payable ?? e.net_amount ?? e.netAmount) || Math.max(0, grossSum - discount);
+                let cash = Number(e.cashCollected ?? e.cash_collected ?? e.paid_amount ?? e.paidAmount ?? e.amount) || 0;
+                const due = Number(e.dueAmount ?? e.due_amount) || 0;
+                if (cash === 0 && due === 0 && net > 0) {
+                    cash = net;
+                }
+                const bGross = (Number(b.pathology) || 0) + (Number(b.usg) || 0) + (Number(b.xray) || 0) + (Number(b.ecg) || 0) + (Number(b.hormone) || 0) + (Number(b.others) || 0);
+                const effectiveGross = grossSum > 0 ? grossSum : bGross;
+                const docPC = Number(e.doctorCommissionPaid ?? e.doctor_commission_paid ?? e.commission_paid ?? e.commissionPaid) || 0;
+                const usgFee = Number(e.usgDoctorFeePaid ?? e.usg_doctor_fee_paid ?? e.usg_exam_charge) || 0;
                 const netCenterCash = Math.max(0, cash - docPC - usgFee);
 
-                if (grossSum > 0 && netCenterCash > 0) {
-                    const ratio = netCenterCash / grossSum;
+                if (effectiveGross > 0 && netCenterCash > 0) {
+                    const ratio = netCenterCash / effectiveGross;
                     coll.pathology += (Number(b.pathology) || 0) * ratio;
                     coll.usg += (Number(b.usg) || 0) * ratio;
                     coll.xray += (Number(b.xray) || 0) * ratio;
@@ -2498,25 +2584,47 @@ const DiagnosticAccountsPage: React.FC<any> = ({
             expenseCategories.forEach(c => expenseMap[c] = 0);
 
             if (rangeType === 'daily') {
-                ((detailedExpenses && detailedExpenses[selectedDate]) || []).filter((it: any) => !it.isDeleted && (it.dept === 'Diagnostic' || (!it.dept && expenseCategories.includes(it.category)))).forEach((it: any) => {
-                    const amt = Number(it.paidAmount) || 0;
-                    expenseMap[it.category] = (expenseMap[it.category] || 0) + amt;
-                    exp.total += amt;
-                });
-            } else {
-                Object.entries(detailedExpenses || {}).forEach(([date, items]) => {
-                    const dParts = parseDateParts(date);
-                    const isMatch = (rangeType === 'monthly' && (dParts.m - 1) === selectedMonth && dParts.y === selectedYear) || 
-                                    (rangeType === 'yearly' && dParts.y === selectedYear);
-                    
-                    if (isMatch && Array.isArray(items)) {
-                        (items as any[]).filter((it: any) => !it.isDeleted && (it.dept === 'Diagnostic' || (!it.dept && expenseCategories.includes(it.category)))).forEach((it: any) => {
-                            const amt = Number(it.paidAmount) || 0;
+                const addDailyExp = (it: any, fallbackDate?: string) => {
+                    if (!it || it.isDeleted) return;
+                    const norm = normalizeDate(it.date || fallbackDate || '');
+                    if (norm === selectedDate || fallbackDate === selectedDate) {
+                        if (it.dept === 'Diagnostic' || (!it.dept && expenseCategories.includes(it.category))) {
+                            const amt = Number(it.paidAmount ?? it.paid_amount ?? it.amount ?? 0);
                             expenseMap[it.category] = (expenseMap[it.category] || 0) + amt;
                             exp.total += amt;
-                        });
+                        }
                     }
-                });
+                };
+                if (Array.isArray(detailedExpenses)) {
+                    detailedExpenses.forEach(it => addDailyExp(it));
+                } else if (detailedExpenses && typeof detailedExpenses === 'object') {
+                    Object.entries(detailedExpenses).forEach(([d, items]: any) => {
+                        const list = Array.isArray(items) ? items : (items && typeof items === 'object' ? Object.values(items) : []);
+                        list.forEach((it: any) => addDailyExp(it, d));
+                    });
+                }
+            } else {
+                const addPeriodExp = (it: any, fallbackDate?: string) => {
+                    if (!it || it.isDeleted) return;
+                    const norm = normalizeDate(it.date || fallbackDate || '');
+                    if (!norm) return;
+                    const dParts = parseDateParts(norm);
+                    const isMatch = (rangeType === 'monthly' && (dParts.m - 1) === selectedMonth && dParts.y === selectedYear) || 
+                                    (rangeType === 'yearly' && dParts.y === selectedYear);
+                    if (isMatch && (it.dept === 'Diagnostic' || (!it.dept && expenseCategories.includes(it.category)))) {
+                        const amt = Number(it.paidAmount ?? it.paid_amount ?? it.amount ?? 0);
+                        expenseMap[it.category] = (expenseMap[it.category] || 0) + amt;
+                        exp.total += amt;
+                    }
+                };
+                if (Array.isArray(detailedExpenses)) {
+                    detailedExpenses.forEach(it => addPeriodExp(it));
+                } else if (detailedExpenses && typeof detailedExpenses === 'object') {
+                    Object.entries(detailedExpenses).forEach(([d, items]: any) => {
+                        const list = Array.isArray(items) ? items : (items && typeof items === 'object' ? Object.values(items) : []);
+                        list.forEach((it: any) => addPeriodExp(it, d));
+                    });
+                }
             }
 
             const totalColl = Object.values(coll).reduce((s, v) => s + v, 0);

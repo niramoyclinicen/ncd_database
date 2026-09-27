@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { dbService, DailyConsolidatedEntry, ClinicProfile } from '../../dbService';
 import { BackIcon, PrinterIcon, PlusIcon, TrashIcon, SearchIcon, Activity } from '../Icons';
 import { Save, RefreshCw, Layers, Calendar, Clock, DollarSign, UserCheck, FileSpreadsheet, CheckCircle2, AlertCircle, CalendarRange } from 'lucide-react';
@@ -48,6 +49,16 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
   const [searchDate, setSearchDate] = useState('');
   const [filterShift, setFilterShift] = useState<string>('all');
   const [printingEntry, setPrintingEntry] = useState<DailyConsolidatedEntry | null>(null);
+  const [editingRecordId, setEditingRecordId] = useState<string | null>(null);
+
+  // In-app deletion and cleaner modal states (no browser confirm/alert)
+  const [entryToDelete, setEntryToDelete] = useState<DailyConsolidatedEntry | null>(null);
+  const [isDeletingRecord, setIsDeletingRecord] = useState(false);
+  const [deleteSuccessModalMsg, setDeleteSuccessModalMsg] = useState<string | null>(null);
+  const [showCleanAutoModal, setShowCleanAutoModal] = useState(false);
+  const [isCleaningAuto, setIsCleaningAuto] = useState(false);
+  const [showCleanDuplicatesModal, setShowCleanDuplicatesModal] = useState(false);
+  const [isCleaningDuplicates, setIsCleaningDuplicates] = useState(false);
 
   // Entry Mode: 'daily' (দিনভিত্তিক) or 'monthly' (মাসভিত্তিক একবারে)
   const [entryMode, setEntryMode] = useState<'daily' | 'monthly'>('daily');
@@ -58,6 +69,60 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
   const [historyTypeFilter, setHistoryTypeFilter] = useState<'all' | 'daily' | 'monthly'>('all');
   const [historyMonthFilter, setHistoryMonthFilter] = useState<string>('all');
   const [historyYearFilter, setHistoryYearFilter] = useState<string>('all');
+
+  // Handle start editing an existing consolidated entry
+  const handleStartEdit = (row: DailyConsolidatedEntry) => {
+    setActiveSubTab('new_entry');
+    setEditingRecordId(row.id);
+    const isMonthly = row.entryType === 'monthly' || row.shift === 'Monthly';
+    setEntryMode(isMonthly ? 'monthly' : 'daily');
+    if (isMonthly) {
+      const m = row.month !== undefined ? row.month : (row.date ? parseInt(row.date.split('-')[1]) - 1 : new Date().getMonth());
+      const y = row.year !== undefined ? row.year : (row.date ? parseInt(row.date.split('-')[0]) : new Date().getFullYear());
+      setSelectedMonth(m);
+      setSelectedYear(y);
+    }
+    setFormData({
+      date: row.date || new Date().toISOString().split('T')[0],
+      shift: row.shift || 'Full Day',
+      entryType: row.entryType || (isMonthly ? 'monthly' : 'daily'),
+      entryTime: row.entryTime || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      operatorName: row.operatorName || currentUserEmail || 'Cashier',
+      totalPatients: row.totalPatients || 0,
+      totalTests: row.totalTests || 0,
+      grossAmount: row.grossAmount || 0,
+      discountAmount: row.discountAmount || 0,
+      netPayable: row.netPayable || 0,
+      cashCollected: row.cashCollected || 0,
+      dueAmount: row.dueAmount || 0,
+      doctorCommissionPaid: row.doctorCommissionPaid || 0,
+      usgDoctorFeePaid: row.usgDoctorFeePaid || 0,
+      breakdown: row.breakdown || { pathology: 0, usg: 0, xray: 0, ecg: 0, hormone: 0, others: 0 },
+      notes: row.notes || ''
+    });
+  };
+
+  const handleCancelEdit = () => {
+    setEditingRecordId(null);
+    setFormData({
+      date: new Date().toISOString().split('T')[0],
+      shift: 'Full Day',
+      entryType: 'daily',
+      entryTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      operatorName: currentUserEmail || 'Cashier',
+      totalPatients: 0,
+      totalTests: 0,
+      grossAmount: 0,
+      discountAmount: 0,
+      netPayable: 0,
+      cashCollected: 0,
+      dueAmount: 0,
+      doctorCommissionPaid: 0,
+      usgDoctorFeePaid: 0,
+      breakdown: { pathology: 0, usg: 0, xray: 0, ecg: 0, hormone: 0, others: 0 },
+      notes: ''
+    });
+  };
 
   // Sync entries if parent prop updates
   useEffect(() => {
@@ -259,7 +324,7 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
     try {
       const monthBn = BENGALI_MONTHS[selectedMonth]?.bn || '';
       const newRecord: DailyConsolidatedEntry = {
-        id: (isMonthly ? 'MCE-' : 'DCE-') + Date.now(),
+        id: editingRecordId || ((isMonthly ? 'MCE-' : 'DCE-') + Date.now()),
         date: computedDate,
         shift: isMonthly ? 'Monthly' : ((formData.shift as any) || 'Full Day'),
         entryType: isMonthly ? 'monthly' : 'daily',
@@ -294,7 +359,8 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
 
       triggerSuccess(isMonthly ? `মাসিক কনসোলিডেটেড ভাউচার (${monthBn} ${selectedYear}) সফলভাবে সংরক্ষিত হয়েছে!` : 'ডেইলি কনসোলিডেটেড ভাউচার সফলভাবে সংরক্ষিত হয়েছে!');
 
-      // Reset form
+      // Reset form & editing state
+      setEditingRecordId(null);
       setFormData({
         date: isMonthly ? `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-01` : new Date().toISOString().split('T')[0],
         shift: isMonthly ? 'Monthly' : 'Full Day',
@@ -333,26 +399,41 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('আপনি কি নিশ্চিত যে এই কনসোলিডেটেড রেকর্ডটি স্থায়ীভাবে মুছে ফেলতে চান?')) return;
-    setIsSaving(true);
+  const confirmDeleteRecord = async () => {
+    if (!entryToDelete) return;
+    const targetItem = entryToDelete;
+    setIsDeletingRecord(true);
+    setEntryToDelete(null); // Close confirm prompt immediately to show blocking overlay
+    const targetId = String(targetItem.id || (targetItem as any)._id || '').trim();
+    const targetDate = targetItem.date || '';
+    const targetShift = targetItem.shift || '';
+
     try {
-      await dbService.deleteConsolidatedEntry(id);
-      const updatedList = (entries || []).filter(item => String(item.id).trim() !== String(id).trim());
+      await dbService.deleteConsolidatedEntry(targetId);
+      const updatedList = (entries || []).filter(item => {
+        const itemId = String(item.id || (item as any)._id || '').trim();
+        if (targetId && itemId === targetId) return false;
+        if (!targetId && item.date === targetDate && item.shift === targetShift) return false;
+        return true;
+      });
       dbService.saveConsolidatedEntries(updatedList);
       setEntries(updatedList);
       if (setConsolidatedLabEntries) {
         setConsolidatedLabEntries(updatedList);
       }
-      if (performBlockingSync) {
-        await performBlockingSync({ consolidatedLabEntries: updatedList });
+      try {
+        if (performBlockingSync) {
+          await performBlockingSync({ consolidatedLabEntries: updatedList });
+        }
+      } catch (syncErr) {
+        console.warn("Delete sync warning:", syncErr);
       }
-      triggerSuccess('রেকর্ডটি স্থায়ীভাবে মুছে ফেলা হয়েছে।');
+      setDeleteSuccessModalMsg(`ভাউচার #${targetId || targetDate} ডাটাবেজ ও অনলাইন থেকে সফলভাবে স্থায়ীভাবে মুছে ফেলা হয়েছে!`);
     } catch (err) {
       console.error("Delete consolidated error:", err);
-      alert('রেকর্ডটি মুছতে সমস্যা হয়েছে!');
+      alert('রেকর্ডটি মুছতে সমস্যা হয়েছে! দয়া করে ইন্টারনেট কানেকশন চেক করুন।');
     } finally {
-      setIsSaving(false);
+      setIsDeletingRecord(false);
     }
   };
 
@@ -372,10 +453,9 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
     return dupIds;
   }, [entries]);
 
-  const handleCleanDuplicates = async () => {
+  const confirmCleanDuplicates = async () => {
     if (duplicateEntryIds.length === 0) return;
-    if (!confirm(`শনাক্তকৃত ${duplicateEntryIds.length}টি ডুপ্লিকেট রেকর্ড স্থায়ীভাবে মুছে ফেলতে চান? একটি মূল রেকর্ড অক্ষত রাখা হবে।`)) return;
-    setIsSaving(true);
+    setIsCleaningDuplicates(true);
     try {
       const seen = new Set<string>();
       const keptList: DailyConsolidatedEntry[] = [];
@@ -402,14 +482,63 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
         setConsolidatedLabEntries(keptList);
       }
       if (performBlockingSync) {
-        await performBlockingSync({ consolidatedLabEntries: keptList });
+        try {
+          await performBlockingSync({ consolidatedLabEntries: keptList });
+        } catch (syncErr) {
+          console.warn("Sync warning:", syncErr);
+        }
       }
+      setShowCleanDuplicatesModal(false);
       triggerSuccess(`সফলভাবে ${idsToDelete.length}টি ডুপ্লিকেট রেকর্ড স্থায়ীভাবে মুছে ফেলা হয়েছে!`);
     } catch (err) {
       console.error("Clean duplicates error:", err);
       alert('ডুপ্লিকেট রেকর্ড মুছতে সমস্যা হয়েছে!');
     } finally {
-      setIsSaving(false);
+      setIsCleaningDuplicates(false);
+    }
+  };
+
+  const confirmCleanAutoEntries = async () => {
+    setIsCleaningAuto(true);
+    try {
+      const keptList = (entries || []).filter(e => {
+        if (!e) return false;
+        const d = String(e.date || '');
+        if (d.startsWith('2026-08') || d.startsWith('2026-09')) return true;
+        const parts = d.split('-');
+        if (parts.length === 3 && parts[2] === '01') {
+          const m = parseInt(parts[1], 10);
+          if (m >= 1 && m <= 12 && m !== 8 && m !== 9) {
+            return false;
+          }
+        }
+        return true;
+      });
+
+      const removedIds = (entries || []).filter(e => !keptList.includes(e)).map(e => e.id);
+      for (const dId of removedIds) {
+        await dbService.deleteConsolidatedEntry(dId);
+      }
+
+      dbService.saveConsolidatedEntries(keptList);
+      setEntries(keptList);
+      if (setConsolidatedLabEntries) {
+        setConsolidatedLabEntries(keptList);
+      }
+      if (performBlockingSync) {
+        try {
+          await performBlockingSync({ consolidatedLabEntries: keptList });
+        } catch (syncErr) {
+          console.warn("Sync warning:", syncErr);
+        }
+      }
+      setShowCleanAutoModal(false);
+      triggerSuccess('অপ্রয়োজনীয় অটো-এন্ট্রিগুলো সফলভাবে পরিষ্কার করা হয়েছে!');
+    } catch (err) {
+      console.error("Clean auto entries error:", err);
+      alert('অটো-এন্ট্রি মুছতে সমস্যা হয়েছে!');
+    } finally {
+      setIsCleaningAuto(false);
     }
   };
 
@@ -528,17 +657,17 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
             </tr>
           </thead>
           <tbody>
-            <tr><td>🧪 প্যাথলজি (Pathology & Bio-chemistry)</td><td class="text-right">৳${(entry.breakdown?.pathology || 0).toLocaleString()}</td></tr>
-            <tr><td>🩺 আল্ট্রাসনোগ্রাফি (USG)</td><td class="text-right">৳${(entry.breakdown?.usg || 0).toLocaleString()}</td></tr>
-            <tr><td>☢️ ডিজিটাল এক্স-রে (Digital X-Ray)</td><td class="text-right">৳${(entry.breakdown?.xray || 0).toLocaleString()}</td></tr>
-            <tr><td>📈 ইসিজি (ECG)</td><td class="text-right">৳${(entry.breakdown?.ecg || 0).toLocaleString()}</td></tr>
-            <tr><td>🔬 হরমোন টেস্ট (Hormone)</td><td class="text-right">৳${(entry.breakdown?.hormone || 0).toLocaleString()}</td></tr>
-            <tr><td>📦 অন্যান্য ও বিশেষ টেস্ট (Others)</td><td class="text-right">৳${(entry.breakdown?.others || 0).toLocaleString()}</td></tr>
+            <tr><td>🧪 প্যাথলজি (Pathology & Bio-chemistry)</td><td class="text-right">৳${(Number(entry.breakdown?.pathology) || 0).toLocaleString()}</td></tr>
+            <tr><td>🩺 আল্ট্রাসনোগ্রাফি (USG)</td><td class="text-right">৳${(Number(entry.breakdown?.usg) || 0).toLocaleString()}</td></tr>
+            <tr><td>☢️ ডিজিটাল এক্স-রে (Digital X-Ray)</td><td class="text-right">৳${(Number(entry.breakdown?.xray) || 0).toLocaleString()}</td></tr>
+            <tr><td>📈 ইসিজি (ECG)</td><td class="text-right">৳${(Number(entry.breakdown?.ecg) || 0).toLocaleString()}</td></tr>
+            <tr><td>🔬 হরমোন টেস্ট (Hormone)</td><td class="text-right">৳${(Number(entry.breakdown?.hormone) || 0).toLocaleString()}</td></tr>
+            <tr><td>📦 অন্যান্য ও বিশেষ টেস্ট (Others)</td><td class="text-right">৳${(Number(entry.breakdown?.others) || 0).toLocaleString()}</td></tr>
           </tbody>
           <tfoot>
             <tr class="grand-total-row">
               <td>মোট গ্রস ডিপার্টমেন্টাল বিল (Gross Total)</td>
-              <td class="text-right font-black">৳${entry.grossAmount.toLocaleString()}</td>
+              <td class="text-right font-black">৳${(Number(entry.grossAmount) || 0).toLocaleString()}</td>
             </tr>
           </tfoot>
         </table>
@@ -548,35 +677,35 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
           <tbody>
             <tr>
               <td>মোট গ্রস বিল (Gross Total Amount):</td>
-              <td class="text-right"><b>৳${entry.grossAmount.toLocaleString()}</b></td>
+              <td class="text-right"><b>৳${(Number(entry.grossAmount) || 0).toLocaleString()}</b></td>
             </tr>
             <tr>
               <td>মোট ছাড় (Special Discount Given):</td>
-              <td class="text-right" style="color: #dc2626;">-৳${entry.discountAmount.toLocaleString()}</td>
+              <td class="text-right" style="color: #dc2626;">-৳${(Number(entry.discountAmount) || 0).toLocaleString()}</td>
             </tr>
             <tr style="background: #f8fafc; font-weight: bold;">
               <td>প্রদেয় নিট বিল (Net Payable):</td>
-              <td class="text-right">৳${entry.netPayable.toLocaleString()}</td>
+              <td class="text-right">৳${(Number(entry.netPayable) || 0).toLocaleString()}</td>
             </tr>
             <tr style="background: #ecfdf5; font-weight: bold; color: #047857;">
               <td>নগদ ক্যাশ আদায় (Cash Collected):</td>
-              <td class="text-right">৳${entry.cashCollected.toLocaleString()}</td>
+              <td class="text-right">৳${(Number(entry.cashCollected) || 0).toLocaleString()}</td>
             </tr>
             <tr>
               <td>বকেয়া / বাকি (Due Balance):</td>
-              <td class="text-right" style="color: #b45309;">৳${entry.dueAmount.toLocaleString()}</td>
+              <td class="text-right" style="color: #b45309;">৳${(Number(entry.dueAmount) || 0).toLocaleString()}</td>
             </tr>
             <tr>
               <td>প্রদত্ত ডাক্তার পিসি কমিশন (Doctor Commission Paid):</td>
-              <td class="text-right" style="color: #dc2626;">-৳${entry.doctorCommissionPaid.toLocaleString()}</td>
+              <td class="text-right" style="color: #dc2626;">-৳${(Number(entry.doctorCommissionPaid) || 0).toLocaleString()}</td>
             </tr>
             <tr>
               <td>ইউএসজি ডাক্তার অনারিয়াম ফি (USG Doctor Honorarium):</td>
-              <td class="text-right" style="color: #dc2626;">-৳${entry.usgDoctorFeePaid.toLocaleString()}</td>
+              <td class="text-right" style="color: #dc2626;">-৳${(Number(entry.usgDoctorFeePaid) || 0).toLocaleString()}</td>
             </tr>
             <tr class="grand-total-row" style="background: #1e293b; color: #fff;">
               <td>ক্লিনিকের নিট ক্যাশ জমা (Net Center Cash In Hand):</td>
-              <td class="text-right">৳${((entry.cashCollected || 0) - (entry.doctorCommissionPaid || 0) - (entry.usgDoctorFeePaid || 0)).toLocaleString()}</td>
+              <td class="text-right">৳${((Number(entry.cashCollected) || 0) - (Number(entry.doctorCommissionPaid) || 0) - (Number(entry.usgDoctorFeePaid) || 0)).toLocaleString()}</td>
             </tr>
           </tbody>
         </table>
@@ -643,11 +772,24 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
         </div>
       </header>
 
-      {/* Success Notification */}
+      {/* Success Notification Modal */}
       {successMsg && (
-        <div className="fixed top-20 right-6 z-50 animate-bounce">
-          <div className="bg-emerald-600 text-white px-6 py-3 rounded-2xl font-black shadow-2xl flex items-center gap-3 border border-emerald-400 text-xs uppercase tracking-wide">
-            <CheckCircle2 size={18} /> {successMsg}
+        <div className="fixed inset-0 z-[100001] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in pointer-events-auto">
+          <div className="bg-slate-900 border-2 border-emerald-500 p-6 sm:p-8 rounded-3xl max-w-md w-full text-center shadow-2xl space-y-4">
+            <div className="w-16 h-16 bg-emerald-500/20 text-emerald-400 rounded-full flex items-center justify-center mx-auto text-3xl">
+              ✓
+            </div>
+            <h3 className="text-xl font-black text-white font-['Hind_Siliguri']">অপারেশন সম্পন্ন হয়েছে</h3>
+            <p className="text-sm font-bold text-emerald-300">
+              {successMsg}
+            </p>
+            <button
+              type="button"
+              onClick={() => setSuccessMsg(null)}
+              className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-black rounded-2xl text-xs uppercase tracking-wider transition-all shadow-lg active:scale-95 cursor-pointer"
+            >
+              ঠিক আছে (OK)
+            </button>
           </div>
         </div>
       )}
@@ -656,6 +798,25 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
       <main className="flex-1 p-3 sm:p-5 md:p-6 w-full overflow-y-auto">
         {activeSubTab === 'new_entry' && (
           <form onSubmit={handleSaveEntry} className="space-y-6 max-w-7xl mx-auto animate-fade-in">
+            {/* Editing Notice Banner */}
+            {editingRecordId && (
+              <div className="bg-amber-950/90 border-2 border-amber-500 text-amber-200 p-4 rounded-3xl flex items-center justify-between shadow-xl">
+                <div className="flex items-center gap-3">
+                  <span className="text-xl">✏️</span>
+                  <span className="text-xs font-bold">
+                    আপনি বর্তমানে ভাউচার আইডি <span className="font-mono text-white font-black">{editingRecordId}</span> সম্পাদনা (Edit) করছেন। সেভ করলে এটি আপডেট হয়ে যাবে।
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleCancelEdit}
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold"
+                >
+                  বাতিল করুন
+                </button>
+              </div>
+            )}
+
             {/* Entry Mode Switcher: Daily vs Monthly */}
             <div className="bg-slate-900/90 border border-slate-800 p-4 sm:p-5 rounded-3xl shadow-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div>
@@ -696,7 +857,7 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
                     <label className={labelClass}>📅 তারিখ (Voucher Date)</label>
                     <input
                       type="date"
-                      value={formData.date}
+                      value={formData.date || ''}
                       onChange={e => setFormData({ ...formData, date: e.target.value })}
                       className={inputClass}
                       required
@@ -706,7 +867,7 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
                   <div>
                     <label className={labelClass}>⏱️ শিফট / সেশন (Shift)</label>
                     <select
-                      value={formData.shift}
+                      value={formData.shift || 'Full Day'}
                       onChange={e => setFormData({ ...formData, shift: e.target.value as any })}
                       className={inputClass}
                     >
@@ -751,7 +912,7 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
                 <label className={labelClass}>👤 ক্যাশিয়ার / অপারেটর (Operator)</label>
                 <input
                   type="text"
-                  value={formData.operatorName}
+                  value={formData.operatorName || ''}
                   onChange={e => setFormData({ ...formData, operatorName: e.target.value })}
                   className={inputClass}
                   placeholder="e.g. Cashier 1"
@@ -766,7 +927,7 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
                 <input
                   type="number"
                   min="0"
-                  value={formData.totalPatients || ''}
+                  value={formData.totalPatients !== undefined && formData.totalPatients !== null ? formData.totalPatients : ''}
                   onChange={e => setFormData({ ...formData, totalPatients: parseInt(e.target.value) || 0 })}
                   className={inputClass}
                   placeholder="e.g. 45"
@@ -806,7 +967,7 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
                     <input
                       type="number"
                       min="0"
-                      value={formData.breakdown?.pathology || ''}
+                      value={formData.breakdown?.pathology !== undefined && formData.breakdown?.pathology !== null ? formData.breakdown.pathology : ''}
                       onChange={e => handleBreakdownField('pathology', parseFloat(e.target.value) || 0)}
                       className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white font-mono font-bold text-sm text-right outline-none"
                       placeholder="0"
@@ -818,7 +979,7 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
                     <input
                       type="number"
                       min="0"
-                      value={formData.breakdown?.usg || ''}
+                      value={formData.breakdown?.usg !== undefined && formData.breakdown?.usg !== null ? formData.breakdown.usg : ''}
                       onChange={e => handleBreakdownField('usg', parseFloat(e.target.value) || 0)}
                       className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white font-mono font-bold text-sm text-right outline-none"
                       placeholder="0"
@@ -830,7 +991,7 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
                     <input
                       type="number"
                       min="0"
-                      value={formData.breakdown?.xray || ''}
+                      value={formData.breakdown?.xray !== undefined && formData.breakdown?.xray !== null ? formData.breakdown.xray : ''}
                       onChange={e => handleBreakdownField('xray', parseFloat(e.target.value) || 0)}
                       className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white font-mono font-bold text-sm text-right outline-none"
                       placeholder="0"
@@ -842,7 +1003,7 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
                     <input
                       type="number"
                       min="0"
-                      value={formData.breakdown?.ecg || ''}
+                      value={formData.breakdown?.ecg !== undefined && formData.breakdown?.ecg !== null ? formData.breakdown.ecg : ''}
                       onChange={e => handleBreakdownField('ecg', parseFloat(e.target.value) || 0)}
                       className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white font-mono font-bold text-sm text-right outline-none"
                       placeholder="0"
@@ -854,7 +1015,7 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
                     <input
                       type="number"
                       min="0"
-                      value={formData.breakdown?.hormone || ''}
+                      value={formData.breakdown?.hormone !== undefined && formData.breakdown?.hormone !== null ? formData.breakdown.hormone : ''}
                       onChange={e => handleBreakdownField('hormone', parseFloat(e.target.value) || 0)}
                       className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white font-mono font-bold text-sm text-right outline-none"
                       placeholder="0"
@@ -866,7 +1027,7 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
                     <input
                       type="number"
                       min="0"
-                      value={formData.breakdown?.others || ''}
+                      value={formData.breakdown?.others !== undefined && formData.breakdown?.others !== null ? formData.breakdown.others : ''}
                       onChange={e => handleBreakdownField('others', parseFloat(e.target.value) || 0)}
                       className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white font-mono font-bold text-sm text-right outline-none"
                       placeholder="0"
@@ -879,7 +1040,7 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
                   <input
                     type="number"
                     min="0"
-                    value={formData.grossAmount || ''}
+                    value={formData.grossAmount !== undefined && formData.grossAmount !== null ? formData.grossAmount : ''}
                     onChange={e => handleGrossOrDiscountChange(parseFloat(e.target.value) || 0, Number(formData.discountAmount) || 0, Number(formData.cashCollected) || 0)}
                     className="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white font-mono font-black text-lg outline-none"
                     placeholder="0"
@@ -903,7 +1064,7 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
                     <input
                       type="number"
                       min="0"
-                      value={formData.discountAmount || ''}
+                      value={formData.discountAmount !== undefined && formData.discountAmount !== null ? formData.discountAmount : ''}
                       onChange={e => handleGrossOrDiscountChange(Number(formData.grossAmount) || 0, parseFloat(e.target.value) || 0, Number(formData.cashCollected) || 0)}
                       className="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-rose-400 font-black text-base text-right outline-none"
                       placeholder="0"
@@ -915,7 +1076,7 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
                     <input
                       type="number"
                       min="0"
-                      value={formData.cashCollected || ''}
+                      value={formData.cashCollected !== undefined && formData.cashCollected !== null ? formData.cashCollected : ''}
                       onChange={e => handleGrossOrDiscountChange(Number(formData.grossAmount) || 0, Number(formData.discountAmount) || 0, parseFloat(e.target.value) || 0)}
                       className="w-full bg-slate-950 border-2 border-emerald-500/80 rounded-xl p-3 text-emerald-400 font-black text-lg text-right outline-none focus:ring-2 focus:ring-emerald-500/50"
                       placeholder="0"
@@ -930,7 +1091,7 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
                     <input
                       type="number"
                       min="0"
-                      value={formData.doctorCommissionPaid || ''}
+                      value={formData.doctorCommissionPaid !== undefined && formData.doctorCommissionPaid !== null ? formData.doctorCommissionPaid : ''}
                       onChange={e => setFormData({ ...formData, doctorCommissionPaid: parseFloat(e.target.value) || 0 })}
                       className="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-amber-300 font-black text-sm text-right outline-none"
                       placeholder="0"
@@ -942,7 +1103,7 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
                     <input
                       type="number"
                       min="0"
-                      value={formData.usgDoctorFeePaid || ''}
+                      value={formData.usgDoctorFeePaid !== undefined && formData.usgDoctorFeePaid !== null ? formData.usgDoctorFeePaid : ''}
                       onChange={e => setFormData({ ...formData, usgDoctorFeePaid: parseFloat(e.target.value) || 0 })}
                       className="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-amber-300 font-black text-sm text-right outline-none"
                       placeholder="0"
@@ -954,7 +1115,7 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
                   <label className={labelClass}>📝 বিবরণী বা নোট (Remarks / Notes)</label>
                   <textarea
                     rows={2}
-                    value={formData.notes}
+                    value={formData.notes || ''}
                     onChange={e => setFormData({ ...formData, notes: e.target.value })}
                     className="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-slate-200 text-xs font-bold outline-none"
                     placeholder={entryMode === 'monthly' ? `মাসিক এককালীন এন্ট্রি: ${BENGALI_MONTHS[selectedMonth]?.bn} ${selectedYear}...` : "ব্যস্ত দিনের নোট বা অতিরিক্ত তথ্য লিখুন..."}
@@ -1016,7 +1177,7 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
                     <span className="text-xs text-emerald-400 font-bold">(ক্যাশ আদায় - কমিশন)</span>
                   </div>
                   <span className="text-2xl font-black text-emerald-400 font-mono">
-                    ৳{calculatedNetCenterIncome.toLocaleString()}
+                    ৳{(Number(calculatedNetCenterIncome) || 0).toLocaleString()}
                   </span>
                 </div>
 
@@ -1038,13 +1199,30 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
         {/* History Tab */}
         {activeSubTab === 'history' && (
           <div className="space-y-6 animate-fade-in max-w-7xl mx-auto">
+            {/* Quick Clean Auto Entries Banner */}
+            <div className="bg-slate-900 border border-slate-800 p-4 sm:p-5 rounded-3xl shadow-xl flex flex-col sm:flex-row justify-between items-center gap-4">
+              <div className="text-slate-300 text-xs font-bold flex items-center gap-2">
+                <span className="text-lg">🧹</span>
+                <span>
+                  <b>অটো-জেনারেটেড ডামি এন্ট্রি পরিষ্কার:</b> সফটওয়্যার আপডেট বা সিঙ্কের কারণে জানুয়ারি/ফেব্রুয়ারি/মার্চ বা অন্য মাসের ১ তারিখে কোনো অতিরিক্ত ডামি এন্ট্রি এসে থাকলে এক ক্লিকে তা মুছে ফেলুন (আগস্ট ও সেপ্টেম্বর সুরক্ষিত থাকবে)।
+                </span>
+              </div>
+              <button
+                onClick={() => setShowCleanAutoModal(true)}
+                disabled={isSaving}
+                className="px-5 py-2.5 bg-amber-600 hover:bg-amber-500 text-white font-black rounded-2xl text-xs uppercase tracking-wide transition-all shadow-md active:scale-95 shrink-0"
+              >
+                {isSaving ? 'পরিষ্কার হচ্ছে...' : '⚡ ১ তারিখের ডামি এন্ট্রিগুলো মুছুন'}
+              </button>
+            </div>
+
             {/* Filter Bar */}
             <div className="bg-slate-900 border border-slate-800 p-4 sm:p-5 rounded-3xl shadow-xl flex flex-col lg:flex-row justify-between items-center gap-4">
               <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
                 <div>
                   <label className="text-[10px] font-black text-slate-400 uppercase block mb-1">এন্ট্রি ধরন</label>
                   <select
-                    value={historyTypeFilter}
+                    value={historyTypeFilter || 'all'}
                     onChange={e => setHistoryTypeFilter(e.target.value as any)}
                     className="bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-bold text-xs outline-none"
                   >
@@ -1057,7 +1235,7 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
                 <div>
                   <label className="text-[10px] font-black text-slate-400 uppercase block mb-1">মাস ফিল্টার</label>
                   <select
-                    value={historyMonthFilter}
+                    value={historyMonthFilter || 'all'}
                     onChange={e => setHistoryMonthFilter(e.target.value)}
                     className="bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-bold text-xs outline-none"
                   >
@@ -1071,7 +1249,7 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
                 <div>
                   <label className="text-[10px] font-black text-slate-400 uppercase block mb-1">বৎসর ফিল্টার</label>
                   <select
-                    value={historyYearFilter}
+                    value={historyYearFilter || 'all'}
                     onChange={e => setHistoryYearFilter(e.target.value)}
                     className="bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-bold text-xs outline-none"
                   >
@@ -1086,7 +1264,7 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
                   <label className="text-[10px] font-black text-slate-400 uppercase block mb-1">নির্দিষ্ট তারিখ</label>
                   <input
                     type="date"
-                    value={searchDate}
+                    value={searchDate || ''}
                     onChange={e => setSearchDate(e.target.value)}
                     className="bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-bold text-xs outline-none"
                   />
@@ -1111,17 +1289,17 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
               <div className="flex flex-wrap items-center gap-4 text-xs font-bold bg-slate-950 px-5 py-3 rounded-2xl border border-slate-800 self-stretch lg:self-auto justify-around">
                 <div>
                   <span className="text-slate-400 block text-[10px] uppercase">মোট রোগী:</span>
-                  <span className="text-white font-mono font-black">{historyStats.patients} জন</span>
+                  <span className="text-white font-mono font-black">{Number(historyStats?.patients || 0).toLocaleString()} জন</span>
                 </div>
                 <div className="h-6 w-px bg-slate-800"></div>
                 <div>
                   <span className="text-slate-400 block text-[10px] uppercase">মোট ক্যাশ আদায়:</span>
-                  <span className="text-emerald-400 font-mono font-black">৳{historyStats.cash.toLocaleString()}</span>
+                  <span className="text-emerald-400 font-mono font-black">৳{(Number(historyStats?.cash) || 0).toLocaleString()}</span>
                 </div>
                 <div className="h-6 w-px bg-slate-800"></div>
                 <div>
                   <span className="text-slate-400 block text-[10px] uppercase">মোট বকেয়া:</span>
-                  <span className="text-rose-400 font-mono font-black">৳{historyStats.due.toLocaleString()}</span>
+                  <span className="text-rose-400 font-mono font-black">৳{(Number(historyStats?.due) || 0).toLocaleString()}</span>
                 </div>
               </div>
             </div>
@@ -1136,7 +1314,7 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
                   </span>
                 </div>
                 <button
-                  onClick={handleCleanDuplicates}
+                  onClick={() => setShowCleanDuplicatesModal(true)}
                   disabled={isSaving}
                   className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl text-xs uppercase tracking-wide transition-all shadow-md active:scale-95 shrink-0"
                 >
@@ -1151,6 +1329,8 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
                 <table className="w-full text-left border-collapse text-xs">
                   <thead className="bg-slate-950 text-slate-400 uppercase font-black tracking-wider border-b border-slate-800">
                     <tr>
+                      <th className="p-4 text-center">ক্রমিক (SL)</th>
+                      <th className="p-4">এন্ট্রি তৈরির তারিখ ও সময়</th>
                       <th className="p-4">তারিখ / মাস-বছর</th>
                       <th className="p-4">এন্ট্রি টাইপ ও শিফট</th>
                       <th className="p-4">অপারেটর</th>
@@ -1166,18 +1346,22 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
                   <tbody className="divide-y divide-slate-800 font-bold">
                     {filteredEntries.length === 0 ? (
                       <tr>
-                        <td colSpan={10} className="p-8 text-center text-slate-500 font-bold">
+                        <td colSpan={12} className="p-8 text-center text-slate-500 font-bold">
                           কোনো কনসোলিডেটেড রেকর্ড পাওয়া যায়নি।
                         </td>
                       </tr>
                     ) : (
-                      filteredEntries.map(row => {
+                      filteredEntries.map((row, index) => {
                         const isRowMonthly = row.entryType === 'monthly' || row.shift === 'Monthly';
                         const rowMonth = row.month !== undefined ? row.month : (row.date ? parseInt(row.date.split('-')[1]) - 1 : 0);
                         const rowYear = row.year !== undefined ? row.year : (row.date ? row.date.split('-')[0] : '');
 
                         return (
                           <tr key={row.id} className="hover:bg-slate-800/50 transition-colors">
+                            <td className="p-4 text-center font-mono text-slate-400">{index + 1}</td>
+                            <td className="p-4 font-mono text-slate-300 text-[11px]">
+                              {row.createdAt ? new Date(row.createdAt).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' }) : (row.date || 'N/A')}
+                            </td>
                             <td className="p-4 font-mono text-slate-200">
                               {isRowMonthly ? (
                                 <span className="font-bold text-emerald-400">
@@ -1202,13 +1386,20 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
                             </td>
                             <td className="p-4 text-slate-300">{row.operatorName}</td>
                             <td className="p-4 text-center font-mono">{row.totalPatients}</td>
-                            <td className="p-4 text-right font-mono">৳{row.grossAmount.toLocaleString()}</td>
-                            <td className="p-4 text-right font-mono text-rose-400">-৳{row.discountAmount.toLocaleString()}</td>
-                            <td className="p-4 text-right font-mono text-sky-300">৳{row.netPayable.toLocaleString()}</td>
-                            <td className="p-4 text-right font-mono text-emerald-400 font-black">৳{row.cashCollected.toLocaleString()}</td>
-                            <td className="p-4 text-right font-mono text-amber-400">৳{row.dueAmount.toLocaleString()}</td>
+                            <td className="p-4 text-right font-mono">৳{(Number(row.grossAmount) || 0).toLocaleString()}</td>
+                            <td className="p-4 text-right font-mono text-rose-400">-৳{(Number(row.discountAmount) || 0).toLocaleString()}</td>
+                            <td className="p-4 text-right font-mono text-sky-300">৳{(Number(row.netPayable) || 0).toLocaleString()}</td>
+                            <td className="p-4 text-right font-mono text-emerald-400 font-black">৳{(Number(row.cashCollected) || 0).toLocaleString()}</td>
+                            <td className="p-4 text-right font-mono text-amber-400">৳{(Number(row.dueAmount) || 0).toLocaleString()}</td>
                             <td className="p-4 text-center">
                               <div className="flex items-center justify-center gap-2">
+                                <button
+                                  onClick={() => handleStartEdit(row)}
+                                  className="p-2 bg-amber-600/20 hover:bg-amber-600 text-amber-300 hover:text-white rounded-xl transition-all shadow"
+                                  title="সম্পাদনা করুন"
+                                >
+                                  ✏️
+                                </button>
                                 <button
                                   onClick={() => handlePrintVoucher(row)}
                                   className="p-2 bg-sky-600/20 hover:bg-sky-600 text-sky-300 hover:text-white rounded-xl transition-all shadow"
@@ -1217,7 +1408,7 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
                                   <PrinterIcon size={14} />
                                 </button>
                                 <button
-                                  onClick={() => handleDelete(row.id)}
+                                  onClick={() => setEntryToDelete(row)}
                                   className="p-2 bg-rose-600/20 hover:bg-rose-600 text-rose-400 hover:text-white rounded-xl transition-all shadow"
                                   title="মুছে ফেলুন"
                                 >
@@ -1236,6 +1427,181 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
           </div>
         )}
       </main>
+
+      {/* In-App Confirmation Modal: Delete Single Entry */}
+      {entryToDelete && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[1000001] flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-fade-in pointer-events-auto">
+          <div className="bg-slate-900 border-2 border-rose-500 rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl text-center space-y-5">
+            <div className="w-16 h-16 bg-rose-500/20 text-rose-400 rounded-full flex items-center justify-center mx-auto text-3xl">
+              ⚠️
+            </div>
+            <div>
+              <h3 className="text-xl font-black text-white uppercase tracking-tight font-['Hind_Siliguri']">রেকর্ড মুছে ফেলার নিশ্চয়তা</h3>
+              <p className="text-xs text-slate-300 font-bold mt-1">
+                আপনি কি নিশ্চিত যে এই কনসোলিডেটেড রেকর্ডটি স্থায়ীভাবে ডাটাবেজ ও অনলাইন থেকে মুছে ফেলতে চান?
+              </p>
+            </div>
+            <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 text-left text-xs space-y-2 font-mono">
+              <div className="flex justify-between text-slate-400">
+                <span>ভাউচার আইডি:</span>
+                <span className="text-sky-400 font-bold">{entryToDelete.id}</span>
+              </div>
+              <div className="flex justify-between text-slate-400">
+                <span>তারিখ / মাস:</span>
+                <span className="text-white font-bold">
+                  {entryToDelete.entryType === 'monthly' || entryToDelete.shift === 'Monthly'
+                    ? `${BENGALI_MONTHS[entryToDelete.month ?? 0]?.bn} ${entryToDelete.year ?? ''}`
+                    : entryToDelete.date}
+                </span>
+              </div>
+              <div className="flex justify-between text-slate-400">
+                <span>মোট গ্রস বিল:</span>
+                <span className="text-white font-bold">৳{(Number(entryToDelete.grossAmount) || 0).toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between text-slate-400">
+                <span>ক্যাশ আদায়:</span>
+                <span className="text-emerald-400 font-bold">৳{(Number(entryToDelete.cashCollected) || 0).toLocaleString()}</span>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3 pt-2">
+              <button
+                type="button"
+                disabled={isDeletingRecord}
+                onClick={() => setEntryToDelete(null)}
+                className="py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-black rounded-2xl text-xs uppercase tracking-wider transition-all disabled:opacity-50 cursor-pointer"
+              >
+                বাতিল করুন
+              </button>
+              <button
+                type="button"
+                disabled={isDeletingRecord}
+                onClick={confirmDeleteRecord}
+                className="py-3 bg-rose-600 hover:bg-rose-500 text-white font-black rounded-2xl text-xs uppercase tracking-wider transition-all shadow-xl shadow-rose-900/30 active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
+              >
+                {isDeletingRecord ? 'মুছে ফেলা হচ্ছে...' : '🗑️ হ্যাঁ, মুছে ফেলুন'}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* In-App Confirmation Modal: Clean Auto Entries */}
+      {showCleanAutoModal && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[1000001] flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-fade-in pointer-events-auto">
+          <div className="bg-slate-900 border-2 border-amber-500 rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl text-center space-y-5">
+            <div className="w-16 h-16 bg-amber-500/20 text-amber-400 rounded-full flex items-center justify-center mx-auto text-3xl">
+              🧹
+            </div>
+            <div>
+              <h3 className="text-xl font-black text-white uppercase tracking-tight font-['Hind_Siliguri']">ডামি অটো-এন্ট্রি পরিষ্কার</h3>
+              <p className="text-xs text-slate-300 font-bold mt-2 leading-relaxed">
+                সফটওয়্যার আপডেট বা সিঙ্কের কারণে তৈরি হওয়া জানুয়ারি, ফেব্রুয়ারি ও মার্চ মাসের ১ তারিখের অতিরিক্ত ডামি রেকর্ডগুলো মুছে ফেলা হবে।
+              </p>
+              <p className="text-xs text-emerald-400 font-bold mt-1">
+                (আপনার আগস্ট মাসের ৳৪,৮৯,৫৬৯ ও সেপ্টেম্বর মাসের ৳২০,০০০ কালেকশন সম্পূর্ণ সুরক্ষিত থাকবে)
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-3 pt-2">
+              <button
+                type="button"
+                disabled={isCleaningAuto}
+                onClick={() => setShowCleanAutoModal(false)}
+                className="py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-black rounded-2xl text-xs uppercase tracking-wider transition-all disabled:opacity-50 cursor-pointer"
+              >
+                বাতিল করুন
+              </button>
+              <button
+                type="button"
+                disabled={isCleaningAuto}
+                onClick={confirmCleanAutoEntries}
+                className="py-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-2xl text-xs uppercase tracking-wider transition-all shadow-xl active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
+              >
+                {isCleaningAuto ? 'পরিষ্কার হচ্ছে...' : '⚡ হ্যাঁ, পরিষ্কার করুন'}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* In-App Confirmation Modal: Clean Duplicates */}
+      {showCleanDuplicatesModal && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[1000001] flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-fade-in pointer-events-auto">
+          <div className="bg-slate-900 border-2 border-amber-500 rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl text-center space-y-5">
+            <div className="w-16 h-16 bg-amber-500/20 text-amber-400 rounded-full flex items-center justify-center mx-auto text-3xl">
+              ⚠️
+            </div>
+            <div>
+              <h3 className="text-xl font-black text-white uppercase tracking-tight font-['Hind_Siliguri']">ডুপ্লিকেট রেকর্ড পরিষ্কার</h3>
+              <p className="text-xs text-slate-300 font-bold mt-2">
+                শনাক্তকৃত {duplicateEntryIds.length}টি ডুপ্লিকেট রেকর্ড স্থায়ীভাবে মুছে ফেলা হবে। একটি মূল রেকর্ড অক্ষত রাখা হবে।
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-3 pt-2">
+              <button
+                type="button"
+                disabled={isCleaningDuplicates}
+                onClick={() => setShowCleanDuplicatesModal(false)}
+                className="py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-black rounded-2xl text-xs uppercase tracking-wider transition-all disabled:opacity-50 cursor-pointer"
+              >
+                বাতিল করুন
+              </button>
+              <button
+                type="button"
+                disabled={isCleaningDuplicates}
+                onClick={confirmCleanDuplicates}
+                className="py-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-2xl text-xs uppercase tracking-wider transition-all shadow-xl active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
+              >
+                {isCleaningDuplicates ? 'পরিষ্কার হচ্ছে...' : '⚡ হ্যাঁ, ডুপ্লিকেট মুছুন'}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Full-Screen Blocking Loading Overlay During Delete/Clean Operation */}
+      {(isDeletingRecord || isCleaningAuto || isCleaningDuplicates) && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[1000003] bg-slate-950/90 backdrop-blur-xl flex flex-col items-center justify-center p-6 text-center select-none cursor-wait pointer-events-auto">
+          <div className="relative mb-8">
+            <div className="w-24 h-24 border-4 border-rose-500/20 border-t-rose-500 rounded-full animate-spin"></div>
+            <div className="absolute inset-0 flex items-center justify-center text-rose-500 text-3xl font-black">
+              🗑️
+            </div>
+          </div>
+          <h3 className="text-2xl font-black text-white mb-3 font-['Hind_Siliguri'] tracking-wide">
+            অনলাইনে ডাটা মুছে ফেলা হচ্ছে...
+          </h3>
+          <p className="text-slate-300 font-medium text-sm max-w-md">
+            ক্লাউড ডাটাবেজ আপডেট সম্পন্ন না হওয়া পর্যন্ত অন্য কোনো কাজ করা যাবে না। অনুগ্রহ করে কিছুক্ষণ অপেক্ষা করুন।
+          </p>
+        </div>,
+        document.body
+      )}
+
+      {/* Success Notification Modal */}
+      {deleteSuccessModalMsg && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[1000002] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-fade-in pointer-events-auto">
+          <div className="bg-slate-900 border-2 border-emerald-500 p-6 sm:p-8 rounded-3xl max-w-md w-full text-center shadow-2xl space-y-4">
+            <div className="w-16 h-16 bg-emerald-500/20 text-emerald-400 rounded-full flex items-center justify-center mx-auto text-3xl font-bold">
+              ✓
+            </div>
+            <h3 className="text-xl font-black text-white font-['Hind_Siliguri']">ডাটা মুছে ফেলা সম্পন্ন হয়েছে</h3>
+            <p className="text-sm font-bold text-emerald-300">
+              {deleteSuccessModalMsg}
+            </p>
+            <button
+              type="button"
+              onClick={() => setDeleteSuccessModalMsg(null)}
+              className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-black rounded-2xl text-xs uppercase tracking-wider transition-all shadow-lg active:scale-95 cursor-pointer"
+            >
+              ঠিক আছে (OK)
+            </button>
+          </div>
+        </div>,
+        document.body
+      )}
 
       {/* Auto-Prompt Print Modal after save */}
       {printingEntry && (

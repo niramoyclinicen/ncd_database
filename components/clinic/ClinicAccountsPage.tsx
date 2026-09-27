@@ -3,7 +3,7 @@ import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ExpenseItem, Employee, DueCollection, IndoorInvoice } from '../DiagnosticData';
 import { ClinicIcon, Activity, BackIcon, FileTextIcon, PrinterIcon, SearchIcon, AlertCircle, EditIcon } from '../Icons';
-import { dbService } from '../../dbService';
+import { dbService, normalizeDate } from '../../dbService';
 
 // --- Clinic Specific Categories ---
 const clinicExpenseCategories = [
@@ -993,11 +993,10 @@ const ClinicAccountsPage: React.FC<any> = ({
         const safeInvoices = Array.isArray(invoices) ? invoices : [];
         const monthInvoices = safeInvoices.filter((inv:any) => {
             if (!inv) return false;
-            const dateToUse = inv.admission_date || inv.invoice_date;
-            if (!dateToUse || typeof dateToUse !== 'string') return false;
-            const parts = dateToUse.split('-');
-            if (parts.length < 2) return false;
-            const [y, m] = parts.map(Number);
+            const dateToUse = inv.admission_date || inv.invoice_date || inv.date || '';
+            const norm = normalizeDate(dateToUse);
+            if (!norm) return false;
+            const [y, m] = norm.split('-').map(Number);
             return (m - 1) === selectedMonth && y === selectedYear;
         });
         
@@ -1005,10 +1004,9 @@ const ClinicAccountsPage: React.FC<any> = ({
         const monthDueRecov = safeDueCollections.filter((dc:any) => {
             if (!dc) return false;
             const isClinic = dc.invoice_id && !dc.invoice_id.startsWith('INV-');
-            if (!dc.collection_date) return false;
-            const parts = dc.collection_date.split('-');
-            if (parts.length < 2) return false;
-            const [y, m] = parts.map(Number);
+            const norm = normalizeDate(dc.collection_date || dc.date || '');
+            if (!norm) return false;
+            const [y, m] = norm.split('-').map(Number);
             return (m - 1) === selectedMonth && y === selectedYear && isClinic;
         }).reduce((sum:any, dc:any) => sum + (dc.amount_collected || 0), 0);
 
@@ -1038,39 +1036,55 @@ const ClinicAccountsPage: React.FC<any> = ({
 
         const expensesByCategory: Record<string, number> = {};
         clinicExpenseCategories.forEach(cat => expensesByCategory[cat] = 0);
-        Object.entries(detailedExpenses || {}).forEach(([date, items]:any) => {
-            const parts = (date || '').split('-');
-            if (parts.length < 2) return;
-            const [y, m] = parts.map(Number);
-            if(m - 1 === selectedMonth && y === selectedYear) {
-                (Array.isArray(items) ? items : []).forEach((it:any) => {
-                    if (it && !it.isDeleted && (it.dept === 'Clinic' || (!it.dept && clinicExpenseCategories.includes(it.category)))) {
-                        expensesByCategory[it.category] = (expensesByCategory[it.category] || 0) + (it.paidAmount || 0);
-                    }
-                });
+        const addSummaryExp = (it: any, fallbackDate?: string) => {
+            if (!it || it.isDeleted) return;
+            const norm = normalizeDate(it.date || fallbackDate || '');
+            if (!norm) return;
+            const [y, m] = norm.split('-').map(Number);
+            if (m - 1 === selectedMonth && y === selectedYear) {
+                if (it.dept === 'Clinic' || (!it.dept && clinicExpenseCategories.includes(it.category))) {
+                    expensesByCategory[it.category] = (expensesByCategory[it.category] || 0) + (it.paidAmount || 0);
+                }
             }
-        });
+        };
+        if (Array.isArray(detailedExpenses)) {
+            detailedExpenses.forEach(it => addSummaryExp(it));
+        } else if (detailedExpenses && typeof detailedExpenses === 'object') {
+            Object.entries(detailedExpenses).forEach(([date, items]: any) => {
+                const list = Array.isArray(items) ? items : (items && typeof items === 'object' ? Object.values(items) : []);
+                list.forEach((it: any) => addSummaryExp(it, date));
+            });
+        }
         const totalExpense = Object.values(expensesByCategory).reduce((s, v) => s + v, 0);
         return { totalCollection: totalCollectionIncludingDue, collectionByCategory, monthDueRecov, expensesByCategory, totalExpense, balance: totalCollectionIncludingDue - totalExpense };
     }, [selectedMonth, selectedYear, invoices, dueCollections, detailedExpenses, categorizeInvoiceData]);
 
     const clinicExpenseJournalData = useMemo(() => {
         const allClinicExpenses: any[] = [];
-        Object.entries(detailedExpenses || {}).forEach(([date, items]: any) => {
-            (Array.isArray(items) ? items : []).forEach((it: any) => {
-                if (it && !it.isDeleted && (it.dept === 'Clinic' || (!it.dept && clinicExpenseCategories.includes(it.category)))) {
-                    allClinicExpenses.push({ ...it, date });
-                }
+        const addJournalExp = (it: any, fallbackDate?: string) => {
+            if (!it || it.isDeleted) return;
+            const norm = normalizeDate(it.date || fallbackDate || '');
+            if (!norm) return;
+            if (it.dept === 'Clinic' || (!it.dept && clinicExpenseCategories.includes(it.category))) {
+                allClinicExpenses.push({ ...it, date: norm });
+            }
+        };
+        if (Array.isArray(detailedExpenses)) {
+            detailedExpenses.forEach(it => addJournalExp(it));
+        } else if (detailedExpenses && typeof detailedExpenses === 'object') {
+            Object.entries(detailedExpenses).forEach(([date, items]: any) => {
+                const list = Array.isArray(items) ? items : (items && typeof items === 'object' ? Object.values(items) : []);
+                list.forEach((it: any) => addJournalExp(it, date));
             });
-        });
+        }
 
         const filtered = allClinicExpenses.filter(ex => {
             if (!ex || !ex.date) return false;
             const matchesSearch = !expSearch || (ex.description || '').toLowerCase().includes(expSearch.toLowerCase()) || (ex.subCategory || '').toLowerCase().includes(expSearch.toLowerCase());
             const matchesDate = !expDateSearch || ex.date === expDateSearch;
-            const parts = ex.date.split('-');
-            if (parts.length < 2) return false;
-            const [y, m] = parts.map(Number);
+            const norm = normalizeDate(ex.date);
+            if (!norm) return false;
+            const [y, m] = norm.split('-').map(Number);
             const matchesMonth = expMonthSearch === '' || (m - 1) === expMonthSearch;
             const matchesYear = expYearSearch === '' || y === expYearSearch;
             const matchesCategory = !expCategorySearch || ex.category === expCategorySearch;
@@ -1089,9 +1103,26 @@ const ClinicAccountsPage: React.FC<any> = ({
         const columnTotals: Record<string, number> = {};
         clinicExpenseCategories.forEach(cat => columnTotals[cat] = 0);
 
+        const expMap = new Map<string, any[]>();
+        const addExp = (it: any, fallbackDate?: string) => {
+            if (!it || it.isDeleted) return;
+            const norm = normalizeDate(it.date || fallbackDate || '');
+            if (!norm) return;
+            if (!expMap.has(norm)) expMap.set(norm, []);
+            expMap.get(norm)!.push(it);
+        };
+        if (Array.isArray(detailedExpenses)) {
+            detailedExpenses.forEach(it => addExp(it));
+        } else if (detailedExpenses && typeof detailedExpenses === 'object') {
+            Object.entries(detailedExpenses).forEach(([date, items]: any) => {
+                const list = Array.isArray(items) ? items : (items && typeof items === 'object' ? Object.values(items) : []);
+                list.forEach((it: any) => addExp(it, date));
+            });
+        }
+
         for (let day = 1; day <= daysInMonth; day++) {
             const dateStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-            const dailyExps = (Array.isArray(detailedExpenses[dateStr]) ? detailedExpenses[dateStr] : []).filter((it: any) => it && !it.isDeleted && (it.dept === 'Clinic' || (!it.dept && clinicExpenseCategories.includes(it.category))));
+            const dailyExps = (expMap.get(dateStr) || []).filter((it: any) => it && !it.isDeleted && (it.dept === 'Clinic' || (!it.dept && clinicExpenseCategories.includes(it.category))));
             
             const rowCategories: Record<string, number> = {};
             clinicExpenseCategories.forEach(cat => rowCategories[cat] = 0);
@@ -1122,12 +1153,18 @@ const ClinicAccountsPage: React.FC<any> = ({
 
     const dailySummaryData = useMemo(() => {
         const safeInvoices = Array.isArray(invoices) ? invoices : [];
-        const dayInvoices = safeInvoices.filter((inv: any) => (inv.admission_date || inv.invoice_date) === selectedDate);
+        const dayInvoices = safeInvoices.filter((inv: any) => {
+            const raw = inv.admission_date || inv.invoice_date || '';
+            const norm = normalizeDate(raw);
+            return norm === selectedDate || raw === selectedDate;
+        });
         
         const safeDueCollections = Array.isArray(dueCollections) ? dueCollections : [];
         const dayDueRecov = safeDueCollections.filter((dc: any) => {
             const isClinic = dc && dc.invoice_id && !dc.invoice_id.startsWith('INV-');
-            return dc && dc.collection_date === selectedDate && isClinic;
+            const raw = dc.collection_date || dc.date || '';
+            const norm = normalizeDate(raw);
+            return (norm === selectedDate || raw === selectedDate) && isClinic;
         }).reduce((sum: any, dc: any) => sum + (dc.amount_collected || 0), 0);
 
         const collectionByCategory = dayInvoices.reduce((acc, inv) => {
@@ -1156,14 +1193,29 @@ const ClinicAccountsPage: React.FC<any> = ({
         }, 0);
 
         const totalCollection = totalClinicNetOnly + dayDueRecov;
-        const dayExpenses = (Array.isArray(detailedExpenses && detailedExpenses[selectedDate]) ? detailedExpenses[selectedDate] : []).filter((it: any) => it && !it.isDeleted && (it.dept === 'Clinic' || (!it.dept && clinicExpenseCategories.includes(it.category))));
-        const totalExpense = dayExpenses.reduce((s: number, it: any) => s + (it.paidAmount || 0), 0);
-        
         const expensesByCategory: Record<string, number> = {};
         clinicExpenseCategories.forEach(cat => expensesByCategory[cat] = 0);
-        dayExpenses.forEach((it: any) => {
-            if (it) expensesByCategory[it.category] = (expensesByCategory[it.category] || 0) + (it.paidAmount || 0);
-        });
+        
+        let totalExpense = 0;
+        const addDayExp = (it: any, fallbackDate?: string) => {
+            if (!it || it.isDeleted) return;
+            const norm = normalizeDate(it.date || fallbackDate || '');
+            if (norm === selectedDate || fallbackDate === selectedDate) {
+                if (it.dept === 'Clinic' || (!it.dept && clinicExpenseCategories.includes(it.category))) {
+                    const amt = it.paidAmount || 0;
+                    expensesByCategory[it.category] = (expensesByCategory[it.category] || 0) + amt;
+                    totalExpense += amt;
+                }
+            }
+        };
+        if (Array.isArray(detailedExpenses)) {
+            detailedExpenses.forEach(it => addDayExp(it));
+        } else if (detailedExpenses && typeof detailedExpenses === 'object') {
+            Object.entries(detailedExpenses).forEach(([d, items]: any) => {
+                const list = Array.isArray(items) ? items : (items && typeof items === 'object' ? Object.values(items) : []);
+                list.forEach((it: any) => addDayExp(it, d));
+            });
+        }
 
         return { totalCollection, collectionByCategory, dayDueRecov, totalExpense, expensesByCategory, balance: totalCollection - totalExpense };
     }, [selectedDate, invoices, dueCollections, detailedExpenses, categorizeInvoiceData]);
@@ -1172,14 +1224,13 @@ const ClinicAccountsPage: React.FC<any> = ({
         const safeInvoices = Array.isArray(invoices) ? invoices : [];
         return safeInvoices.filter((inv: any) => {
             if (!inv || inv.status === 'Cancelled' || inv.status === 'Returned' || inv.status === 'Deleted') return false;
-            const dateToUse = inv.admission_date || inv.invoice_date;
+            const dateToUse = inv.admission_date || inv.invoice_date || '';
+            const norm = normalizeDate(dateToUse);
             if (isTodayFilter) {
-                if (dateToUse !== selectedDate) return false;
+                if (norm !== selectedDate && dateToUse !== selectedDate) return false;
             } else {
-                if (!dateToUse || typeof dateToUse !== 'string') return false;
-                const parts = dateToUse.split('-');
-                if (parts.length < 2) return false;
-                const [y, m] = parts.map(Number);
+                if (!norm) return false;
+                const [y, m] = norm.split('-').map(Number);
                 if ((m - 1) !== selectedMonth || y !== selectedYear) return false;
             }
             return ((Number(inv.special_commission) || 0) + (Number(inv.commission_paid) || 0)) > 0;
@@ -1194,12 +1245,11 @@ const ClinicAccountsPage: React.FC<any> = ({
                 const st = String(inv.status || '').toLowerCase().trim();
                 if (st === 'cancelled' || st === 'deleted' || st === 'returned' || inv.isDeleted) return false;
             }
-            const dateToUse = inv.admission_date || inv.invoice_date;
-            if (isTodayFilter) return dateToUse === selectedDate;
-            if (!dateToUse || typeof dateToUse !== 'string') return false;
-            const parts = dateToUse.split('-');
-            if (parts.length < 2) return false;
-            const [y, m] = parts.map(Number);
+            const dateToUse = inv.admission_date || inv.invoice_date || '';
+            const norm = normalizeDate(dateToUse);
+            if (isTodayFilter) return norm === selectedDate || dateToUse === selectedDate;
+            if (!norm) return false;
+            const [y, m] = norm.split('-').map(Number);
             return (m - 1) === selectedMonth && y === selectedYear;
         });
 
@@ -1292,17 +1342,18 @@ const ClinicAccountsPage: React.FC<any> = ({
     const indoorJournalData = useMemo(() => {
         const safeInvoices = Array.isArray(invoices) ? invoices : [];
         const filtered = safeInvoices.filter((inv: any) => {
-            const dateToUse = inv.admission_date || inv.invoice_date;
+            const dateToUse = inv.admission_date || inv.invoice_date || '';
+            const normDate = normalizeDate(dateToUse);
             
             const matchesName = (inv.patient_name || '').toLowerCase().includes(invoiceSearch.toLowerCase()) || 
                                (inv.admission_id && inv.admission_id.toLowerCase().includes(invoiceSearch.toLowerCase()));
             
-            const matchesDate = invoiceDateSearch ? dateToUse === invoiceDateSearch : true;
+            const matchesDate = invoiceDateSearch ? (normDate === invoiceDateSearch || dateToUse === invoiceDateSearch) : true;
             
             let matchesMonth = true;
             let matchesYear = true;
-            if (dateToUse) {
-                const [y, m] = dateToUse.split('-').map(Number);
+            if (normDate) {
+                const [y, m] = normDate.split('-').map(Number);
                 matchesMonth = invoiceMonthSearch !== '' ? (m - 1) === invoiceMonthSearch : true;
                 matchesYear = invoiceYearSearch !== '' ? y === invoiceYearSearch : true;
             } else {
@@ -1312,7 +1363,7 @@ const ClinicAccountsPage: React.FC<any> = ({
             
             // If no specific search criteria, default to selectedDate
             if (!invoiceSearch && !invoiceDateSearch && invoiceMonthSearch === '' && invoiceYearSearch === '') {
-                return dateToUse === selectedDate;
+                return normDate === selectedDate || dateToUse === selectedDate;
             }
 
             return matchesName && matchesDate && matchesMonth && matchesYear;
