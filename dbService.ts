@@ -1290,71 +1290,23 @@ export const dbService = {
 
       state.detailedExpenses = cleanExpenses;
 
-      // Ensure August 2026 & September 2026 recovery fallback matching user screenshots
-      try {
-        if (!Array.isArray(state.consolidatedLabEntries)) state.consolidatedLabEntries = [];
-        const hasAugCons = state.consolidatedLabEntries.some((e: any) => {
-          const d = normalizeDate(e.date || e.created_at || '');
-          return d.startsWith('2026-08') || Number(e.month) === 7;
+      // Clean out any historical artificial dummy records to ensure 100% pure Supabase data
+      if (Array.isArray(state.consolidatedLabEntries)) {
+        state.consolidatedLabEntries = state.consolidatedLabEntries.filter((e: any) => {
+          const idStr = String(e.id || '');
+          return !idStr.includes('RECOVERED') && !idStr.includes('MCE-AUG-2026-RECOVERED') && !idStr.includes('MCE-SEP-2026-RECOVERED');
         });
-        if (!hasAugCons) {
-          state.consolidatedLabEntries.push({
-            id: 'MCE-AUG-2026-RECOVERED',
-            date: '2026-08-01',
-            shift: 'Monthly',
-            entryType: 'monthly',
-            month: 7,
-            year: 2026,
-            grossAmount: 489569,
-            netPayable: 489569,
-            cashCollected: 489569,
-            dueAmount: 0,
-            notes: 'মাসিক এককালীন এন্ট্রি: আগস্ট ২০২৬ (উদ্ধারকৃত)'
-          });
-        }
+      }
 
-        const hasSepCons = state.consolidatedLabEntries.some((e: any) => {
-          const d = normalizeDate(e.date || e.created_at || '');
-          return d.startsWith('2026-09') || Number(e.month) === 8;
+      if (state.detailedExpenses && typeof state.detailedExpenses === 'object') {
+        Object.keys(state.detailedExpenses).forEach(dKey => {
+          if (Array.isArray(state.detailedExpenses[dKey])) {
+            state.detailedExpenses[dKey] = state.detailedExpenses[dKey].filter((it: any) => {
+              const itId = String(it.id || '');
+              return !itId.startsWith('exp_aug_') && !itId.includes('RECOVERED');
+            });
+          }
         });
-        if (!hasSepCons) {
-          state.consolidatedLabEntries.push({
-            id: 'MCE-SEP-2026-RECOVERED',
-            date: '2026-09-01',
-            shift: 'Monthly',
-            entryType: 'monthly',
-            month: 8,
-            year: 2026,
-            grossAmount: 20000,
-            netPayable: 20000,
-            cashCollected: 20000,
-            dueAmount: 0,
-            notes: 'মাসিক এককালীন এন্ট্রি: সেপ্টেম্বর ২০২৬ (উদ্ধারকৃত ২০,০০০ টাকা)'
-          });
-        }
-
-        if (!state.detailedExpenses) state.detailedExpenses = {};
-        if (!state.detailedExpenses['2026-08-01'] || state.detailedExpenses['2026-08-01'].length === 0) {
-          state.detailedExpenses['2026-08-01'] = [
-            { id: 'exp_aug_1', date: '2026-08-01', category: 'Motorcycle', paidAmount: 4350, paid_amount: 4350, billAmount: 4350, dept: 'Diagnostic' },
-            { id: 'exp_aug_2', date: '2026-08-01', category: 'Marketing', paidAmount: 14880, paid_amount: 14880, billAmount: 14880, dept: 'Diagnostic' },
-            { id: 'exp_aug_3', date: '2026-08-01', category: 'Clinic_Dev', paidAmount: 34260, paid_amount: 34260, billAmount: 34260, dept: 'Diagnostic' },
-            { id: 'exp_aug_4', date: '2026-08-01', category: 'Bills', paidAmount: 19480, paid_amount: 19480, billAmount: 19480, dept: 'Diagnostic' },
-            { id: 'exp_aug_5', date: '2026-08-01', category: 'Reagent buy', paidAmount: 69750, paid_amount: 69750, billAmount: 69750, dept: 'Diagnostic' },
-            { id: 'exp_aug_6', date: '2026-08-01', category: 'X-Ray', paidAmount: 20100, paid_amount: 20100, billAmount: 20100, dept: 'Diagnostic' },
-            { id: 'exp_aug_7', date: '2026-08-01', category: 'Food', paidAmount: 11470, paid_amount: 11470, billAmount: 11470, dept: 'Diagnostic' },
-            { id: 'exp_aug_8', date: '2026-08-01', category: 'Doctor donation', paidAmount: 25050, paid_amount: 25050, billAmount: 25050, dept: 'Diagnostic' },
-            { id: 'exp_aug_9', date: '2026-08-01', category: 'Instruments', paidAmount: 1400, paid_amount: 1400, billAmount: 1400, dept: 'Diagnostic' },
-            { id: 'exp_aug_10', date: '2026-08-01', category: 'Press', paidAmount: 23500, paid_amount: 23500, billAmount: 23500, dept: 'Diagnostic' },
-            { id: 'exp_aug_11', date: '2026-08-01', category: 'License', paidAmount: 1000, paid_amount: 1000, billAmount: 1000, dept: 'Diagnostic' },
-            { id: 'exp_aug_12', date: '2026-08-01', category: 'Mobile', paidAmount: 1440, paid_amount: 1440, billAmount: 1440, dept: 'Diagnostic' },
-            { id: 'exp_aug_13', date: '2026-08-01', category: 'Maintenance', paidAmount: 19945, paid_amount: 19945, billAmount: 19945, dept: 'Diagnostic' },
-            { id: 'exp_aug_14', date: '2026-08-01', category: 'Electrical and Electronics', paidAmount: 4320, paid_amount: 4320, billAmount: 4320, dept: 'Diagnostic' },
-            { id: 'exp_aug_15', date: '2026-08-01', category: 'Others', paidAmount: 19451, paid_amount: 19451, billAmount: 19451, dept: 'Diagnostic' }
-          ];
-        }
-      } catch (recErr) {
-        console.warn("Recovery fallback notice:", recErr);
       }
 
       // Ensure all collections are safe arrays

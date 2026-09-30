@@ -24,6 +24,33 @@ const expenseCategoryBanglaMap: Record<string, string> = {
     'Others': 'অন্যান্য',
 };
 
+export const normalizeDiagExpenseCategory = (rawCat: string): string => {
+    if (!rawCat) return 'Others';
+    const s = String(rawCat).trim();
+    if (s === 'House rent' || s === 'Rent' || s === 'বাড়ী ভাড়া' || s === 'ভাড়া') return 'House rent';
+    if (s === 'Electricity bill' || s === 'বিদ্যুৎ বিল' || s === 'Meter 01' || s === 'Meter 02') return 'Electricity bill';
+    if (s === 'Paper / Dish / Wifi Bill' || s === 'Bills' || s === 'বিদ্যুৎ+ পেপার+ ডিশ বিল' || s === 'Dish Bill' || s === 'Wifi Bill' || s === 'Newspaper') return 'Paper / Dish / Wifi Bill';
+    if (s === 'Stuff salary' || s === 'Staff salary' || s === 'Salary' || s === 'স্টাফ স্যালারী' || s === 'স্টাফ বেতন' || s === 'বেতন') return 'Stuff salary';
+    if (s === 'Reagent buy' || s === 'Reagent' || s === 'রিএজেন্ট ক্রয়' || s === 'রিএজেন্ট') return 'Reagent buy';
+    if (s === 'Marketing' || s === 'মার্কেটিং') return 'Marketing';
+    if (s === 'Motorcycle' || s === 'মোটর সাইকেল') return 'Motorcycle';
+    if (s === 'Doctor donation & Vehicle service' || s === 'Doctor donation' || s === 'ডাক্তার ডোনেশন' || s === 'ডাঃ ডোনেশন+ যাতায়াত' || s === 'Donation') return 'Doctor donation & Vehicle service';
+    if (s === 'Instruments buy/ repair' || s === 'Repair/Instruments' || s === 'Instruments' || s === 'ইন্সট্রুমেন্ট' || s === 'যন্ত্রপাতি ক্রয়/মেরামত' || s === 'যন্ত্রপাতি') return 'Instruments buy/ repair';
+    if (s === 'Diagnostic development' || s === 'Clinic development' || s === 'Clinic_Dev' || s === 'ডায়াগনস্টিক উন্নয়ন' || s === 'ক্লিনিক উন্নয়ন') return 'Diagnostic development';
+    if (s === 'Maintenance' || s === 'রক্ষণাবেক্ষণ') return 'Maintenance';
+    if (s === 'License cost' || s === 'License/Official' || s === 'License' || s === 'লাইসেন্স খরচ' || s === 'লাইসেন্স') return 'License cost';
+    if (s === 'X-ray Film buy' || s === 'X-Ray' || s === 'এক্স-রে ফিল্ম ক্রয়' || s === 'এক্স-রে') return 'X-ray Film buy';
+    if (s === 'Mobile buy/ Flexiload' || s === 'Mobile' || s === 'মোবাইল ক্রয়/ফ্লেক্সিলোড' || s === 'মোবাইল খরচ' || s === 'মোবাইল') return 'Mobile buy/ Flexiload';
+    if (s === 'Press Cost' || s === 'Press' || s === 'প্রেস খরচ' || s === 'প্রেস') return 'Press Cost';
+    if (s === 'Food/Meal Cost' || s === 'Food/Refreshment' || s === 'Food' || s === 'খাবার খরচ' || s === 'খাবার' || s === 'নাস্তা') return 'Food/Meal Cost';
+    if (s === 'Electrical and Electronics' || s === 'ইলেকট্রিক্যাল ও ইলেকট্রনিক্স') return 'Electrical and Electronics';
+    
+    if (expenseCategories.includes(s)) return s;
+    const found = expenseCategories.find(c => c.toLowerCase() === s.toLowerCase() || (expenseCategoryBanglaMap[c] && expenseCategoryBanglaMap[c] === s));
+    if (found) return found;
+    return 'Others';
+};
+
 const subCategoryMap: Record<string, string[]> = {
     'House rent': ['Diagnostic Building Rent'],
     'Electricity bill': ['Meter 01', 'Meter 02'],
@@ -2195,18 +2222,15 @@ const DiagnosticAccountsPage: React.FC<any> = ({
 
         for (let d = 1; d <= daysInMonth; d++) {
             const dateStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-            const dailyExps = (expMap.get(dateStr) || []).filter((it: any) => !it.isDeleted && (it.dept === 'Diagnostic' || (!it.dept && categories.includes(it.category))));
+            const dailyExps = (expMap.get(dateStr) || []).filter((it: any) => !it.isDeleted && (it.dept === 'Diagnostic' || !it.dept || it.dept === 'Hospital'));
             
             const categorySums: Record<string, number> = {};
             categories.forEach(cat => categorySums[cat] = 0);
             
             dailyExps.forEach(exp => {
                 const amt = Number(exp.paidAmount ?? exp.paid_amount ?? exp.amount ?? 0);
-                if (categories.includes(exp.category)) {
-                    categorySums[exp.category] += amt;
-                } else {
-                    categorySums['Others'] = (categorySums['Others'] || 0) + amt;
-                }
+                const normCat = normalizeDiagExpenseCategory(exp.category);
+                categorySums[normCat] = (categorySums[normCat] || 0) + amt;
             });
             
             const totalDay = Object.values(categorySums).reduce((a, b) => a + b, 0);
@@ -2232,9 +2256,10 @@ const DiagnosticAccountsPage: React.FC<any> = ({
             if (!norm) return;
             const [y, m] = norm.split('-').map(Number);
             if (m - 1 === selectedMonth && y === selectedYear) {
-                if (!it.isDeleted && (it.dept === 'Diagnostic' || (!it.dept && expenseCategories.includes(it.category)))) {
+                if (!it.isDeleted && (it.dept === 'Diagnostic' || !it.dept || it.dept === 'Hospital')) {
                     const amt = Number(it.paidAmount ?? it.paid_amount ?? it.amount ?? 0);
-                    expensesByCategory[it.category] = (expensesByCategory[it.category] || 0) + amt;
+                    const normCat = normalizeDiagExpenseCategory(it.category);
+                    expensesByCategory[normCat] = (expensesByCategory[normCat] || 0) + amt;
                 }
             }
         };
@@ -2588,9 +2613,10 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                     if (!it || it.isDeleted) return;
                     const norm = normalizeDate(it.date || fallbackDate || '');
                     if (norm === selectedDate || fallbackDate === selectedDate) {
-                        if (it.dept === 'Diagnostic' || (!it.dept && expenseCategories.includes(it.category))) {
+                        if (it.dept === 'Diagnostic' || !it.dept || it.dept === 'Hospital') {
                             const amt = Number(it.paidAmount ?? it.paid_amount ?? it.amount ?? 0);
-                            expenseMap[it.category] = (expenseMap[it.category] || 0) + amt;
+                            const normCat = normalizeDiagExpenseCategory(it.category);
+                            expenseMap[normCat] = (expenseMap[normCat] || 0) + amt;
                             exp.total += amt;
                         }
                     }
@@ -2611,9 +2637,10 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                     const dParts = parseDateParts(norm);
                     const isMatch = (rangeType === 'monthly' && (dParts.m - 1) === selectedMonth && dParts.y === selectedYear) || 
                                     (rangeType === 'yearly' && dParts.y === selectedYear);
-                    if (isMatch && (it.dept === 'Diagnostic' || (!it.dept && expenseCategories.includes(it.category)))) {
+                    if (isMatch && (it.dept === 'Diagnostic' || !it.dept || it.dept === 'Hospital')) {
                         const amt = Number(it.paidAmount ?? it.paid_amount ?? it.amount ?? 0);
-                        expenseMap[it.category] = (expenseMap[it.category] || 0) + amt;
+                        const normCat = normalizeDiagExpenseCategory(it.category);
+                        expenseMap[normCat] = (expenseMap[normCat] || 0) + amt;
                         exp.total += amt;
                     }
                 };
@@ -3027,7 +3054,7 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                 </div>
             )}
 
-            <main className="flex-1 p-4 sm:p-6 lg:p-8 space-y-10 w-full max-w-7xl mx-auto">
+            <main className="flex-1 p-3 sm:p-5 lg:p-6 space-y-8 w-full max-w-[98%] 2xl:max-w-[1800px] mx-auto">
                 {activeTab === 'entry' && (
                     <div className="animate-fade-in space-y-10">
                         <DailyExpenseForm 
@@ -3337,31 +3364,31 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                             </div>
 
                             <div className="overflow-x-auto rounded-2xl border border-slate-700 bg-slate-900 shadow-xl">
-                                <table className="w-full text-left text-xs border-collapse">
+                                <table className="w-full text-left text-sm border-collapse">
                                     <thead className="bg-slate-800 text-sky-200 font-bold uppercase tracking-wider border-b border-slate-700">
                                         <tr className="bg-slate-900 text-white font-black border-b border-slate-700 shadow-lg">
-                                            <td colSpan={5} className="px-4 py-2 text-right text-xs text-slate-300 uppercase tracking-wider bg-slate-900 font-bold">Grand Summary Totals:</td>
-                                            <td className="px-4 py-2 text-right text-sm text-sky-300 bg-slate-850 font-bold">৳{reportSummary.totalBill.toLocaleString()}</td>
-                                            <td className="px-4 py-2 text-right text-sm text-rose-300 bg-slate-900 font-bold">৳{reportSummary.totalDiscount.toLocaleString()}</td>
-                                            <td className="px-4 py-2 text-right text-base text-emerald-300 font-black bg-slate-850 border-x border-slate-700">৳{reportSummary.paidAmount.toLocaleString()}</td>
-                                            <td className="px-4 py-2 text-right text-sm text-amber-300 bg-slate-900 font-bold">৳{reportSummary.totalPC.toLocaleString()}</td>
-                                            <td className="px-4 py-2 text-right text-sm text-sky-300 bg-slate-850 font-bold">৳{reportSummary.usgFee.toLocaleString()}</td>
-                                            <td className="px-4 py-2 text-right text-sm text-emerald-300 bg-slate-900 font-bold">৳{reportSummary.labFee.toLocaleString()}</td>
-                                            <td className="px-4 py-2 text-right bg-blue-600 text-white text-lg shadow-inner font-black">৳{reportSummary.netInstProfit.toLocaleString()}</td>
+                                            <td colSpan={5} className="px-4 py-3 text-right text-xs text-slate-300 uppercase tracking-wider bg-slate-900 font-bold">Grand Summary Totals:</td>
+                                            <td className="px-4 py-3 text-right text-base text-sky-300 bg-slate-850 font-bold font-mono">৳{reportSummary.totalBill.toLocaleString()}</td>
+                                            <td className="px-4 py-3 text-right text-base text-rose-300 bg-slate-900 font-bold font-mono">৳{reportSummary.totalDiscount.toLocaleString()}</td>
+                                            <td className="px-4 py-3 text-right text-lg text-emerald-300 font-black bg-slate-850 border-x border-slate-700 font-mono">৳{reportSummary.paidAmount.toLocaleString()}</td>
+                                            <td className="px-4 py-3 text-right text-base text-amber-300 bg-slate-900 font-bold font-mono">৳{reportSummary.totalPC.toLocaleString()}</td>
+                                            <td className="px-4 py-3 text-right text-base text-sky-300 bg-slate-850 font-bold font-mono">৳{reportSummary.usgFee.toLocaleString()}</td>
+                                            <td className="px-4 py-3 text-right text-base text-emerald-300 bg-slate-900 font-bold font-mono">৳{reportSummary.labFee.toLocaleString()}</td>
+                                            <td className="px-4 py-3 text-right bg-blue-600 text-white text-xl shadow-inner font-black font-mono">৳{reportSummary.netInstProfit.toLocaleString()}</td>
                                         </tr>
-                                        <tr className="bg-slate-800 text-sky-200">
-                                            <th className="px-4 py-2.5">SL</th>
-                                            <th className="px-4 py-2.5">Invoice ID</th>
-                                            <th className="px-4 py-2.5">Date</th>
-                                            <th className="px-4 py-2.5">Patient Name</th>
-                                            <th className="px-4 py-2.5">Referrer</th>
-                                            <th className="px-4 py-2.5 text-right">Bill</th>
-                                            <th className="px-4 py-2.5 text-right text-rose-300">Disc</th>
-                                            <th className="px-4 py-2.5 text-right text-emerald-300">Paid</th>
-                                            <th className="px-4 py-2.5 text-right text-amber-300">Paid PC</th>
-                                            <th className="px-4 py-2.5 text-right text-sky-300">USG Fee</th>
-                                            <th className="px-4 py-2.5 text-right text-emerald-300">Lab Fee</th>
-                                            <th className="px-4 py-2.5 text-right bg-blue-900/40 text-white">Net Profit</th>
+                                        <tr className="bg-slate-800 text-sky-200 text-xs">
+                                            <th className="px-4 py-3">SL</th>
+                                            <th className="px-4 py-3">Invoice ID</th>
+                                            <th className="px-4 py-3">Date</th>
+                                            <th className="px-4 py-3">Patient Name</th>
+                                            <th className="px-4 py-3">Referrer</th>
+                                            <th className="px-4 py-3 text-right">Bill</th>
+                                            <th className="px-4 py-3 text-right text-rose-300">Disc</th>
+                                            <th className="px-4 py-3 text-right text-emerald-300">Paid</th>
+                                            <th className="px-4 py-3 text-right text-amber-300">Paid PC</th>
+                                            <th className="px-4 py-3 text-right text-sky-300">USG Fee</th>
+                                            <th className="px-4 py-3 text-right text-emerald-300">Lab Fee</th>
+                                            <th className="px-4 py-3 text-right bg-blue-900/50 text-white font-black">Net Profit</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-800">
@@ -3370,16 +3397,16 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                                                 key={inv.invoice_id} 
                                                 onDoubleClick={() => { setViewingInvoice(inv); setShowInvoiceModal(true); }}
                                                 onContextMenu={(e) => { e.preventDefault(); setViewingInvoice(inv); setShowInvoiceModal(true); }}
-                                                className={`hover:bg-slate-800/80 even:bg-slate-900/70 odd:bg-slate-850/40 transition-colors cursor-help ${inv.status==='Returned'?'opacity-50 grayscale bg-red-900/10':''}`}
+                                                className={`hover:bg-slate-800/90 even:bg-slate-900/70 odd:bg-slate-850/40 transition-colors cursor-pointer ${inv.status==='Returned'?'opacity-50 grayscale bg-red-900/10':''}`}
                                                 title="Double Click or Right Click to view invoice"
                                             >
-                                                <td className="p-4 text-slate-300 font-bold">{idx+1}</td>
-                                                <td className="p-4 font-mono text-cyan-300 font-bold">{inv.invoice_id}</td>
-                                                <td className="p-4 font-mono text-slate-200 font-bold">{inv.invoice_date}</td>
-                                                <td className="p-4">
+                                                <td className="p-3.5 text-slate-400 font-bold font-mono text-xs">{idx+1}</td>
+                                                <td className="p-3.5 font-mono text-cyan-300 font-bold text-xs">{inv.invoice_id}</td>
+                                                <td className="p-3.5 font-mono text-slate-300 font-bold text-xs">{inv.invoice_date}</td>
+                                                <td className="p-3.5">
                                                     <div className="flex flex-col">
-                                                        <span className="font-bold uppercase text-white text-xs tracking-tight">{inv.patient_name}</span>
-                                                        <span className="text-[10px] text-slate-300 font-medium uppercase mt-0.5">
+                                                        <span className="font-bold uppercase text-white text-sm tracking-tight">{inv.patient_name}</span>
+                                                        <span className="text-[11px] text-slate-400 font-medium mt-0.5">
                                                             {(() => {
                                                                 const p = patients.find((pt: any) => pt.pt_id === inv.patient_id);
                                                                 return p ? `${p.ageY}Y, ${p.address}, ${p.mobile}` : 'Details N/A';
@@ -3387,27 +3414,27 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                                                         </span>
                                                     </div>
                                                 </td>
-                                                <td className="p-4 text-slate-200 font-bold truncate max-w-[120px]">{inv.referrar_name || 'Self'}</td>
-                                                <td className="p-4 text-right font-medium text-white">{inv.billVal.toLocaleString()}</td>
-                                                <td className="p-4 text-right text-rose-300">{inv.discVal.toLocaleString()}</td>
-                                                <td className="p-4 text-right font-black text-emerald-300">{inv.paidVal.toLocaleString()}</td>
-                                                <td className="p-4 text-right text-amber-300 font-bold">৳ {inv.totalPC.toLocaleString()}</td>
-                                                <td className="p-4 text-right text-sky-300 font-bold">{inv.usgFee.toLocaleString()}</td>
-                                                <td className="p-4 text-right text-emerald-300 font-bold">{inv.labFee?.toLocaleString() || 0}</td>
-                                                <td className="p-4 text-right font-black text-white bg-blue-900/20 text-base">৳{inv.netProfit.toLocaleString()}</td>
+                                                <td className="p-3.5 text-slate-200 font-medium text-xs truncate max-w-[150px]">{inv.referrar_name || 'Self'}</td>
+                                                <td className="p-3.5 text-right font-medium text-slate-100 font-mono text-sm">৳{inv.billVal.toLocaleString()}</td>
+                                                <td className="p-3.5 text-right text-rose-300 font-mono text-sm">৳{inv.discVal.toLocaleString()}</td>
+                                                <td className="p-3.5 text-right font-black text-emerald-300 font-mono text-sm">৳{inv.paidVal.toLocaleString()}</td>
+                                                <td className="p-3.5 text-right text-amber-300 font-bold font-mono text-sm">৳{inv.totalPC.toLocaleString()}</td>
+                                                <td className="p-3.5 text-right text-sky-300 font-bold font-mono text-sm">৳{inv.usgFee.toLocaleString()}</td>
+                                                <td className="p-3.5 text-right text-emerald-300 font-bold font-mono text-sm">৳{(inv.labFee || 0).toLocaleString()}</td>
+                                                <td className="p-3.5 text-right font-black text-emerald-400 bg-blue-950/40 text-base font-mono border-l border-slate-800">৳{inv.netProfit.toLocaleString()}</td>
                                             </tr>
                                         ))}
                                     </tbody>
-                                    <tfoot className="bg-slate-950 border-t-4 border-slate-700 text-[10px] font-black text-white">
+                                    <tfoot className="bg-slate-950 border-t-4 border-slate-700 text-xs font-black text-white">
                                         <tr className="h-16">
-                                            <td colSpan={5} className="p-4 text-right uppercase tracking-widest text-slate-400">Grand Summary Totals:</td>
-                                            <td className="p-4 text-right">৳{reportSummary.totalBill.toLocaleString()}</td>
-                                            <td className="p-4 text-right text-rose-500">৳{reportSummary.totalDiscount.toLocaleString()}</td>
-                                            <td className="p-4 text-right text-emerald-400">৳{reportSummary.paidAmount.toLocaleString()}</td>
-                                            <td className="p-4 text-right text-amber-500">৳{reportSummary.totalPC.toLocaleString()}</td>
-                                            <td className="p-3 text-right text-sky-400">৳{reportSummary.usgFee.toLocaleString()}</td>
-                                            <td className="p-3 text-right text-emerald-300">৳{reportSummary.labFee.toLocaleString()}</td>
-                                            <td className="p-4 text-right text-white bg-blue-600 rounded-br-2xl text-lg">৳{reportSummary.netInstProfit.toLocaleString()}</td>
+                                            <td colSpan={5} className="p-4 text-right uppercase tracking-widest text-slate-400 text-xs">Grand Summary Totals:</td>
+                                            <td className="p-4 text-right text-sky-300 font-mono text-base">৳{reportSummary.totalBill.toLocaleString()}</td>
+                                            <td className="p-4 text-right text-rose-400 font-mono text-base">৳{reportSummary.totalDiscount.toLocaleString()}</td>
+                                            <td className="p-4 text-right text-emerald-400 font-mono text-lg">৳{reportSummary.paidAmount.toLocaleString()}</td>
+                                            <td className="p-4 text-right text-amber-400 font-mono text-base">৳{reportSummary.totalPC.toLocaleString()}</td>
+                                            <td className="p-4 text-right text-sky-400 font-mono text-base">৳{reportSummary.usgFee.toLocaleString()}</td>
+                                            <td className="p-4 text-right text-emerald-300 font-mono text-base">৳{reportSummary.labFee.toLocaleString()}</td>
+                                            <td className="p-4 text-right text-white bg-blue-600 rounded-br-2xl text-xl font-mono">৳{reportSummary.netInstProfit.toLocaleString()}</td>
                                         </tr>
                                     </tfoot>
                                 </table>

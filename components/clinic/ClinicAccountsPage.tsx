@@ -406,7 +406,7 @@ const DailyExpenseForm: React.FC<any> = ({
         return acc; 
     }, { cost: 0, paid: 0 });
 
-    const inputClass = "w-full bg-slate-700 border border-slate-600 rounded p-1.5 text-white text-sm outline-none";
+    const inputClass = "w-full bg-slate-800 border border-slate-600 rounded-xl px-3 py-2 text-white text-sm font-medium outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500";
 
     const subCategories = useMemo(() => {
         const map = { ...expenseSubCategoryMap };
@@ -1908,9 +1908,9 @@ const ClinicAccountsPage: React.FC<any> = ({
                 </div>
             </header>
 
-            <main className="flex-1 w-full px-4 sm:px-6 py-8 space-y-8">
+            <main className="flex-1 w-full px-3 sm:px-5 lg:px-6 py-6 space-y-8 max-w-[98%] 2xl:max-w-[1800px] mx-auto">
                 {viewMode === 'detailed' && (
-                    <div className="max-w-7xl mx-auto space-y-8 animate-fade-in">
+                    <div className="w-full space-y-8 animate-fade-in">
                         {ledgerHistoryItem && <HistoryModal item={ledgerHistoryItem} onClose={() => setLedgerHistoryItem(null)} />}
                         <DailyExpenseForm 
                             key={`clinic-daily-expense-${selectedDate}-${editingItem?.id || 'new'}`}
@@ -1925,59 +1925,63 @@ const ClinicAccountsPage: React.FC<any> = ({
                             attendanceLog={attendanceLog}
                             leaveLog={leaveLog}
                         />
-                        <div className="bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-2xl">
-                            <h3 className="text-lg font-black text-sky-400 uppercase mb-6 flex flex-wrap justify-between items-center gap-4">
-                                <span>Clinic Expense Ledger Journal</span>
-                                <div className="flex flex-wrap gap-2">
-                                    <input type="text" placeholder="Search Expense..." value={expSearch} onChange={e=>setExpSearch(e.target.value)} className="bg-slate-950 border border-slate-700 rounded-full px-4 py-1.5 text-xs text-white outline-none focus:ring-1 focus:ring-sky-500 w-40"/>
-                                    <select value={expCategorySearch} onChange={e=>setExpCategorySearch(e.target.value)} className="bg-slate-950 border border-slate-700 rounded-full px-4 py-1.5 text-xs text-white outline-none focus:ring-1 focus:ring-sky-500">
+                        <div className="bg-slate-800 p-6 rounded-3xl border border-slate-700 shadow-2xl">
+                            <h3 className="text-xl font-black text-sky-400 uppercase mb-6 flex flex-wrap justify-between items-center gap-4">
+                                <span className="flex items-center gap-2">
+                                    <FileTextIcon className="w-6 h-6 text-emerald-400" />
+                                    Clinic Expense Ledger Journal
+                                </span>
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <input type="text" placeholder="Search Expense..." value={expSearch} onChange={e=>setExpSearch(e.target.value)} className="bg-slate-950 border border-slate-700 rounded-full px-4 py-2 text-xs text-white outline-none focus:ring-1 focus:ring-sky-500 w-44"/>
+                                    <select value={expCategorySearch} onChange={e=>setExpCategorySearch(e.target.value)} className="bg-slate-950 border border-slate-700 rounded-full px-4 py-2 text-xs text-white outline-none focus:ring-1 focus:ring-sky-500">
                                         <option value="">Category</option>
-                                        {clinicExpenseCategories.map(c => <option key={c} value={c}>{c}</option>)}
+                                        {clinicExpenseCategories.map(c => <option key={c} value={c}>{expenseCategoryBanglaMap[c] || c}</option>)}
                                     </select>
-                                    <input type="date" value={expDateSearch} onChange={e=>setExpDateSearch(e.target.value)} className="bg-slate-950 border border-slate-700 rounded-full px-4 py-1.5 text-xs text-white outline-none focus:ring-1 focus:ring-sky-500 w-36"/>
-                                    <select value={expMonthSearch} onChange={e=>setExpMonthSearch(e.target.value === '' ? '' : parseInt(e.target.value))} className="bg-slate-950 border border-slate-700 rounded-full px-4 py-1.5 text-xs text-white outline-none focus:ring-1 focus:ring-sky-500">
+                                    <input type="date" value={expDateSearch} onChange={e=>setExpDateSearch(e.target.value)} className="bg-slate-950 border border-slate-700 rounded-full px-4 py-2 text-xs text-white outline-none focus:ring-1 focus:ring-sky-500 w-40"/>
+                                    <select value={expMonthSearch} onChange={e=>setExpMonthSearch(e.target.value === '' ? '' : parseInt(e.target.value))} className="bg-slate-950 border border-slate-700 rounded-full px-4 py-2 text-xs text-white outline-none focus:ring-1 focus:ring-sky-500">
                                         <option value="">Month</option>
                                         {monthOptions.map(m => <option key={m.value} value={m.value}>{m.name}</option>)}
                                     </select>
-                                    <select value={expYearSearch} onChange={e=>setExpYearSearch(e.target.value === '' ? '' : parseInt(e.target.value))} className="bg-slate-950 border border-slate-700 rounded-full px-4 py-1.5 text-xs text-white outline-none focus:ring-1 focus:ring-sky-500">
+                                    <select value={expYearSearch} onChange={e=>setExpYearSearch(e.target.value === '' ? '' : parseInt(e.target.value))} className="bg-slate-950 border border-slate-700 rounded-full px-4 py-2 text-xs text-white outline-none focus:ring-1 focus:ring-sky-500">
                                         <option value="">Year</option>
                                         {[2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
                                     </select>
                                     {(expSearch || expDateSearch || expMonthSearch !== '' || expYearSearch !== '' || expCategorySearch) && (
-                                        <button onClick={() => { setExpSearch(''); setExpDateSearch(''); setExpMonthSearch(''); setExpYearSearch(''); setExpCategorySearch(''); }} className="text-rose-400 text-[10px] font-black uppercase hover:underline">Clear</button>
+                                        <button onClick={() => { setExpSearch(''); setExpDateSearch(''); setExpMonthSearch(''); setExpYearSearch(''); setExpCategorySearch(''); }} className="text-rose-400 text-xs font-black uppercase hover:underline ml-1">Clear</button>
                                     )}
                                 </div>
                             </h3>
-                            <div className="overflow-x-auto rounded-xl border border-slate-700">
+                            <div className="overflow-x-auto rounded-2xl border border-slate-700">
                                 <table className="w-full text-left text-sm">
-                                    <thead className="bg-slate-950 text-slate-500 text-[10px] uppercase font-black">
-                                        <tr>
-                                            <th className="p-4">SL</th>
-                                            <th className="p-4">Date</th>
-                                            <th className="p-4">Category</th>
-                                            <th className="p-4">Sub-Category</th>
-                                            <th className="p-4">Description</th>
-                                            <th className="p-4 text-right">Bill</th>
-                                            <th className="p-4 text-right">Paid</th>
-                                            <th className="p-4 text-center">Actions</th>
+                                    <thead className="bg-slate-950 text-slate-400 text-xs uppercase font-black tracking-wider">
+                                        <tr className="bg-slate-900 border-b border-slate-700 shadow-md">
+                                            <th colSpan={5} className="p-3 text-right text-slate-300 uppercase tracking-widest text-xs font-bold">Filtered Totals:</th>
+                                            <th className="p-3 text-right text-sky-300 font-mono text-base font-bold">৳{clinicExpenseJournalData.totals.totalBill.toLocaleString()}</th>
+                                            <th className="p-3 text-right text-emerald-300 font-mono text-base font-black">৳{clinicExpenseJournalData.totals.totalPaid.toLocaleString()}</th>
+                                            <th></th>
                                         </tr>
-                                        <tr className="bg-slate-900 border-b border-slate-700">
-                                            <th colSpan={5} className="p-2 text-right text-slate-400 uppercase tracking-widest">Filtered Totals:</th>
-                                            <th className="p-2 text-right text-sky-400">৳{clinicExpenseJournalData.totals.totalBill.toLocaleString()}</th>
-                                            <th className="p-2 text-right text-emerald-400">৳{clinicExpenseJournalData.totals.totalPaid.toLocaleString()}</th>
+                                        <tr className="border-b border-slate-800">
+                                            <th className="p-3.5">SL</th>
+                                            <th className="p-3.5">Date</th>
+                                            <th className="p-3.5">Category</th>
+                                            <th className="p-3.5">Sub-Category</th>
+                                            <th className="p-3.5">Description</th>
+                                            <th className="p-3.5 text-right">Bill Amount</th>
+                                            <th className="p-3.5 text-right text-emerald-300">Paid Amount</th>
+                                            <th className="p-3.5 text-center">Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-800">
                                         {clinicExpenseJournalData.filtered.map((ex:any, idx: number) => (
-                                            <tr key={idx} className="hover:bg-slate-700/40 transition-colors">
-                                                <td className="p-4 text-slate-500 text-xs">{idx + 1}</td>
-                                                <td className="p-4 text-xs font-mono text-slate-400">{ex.date}</td>
-                                                <td className="p-4 font-bold text-emerald-400">{expenseCategoryBanglaMap[ex.category] || ex.category}</td>
-                                                <td className="p-4 text-sky-400 font-black uppercase text-[10px]">{ex.subCategory || '-'}</td>
-                                                <td className="p-4 text-slate-300">{ex.description || '-'}</td>
-                                                <td className="p-4 text-right text-slate-400">৳{ex.billAmount.toLocaleString()}</td>
-                                                <td className="p-4 text-right text-emerald-400 font-black">৳{ex.paidAmount.toLocaleString()}</td>
-                                                <td className="p-4 text-center">
+                                            <tr key={idx} className="hover:bg-slate-700/50 transition-colors">
+                                                <td className="p-3.5 text-slate-500 text-xs font-mono">{idx + 1}</td>
+                                                <td className="p-3.5 text-xs font-mono text-slate-300">{ex.date}</td>
+                                                <td className="p-3.5 font-bold text-emerald-300 text-sm">{expenseCategoryBanglaMap[ex.category] || ex.category}</td>
+                                                <td className="p-3.5 text-sky-300 font-bold uppercase text-xs">{ex.subCategory || '-'}</td>
+                                                <td className="p-3.5 text-slate-200 text-sm">{ex.description || '-'}</td>
+                                                <td className="p-3.5 text-right font-mono text-slate-300 text-sm">৳{ex.billAmount.toLocaleString()}</td>
+                                                <td className="p-3.5 text-right text-emerald-400 font-mono font-black text-base">৳{ex.paidAmount.toLocaleString()}</td>
+                                                <td className="p-3.5 text-center">
                                                     <div className="flex justify-center gap-2">
                                                         <button 
                                                             onClick={() => {
@@ -1985,14 +1989,14 @@ const ClinicAccountsPage: React.FC<any> = ({
                                                                 setEditingItem(ex);
                                                                 window.scrollTo({ top: 0, behavior: 'smooth' });
                                                             }}
-                                                            className="p-1.5 bg-sky-600/20 text-sky-400 rounded hover:bg-sky-600 hover:text-white transition-all"
+                                                            className="p-2 bg-sky-600/20 text-sky-400 rounded-lg hover:bg-sky-600 hover:text-white transition-all"
                                                             title="Edit"
                                                         >
-                                                            <FileTextIcon size={14} />
+                                                            <FileTextIcon size={16} />
                                                         </button>
                                                         <button 
                                                             onClick={() => setLedgerHistoryItem(ex)}
-                                                            className={`p-1.5 rounded transition-all text-[10px] font-black uppercase ${ex.isEdited ? 'bg-amber-600/20 text-amber-400 hover:bg-amber-600 hover:text-white' : 'bg-slate-700/50 text-slate-500 hover:bg-slate-700 hover:text-white'}`}
+                                                            className={`px-2.5 py-1.5 rounded-lg transition-all text-xs font-black uppercase ${ex.isEdited ? 'bg-amber-600/20 text-amber-400 hover:bg-amber-600 hover:text-white' : 'bg-slate-700/50 text-slate-400 hover:bg-slate-700 hover:text-white'}`}
                                                             title="History"
                                                         >
                                                             H

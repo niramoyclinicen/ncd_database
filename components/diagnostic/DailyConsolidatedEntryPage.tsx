@@ -797,7 +797,7 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
       {/* Main Content - Seamless width without gap */}
       <main className="flex-1 p-3 sm:p-5 md:p-6 w-full overflow-y-auto">
         {activeSubTab === 'new_entry' && (
-          <form onSubmit={handleSaveEntry} className="space-y-6 max-w-7xl mx-auto animate-fade-in">
+          <form onSubmit={handleSaveEntry} className="space-y-6 w-full max-w-[98%] 2xl:max-w-[1800px] mx-auto animate-fade-in">
             {/* Editing Notice Banner */}
             {editingRecordId && (
               <div className="bg-amber-950/90 border-2 border-amber-500 text-amber-200 p-4 rounded-3xl flex items-center justify-between shadow-xl">
@@ -1198,7 +1198,7 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
 
         {/* History Tab */}
         {activeSubTab === 'history' && (
-          <div className="space-y-6 animate-fade-in max-w-7xl mx-auto">
+          <div className="space-y-6 animate-fade-in w-full max-w-[98%] 2xl:max-w-[1800px] mx-auto">
             {/* Quick Clean Auto Entries Banner */}
             <div className="bg-slate-900 border border-slate-800 p-4 sm:p-5 rounded-3xl shadow-xl flex flex-col sm:flex-row justify-between items-center gap-4">
               <div className="text-slate-300 text-xs font-bold flex items-center gap-2">
@@ -1289,17 +1289,17 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
               <div className="flex flex-wrap items-center gap-4 text-xs font-bold bg-slate-950 px-5 py-3 rounded-2xl border border-slate-800 self-stretch lg:self-auto justify-around">
                 <div>
                   <span className="text-slate-400 block text-[10px] uppercase">মোট রোগী:</span>
-                  <span className="text-white font-mono font-black">{Number(historyStats?.patients || 0).toLocaleString()} জন</span>
+                  <span className="text-white font-mono font-black text-sm">{Number(historyStats?.patients || 0).toLocaleString()} জন</span>
                 </div>
                 <div className="h-6 w-px bg-slate-800"></div>
                 <div>
                   <span className="text-slate-400 block text-[10px] uppercase">মোট ক্যাশ আদায়:</span>
-                  <span className="text-emerald-400 font-mono font-black">৳{(Number(historyStats?.cash) || 0).toLocaleString()}</span>
+                  <span className="text-emerald-400 font-mono font-black text-base">৳{(Number(historyStats?.cash) || 0).toLocaleString()}</span>
                 </div>
                 <div className="h-6 w-px bg-slate-800"></div>
                 <div>
                   <span className="text-slate-400 block text-[10px] uppercase">মোট বকেয়া:</span>
-                  <span className="text-rose-400 font-mono font-black">৳{(Number(historyStats?.due) || 0).toLocaleString()}</span>
+                  <span className="text-rose-400 font-mono font-black text-base">৳{(Number(historyStats?.due) || 0).toLocaleString()}</span>
                 </div>
               </div>
             </div>
@@ -1326,21 +1326,21 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
             {/* Records Table */}
             <div className="bg-slate-900 border border-slate-800 rounded-3xl shadow-xl overflow-hidden">
               <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse text-xs">
-                  <thead className="bg-slate-950 text-slate-400 uppercase font-black tracking-wider border-b border-slate-800">
+                <table className="w-full text-left border-collapse text-sm">
+                  <thead className="bg-slate-950 text-slate-400 uppercase font-black tracking-wider border-b border-slate-800 text-xs">
                     <tr>
-                      <th className="p-4 text-center">ক্রমিক (SL)</th>
-                      <th className="p-4">এন্ট্রি তৈরির তারিখ ও সময়</th>
-                      <th className="p-4">তারিখ / মাস-বছর</th>
-                      <th className="p-4">এন্ট্রি টাইপ ও শিফট</th>
-                      <th className="p-4">অপারেটর</th>
-                      <th className="p-4 text-center">রোগী</th>
-                      <th className="p-4 text-right">গ্রস বিল</th>
-                      <th className="p-4 text-right">ছাড়</th>
-                      <th className="p-4 text-right">নিট বিল</th>
-                      <th className="p-4 text-right text-emerald-400">ক্যাশ আদায়</th>
-                      <th className="p-4 text-right text-amber-400">বাকি (Due)</th>
-                      <th className="p-4 text-center">অ্যাকশন</th>
+                      <th className="p-3.5 text-center">ক্রমিক (SL)</th>
+                      <th className="p-3.5">এন্ট্রি তৈরির তারিখ ও সময়</th>
+                      <th className="p-3.5">তারিখ / মাস-বছর</th>
+                      <th className="p-3.5">এন্ট্রি টাইপ ও শিফট</th>
+                      <th className="p-3.5">অপারেটর</th>
+                      <th className="p-3.5 text-center">রোগী</th>
+                      <th className="p-3.5 text-right">গ্রস বিল</th>
+                      <th className="p-3.5 text-right text-rose-300">ছাড়</th>
+                      <th className="p-3.5 text-right text-sky-300">নিট বিল</th>
+                      <th className="p-3.5 text-right text-emerald-400">ক্যাশ আদায়</th>
+                      <th className="p-3.5 text-right text-amber-400">বাকি (Due)</th>
+                      <th className="p-3.5 text-center">অ্যাকশন</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800 font-bold">
@@ -1357,62 +1357,62 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
                         const rowYear = row.year !== undefined ? row.year : (row.date ? row.date.split('-')[0] : '');
 
                         return (
-                          <tr key={row.id} className="hover:bg-slate-800/50 transition-colors">
-                            <td className="p-4 text-center font-mono text-slate-400">{index + 1}</td>
-                            <td className="p-4 font-mono text-slate-300 text-[11px]">
+                          <tr key={row.id} className="hover:bg-slate-800/60 transition-colors">
+                            <td className="p-3.5 text-center font-mono text-slate-400 text-xs">{index + 1}</td>
+                            <td className="p-3.5 font-mono text-slate-300 text-xs">
                               {row.createdAt ? new Date(row.createdAt).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' }) : (row.date || 'N/A')}
                             </td>
-                            <td className="p-4 font-mono text-slate-200">
+                            <td className="p-3.5 font-mono text-slate-100">
                               {isRowMonthly ? (
-                                <span className="font-bold text-emerald-400">
+                                <span className="font-black text-emerald-300 text-sm">
                                   {BENGALI_MONTHS[rowMonth]?.bn} {rowYear}
                                 </span>
                               ) : (
                                 <>
-                                  {row.date} <span className="text-[10px] text-slate-400">({row.entryTime})</span>
+                                  <span className="font-bold">{row.date}</span> <span className="text-xs text-slate-400">({row.entryTime})</span>
                                 </>
                               )}
                             </td>
-                            <td className="p-4">
+                            <td className="p-3.5">
                               {isRowMonthly ? (
-                                <span className="px-2.5 py-1 rounded-lg bg-emerald-950/80 border border-emerald-500/40 text-emerald-300 text-[10px] font-black uppercase">
+                                <span className="px-3 py-1 rounded-lg bg-emerald-950/90 border border-emerald-500/40 text-emerald-300 text-xs font-black uppercase shadow-sm">
                                   🗓️ মাসিক এককালীন
                                 </span>
                               ) : (
-                                <span className="px-2.5 py-1 rounded-lg bg-sky-950/80 border border-sky-500/40 text-sky-300 text-[10px] font-black uppercase">
+                                <span className="px-3 py-1 rounded-lg bg-sky-950/90 border border-sky-500/40 text-sky-300 text-xs font-black uppercase shadow-sm">
                                   📅 দৈনিক ({row.shift})
                                 </span>
                               )}
                             </td>
-                            <td className="p-4 text-slate-300">{row.operatorName}</td>
-                            <td className="p-4 text-center font-mono">{row.totalPatients}</td>
-                            <td className="p-4 text-right font-mono">৳{(Number(row.grossAmount) || 0).toLocaleString()}</td>
-                            <td className="p-4 text-right font-mono text-rose-400">-৳{(Number(row.discountAmount) || 0).toLocaleString()}</td>
-                            <td className="p-4 text-right font-mono text-sky-300">৳{(Number(row.netPayable) || 0).toLocaleString()}</td>
-                            <td className="p-4 text-right font-mono text-emerald-400 font-black">৳{(Number(row.cashCollected) || 0).toLocaleString()}</td>
-                            <td className="p-4 text-right font-mono text-amber-400">৳{(Number(row.dueAmount) || 0).toLocaleString()}</td>
-                            <td className="p-4 text-center">
+                            <td className="p-3.5 text-slate-200 text-xs">{row.operatorName}</td>
+                            <td className="p-3.5 text-center font-mono text-white text-sm font-black">{row.totalPatients}</td>
+                            <td className="p-3.5 text-right font-mono text-slate-200 text-sm">৳{(Number(row.grossAmount) || 0).toLocaleString()}</td>
+                            <td className="p-3.5 text-right font-mono text-rose-300 text-sm">-৳{(Number(row.discountAmount) || 0).toLocaleString()}</td>
+                            <td className="p-3.5 text-right font-mono text-sky-300 font-bold text-sm">৳{(Number(row.netPayable) || 0).toLocaleString()}</td>
+                            <td className="p-3.5 text-right font-mono text-emerald-400 font-black text-base bg-emerald-950/20">৳{(Number(row.cashCollected) || 0).toLocaleString()}</td>
+                            <td className="p-3.5 text-right font-mono text-amber-300 font-bold text-sm">৳{(Number(row.dueAmount) || 0).toLocaleString()}</td>
+                            <td className="p-3.5 text-center">
                               <div className="flex items-center justify-center gap-2">
                                 <button
                                   onClick={() => handleStartEdit(row)}
-                                  className="p-2 bg-amber-600/20 hover:bg-amber-600 text-amber-300 hover:text-white rounded-xl transition-all shadow"
+                                  className="p-2.5 bg-amber-600/20 hover:bg-amber-600 text-amber-300 hover:text-white rounded-xl transition-all shadow active:scale-95"
                                   title="সম্পাদনা করুন"
                                 >
                                   ✏️
                                 </button>
                                 <button
                                   onClick={() => handlePrintVoucher(row)}
-                                  className="p-2 bg-sky-600/20 hover:bg-sky-600 text-sky-300 hover:text-white rounded-xl transition-all shadow"
+                                  className="p-2.5 bg-sky-600/20 hover:bg-sky-600 text-sky-300 hover:text-white rounded-xl transition-all shadow active:scale-95"
                                   title="প্রিন্ট ভাউচার"
                                 >
-                                  <PrinterIcon size={14} />
+                                  <PrinterIcon size={16} />
                                 </button>
                                 <button
                                   onClick={() => setEntryToDelete(row)}
-                                  className="p-2 bg-rose-600/20 hover:bg-rose-600 text-rose-400 hover:text-white rounded-xl transition-all shadow"
+                                  className="p-2.5 bg-rose-600/20 hover:bg-rose-600 text-rose-400 hover:text-white rounded-xl transition-all shadow active:scale-95"
                                   title="মুছে ফেলুন"
                                 >
-                                  <TrashIcon size={14} />
+                                  <TrashIcon size={16} />
                                 </button>
                               </div>
                             </td>
