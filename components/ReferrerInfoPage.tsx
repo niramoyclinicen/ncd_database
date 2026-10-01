@@ -96,7 +96,7 @@ const ReferrarInfoPage: React.FC<ReferrarInfoPageProps> = ({
             return;
         }
 
-        const rawMobile = formData.ref_mobile.replace(/\D/g, '');
+        const rawMobile = (formData.ref_mobile || '').replace(/\D/g, '');
         if (formData.ref_mobile && (rawMobile.length !== 11 || !rawMobile.startsWith('01'))) {
             setMobileError('Please enter a valid mobile number');
             return;

@@ -126,7 +126,7 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
 
   // Sync entries if parent prop updates
   useEffect(() => {
-    if (consolidatedLabEntries && consolidatedLabEntries.length > 0) {
+    if (consolidatedLabEntries !== undefined) {
       setEntries(consolidatedLabEntries);
     } else {
       setEntries(dbService.getConsolidatedEntries());
@@ -409,7 +409,7 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
     const targetShift = targetItem.shift || '';
 
     try {
-      await dbService.deleteConsolidatedEntry(targetId);
+      await dbService.deleteConsolidatedEntry(targetItem);
       const updatedList = (entries || []).filter(item => {
         const itemId = String(item.id || (item as any)._id || '').trim();
         if (targetId && itemId === targetId) return false;

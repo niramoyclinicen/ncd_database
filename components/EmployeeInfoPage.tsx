@@ -130,10 +130,11 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
 
   // Helper: Calculate duration between two time strings (HH:mm)
   const calculateDuration = (startTime: string, endTime: string) => {
-    const [h1, m1] = startTime.split(':').map(Number);
-    const [h2, m2] = endTime.split(':').map(Number);
-    const mins1 = h1 * 60 + m1;
-    const mins2 = h2 * 60 + m2;
+    if (!startTime || !endTime || typeof startTime !== 'string' || typeof endTime !== 'string') return 0;
+    const [h1 = 0, m1 = 0] = startTime.split(':').map(Number);
+    const [h2 = 0, m2 = 0] = endTime.split(':').map(Number);
+    const mins1 = (Number(h1) || 0) * 60 + (Number(m1) || 0);
+    const mins2 = (Number(h2) || 0) * 60 + (Number(m2) || 0);
     return mins2 - mins1; // in minutes
   };
 

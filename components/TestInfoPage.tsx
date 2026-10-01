@@ -381,9 +381,9 @@ const TestInfoPage: React.FC<Props> = ({ reagents, tests, setTests, isEmbedded =
                             <td className="px-8 py-5"><div className="text-sm text-slate-200 font-black">{test.test_name}</div></td>
                             <td className="px-8 py-5 text-xs text-slate-400 font-bold">{test.category}</td>
                             <td className="px-8 py-5 text-center"><span className={`px-4 py-1.5 rounded-xl text-[9px] font-black uppercase border ${test.is_group_test ? 'bg-purple-900/30 text-purple-400 border-purple-800' : 'bg-blue-900/30 text-blue-400 border-blue-800'}`}>{test.is_group_test ? 'Group' : 'Single'}</span></td>
-                            <td className="px-8 py-5 text-lg text-white font-black text-right">৳{test.price.toFixed(2)}</td>
-                            <td className="px-8 py-5 text-sm text-slate-400 text-right font-bold">৳{test.test_commission.toFixed(2)}</td>
-                            <td className="px-8 py-5 text-sm text-amber-400 text-right font-bold">৳{test.usg_exam_charge.toFixed(2)}</td>
+                            <td className="px-8 py-5 text-lg text-white font-black text-right">৳{Number(test.price || 0).toFixed(2)}</td>
+                            <td className="px-8 py-5 text-sm text-slate-400 text-right font-bold">৳{Number(test.test_commission || 0).toFixed(2)}</td>
+                            <td className="px-8 py-5 text-sm text-amber-400 text-right font-bold">৳{Number(test.usg_exam_charge || 0).toFixed(2)}</td>
                             <td className="px-8 py-5 text-sm text-emerald-400 text-right font-bold">৳{Number(test.extra_lab_fee || 0).toFixed(2)}</td>
                         </tr>
                         ))}

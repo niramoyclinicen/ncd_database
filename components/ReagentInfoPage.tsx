@@ -183,10 +183,12 @@ const ReagentInfoPage: React.FC<ReagentInfoPageProps> = ({ reagents, setReagents
         }
         
         // 3. Usage (from labInvoices)
-        if (labInvoices) {
+        if (Array.isArray(labInvoices)) {
             labInvoices.forEach((inv: any) => {
+                if (!inv) return;
                 if (reagent.usage_start_date && inv.invoice_date < reagent.usage_start_date) return;
-                inv.items.forEach((item: any) => {
+                const safeItems = Array.isArray(inv.items) ? inv.items : [];
+                safeItems.forEach((item: any) => {
                     const test = tests.find(t => t.test_id === item.test_id);
                     if (test) {
                         let isUsed = false;

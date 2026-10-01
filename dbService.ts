@@ -2959,28 +2959,52 @@ export const dbService = {
     }
   },
 
-  deleteConsolidatedEntryDirectly: async (entryId: string) => {
+  deleteConsolidatedEntryDirectly: async (idOrObj: string | any) => {
     try {
-      if (!entryId) return { success: true };
-      const now = new Date().toISOString();
-      const targetId = String(entryId).trim();
+      if (!idOrObj) return { success: true };
+      const targetId = typeof idOrObj === 'string' ? idOrObj.trim() : String(idOrObj?.id || idOrObj?._id || '').trim();
+      const targetDate = typeof idOrObj === 'object' ? String(idOrObj?.date || '').trim() : '';
+      const targetShift = typeof idOrObj === 'object' ? String(idOrObj?.shift || '').trim() : '';
 
-      // Clean from localStorage
+      const isMatch = (item: any) => {
+        if (!item) return false;
+        const itemId = String(item.id || item._id || '').trim();
+        if (targetId && itemId === targetId) return true;
+        if (targetDate && item.date === targetDate && (!targetShift || item.shift === targetShift)) return true;
+        return false;
+      };
+
+      // Clean from all local storage caches
       try {
-        const rawLocal = localStorage.getItem('ncd_consolidated_lab_entries_v1');
-        if (rawLocal) {
-          const parsed = JSON.parse(rawLocal);
-          if (Array.isArray(parsed)) {
-            const filtered = parsed.filter((x: any) => String(x.id || '').trim() !== targetId);
-            localStorage.setItem('ncd_consolidated_lab_entries_v1', JSON.stringify(filtered));
-          }
-        }
+        ['ncd_consolidated_lab_entries', 'ncd_consolidated_lab_entries_v1', 'ncd_offline_cache_v1', 'ncd_vault_backup', 'ncd_local_snapshots_vault', 'ncd_pre_migration_snapshot'].forEach(k => {
+          const raw = localStorage.getItem(k);
+          if (!raw) return;
+          try {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) {
+              const filtered = parsed.filter((e: any) => {
+                const item = e?.data || e;
+                return !isMatch(item);
+              });
+              localStorage.setItem(k, JSON.stringify(filtered));
+            } else if (parsed && typeof parsed === 'object') {
+              if (Array.isArray(parsed.consolidatedLabEntries)) {
+                parsed.consolidatedLabEntries = parsed.consolidatedLabEntries.filter((e: any) => !isMatch(e));
+              }
+              if (Array.isArray(parsed.consolidated_lab_entries)) {
+                parsed.consolidated_lab_entries = parsed.consolidated_lab_entries.filter((e: any) => !isMatch(e));
+              }
+              localStorage.setItem(k, JSON.stringify(parsed));
+            }
+          } catch {}
+        });
       } catch (cacheErr) {}
 
       if (!supabase) return { success: true };
 
       // 1. Delete from ncd_state
       try {
+        const now = new Date().toISOString();
         if (!cachedLegacyState) {
           const { data } = await supabase.from('ncd_state').select('*').order('updated_at', { ascending: false }).limit(5);
           if (data && data.length > 0) {
@@ -2989,10 +3013,13 @@ export const dbService = {
             cachedLegacyState = typeof masterRow.data === 'string' ? JSON.parse(masterRow.data) : masterRow.data;
           }
         }
-        if (cachedLegacyState && Array.isArray(cachedLegacyState.consolidatedLabEntries)) {
-          cachedLegacyState.consolidatedLabEntries = cachedLegacyState.consolidatedLabEntries.filter((x: any) => {
-            return String(x.id || '').trim() !== targetId;
-          });
+        if (cachedLegacyState) {
+          if (Array.isArray(cachedLegacyState.consolidatedLabEntries)) {
+            cachedLegacyState.consolidatedLabEntries = cachedLegacyState.consolidatedLabEntries.filter((x: any) => !isMatch(x));
+          }
+          if (Array.isArray((cachedLegacyState as any).consolidated_lab_entries)) {
+            (cachedLegacyState as any).consolidated_lab_entries = (cachedLegacyState as any).consolidated_lab_entries.filter((x: any) => !isMatch(x));
+          }
           cachedLegacyState.last_updated_at = now;
 
           await supabase.from('ncd_state').upsert({
@@ -3007,10 +3034,18 @@ export const dbService = {
 
       // 2. Delete from modular tables 'consolidated_lab_entries' and 'consolidated_entries'
       try {
-        await Promise.allSettled([
-          supabase.from('consolidated_lab_entries').delete().eq('id', targetId),
-          supabase.from('consolidated_entries').delete().eq('id', targetId)
-        ]);
+        if (targetId) {
+          await Promise.allSettled([
+            supabase.from('consolidated_lab_entries').delete().eq('id', targetId),
+            supabase.from('consolidated_entries').delete().eq('id', targetId)
+          ]);
+        }
+        if (targetDate) {
+          await Promise.allSettled([
+            supabase.from('consolidated_lab_entries').delete().eq('date', targetDate),
+            supabase.from('consolidated_entries').delete().eq('date', targetDate)
+          ]);
+        }
       } catch (modDelErr) {
         console.warn("[dbService] modular consolidated entry delete notice:", modDelErr);
       }
@@ -3131,81 +3166,8 @@ export const dbService = {
     }
   },
 
-  deleteConsolidatedEntry: async (id: string) => {
-    try {
-      const targetId = String(id).trim();
-      const existing = dbService.getConsolidatedEntries();
-      const updated = existing.filter(e => String(e.id).trim() !== targetId);
-      dbService.saveConsolidatedEntries(updated);
-
-      // Clean from localStorage offline cache and vault
-      try {
-        const rawCache = localStorage.getItem('ncd_offline_cache_v1');
-        if (rawCache) {
-          const parsed = JSON.parse(rawCache);
-          if (Array.isArray(parsed.consolidatedLabEntries)) {
-            parsed.consolidatedLabEntries = parsed.consolidatedLabEntries.filter((e: any) => String(e.id).trim() !== targetId);
-            localStorage.setItem('ncd_offline_cache_v1', JSON.stringify(parsed));
-          }
-        }
-        const rawVault = localStorage.getItem('ncd_vault_backup');
-        if (rawVault) {
-          const parsedV = JSON.parse(rawVault);
-          if (Array.isArray(parsedV.consolidatedLabEntries)) {
-            parsedV.consolidatedLabEntries = parsedV.consolidatedLabEntries.filter((e: any) => String(e.id).trim() !== targetId);
-            localStorage.setItem('ncd_vault_backup', JSON.stringify(parsedV));
-          }
-        }
-      } catch (cacheErr) {}
-
-      if (cachedLegacyState && Array.isArray(cachedLegacyState.consolidatedLabEntries)) {
-        cachedLegacyState.consolidatedLabEntries = cachedLegacyState.consolidatedLabEntries.filter(
-          (e: any) => String(e.id).trim() !== targetId
-        );
-      }
-
-      if (supabase) {
-        try {
-          const now = new Date().toISOString();
-          if (!cachedLegacyState) {
-            const { data } = await supabase.from('ncd_state').select('*').limit(5);
-            if (data && data.length > 0) {
-              const masterRow = data.find((r: any) => r.id === MASTER_RECORD_ID) || data[0];
-              cachedLegacyRecordId = masterRow.id || MASTER_RECORD_ID;
-              cachedLegacyState = typeof masterRow.data === 'string' ? JSON.parse(masterRow.data) : masterRow.data;
-            }
-          }
-
-          if (cachedLegacyState) {
-            if (Array.isArray(cachedLegacyState.consolidatedLabEntries)) {
-              cachedLegacyState.consolidatedLabEntries = cachedLegacyState.consolidatedLabEntries.filter(
-                (e: any) => String(e.id).trim() !== targetId
-              );
-            }
-            cachedLegacyState.last_updated_at = now;
-            await supabase.from('ncd_state').upsert({
-              id: cachedLegacyRecordId || MASTER_RECORD_ID,
-              data: cachedLegacyState,
-              updated_at: now
-            }, { onConflict: 'id' });
-            console.log(`[dbService] Successfully deleted consolidated entry ${targetId} from ncd_state`);
-          }
-
-          // Delete from modular tables 'consolidated_lab_entries' and 'consolidated_entries'
-          await Promise.allSettled([
-            supabase.from('consolidated_lab_entries').delete().eq('id', targetId),
-            supabase.from('consolidated_entries').delete().eq('id', targetId)
-          ]);
-          console.log(`[dbService] Successfully deleted consolidated entry ${targetId} from modular tables`);
-        } catch (cloudErr) {
-          console.warn("deleteConsolidatedEntry cloud delete notice:", cloudErr);
-        }
-      }
-      return true;
-    } catch (e) {
-      console.error("deleteConsolidatedEntry error:", e);
-      return false;
-    }
+  deleteConsolidatedEntry: async (idOrObj: string | any) => {
+    return dbService.deleteConsolidatedEntryDirectly(idOrObj);
   },
 
   getAutoBackupSettings: (): AutoBackupSettings => {

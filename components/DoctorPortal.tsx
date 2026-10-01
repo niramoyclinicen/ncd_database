@@ -34,29 +34,32 @@ const DoctorPortal: React.FC<DoctorPortalProps> = ({
   }, [successMsg]);
 
   const myAppointments = useMemo(() => {
-    return appointments.filter(a => a.doctor_id === doctor.doctor_id);
-  }, [appointments, doctor.doctor_id]);
+    const safeAppointments = Array.isArray(appointments) ? appointments : [];
+    return safeAppointments.filter(a => a && a.doctor_id === doctor?.doctor_id);
+  }, [appointments, doctor?.doctor_id]);
 
-  const upcomingAppointments = myAppointments.filter(a => a.status === 'Scheduled');
-  const pastAppointments = myAppointments.filter(a => a.status === 'Completed' || a.status === 'Cancelled');
+  const upcomingAppointments = myAppointments.filter(a => a && a.status === 'Scheduled');
+  const pastAppointments = myAppointments.filter(a => a && (a.status === 'Completed' || a.status === 'Cancelled'));
 
   const displayAppointments = activeTab === 'upcoming' ? upcomingAppointments : pastAppointments;
 
   const handleOpenPrescription = (appointment: Appointment) => {
-    const existing = [...prescriptions].reverse().find(p => p.appointmentId === appointment.appointment_id);
+    const safePrescriptions = Array.isArray(prescriptions) ? prescriptions : [];
+    const existing = [...safePrescriptions].reverse().find(p => p && p.appointmentId === appointment.appointment_id);
     setExistingPrescriptionData(existing);
     setSelectedAppointment(appointment);
     setShowPrescriptionModal(true);
   };
 
   const handleSavePrescription = async (data: PrescriptionRecord) => {
+      const safePrescriptions = Array.isArray(prescriptions) ? prescriptions : [];
       let newPrescriptions;
-      const index = prescriptions.findIndex(p => p.id === data.id);
+      const index = safePrescriptions.findIndex(p => p && p.id === data.id);
       if (index >= 0) {
-          newPrescriptions = [...prescriptions];
+          newPrescriptions = [...safePrescriptions];
           newPrescriptions[index] = data;
       } else {
-          newPrescriptions = [data, ...prescriptions];
+          newPrescriptions = [data, ...safePrescriptions];
       }
 
       if (performBlockingSync) {
@@ -69,12 +72,14 @@ const DoctorPortal: React.FC<DoctorPortalProps> = ({
       setSelectedAppointment(null);
       setExistingPrescriptionData(undefined);
       
-      const patientName = patients.find(p => p.pt_id === data.patientId)?.pt_name || "Patient";
+      const safePatients = Array.isArray(patients) ? patients : [];
+      const patientName = safePatients.find(p => p && p.pt_id === data.patientId)?.pt_name || "Patient";
       setSuccessMsg(`সফলভাবে "${patientName}" এর ডাটা সেভ করা হয়েছে! পুরানো রেকর্ডটি হিস্ট্রি ট্যাবে যুক্ত হয়েছে।`);
   };
 
   const getPatientRxCount = (patientId: string) => {
-    return prescriptions.filter(p => p.patientId === patientId).length;
+    const safePrescriptions = Array.isArray(prescriptions) ? prescriptions : [];
+    return safePrescriptions.filter(p => p && p.patientId === patientId).length;
   };
 
   return (

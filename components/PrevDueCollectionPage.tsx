@@ -89,22 +89,22 @@ const PrevDueCollectionPage: React.FC<Props> = ({
             `;
             
             contentHtml = detailedPendingData.items.map((inv, index) => {
-                const netPayable = (inv.total_amount || 0) - (inv.discount_amount || 0);
+                const netPayable = Number(inv.total_amount || 0) - Number(inv.discount_amount || 0);
                 totalBillSum += netPayable;
-                totalDueSum += (inv.due_amount || 0);
+                totalDueSum += Number(inv.due_amount || 0);
                 
                 let paymentCols = '';
                 for(let i=0; i<detailedPendingData.maxPayments; i++) {
                     const p = inv.payments[i];
                     if (p) {
-                        paymentsSum[i] += p.amount;
-                        paymentCols += `<td style="text-align:right; white-space:nowrap;">${p.date}<br/><b>৳${p.amount.toFixed(2)}</b></td>`;
+                        paymentsSum[i] += Number(p.amount || 0);
+                        paymentCols += `<td style="text-align:right; white-space:nowrap;">${p.date}<br/><b>৳${Number(p.amount || 0).toFixed(2)}</b></td>`;
                     } else {
                         paymentCols += `<td></td>`;
                     }
                 }
                 
-                const discountText = inv.discount_amount > 0 ? `<br/><span style="font-size:10px; color:#555;">(Disc: ৳${inv.discount_amount.toFixed(2)})</span>` : '';
+                const discountText = Number(inv.discount_amount || 0) > 0 ? `<br/><span style="font-size:10px; color:#555;">(Disc: ৳${Number(inv.discount_amount || 0).toFixed(2)})</span>` : '';
                 const patientInfo = inv.addressStr ? `<b>${inv.patient_name}</b><br/><span style="font-size:11px; color:#444;">${inv.addressStr}</span>` : `<b>${inv.patient_name}</b>`;
                 
                 return `
@@ -112,7 +112,7 @@ const PrevDueCollectionPage: React.FC<Props> = ({
                         <td style="text-align:center">${index + 1}</td>
                         <td style="white-space:nowrap">${inv.invoice_id}</td>
                         <td>${patientInfo}</td>
-                        <td style="text-align:right; font-weight:bold;">৳${netPayable.toFixed(2)}${discountText}</td>
+                        <td style="text-align:right; font-weight:bold;">৳${Number(netPayable).toFixed(2)}${discountText}</td>
                         ${paymentCols}
                         <td style="text-align:right; font-weight:bold; color:red;">৳${Number(inv.due_amount || 0).toFixed(2)}</td>
                     </tr>
@@ -121,15 +121,15 @@ const PrevDueCollectionPage: React.FC<Props> = ({
             
             let paymentFooters = '';
             for(let i=0; i<detailedPendingData.maxPayments; i++) {
-                paymentFooters += `<td style="text-align:right; font-weight:bold;">৳${paymentsSum[i].toFixed(2)}</td>`;
+                paymentFooters += `<td style="text-align:right; font-weight:bold;">৳${Number(paymentsSum[i] || 0).toFixed(2)}</td>`;
             }
             
             tfootHtml = `
                 <tr>
                     <td colspan="3" style="text-align:right; font-weight:bold;">Total:</td>
-                    <td style="text-align:right; font-weight:bold;">৳${totalBillSum.toFixed(2)}</td>
+                    <td style="text-align:right; font-weight:bold;">৳${Number(totalBillSum || 0).toFixed(2)}</td>
                     ${paymentFooters}
-                    <td style="text-align:right; font-weight:bold; font-size:16px; color:red;">৳${totalDueSum.toFixed(2)}</td>
+                    <td style="text-align:right; font-weight:bold; font-size:16px; color:red;">৳${Number(totalDueSum || 0).toFixed(2)}</td>
                 </tr>
             `;
         } else if (activeTab === 'history') {
@@ -151,13 +151,13 @@ const PrevDueCollectionPage: React.FC<Props> = ({
                 </tr>
             `;
             contentHtml = filteredHistory.map((dc, index) => {
-                const inv = invoices.find(i => i.invoice_id === dc.invoice_id);
+                const inv = invoices.find(i => i && i.invoice_id === dc.invoice_id);
                 const invDate = inv?.invoice_date || '';
-                const totalBill = inv?.total_amount || 0;
-                const remainingDue = inv?.due_amount || 0;
+                const totalBill = Number(inv?.total_amount || 0);
+                const remainingDue = Number(inv?.due_amount || 0);
                 
                 sumBill += totalBill;
-                sumCollected += (dc.amount_collected || 0);
+                sumCollected += Number(dc.amount_collected || 0);
                 sumRemainingDue += remainingDue;
                 
                 return `
@@ -166,20 +166,20 @@ const PrevDueCollectionPage: React.FC<Props> = ({
                         <td style="white-space:nowrap">${invDate}</td>
                         <td style="white-space:nowrap">${dc.invoice_id}</td>
                         <td>${inv ? inv.patient_name : 'Unknown'}</td>
-                        <td style="text-align:right">৳${totalBill.toFixed(2)}</td>
+                        <td style="text-align:right">৳${Number(totalBill).toFixed(2)}</td>
                         <td style="white-space:nowrap">${dc.collection_date}</td>
                         <td style="text-align:right; font-weight:bold; color:green;">৳${Number(dc.amount_collected || 0).toFixed(2)}</td>
-                        <td style="text-align:right; font-weight:bold; color:red;">৳${remainingDue.toFixed(2)}</td>
+                        <td style="text-align:right; font-weight:bold; color:red;">৳${Number(remainingDue).toFixed(2)}</td>
                     </tr>
                 `;
             }).join('');
             tfootHtml = `
                 <tr>
                     <td colspan="4" style="text-align:right; font-weight:bold;">Total:</td>
-                    <td style="text-align:right; font-weight:bold;">৳${sumBill.toFixed(2)}</td>
+                    <td style="text-align:right; font-weight:bold;">৳${Number(sumBill).toFixed(2)}</td>
                     <td></td>
-                    <td style="text-align:right; font-weight:bold; color:green; font-size:16px;">৳${sumCollected.toFixed(2)}</td>
-                    <td style="text-align:right; font-weight:bold; color:red; font-size:16px;">৳${sumRemainingDue.toFixed(2)}</td>
+                    <td style="text-align:right; font-weight:bold; color:green; font-size:16px;">৳${Number(sumCollected).toFixed(2)}</td>
+                    <td style="text-align:right; font-weight:bold; color:red; font-size:16px;">৳${Number(sumRemainingDue).toFixed(2)}</td>
                 </tr>
             `;
         }

@@ -100,7 +100,8 @@ const MedicineAccountsPage: React.FC<MedicineAccountsPageProps> = ({
         const totalBuyCurrent = currentInvoices.reduce((sum, inv) => sum + getSafeInvAmount(inv), 0);
         const totalSellOutdoor = currentOutdoorSales.reduce((sum, inv) => sum + getSafeInvAmount(inv), 0);
         const totalSellIndoor = currentIndoorSales.reduce((sum, inv) => {
-            const medItemsTotal = (inv.items || [])
+            const safeItems = Array.isArray(inv.items) ? inv.items : [];
+            const medItemsTotal = safeItems
                 .filter(it => it && (it.service_type === 'Medicine' || it.service_type === 'ঔষধ' || (it.service_type || '').toLowerCase().includes('med')))
                 .reduce((s, it) => s + (Number(it.payable_amount) || Number(it.line_total) || 0), 0);
             return sum + medItemsTotal;

@@ -67,8 +67,10 @@ const DoctorInfoPage: React.FC<DoctorInfoPageProps> = ({
     const year = today.getFullYear();
     const month = String(today.getMonth() + 1).padStart(2, '0');
     const day = String(today.getDate()).padStart(2, '0');
-    const todayDoctors = doctors.filter(d => d.doctor_id?.startsWith(`DR-${year}-${month}-${day}`)).length;
-    const newId = `DR-${year}-${month}-${day}-${String(todayDoctors + 1).padStart(3, '0')}`;
+    const safeDoctors = Array.isArray(doctors) ? doctors : [];
+    const prefix = `DR-${year}-${month}-${day}`;
+    const todayDoctors = safeDoctors.filter(d => d && d.doctor_id && typeof d.doctor_id === 'string' && d.doctor_id.startsWith(prefix)).length;
+    const newId = `${prefix}-${String(todayDoctors + 1).padStart(3, '0')}`;
     setFormData({ ...emptyDoctor, doctor_id: newId });
     setSelectedDoctorId(null);
     setIsEditing(false);

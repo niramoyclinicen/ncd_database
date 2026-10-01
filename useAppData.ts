@@ -113,19 +113,15 @@ export function useAppData() {
               });
             }
           }
+          // If cloud data is loaded, only fill in missing fields from local cache if completely undefined in cloud
           ['labInvoices', 'indoorInvoices', 'dueCollections', 'salesInvoices', 'purchaseInvoices', 'medicines', 'consolidatedLabEntries'].forEach(col => {
-            const src = localData[col] || (col === 'consolidatedLabEntries' ? (localData.consolidated_lab_entries || localData.consolidatedEntries) : undefined);
-            if (Array.isArray(src) && src.length > 0) {
-              const idFields = col === 'dueCollections' ? ['collection_id', 'id'] : (col === 'consolidatedLabEntries' ? ['id', 'date'] : ['invoice_id', 'daily_id', 'invoiceId', 'id']);
-              finalDataToLoad[col] = dbService.mergeEntityList(finalDataToLoad[col] || [], src, idFields);
+            if (finalDataToLoad[col] === undefined) {
+              const src = localData[col] || (col === 'consolidatedLabEntries' ? (localData.consolidated_lab_entries || localData.consolidatedEntries) : undefined);
+              if (Array.isArray(src)) {
+                finalDataToLoad[col] = src;
+              }
             }
           });
-          try {
-            const localCons = dbService.getConsolidatedEntries();
-            if (Array.isArray(localCons) && localCons.length > 0) {
-              finalDataToLoad.consolidatedLabEntries = dbService.mergeEntityList(finalDataToLoad.consolidatedLabEntries || [], localCons, ['id', 'date']);
-            }
-          } catch {}
         }
         
         if (Object.keys(finalDataToLoad).length > 0) {
@@ -248,16 +244,12 @@ export function useAppData() {
       }
       if (data.diagnosticSettings !== undefined) setDiagnosticSettings(data.diagnosticSettings || {});
       if (data.employeeReferrerMap !== undefined) setEmployeeReferrerMap(data.employeeReferrerMap || {});
-      if (Array.isArray(data.consolidatedLabEntries) && data.consolidatedLabEntries.length > 0) {
-        const localCons = dbService.getConsolidatedEntries();
-        const mergedCons = dbService.mergeEntityList(localCons, data.consolidatedLabEntries, ['id', 'date']);
-        setConsolidatedLabEntries(mergedCons);
-        dbService.saveConsolidatedEntries(mergedCons);
-      } else {
-        const localCons = dbService.getConsolidatedEntries();
-        if (localCons.length > 0) {
-          setConsolidatedLabEntries(localCons);
-        }
+      if (data.consolidatedLabEntries !== undefined && Array.isArray(data.consolidatedLabEntries)) {
+        setConsolidatedLabEntries(data.consolidatedLabEntries);
+        dbService.saveConsolidatedEntries(data.consolidatedLabEntries);
+      } else if (data.consolidated_lab_entries !== undefined && Array.isArray(data.consolidated_lab_entries)) {
+        setConsolidatedLabEntries(data.consolidated_lab_entries);
+        dbService.saveConsolidatedEntries(data.consolidated_lab_entries);
       }
       if (data.passwords !== undefined && typeof data.passwords === 'object' && data.passwords !== null) {
         const defaultPasswords = {
