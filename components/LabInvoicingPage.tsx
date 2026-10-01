@@ -330,12 +330,27 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
   }, [searchTerm, tableFilterDate, tableFilterMonth, tableFilterYear, tableFilterDoctorId, tableFilterReferrarId, tableFilterPatientName, tableFilterDueOnly, invoices]);
 
 
+  const allAvailableTestCategories = useMemo(() => {
+    const safeTests = Array.isArray(tests) ? tests : [];
+    const customCats = safeTests.map(t => String(t?.category || '').trim()).filter(Boolean);
+    const set = new Set(['All', ...testCategories, ...customCats]);
+    return Array.from(set);
+  }, [tests]);
+
   const filteredTestsForSelect = useMemo(() => {
     const safeTests = Array.isArray(tests) ? tests : [];
     if (selectedTestCategory === 'All') {
       return safeTests;
     }
-    return safeTests.filter(test => test && test.category === selectedTestCategory);
+    const selCatLower = selectedTestCategory.toLowerCase();
+    return safeTests.filter(test => {
+      if (!test) return false;
+      const tCat = String(test.category || '').trim().toLowerCase();
+      if (selCatLower === 'others') {
+        return tCat === 'others' || !testCategories.some(c => c.toLowerCase() === tCat);
+      }
+      return tCat === selCatLower;
+    });
   }, [tests, selectedTestCategory]);
 
   const getTestAvailability = (test: Test, currentReagents?: Reagent[]): boolean => {
@@ -1684,7 +1699,7 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
             <div className="flex flex-wrap items-center justify-between gap-y-2 mb-2">
                 <h3 className="text-base font-semibold text-sky-200">Add Test Items</h3>
                 <div className="flex flex-wrap gap-2">
-                    {['All', ...(Array.isArray(testCategories) ? testCategories : [])].map(category => (
+                    {allAvailableTestCategories.map(category => (
                         <button key={category} type="button" onClick={() => setSelectedTestCategory(category)} className={`px-3 py-1 text-xs font-medium rounded-full transition-colors ${selectedTestCategory === category ? 'bg-blue-600 text-white shadow' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`}>{category}</button>
                     ))}
                 </div>
@@ -1692,7 +1707,7 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
              <div className="bg-slate-100 p-2 rounded-xl border border-gray-300 shadow-inner">
                 <SearchableSelect
                   theme="light" label=""
-                  options={(Array.isArray(filteredTestsForSelect) ? filteredTestsForSelect : []).map(t => ({ id: t.test_id, name: t.test_name, details: `${t.category} - BDT ${(t.price || 0).toFixed(2)} ${!getTestAvailability(t, reagents) ? '(Unavailable)' : ''}` }))}
+                  options={(Array.isArray(filteredTestsForSelect) ? filteredTestsForSelect : []).map(t => ({ id: String(t.test_id || ''), name: String(t.test_name || t.test_id || ''), details: `${t.category || 'General'} - BDT ${(Number(t.price) || 0).toFixed(2)} ${!getTestAvailability(t, reagents) ? '(Unavailable)' : ''}` }))}
                   value="" 
                   onChange={handleTestSelect}
                   onAddNew={() => setShowNewTestForm(true)}

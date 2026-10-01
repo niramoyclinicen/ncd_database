@@ -3,6 +3,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Reagent, Test, emptyTest, testCategories, SubTest } from './DiagnosticData';
 import { PlusIcon, SaveIcon, SearchIcon } from './Icons';
 import SearchableSelect from './SearchableSelect';
+import { dbService, normalizeTestItem } from '../dbService';
 
 interface Props {
     reagents: Reagent[];
@@ -21,8 +22,17 @@ const TestInfoPage: React.FC<Props> = ({ reagents, tests, setTests, isEmbedded =
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedFilterCategory, setSelectedFilterCategory] = useState('All');
   const [successMessage, setSuccessMessage] = useState('');
+  const [isReloading, setIsReloading] = useState(false);
 
   const [tempSubTests, setTempSubTests] = useState<SubTest[]>([]);
+
+  // Dynamically include any custom categories discovered from loaded tests
+  const allCategories = useMemo(() => {
+    const safeTests = Array.isArray(tests) ? tests : [];
+    const customCats = safeTests.map(t => String(t?.category || '').trim()).filter(Boolean);
+    const set = new Set(['All', ...testCategories, ...customCats]);
+    return Array.from(set);
+  }, [tests]);
 
   // Generate unique test ID
   const generateNewTestId = React.useCallback(() => {
@@ -36,8 +46,9 @@ const TestInfoPage: React.FC<Props> = ({ reagents, tests, setTests, isEmbedded =
     const safeTests = Array.isArray(tests) ? tests : [];
     let maxCounter = 0;
     safeTests.forEach(t => {
-      if (t && t.test_id && t.test_id.startsWith(prefix)) {
-        const numPart = t.test_id.replace(prefix, '');
+      const tid = String(t?.test_id || '');
+      if (tid && tid.startsWith(prefix)) {
+        const numPart = tid.replace(prefix, '');
         const num = parseInt(numPart, 10);
         if (!isNaN(num) && num > maxCounter) {
           maxCounter = num;
@@ -58,7 +69,7 @@ const TestInfoPage: React.FC<Props> = ({ reagents, tests, setTests, isEmbedded =
 
   useEffect(() => {
     if (successMessage) {
-        const timer = setTimeout(() => setSuccessMessage(''), 3000);
+        const timer = setTimeout(() => setSuccessMessage(''), 4000);
         return () => clearTimeout(timer);
     }
   }, [successMessage]);
@@ -67,9 +78,15 @@ const TestInfoPage: React.FC<Props> = ({ reagents, tests, setTests, isEmbedded =
     if (!Array.isArray(tests)) return [];
     return tests.filter(test => {
       if (!test) return false;
-      const matchesSearch = (test.test_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          (test.test_id || '').toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesCategory = selectedFilterCategory === 'All' || test.category === selectedFilterCategory;
+      const testName = String(test.test_name || '').toLowerCase();
+      const testId = String(test.test_id || '').toLowerCase();
+      const cleanSearch = (searchTerm || '').trim().toLowerCase();
+      const matchesSearch = !cleanSearch || testName.includes(cleanSearch) || testId.includes(cleanSearch);
+      
+      const testCat = String(test.category || '').trim();
+      const matchesCategory = selectedFilterCategory === 'All' || 
+        testCat.toLowerCase() === selectedFilterCategory.toLowerCase() ||
+        (selectedFilterCategory === 'Others' && !testCategories.some(c => c.toLowerCase() === testCat.toLowerCase()));
       return matchesSearch && matchesCategory;
     });
   }, [searchTerm, tests, selectedFilterCategory]);
@@ -77,7 +94,44 @@ const TestInfoPage: React.FC<Props> = ({ reagents, tests, setTests, isEmbedded =
   const getCategoryCount = (cat: string) => {
     const safeTests = Array.isArray(tests) ? tests : [];
     if (cat === 'All') return safeTests.length;
-    return safeTests.filter(t => t && t.category === cat).length;
+    return safeTests.filter(t => {
+      if (!t) return false;
+      const testCat = String(t.category || '').trim();
+      if (cat === 'Others') {
+        return testCat.toLowerCase() === 'others' || !testCategories.some(c => c.toLowerCase() === testCat.toLowerCase());
+      }
+      return testCat.toLowerCase() === cat.toLowerCase();
+    }).length;
+  };
+
+  const handleReloadFromCloud = async () => {
+    setIsReloading(true);
+    try {
+      const directTests = await dbService.loadTestsDirectly();
+      if (directTests && directTests.length > 0) {
+        setTests(directTests);
+        if (performBlockingSync) {
+          await performBlockingSync({ tests: directTests });
+        }
+        setSuccessMessage(`সফলভাবে ক্লাউড ডাটাবেজ (test/tests টেবিল) থেকে ${directTests.length}টি টেস্ট লোড হয়েছে!`);
+      } else {
+        const fullCloud = await dbService.loadFromCloud();
+        if (fullCloud && Array.isArray(fullCloud.tests) && fullCloud.tests.length > 0) {
+          setTests(fullCloud.tests);
+          if (performBlockingSync) {
+            await performBlockingSync({ tests: fullCloud.tests });
+          }
+          setSuccessMessage(`সফলভাবে ক্লাউড থেকে ${fullCloud.tests.length}টি টেস্ট লোড হয়েছে!`);
+        } else {
+          alert("ডাটাবেজ থেকে কোনো টেস্ট পাওয়া যায়নি। অনুগ্রহ করে আপনার Supabase ক্লাউডে 'test' বা 'tests' টেবিলটি আছে কিনা এবং সেটিংস এ কানেকশন ঠিক আছে কিনা যাচাই করুন।");
+        }
+      }
+    } catch (e: any) {
+      console.error("Reload tests error:", e);
+      alert("টেস্ট ডাটা লোড করতে ব্যর্থ: " + (e?.message || e));
+    } finally {
+      setIsReloading(false);
+    }
   };
 
   useEffect(() => {
@@ -188,6 +242,18 @@ const TestInfoPage: React.FC<Props> = ({ reagents, tests, setTests, isEmbedded =
     setIsEditing(true);
   };
 
+  const handleDeleteTest = async () => {
+    if (!formData.test_id) return;
+    if (!window.confirm(`আপনি কি নিশ্চিত যে "${formData.test_name || formData.test_id}" টেস্টটি তালিকা থেকে মুছে ফেলতে চান?`)) return;
+    const newTests = tests.filter(t => String(t.test_id) !== String(formData.test_id));
+    setTests(newTests);
+    if (performBlockingSync) {
+      await performBlockingSync({ tests: newTests });
+    }
+    setSuccessMessage('টেস্টটি সফলভাবে মুছে ফেলা হয়েছে!');
+    resetForm();
+  };
+
   const inputBaseClasses = "py-2 px-3 mt-1 block w-full border border-sky-800 rounded-md shadow-sm sm:text-sm bg-sky-900/50 text-sky-200 placeholder-sky-400 focus:bg-sky-800 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all";
   const labelBaseClasses = "block text-xs font-black text-sky-400 uppercase tracking-widest ml-1";
 
@@ -212,6 +278,15 @@ const TestInfoPage: React.FC<Props> = ({ reagents, tests, setTests, isEmbedded =
                 </div>
                 <div className="flex items-center gap-3">
                     <button type="submit" form="test-form" className="px-10 py-2.5 text-xs font-black text-white bg-emerald-600 rounded-xl hover:bg-emerald-500 shadow-xl active:scale-95 transition-all uppercase tracking-widest">Save Test</button>
+                    {isEditing && (
+                      <button 
+                        type="button" 
+                        onClick={handleDeleteTest}
+                        className="px-6 py-2.5 text-xs font-black text-white bg-rose-700 hover:bg-rose-600 rounded-xl shadow-lg active:scale-95 transition-all uppercase tracking-widest"
+                      >
+                        Delete
+                      </button>
+                    )}
                     <button type="button" onClick={resetForm} className="px-6 py-2.5 text-xs font-black text-sky-200 bg-slate-800 rounded-xl hover:bg-slate-700 transition-all uppercase tracking-widest">
                         {isEmbedded ? 'Discard & Close' : 'Cancel'}
                     </button>
@@ -237,7 +312,7 @@ const TestInfoPage: React.FC<Props> = ({ reagents, tests, setTests, isEmbedded =
                         <label className={labelBaseClasses}>Category</label>
                         <select name="category" value={formData.category} onChange={handleInputChange} required className={inputBaseClasses}>
                             <option value="" disabled hidden>Select Category</option>
-                            {testCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                            {allCategories.filter(c => c !== 'All').map(cat => <option key={cat} value={cat}>{cat}</option>)}
                         </select>
                     </div>
                     <div className="flex items-center justify-center bg-slate-900/50 rounded-2xl border border-sky-800 p-2 mt-4">
@@ -353,15 +428,29 @@ const TestInfoPage: React.FC<Props> = ({ reagents, tests, setTests, isEmbedded =
       
         <div className="bg-slate-800 rounded-[2.5rem] border border-slate-700 shadow-2xl overflow-hidden flex flex-col">
             <div className="p-8 bg-slate-900/80 border-b border-slate-700 flex flex-col gap-6">
-                <div className="flex justify-between items-center">
-                    <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Test Master Library</h3>
-                    <div className="relative w-96">
+                <div className="flex flex-wrap justify-between items-center gap-4">
+                    <div className="flex items-center gap-3">
+                        <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Test Master Library</h3>
+                        <span className="bg-sky-900/60 border border-sky-600/40 text-sky-300 text-xs px-3 py-1 rounded-full font-bold">
+                            মোট: {Array.isArray(tests) ? tests.length : 0}টি টেস্ট
+                        </span>
+                        <button
+                            type="button"
+                            onClick={handleReloadFromCloud}
+                            disabled={isReloading}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-sky-700 hover:bg-sky-600 text-white rounded-xl text-xs font-bold shadow transition-all active:scale-95 disabled:opacity-50"
+                            title="ক্লাউড ডাটাবেজ (test/tests টেবিল) থেকে টেস্ট লোড করুন"
+                        >
+                            <span className={isReloading ? "animate-spin" : ""}>🔄</span> {isReloading ? 'লোড হচ্ছে...' : 'Reload from Cloud'}
+                        </button>
+                    </div>
+                    <div className="relative w-80">
                         <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
-                        <input type="text" placeholder="Quick search..." value={searchTerm} onChange={e=>setSearchTerm(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-full py-3 pl-12 pr-6 text-sm text-white focus:border-blue-500 outline-none shadow-inner font-medium"/>
+                        <input type="text" placeholder="Quick search..." value={searchTerm} onChange={e=>setSearchTerm(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-full py-2.5 pl-12 pr-6 text-sm text-white focus:border-blue-500 outline-none shadow-inner font-medium"/>
                     </div>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                    {['All', ...testCategories].map(cat => (
+                    {allCategories.map(cat => (
                         <button key={cat} onClick={() => setSelectedFilterCategory(cat)} className={`px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${selectedFilterCategory === cat ? 'bg-blue-600 text-white shadow-lg' : 'bg-slate-800 text-slate-500 hover:bg-slate-700 hover:text-slate-300'}`}>
                             {cat} <span className={`px-2 py-0.5 rounded-full text-[9px] ${selectedFilterCategory === cat ? 'bg-blue-400 text-blue-900' : 'bg-slate-900 text-slate-600'}`}>{getCategoryCount(cat)}</span>
                         </button>
@@ -375,18 +464,40 @@ const TestInfoPage: React.FC<Props> = ({ reagents, tests, setTests, isEmbedded =
                         <tr><th className="px-8 py-5 text-left">Master ID</th><th className="px-8 py-5 text-left">Investigation</th><th className="px-8 py-5 text-left">Dept</th><th className="px-8 py-5 text-center">Protocol</th><th className="px-8 py-5 text-right">Price</th><th className="px-8 py-5 text-right">PC</th><th className="px-8 py-5 text-right">USG Fee</th><th className="px-8 py-5 text-right">Lab Fee</th></tr>
                     </thead>
                     <tbody className="bg-slate-800 divide-y divide-slate-700/50">
-                        {filteredTests.map((test) => (
-                        <tr key={test.test_id} onClick={() => handleRowClick(test)} className={`cursor-pointer hover:bg-blue-900/20 transition-all group ${selectedTestId === test.test_id ? 'bg-blue-900/40' : ''}`}>
-                            <td className="px-8 py-5 text-xs text-sky-400 font-mono">{test.test_id}</td>
-                            <td className="px-8 py-5"><div className="text-sm text-slate-200 font-black">{test.test_name}</div></td>
-                            <td className="px-8 py-5 text-xs text-slate-400 font-bold">{test.category}</td>
-                            <td className="px-8 py-5 text-center"><span className={`px-4 py-1.5 rounded-xl text-[9px] font-black uppercase border ${test.is_group_test ? 'bg-purple-900/30 text-purple-400 border-purple-800' : 'bg-blue-900/30 text-blue-400 border-blue-800'}`}>{test.is_group_test ? 'Group' : 'Single'}</span></td>
-                            <td className="px-8 py-5 text-lg text-white font-black text-right">৳{Number(test.price || 0).toFixed(2)}</td>
-                            <td className="px-8 py-5 text-sm text-slate-400 text-right font-bold">৳{Number(test.test_commission || 0).toFixed(2)}</td>
-                            <td className="px-8 py-5 text-sm text-amber-400 text-right font-bold">৳{Number(test.usg_exam_charge || 0).toFixed(2)}</td>
-                            <td className="px-8 py-5 text-sm text-emerald-400 text-right font-bold">৳{Number(test.extra_lab_fee || 0).toFixed(2)}</td>
-                        </tr>
-                        ))}
+                        {filteredTests.length === 0 ? (
+                            <tr>
+                                <td colSpan={8} className="py-12 text-center text-slate-400">
+                                    <div className="flex flex-col items-center gap-3">
+                                        <span className="text-3xl">🧪</span>
+                                        <p className="text-base font-bold text-slate-300">কোনো টেস্ট পাওয়া যায়নি</p>
+                                        <p className="text-xs text-slate-500 max-w-md">
+                                            আপনার Supabase ক্লাউড ডাটাবেজে <code className="text-sky-400 bg-slate-900 px-1.5 py-0.5 rounded font-mono">test</code> বা <code className="text-sky-400 bg-slate-900 px-1.5 py-0.5 rounded font-mono">tests</code> টেবিলে ডাটা থাকলে নিচের বাটনে ক্লিক করে সাথে সাথে লোড করুন।
+                                        </p>
+                                        <button
+                                            type="button"
+                                            onClick={handleReloadFromCloud}
+                                            disabled={isReloading}
+                                            className="mt-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-black uppercase tracking-wider rounded-xl shadow-lg transition-all active:scale-95"
+                                        >
+                                            {isReloading ? 'ডাটা লোড হচ্ছে...' : '🔄 এখনই ডাটাবেজ থেকে লোড করুন'}
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        ) : (
+                            filteredTests.map((test) => (
+                            <tr key={test.test_id} onClick={() => handleRowClick(test)} className={`cursor-pointer hover:bg-blue-900/20 transition-all group ${selectedTestId === test.test_id ? 'bg-blue-900/40' : ''}`}>
+                                <td className="px-8 py-5 text-xs text-sky-400 font-mono">{test.test_id}</td>
+                                <td className="px-8 py-5"><div className="text-sm text-slate-200 font-black">{test.test_name}</div></td>
+                                <td className="px-8 py-5 text-xs text-slate-400 font-bold">{test.category}</td>
+                                <td className="px-8 py-5 text-center"><span className={`px-4 py-1.5 rounded-xl text-[9px] font-black uppercase border ${test.is_group_test ? 'bg-purple-900/30 text-purple-400 border-purple-800' : 'bg-blue-900/30 text-blue-400 border-blue-800'}`}>{test.is_group_test ? 'Group' : 'Single'}</span></td>
+                                <td className="px-8 py-5 text-lg text-white font-black text-right">৳{Number(test.price || 0).toFixed(2)}</td>
+                                <td className="px-8 py-5 text-sm text-slate-400 text-right font-bold">৳{Number(test.test_commission || 0).toFixed(2)}</td>
+                                <td className="px-8 py-5 text-sm text-amber-400 text-right font-bold">৳{Number(test.usg_exam_charge || 0).toFixed(2)}</td>
+                                <td className="px-8 py-5 text-sm text-emerald-400 text-right font-bold">৳{Number(test.extra_lab_fee || 0).toFixed(2)}</td>
+                            </tr>
+                            ))
+                        )}
                     </tbody>
                 </table>
             </div>

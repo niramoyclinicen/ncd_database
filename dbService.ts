@@ -1,4 +1,5 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import type { Test, SubTest } from './components/DiagnosticData';
 
 // Get URL and Key from env or localStorage
 const getStoredConfig = () => {
@@ -400,6 +401,116 @@ export const mergeEntityList = (baseList: any[], extraList: any[], idFields: str
   return result;
 };
 
+// Safe helper to normalize any test item regardless of column naming conventions
+export const normalizeTestItem = (rawRow: any): Test | null => {
+  if (!rawRow || typeof rawRow !== 'object') return null;
+  let dataObj = rawRow.data;
+  if (typeof dataObj === 'string') {
+    try { dataObj = JSON.parse(dataObj); } catch { dataObj = {}; }
+  }
+  if (!dataObj || typeof dataObj !== 'object') dataObj = {};
+
+  const merged = { ...dataObj, ...rawRow };
+
+  const test_name = String(merged.test_name || merged.name || merged.testName || merged.title || merged.test || '').trim();
+  const rawId = merged.test_id || merged.id || merged.testId || merged.code || merged.test_code || '';
+  const test_id = String(rawId || (test_name ? `TEST-${test_name.replace(/\s+/g, '_')}` : '')).trim();
+
+  if (!test_id && !test_name) return null;
+
+  // Category
+  let category = String(merged.category || merged.dept || merged.department || merged.test_category || merged.group || merged.category_name || '').trim();
+  if (!category) {
+    category = 'Others';
+  }
+
+  // Price / Cost / Rate / Fee
+  const price = Number(merged.price ?? merged.rate ?? merged.cost ?? merged.fee ?? merged.test_price ?? merged.amount ?? 0) || 0;
+
+  // Commission / PC
+  const test_commission = Number(merged.test_commission ?? merged.commission ?? merged.pc ?? merged.doctor_commission ?? 0) || 0;
+
+  // USG Exam Charge & Extra Lab Fee
+  const usg_exam_charge = Number(merged.usg_exam_charge ?? merged.usgCharge ?? merged.exam_charge ?? 0) || 0;
+  const extra_lab_fee = Number(merged.extra_lab_fee ?? merged.extraLabFee ?? merged.lab_fee ?? 0) || 0;
+
+  // is_group_test
+  let is_group_test = false;
+  if (typeof merged.is_group_test === 'boolean') {
+    is_group_test = merged.is_group_test;
+  } else if (typeof merged.group_test === 'boolean') {
+    is_group_test = merged.group_test;
+  } else if (typeof merged.is_group_test === 'string') {
+    is_group_test = merged.is_group_test.toLowerCase() === 'true' || merged.is_group_test.toLowerCase() === 'group';
+  } else if (typeof merged.group_test === 'string') {
+    is_group_test = merged.group_test.toLowerCase() === 'true' || merged.group_test.toLowerCase() === 'group';
+  } else if (Array.isArray(merged.sub_tests) && merged.sub_tests.length > 0) {
+    is_group_test = true;
+  }
+
+  // Normal Range & Unit
+  const normal_range = String(merged.normal_range || merged.normalRange || merged.reference_range || merged.range || '').trim();
+  const unit = String(merged.unit || merged.test_unit || merged.units || '').trim();
+
+  // Sub Tests
+  let sub_tests: SubTest[] = [];
+  let rawSub = merged.sub_tests || merged.subTests || merged.subtests || merged.parameters;
+  if (typeof rawSub === 'string') {
+    try { rawSub = JSON.parse(rawSub); } catch { rawSub = []; }
+  }
+  if (Array.isArray(rawSub)) {
+    sub_tests = rawSub.map((s: any, idx: number) => ({
+      id: String(s.id || idx + 1),
+      name: String(s.name || s.test_name || s.parameter_name || ''),
+      unit: String(s.unit || ''),
+      normal_range: String(s.normal_range || s.normalRange || s.reference_range || '')
+    })).filter((s: SubTest) => s.name);
+  }
+
+  // Reagents Required
+  let reagents_required: { reagent_id: string; quantity_per_test: number }[] = [];
+  let rawReagents = merged.reagents_required || merged.reagentsRequired || merged.reagents;
+  if (typeof rawReagents === 'string') {
+    try { rawReagents = JSON.parse(rawReagents); } catch { rawReagents = []; }
+  }
+  if (Array.isArray(rawReagents)) {
+    reagents_required = rawReagents.map((r: any) => ({
+      reagent_id: String(r.reagent_id || r.id || r.name || ''),
+      quantity_per_test: Number(r.quantity_per_test || r.quantity || r.qty || 1) || 1
+    })).filter((r: any) => r.reagent_id);
+  }
+
+  // Availability
+  let availability = true;
+  if (merged.availability !== undefined) {
+    availability = merged.availability === true || merged.availability === 'true' || merged.availability === 1 || merged.availability === '1';
+  } else if (merged.is_available !== undefined) {
+    availability = merged.is_available === true || merged.is_available === 'true' || merged.is_available === 1 || merged.is_available === '1';
+  } else if (merged.status !== undefined) {
+    availability = String(merged.status).toLowerCase() !== 'inactive' && String(merged.status).toLowerCase() !== 'disabled';
+  }
+
+  // Preparation Instructions
+  const preparation_instructions = String(merged.preparation_instructions || merged.instructions || merged.instruction || '').trim();
+
+  return {
+    test_id,
+    test_name: test_name || test_id,
+    category,
+    price,
+    test_commission,
+    is_group_test,
+    normal_range,
+    unit,
+    sub_tests,
+    usg_exam_charge,
+    extra_lab_fee,
+    reagents_required,
+    availability,
+    preparation_instructions
+  };
+};
+
 // Safe helper to fetch all rows from a table (with pagination beyond 5000 rows)
 const fetchTableSafe = async (client: SupabaseClient, tableName: string) => {
   try {
@@ -505,9 +616,9 @@ export const dbService = {
 
       // Test individual tables
       const tableNames = [
-        'patients', 'doctors', 'referrars', 'tests', 'employees', 'medicines', 'reagents',
-        'lab_invoices', 'indoor_invoices', 'sales_invoices', 'purchase_invoices', 'detailed_expenses',
-        'reports', 'prescriptions', 'appointments', 'due_collections', 'admissions'
+        'patients', 'doctors', 'referrars', 'referrers', 'tests', 'test', 'lab_tests', 'test_info', 'employees', 'medicines', 'reagents',
+        'lab_invoices', 'invoices', 'indoor_invoices', 'sales_invoices', 'purchase_invoices', 'detailed_expenses',
+        'reports', 'prescriptions', 'appointments', 'due_collections', 'dues', 'admissions'
       ];
 
       for (const t of tableNames) {
@@ -573,7 +684,11 @@ export const dbService = {
           patientRows,
           doctorRows,
           referrerRows,
+          altReferrerRows,
           testRows,
+          altTestRows1,
+          altTestRows2,
+          altTestRows3,
           reagentRows,
           empRows,
           medRows,
@@ -599,7 +714,11 @@ export const dbService = {
           fetchTableSafe(supabase, 'patients'),
           fetchTableSafe(supabase, 'doctors'),
           fetchTableSafe(supabase, 'referrars'),
+          fetchTableSafe(supabase, 'referrers'),
           fetchTableSafe(supabase, 'tests'),
+          fetchTableSafe(supabase, 'test'),
+          fetchTableSafe(supabase, 'lab_tests'),
+          fetchTableSafe(supabase, 'test_info'),
           fetchTableSafe(supabase, 'reagents'),
           fetchTableSafe(supabase, 'employees'),
           fetchTableSafe(supabase, 'medicines'),
@@ -772,12 +891,21 @@ export const dbService = {
             }
 
             // Entity lists from ncd_state
-            ['patients', 'doctors', 'referrars', 'tests', 'reagents', 'employees'].forEach(k => {
+            ['patients', 'doctors', 'referrars', 'reagents', 'employees'].forEach(k => {
               const list = rowData[k] || (row as any)[k];
               if (Array.isArray(list) && list.length > 0) {
                 state[k] = mergeEntityList(state[k] || [], list, ['id']);
               }
             });
+
+            // Tests from ncd_state (safely normalized)
+            const rawLegacyTests = rowData.tests || rowData.test || (row as any).tests || (row as any).test;
+            if (Array.isArray(rawLegacyTests) && rawLegacyTests.length > 0) {
+              const normLegacyTests = rawLegacyTests
+                .map((t: any) => normalizeTestItem(t))
+                .filter((t: any): t is Test => t !== null && !!t.test_id);
+              state.tests = mergeEntityList(state.tests || [], normLegacyTests, ['test_id', 'id', 'test_name']);
+            }
 
             // Dated activity records from ncd_state
             ['reports', 'prescriptions', 'appointments', 'admissions'].forEach(k => {
@@ -934,11 +1062,25 @@ export const dbService = {
         }
 
         // B. Merge entity tables from modular Supabase tables
-        if (patientRows && patientRows.length > 0) state.patients = mergeEntityList(state.patients || [], patientRows, ['id', 'patient_id']);
+        if (patientRows && patientRows.length > 0) state.patients = mergeEntityList(state.patients || [], patientRows, ['id', 'patient_id', 'pt_id']);
         if (doctorRows && doctorRows.length > 0) state.doctors = mergeEntityList(state.doctors || [], doctorRows, ['id', 'doctor_id']);
-        if (referrerRows && referrerRows.length > 0) state.referrars = mergeEntityList(state.referrars || [], referrerRows, ['id', 'referrar_id']);
-        if (testRows && testRows.length > 0) state.tests = mergeEntityList(state.tests || [], testRows, ['id', 'test_id']);
-        if (reagentRows && reagentRows.length > 0) state.reagents = mergeEntityList(state.reagents || [], reagentRows, ['id']);
+        const combinedRefRows = [...(referrerRows || []), ...(altReferrerRows || [])];
+        if (combinedRefRows.length > 0) state.referrars = mergeEntityList(state.referrars || [], combinedRefRows, ['id', 'referrar_id', 'ref_id', 'referrer_id']);
+        
+        // Merge Tests from tests, test, lab_tests, and test_info modular tables
+        const combinedTestRows = [
+          ...(Array.isArray(testRows) ? testRows : []),
+          ...(Array.isArray(altTestRows1) ? altTestRows1 : []),
+          ...(Array.isArray(altTestRows2) ? altTestRows2 : []),
+          ...(Array.isArray(altTestRows3) ? altTestRows3 : [])
+        ];
+        if (combinedTestRows.length > 0) {
+          const parsedModularTests = combinedTestRows
+            .map(r => normalizeTestItem(r))
+            .filter((t): t is Test => t !== null && !!t.test_id);
+          state.tests = mergeEntityList(state.tests || [], parsedModularTests, ['test_id', 'id', 'test_name']);
+        }
+        if (reagentRows && reagentRows.length > 0) state.reagents = mergeEntityList(state.reagents || [], reagentRows, ['id', 'reagent_id']);
         if (empRows && empRows.length > 0) state.employees = mergeEntityList(state.employees || [], empRows, ['id', 'emp_id']);
         if (medRows && medRows.length > 0) state.medicines = mergeEntityList(state.medicines || [], medRows, ['id', 'name']);
 
@@ -1058,8 +1200,13 @@ export const dbService = {
         // Merge other entity collections
         if (patientRows && patientRows.length > 0) state.patients = mergeEntityList(state.patients, patientRows, ['pt_id', 'patient_id', 'id']);
         if (doctorRows && doctorRows.length > 0) state.doctors = mergeEntityList(state.doctors, doctorRows, ['doctor_id', 'id']);
-        if (referrerRows && referrerRows.length > 0) state.referrars = mergeEntityList(state.referrars, referrerRows, ['ref_id', 'referrer_id', 'id']);
-        if (testRows && testRows.length > 0) state.tests = mergeEntityList(state.tests, testRows, ['test_id', 'id']);
+        if (combinedRefRows.length > 0) state.referrars = mergeEntityList(state.referrars, combinedRefRows, ['ref_id', 'referrer_id', 'id']);
+        if (combinedTestRows.length > 0) {
+          const parsedModularTests = combinedTestRows
+            .map(r => normalizeTestItem(r))
+            .filter((t): t is Test => t !== null && !!t.test_id);
+          state.tests = mergeEntityList(state.tests, parsedModularTests, ['test_id', 'id', 'test_name']);
+        }
         if (reagentRows && reagentRows.length > 0) state.reagents = mergeEntityList(state.reagents, reagentRows, ['reagent_id', 'id']);
         if (empRows && empRows.length > 0) state.employees = mergeEntityList(state.employees, empRows, ['emp_id', 'id']);
 
@@ -1395,7 +1542,13 @@ export const dbService = {
       if (!Array.isArray(state.patients)) state.patients = [];
       if (!Array.isArray(state.doctors)) state.doctors = [];
       if (!Array.isArray(state.referrars)) state.referrars = [];
-      if (!Array.isArray(state.tests)) state.tests = [];
+      if (!Array.isArray(state.tests)) {
+        state.tests = [];
+      } else {
+        state.tests = state.tests
+          .map((t: any) => normalizeTestItem(t))
+          .filter((t: any): t is Test => t !== null && !!t.test_id);
+      }
       if (!Array.isArray(state.reagents)) state.reagents = [];
       if (!Array.isArray(state.labInvoices)) state.labInvoices = [];
       if (!Array.isArray(state.indoorInvoices)) state.indoorInvoices = [];
@@ -1919,10 +2072,37 @@ export const dbService = {
           await upsertTableSafe(supabase, 'doctors', appState.doctors.map((d: any) => ({ ...d, updated_at: now })));
         }
         if (Array.isArray(appState.referrars) && appState.referrars.length > 0) {
-          await upsertTableSafe(supabase, 'referrars', appState.referrars.map((r: any) => ({ ...r, updated_at: now })));
+          const refRows = appState.referrars.map((r: any) => ({ ...r, updated_at: now }));
+          await upsertTableSafe(supabase, 'referrars', refRows);
+          await upsertTableSafe(supabase, 'referrers', refRows);
         }
         if (Array.isArray(appState.tests) && appState.tests.length > 0) {
-          await upsertTableSafe(supabase, 'tests', appState.tests.map((t: any) => ({ ...t, updated_at: now })));
+          const testRows = appState.tests.map((t: any) => {
+            const norm = normalizeTestItem(t);
+            return {
+              ...t,
+              ...(norm || {}),
+              id: norm?.test_id || t.test_id || t.id,
+              test_id: norm?.test_id || t.test_id || t.id,
+              test_name: norm?.test_name || t.test_name || t.name,
+              category: norm?.category || t.category || 'Others',
+              price: norm ? norm.price : (Number(t.price) || 0),
+              test_commission: norm ? norm.test_commission : (Number(t.test_commission) || 0),
+              is_group_test: norm?.is_group_test ?? false,
+              normal_range: norm?.normal_range || '',
+              unit: norm?.unit || '',
+              sub_tests: norm?.sub_tests || [],
+              usg_exam_charge: norm?.usg_exam_charge || 0,
+              extra_lab_fee: norm?.extra_lab_fee || 0,
+              reagents_required: norm?.reagents_required || [],
+              availability: norm?.availability ?? true,
+              updated_at: now
+            };
+          });
+          const t1 = await upsertTableSafe(supabase, 'tests', testRows);
+          const t2 = await upsertTableSafe(supabase, 'test', testRows);
+          const t3 = await upsertTableSafe(supabase, 'lab_tests', testRows);
+          if (t1 || t2 || t3) hasAnySaveSuccess = true;
         }
         if (Array.isArray(appState.reagents) && appState.reagents.length > 0) {
           await upsertTableSafe(supabase, 'reagents', appState.reagents.map((r: any) => ({ ...r, updated_at: now })));
@@ -3547,6 +3727,70 @@ export const dbService = {
       };
     } catch (e) {
       return { purchases: 0, sales: 0, medicines: 0, connected: false };
+    }
+  },
+
+  loadTestsDirectly: async (): Promise<Test[]> => {
+    if (!supabase) return [];
+    try {
+      const [t1, t2, t3, t4] = await Promise.all([
+        fetchTableSafe(supabase, 'tests'),
+        fetchTableSafe(supabase, 'test'),
+        fetchTableSafe(supabase, 'lab_tests'),
+        fetchTableSafe(supabase, 'test_info')
+      ]);
+      const rawAll = [
+        ...(Array.isArray(t1) ? t1 : []),
+        ...(Array.isArray(t2) ? t2 : []),
+        ...(Array.isArray(t3) ? t3 : []),
+        ...(Array.isArray(t4) ? t4 : [])
+      ];
+      const parsed = rawAll
+        .map(r => normalizeTestItem(r))
+        .filter((t): t is Test => t !== null && !!t.test_id);
+      
+      return mergeEntityList([], parsed, ['test_id', 'id', 'test_name']);
+    } catch (err) {
+      console.error("loadTestsDirectly error:", err);
+      return [];
+    }
+  },
+
+  syncTestsToModularTable: async (testsList: any[]): Promise<boolean> => {
+    if (!supabase) return false;
+    if (!Array.isArray(testsList) || testsList.length === 0) return true;
+    try {
+      const now = new Date().toISOString();
+      const rows = testsList.map(t => {
+        const norm = normalizeTestItem(t);
+        return {
+          ...t,
+          ...(norm || {}),
+          id: norm?.test_id || t.test_id || t.id,
+          test_id: norm?.test_id || t.test_id || t.id,
+          test_name: norm?.test_name || t.test_name || t.name,
+          category: norm?.category || t.category || 'Others',
+          price: norm ? norm.price : (Number(t.price) || 0),
+          test_commission: norm ? norm.test_commission : (Number(t.test_commission) || 0),
+          is_group_test: norm?.is_group_test ?? false,
+          normal_range: norm?.normal_range || '',
+          unit: norm?.unit || '',
+          sub_tests: norm?.sub_tests || [],
+          usg_exam_charge: norm?.usg_exam_charge || 0,
+          extra_lab_fee: norm?.extra_lab_fee || 0,
+          reagents_required: norm?.reagents_required || [],
+          availability: norm?.availability ?? true,
+          updated_at: now
+        };
+      });
+
+      const s1 = await upsertTableSafe(supabase, 'tests', rows);
+      const s2 = await upsertTableSafe(supabase, 'test', rows);
+      const s3 = await upsertTableSafe(supabase, 'lab_tests', rows);
+      return s1 || s2 || s3;
+    } catch (err) {
+      console.warn("syncTestsToModularTable error:", err);
+      return false;
     }
   },
 

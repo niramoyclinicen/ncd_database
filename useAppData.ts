@@ -114,10 +114,10 @@ export function useAppData() {
             }
           }
           // If cloud data is loaded, only fill in missing fields from local cache if completely undefined in cloud
-          ['labInvoices', 'indoorInvoices', 'dueCollections', 'salesInvoices', 'purchaseInvoices', 'medicines', 'consolidatedLabEntries'].forEach(col => {
-            if (finalDataToLoad[col] === undefined) {
+          ['tests', 'reagents', 'patients', 'doctors', 'referrars', 'employees', 'labInvoices', 'indoorInvoices', 'dueCollections', 'salesInvoices', 'purchaseInvoices', 'medicines', 'consolidatedLabEntries'].forEach(col => {
+            if (finalDataToLoad[col] === undefined || (Array.isArray(finalDataToLoad[col]) && finalDataToLoad[col].length === 0)) {
               const src = localData[col] || (col === 'consolidatedLabEntries' ? (localData.consolidated_lab_entries || localData.consolidatedEntries) : undefined);
-              if (Array.isArray(src)) {
+              if (Array.isArray(src) && src.length > 0) {
                 finalDataToLoad[col] = src;
               }
             }
@@ -335,6 +335,9 @@ export function useAppData() {
     }
     if (overrides?.tests) {
       setTests(overrides.tests);
+      try {
+        dbService.syncTestsToModularTable(overrides.tests);
+      } catch (e) {}
     }
     if (overrides?.reports) {
       setReports(overrides.reports);
