@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { ViewState, UserRole, DepartmentPasswords } from './types';
 import { dbService, normalizeDate } from './dbService';
 import { mockPatients, mockDoctors, mockReferrars, mockTests, mockReagents, mockInvoices, mockDueCollections, mockEmployees, mockMedicines, mockPurchaseInvoices, mockSalesInvoices, mockAdmissions, mockIndoorInvoices, initialAppointments, initialClinicalDrugs, PrescriptionRecord, LabReport, ExpenseItem } from './components/DiagnosticData';
@@ -12,7 +12,7 @@ export function useAppData() {
   const [connectionError, setConnectionError] = useState(false);
   const [connectionErrorMessage, setConnectionErrorMessage] = useState('');
   const [lastSavedAt, setLastSavedAt] = useState<string>(''); // For UI feedback
-  const lastSavedAtRef = React.useRef<string>(''); // For logic checks to avoid loops
+  const lastSavedAtRef = useRef<string>(''); // For logic checks to avoid loops
 
   const [currentUserEmail] = useState(() => {
     const existing = localStorage.getItem('ncd_user_email');

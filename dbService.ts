@@ -560,8 +560,7 @@ export const dbService = {
           fetchTableSafe(supabase, 'ncd_monthly_adjustments')
         ]);
 
-        // A. Load historical baseline from ncd_state (Single Table Archive)
-        // Load and merge across ALL rows in ncd_state (chronologically) so no historical or multi-month records are lost
+        // A. Load historical baseline from ncd_state (Single Table Archive for January-July 2026)
         const legacyRecords = ncdRes && !ncdRes.error ? (ncdRes.data || []) : [];
         if (legacyRecords.length > 0) {
           const sortedLegacy = [...legacyRecords].sort((a: any, b: any) => {
@@ -570,159 +569,155 @@ export const dbService = {
             return tA - tB;
           });
 
-          const master = legacyRecords.find((r: any) => r.id === MASTER_RECORD_ID) || legacyRecords[0];
+          // Pick the authoritative master row
+          const master = legacyRecords.find((r: any) => r.id === MASTER_RECORD_ID) || sortedLegacy[sortedLegacy.length - 1];
           if (master && master.id) cachedLegacyRecordId = master.id;
 
-          sortedLegacy.forEach((row: any) => {
-            let rowData = row.data;
-            if (typeof rowData === 'string') {
-              try { rowData = JSON.parse(rowData); } catch { rowData = null; }
-            }
-            if (!rowData || typeof rowData !== 'object') rowData = row;
-            if (!rowData || typeof rowData !== 'object') return;
+          let masterData = master.data;
+          if (typeof masterData === 'string') {
+            try { masterData = JSON.parse(masterData); } catch { masterData = null; }
+          }
+          if (!masterData || typeof masterData !== 'object') masterData = master;
 
-            cachedLegacyState = { ...(cachedLegacyState || {}), ...rowData };
+          cachedLegacyState = { ...masterData };
+          const rowData = masterData;
 
-            // Detailed Expenses from ncd_state (check all possible field variations)
-            const expSources = [
-              rowData.detailedExpenses,
-              rowData.detailed_expenses,
-              rowData.expenses,
-              (row as any).detailed_expenses,
-              (row as any).detailedExpenses
-            ].filter(x => x && typeof x === 'object');
+          // Detailed Expenses from ncd_state
+          const expSources = [
+            rowData.detailedExpenses,
+            rowData.detailed_expenses,
+            rowData.expenses
+          ].filter(x => x && typeof x === 'object');
 
-            if (expSources.length > 0) {
-              if (!state.detailedExpenses) state.detailedExpenses = {};
+          if (expSources.length > 0) {
+            if (!state.detailedExpenses) state.detailedExpenses = {};
 
-              const registerExpense = (it: any, fallbackDate?: string) => {
-                if (!it || it.isDeleted) return;
-                const rawDate = it.date || it.expense_date || it.created_at || fallbackDate || '';
-                let normDate = normalizeDate(rawDate);
-                if (!normDate && it.id) {
-                  const m = String(it.id).match(/(\d{4})[-_]?(\d{2})[-_]?(\d{2})/);
-                  if (m) normDate = `${m[1]}-${m[2]}-${m[3]}`;
-                }
-                if (!normDate) return;
-                if (!state.detailedExpenses[normDate]) state.detailedExpenses[normDate] = [];
-                const itId = String(it.id || `exp_${normDate.replace(/-/g, '')}_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`);
-                const expPaid = Number(it.paidAmount ?? it.paid_amount ?? it.amount ?? it.billAmount ?? it.bill_amount ?? 0);
-                const expBill = Number(it.billAmount ?? it.bill_amount ?? it.paidAmount ?? it.paid_amount ?? expPaid);
-                const normalizedItem = {
-                  ...it,
-                  id: itId,
-                  date: normDate,
-                  category: it.category || 'General',
-                  subCategory: it.subCategory || it.sub_category || '',
-                  description: it.description || '',
-                  paidAmount: expPaid,
-                  billAmount: expBill,
-                  dept: it.dept || 'Diagnostic'
-                };
-                const existingIdx = state.detailedExpenses[normDate].findIndex((x: any) => String(x.id || '') === itId && itId !== '');
-                if (existingIdx >= 0) {
-                  state.detailedExpenses[normDate][existingIdx] = { ...state.detailedExpenses[normDate][existingIdx], ...normalizedItem };
-                } else {
-                  state.detailedExpenses[normDate].push(normalizedItem);
-                }
+            const registerExpense = (it: any, fallbackDate?: string) => {
+              if (!it || it.isDeleted) return;
+              const rawDate = it.date || it.expense_date || it.created_at || fallbackDate || '';
+              let normDate = normalizeDate(rawDate);
+              if (!normDate && it.id) {
+                const m = String(it.id).match(/(\d{4})[-_]?(\d{2})[-_]?(\d{2})/);
+                if (m) normDate = `${m[1]}-${m[2]}-${m[3]}`;
+              }
+              if (!normDate) return;
+              if (!state.detailedExpenses[normDate]) state.detailedExpenses[normDate] = [];
+              const itId = String(it.id || `exp_${normDate.replace(/-/g, '')}_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`);
+              const expPaid = Number(it.paidAmount ?? it.paid_amount ?? it.amount ?? it.billAmount ?? it.bill_amount ?? 0);
+              const expBill = Number(it.billAmount ?? it.bill_amount ?? it.paidAmount ?? it.paid_amount ?? expPaid);
+              const normalizedItem = {
+                ...it,
+                id: itId,
+                date: normDate,
+                category: it.category || 'General',
+                subCategory: it.subCategory || it.sub_category || '',
+                description: it.description || '',
+                paidAmount: expPaid,
+                billAmount: expBill,
+                dept: it.dept || 'Diagnostic'
               };
+              const existingIdx = state.detailedExpenses[normDate].findIndex((x: any) => String(x.id || '') === itId && itId !== '');
+              if (existingIdx >= 0) {
+                state.detailedExpenses[normDate][existingIdx] = { ...state.detailedExpenses[normDate][existingIdx], ...normalizedItem };
+              } else {
+                state.detailedExpenses[normDate].push(normalizedItem);
+              }
+            };
 
-              expSources.forEach((expSource: any) => {
-                if (Array.isArray(expSource)) {
-                  expSource.forEach(it => registerExpense(it));
-                } else {
-                  Object.entries(expSource).forEach(([dKey, items]: [string, any]) => {
-                    const itemList = Array.isArray(items) ? items : (items && typeof items === 'object' ? Object.values(items) : []);
-                    itemList.forEach(it => registerExpense(it, dKey));
-                  });
-                }
-              });
-            }
-
-            // Lab Invoices from ncd_state
-            const labs = rowData.labInvoices || rowData.invoices || rowData.lab_invoices || rowData.diagnostic_invoices || (row as any).lab_invoices || (row as any).invoices;
-            if (Array.isArray(labs) && labs.length > 0) {
-              const mappedLabs = labs.map((l: any) => {
-                const rawDate = l.invoice_date || l.date || l.invoiceDate || l.created_at || '';
-                const normDate = normalizeDate(rawDate) || rawDate;
-                return { ...l, invoice_date: normDate, invoiceDate: normDate, date: normDate };
-              });
-              state.labInvoices = mergeEntityList(state.labInvoices || [], mappedLabs, ['invoice_id', 'invoiceId', 'id']);
-            }
-
-            // Due Collections from ncd_state
-            const dues = rowData.dueCollections || rowData.due_collections || rowData.dues || rowData.collections || (row as any).due_collections || (row as any).dues;
-            if (Array.isArray(dues) && dues.length > 0) {
-              const mappedDues = dues.map((d: any) => {
-                const rawDate = d.collection_date || d.date || d.created_at || '';
-                const normDate = normalizeDate(rawDate) || rawDate;
-                return { ...d, collection_date: normDate, date: normDate };
-              });
-              state.dueCollections = mergeEntityList(state.dueCollections || [], mappedDues, ['collection_id', 'collectionId', 'id']);
-            }
-
-            // Indoor Invoices from ncd_state
-            const indoor = rowData.indoorInvoices || rowData.indoor_invoices || rowData.clinicInvoices || (row as any).indoor_invoices;
-            if (Array.isArray(indoor) && indoor.length > 0) {
-              const mappedIndoor = indoor.map((ind: any) => {
-                const rawDate = ind.admission_date || ind.invoice_date || ind.date || '';
-                const normDate = normalizeDate(rawDate) || rawDate;
-                return { ...ind, admission_date: normDate, invoice_date: normDate, date: normDate };
-              });
-              state.indoorInvoices = mergeEntityList(state.indoorInvoices || [], mappedIndoor, ['daily_id', 'invoice_id', 'invoiceId', 'id']);
-            }
-
-            // Purchase Invoices from ncd_state
-            const purs = rowData.purchaseInvoices || rowData.purchase_invoices || rowData.purchases || rowData.medicinePurchases || (row as any).purchase_invoices;
-            if (Array.isArray(purs) && purs.length > 0) {
-              const mappedPurs = purs.map((p: any) => {
-                const rawDate = p.invoiceDate || p.invoice_date || p.date || p.createdDate || '';
-                const normDate = normalizeDate(rawDate) || rawDate;
-                return { ...p, invoiceDate: normDate, invoice_date: normDate, date: normDate };
-              });
-              state.purchaseInvoices = mergeEntityList(state.purchaseInvoices || [], mappedPurs, ['invoice_id', 'invoiceId', 'id']);
-            }
-
-            // Sales Invoices from ncd_state
-            const sals = rowData.salesInvoices || rowData.sales_invoices || rowData.sales || rowData.medicineSales || (row as any).sales_invoices;
-            if (Array.isArray(sals) && sals.length > 0) {
-              const mappedSals = sals.map((s: any) => {
-                const rawDate = s.invoiceDate || s.invoice_date || s.date || s.createdDate || '';
-                const normDate = normalizeDate(rawDate) || rawDate;
-                return { ...s, invoiceDate: normDate, invoice_date: normDate, date: normDate };
-              });
-              state.salesInvoices = mergeEntityList(state.salesInvoices || [], mappedSals, ['invoice_id', 'invoiceId', 'id']);
-            }
-
-            // Medicines from ncd_state
-            const medList = rowData.medicines || row.medicines;
-            if (Array.isArray(medList) && medList.length > 0) {
-              state.medicines = mergeEntityList(state.medicines || [], medList, ['id', 'name']);
-            }
-
-            // Entity lists from ncd_state
-            ['patients', 'doctors', 'referrars', 'tests', 'reagents', 'employees'].forEach(k => {
-              const list = rowData[k] || (row as any)[k];
-              if (Array.isArray(list) && list.length > 0) {
-                state[k] = mergeEntityList(state[k] || [], list, ['id']);
+            expSources.forEach((expSource: any) => {
+              if (Array.isArray(expSource)) {
+                expSource.forEach(it => registerExpense(it));
+              } else {
+                Object.entries(expSource).forEach(([dKey, items]: [string, any]) => {
+                  const itemList = Array.isArray(items) ? items : (items && typeof items === 'object' ? Object.values(items) : []);
+                  itemList.forEach(it => registerExpense(it, dKey));
+                });
               }
             });
+          }
 
-            // Dated activity records from ncd_state
-            ['reports', 'prescriptions', 'appointments', 'admissions'].forEach(k => {
-              const list = rowData[k] || (row as any)[k];
-              if (Array.isArray(list) && list.length > 0) {
-                state[k] = mergeEntityList(state[k] || [], list, ['id']);
-              }
+          // Lab Invoices from ncd_state
+          const labs = rowData.labInvoices || rowData.invoices || rowData.lab_invoices || rowData.diagnostic_invoices;
+          if (Array.isArray(labs)) {
+            state.labInvoices = labs.map((l: any) => {
+              const rawDate = l.invoice_date || l.date || l.invoiceDate || l.created_at || '';
+              const normDate = normalizeDate(rawDate) || rawDate;
+              return { ...l, invoice_date: normDate, invoiceDate: normDate, date: normDate };
             });
+          }
 
-            // Settings and maps from ncd_state
-            ['diagnosticSettings', 'employeeReferrerMap', 'passwords', 'attendanceLog', 'leaveLog', 'monthlyRoster'].forEach(k => {
-              const obj = rowData[k] || (row as any)[k];
-              if (obj && typeof obj === 'object') {
-                if (!state[k]) state[k] = obj;
-              }
+          // Due Collections from ncd_state
+          const dues = rowData.dueCollections || rowData.due_collections || rowData.dues || rowData.collections;
+          if (Array.isArray(dues)) {
+            state.dueCollections = dues.map((d: any) => {
+              const rawDate = d.collection_date || d.date || d.created_at || '';
+              const normDate = normalizeDate(rawDate) || rawDate;
+              return { ...d, collection_date: normDate, date: normDate };
             });
+          }
+
+          // Indoor Invoices from ncd_state
+          const indoor = rowData.indoorInvoices || rowData.indoor_invoices || rowData.clinicInvoices;
+          if (Array.isArray(indoor)) {
+            state.indoorInvoices = indoor.map((ind: any) => {
+              const rawDate = ind.admission_date || ind.invoice_date || ind.date || '';
+              const normDate = normalizeDate(rawDate) || rawDate;
+              return { ...ind, admission_date: normDate, invoice_date: normDate, date: normDate };
+            });
+          }
+
+          // Purchase Invoices from ncd_state
+          const purs = rowData.purchaseInvoices || rowData.purchase_invoices || rowData.purchases || rowData.medicinePurchases;
+          if (Array.isArray(purs)) {
+            state.purchaseInvoices = purs.map((p: any) => {
+              const rawDate = p.invoiceDate || p.invoice_date || p.date || p.createdDate || '';
+              const normDate = normalizeDate(rawDate) || rawDate;
+              return { ...p, invoiceDate: normDate, invoice_date: normDate, date: normDate };
+            });
+          }
+
+          // Sales Invoices from ncd_state
+          const sals = rowData.salesInvoices || rowData.sales_invoices || rowData.sales || rowData.medicineSales;
+          if (Array.isArray(sals)) {
+            state.salesInvoices = sals.map((s: any) => {
+              const rawDate = s.invoiceDate || s.invoice_date || s.date || s.createdDate || '';
+              const normDate = normalizeDate(rawDate) || rawDate;
+              return { ...s, invoiceDate: normDate, invoice_date: normDate, date: normDate };
+            });
+          }
+
+          // Consolidated Lab Entries from ncd_state
+          const rawCons = rowData.consolidatedLabEntries || rowData.consolidated_lab_entries || rowData.consolidatedEntries || rowData.consolidated_entries;
+          if (Array.isArray(rawCons)) {
+            state.consolidatedLabEntries = rawCons;
+          }
+
+          // Medicines from ncd_state
+          const medList = rowData.medicines;
+          if (Array.isArray(medList)) {
+            state.medicines = medList;
+          }
+
+          // Entity lists from ncd_state
+          ['patients', 'doctors', 'referrars', 'tests', 'reagents', 'employees', 'reports', 'prescriptions', 'appointments', 'admissions'].forEach(k => {
+            const list = rowData[k];
+            if (Array.isArray(list)) {
+              state[k] = list;
+            }
+          });
+
+          // Settings and maps from ncd_state
+          ['diagnosticSettings', 'employeeReferrerMap', 'passwords', 'attendanceLog', 'leaveLog', 'monthlyRoster', 'rtTemplates'].forEach(k => {
+            const obj = rowData[k];
+            if (obj !== undefined) {
+              state[k] = obj;
+            }
+          });
+
+          if (rowData.monthlyAdjustments && typeof rowData.monthlyAdjustments === 'object') {
+            state.monthlyAdjustments = { ...(state.monthlyAdjustments || {}), ...rowData.monthlyAdjustments };
+          }
+        }
 
             if (!state.monthlyAdjustments) state.monthlyAdjustments = {};
             ['monthlyAdjustments', 'monthly_adjustments', 'ncd_monthly_adjustments', 'adjustments', 'profitShare', 'profit_share', 'accountSheet', 'account_sheet', 'dividend', 'dividends', 'profitDistribution', 'profit_distribution', 'monthly_reports', 'monthly_accounts'].forEach(k => {
@@ -797,7 +792,7 @@ export const dbService = {
           });
         }
 
-        // Merge Consolidated Lab Entries from modular table(s) if available
+        // Merge Consolidated Lab Entries from modular table(s) if available (strictly >= 2026-08-01)
         const combinedConsRows = [...(consRows || []), ...(altConsRows || [])];
         if (combinedConsRows.length > 0) {
           const parsedCons = combinedConsRows.map((r: any) => {
@@ -806,9 +801,12 @@ export const dbService = {
               try { raw = JSON.parse(raw); } catch { raw = {}; }
             }
             if (!raw || typeof raw !== 'object') raw = {};
-            return { ...raw, ...r, date: normalizeDate(r.date || raw.date || '') || r.date || raw.date };
-          });
-          state.consolidatedLabEntries = mergeEntityList(state.consolidatedLabEntries || [], parsedCons, ['id', 'date']);
+            const normD = normalizeDate(r.date || raw.date || '') || r.date || raw.date;
+            return { ...raw, ...r, date: normD };
+          }).filter((r: any) => r.date && isMultiTableDate(r.date));
+          if (parsedCons.length > 0) {
+            state.consolidatedLabEntries = mergeEntityList(state.consolidatedLabEntries || [], parsedCons, ['id', 'date']);
+          }
         }
 
         // Merge Monthly Adjustments from modular table(s) if available
