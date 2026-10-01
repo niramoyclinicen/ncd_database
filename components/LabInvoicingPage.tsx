@@ -306,6 +306,7 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
 
     return safeInvs.filter(invoice => {
       if (!invoice) return false;
+      if (invoice.status === 'Deleted' || (invoice as any).isDeleted || (invoice as any).is_deleted) return false;
       const matchesSearch = !cleanSearch ||
         (invoice.invoice_id || '').toLowerCase().includes(cleanSearch) ||
         (invoice.patient_name || '').toLowerCase().includes(cleanSearch) ||
@@ -447,22 +448,32 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
     const targetItem = invoiceToDelete;
     setIsDeletingInvoice(true);
     setInvoiceToDelete(null); // Close confirm prompt immediately to show blocking overlay
-    const targetId = String(targetItem.invoice_id || (targetItem as any).id || '').trim();
+    const targetInvoiceId = String(targetItem.invoice_id || (targetItem as any).invoiceId || (targetItem as any).id || '').trim();
+    const targetId = String((targetItem as any).id || '').trim();
+    const targetNo = String((targetItem as any).invoice_no || '').trim();
+
+    const isTarget = (inv: any) => {
+      if (!inv) return false;
+      const iId = String(inv.invoice_id || (inv as any).invoiceId || (inv as any).id || (inv as any).invoice_no || '').trim();
+      const rawId = String((inv as any).id || '').trim();
+      if (targetInvoiceId && (iId === targetInvoiceId || rawId === targetInvoiceId)) return true;
+      if (targetId && (iId === targetId || rawId === targetId)) return true;
+      if (targetNo && (iId === targetNo || rawId === targetNo)) return true;
+      return false;
+    };
+
     try {
       await dbService.deleteLabInvoiceDirectly(targetItem);
       const safeInvs = Array.isArray(invoices) ? invoices : [];
-      const updated = safeInvs.filter(inv => {
-        const id = String(inv.invoice_id || (inv as any).id || '').trim();
-        return id !== targetId;
-      });
+      const updated = safeInvs.filter(inv => !isTarget(inv));
       setInvoices(updated);
-      if (selectedInvoiceId === targetId) {
+      if (selectedInvoiceId && (selectedInvoiceId === targetInvoiceId || selectedInvoiceId === targetId || selectedInvoiceId === targetNo)) {
         resetForm();
       }
       if (performBlockingSync) {
         await performBlockingSync({ labInvoices: updated });
       }
-      setDeleteSuccessMsg(`ইনভয়েস #${targetId} ডাটাবেজ এবং অনলাইন থেকে সফলভাবে স্থায়ীভাবে মুছে ফেলা হয়েছে!`);
+      setDeleteSuccessMsg(`ইনভয়েস #${targetInvoiceId || targetId} ডাটাবেজ এবং অনলাইন থেকে সফলভাবে স্থায়ীভাবে মুছে ফেলা হয়েছে!`);
     } catch (err) {
       console.error("Delete invoice error:", err);
       alert('ইনভয়েসটি মুছতে সমস্যা হয়েছে! দয়া করে ইন্টারনেট কানেকশন চেক করুন।');
@@ -1061,12 +1072,12 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
     const safeInvs = Array.isArray(invoices) ? invoices : [];
     const repParts = getNormalizedDateParts(reportDate);
     const collections = safeInvs.filter(inv => {
-      if (!inv || inv.status === 'Cancelled') return false;
+      if (!inv || inv.status === 'Cancelled' || inv.status === 'Deleted' || (inv as any).isDeleted || (inv as any).is_deleted) return false;
       const invParts = getNormalizedDateParts(inv.invoice_date);
       return invParts.isoDate === repParts.isoDate || inv.invoice_date === reportDate;
     });
     const refunds = safeInvs.filter(inv => {
-      if (!inv || inv.status !== 'Returned') return false;
+      if (!inv || inv.status !== 'Returned' || (inv as any).isDeleted || (inv as any).is_deleted) return false;
       const retParts = getNormalizedDateParts(inv.return_date);
       return retParts.isoDate === repParts.isoDate || inv.return_date === reportDate;
     });
@@ -1096,13 +1107,13 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
     const currentYear = today.getFullYear();
 
     const collections = safeInvs.filter(inv => {
-      if (!inv || !inv.invoice_date || inv.status === 'Cancelled') return false;
+      if (!inv || !inv.invoice_date || inv.status === 'Cancelled' || inv.status === 'Deleted' || (inv as any).isDeleted || (inv as any).is_deleted) return false;
       const invParts = getNormalizedDateParts(inv.invoice_date);
       return invParts.y === currentYear;
     });
 
     const refunds = safeInvs.filter(inv => {
-      if (!inv || !inv.return_date || inv.status !== 'Returned') return false;
+      if (!inv || !inv.return_date || inv.status !== 'Returned' || (inv as any).isDeleted || (inv as any).is_deleted) return false;
       const retParts = getNormalizedDateParts(inv.return_date);
       return retParts.y === currentYear;
     });
@@ -1133,13 +1144,13 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
     const currentYear = today.getFullYear();
 
     const collections = safeInvs.filter(inv => {
-      if (!inv || !inv.invoice_date || inv.status === 'Cancelled') return false;
+      if (!inv || !inv.invoice_date || inv.status === 'Cancelled' || inv.status === 'Deleted' || (inv as any).isDeleted || (inv as any).is_deleted) return false;
       const invParts = getNormalizedDateParts(inv.invoice_date);
       return invParts.m === currentMonth && invParts.y === currentYear;
     });
 
     const refunds = safeInvs.filter(inv => {
-      if (!inv || !inv.return_date || inv.status !== 'Returned') return false;
+      if (!inv || !inv.return_date || inv.status !== 'Returned' || (inv as any).isDeleted || (inv as any).is_deleted) return false;
       const retParts = getNormalizedDateParts(inv.return_date);
       return retParts.m === currentMonth && retParts.y === currentYear;
     });
@@ -1167,7 +1178,7 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
   const tableTotals = useMemo(() => {
     if (!Array.isArray(filteredInvoices)) return { total: 0, paid: 0, due: 0, income: 0 };
     return filteredInvoices.reduce((acc, inv) => {
-      if (inv.status === 'Cancelled') return acc;
+      if (inv.status === 'Cancelled' || inv.status === 'Deleted' || (inv as any).isDeleted || (inv as any).is_deleted) return acc;
       acc.total += (inv.total_amount || 0);
       acc.paid += (inv.paid_amount || 0);
       acc.due += (inv.due_amount || 0);

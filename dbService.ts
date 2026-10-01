@@ -283,6 +283,62 @@ export const setSingleTableSaveDisabled = (disabled: boolean) => {
   } catch (e) {}
 };
 
+// In-memory set for deleted lab invoices
+const deletedLabInvoiceMemorySet = new Set<string>();
+
+// Persistent Deleted Lab Invoices Tombstone Registry
+export const getDeletedLabInvoiceIds = (): Set<string> => {
+  const set = new Set<string>(deletedLabInvoiceMemorySet);
+  try {
+    if (typeof localStorage !== 'undefined') {
+      const stored = localStorage.getItem('ncd_deleted_lab_invoices');
+      if (stored) {
+        const arr = JSON.parse(stored);
+        if (Array.isArray(arr)) arr.forEach((id: any) => { if (id) set.add(String(id).trim()); });
+      }
+    }
+  } catch {}
+  if (cachedLegacyState?.deleted_lab_invoices && Array.isArray(cachedLegacyState.deleted_lab_invoices)) {
+    cachedLegacyState.deleted_lab_invoices.forEach((id: any) => { if (id) set.add(String(id).trim()); });
+  }
+  return set;
+};
+
+export const registerDeletedLabInvoiceId = (idOrInv: any) => {
+  const ids: string[] = [];
+  if (typeof idOrInv === 'string') {
+    if (idOrInv.trim()) ids.push(idOrInv.trim());
+  } else if (idOrInv && typeof idOrInv === 'object') {
+    ['invoice_id', 'id', 'invoiceId', 'invoice_no', 'invoiceNo'].forEach(k => {
+      const val = idOrInv[k];
+      if (val !== undefined && val !== null && String(val).trim()) ids.push(String(val).trim());
+    });
+  }
+  if (ids.length === 0) return;
+  ids.forEach(id => deletedLabInvoiceMemorySet.add(id));
+  try {
+    if (typeof localStorage !== 'undefined') {
+      let currentArr: string[] = [];
+      try {
+        currentArr = JSON.parse(localStorage.getItem('ncd_deleted_lab_invoices') || '[]');
+      } catch {}
+      const set = new Set([...currentArr, ...ids]);
+      localStorage.setItem('ncd_deleted_lab_invoices', JSON.stringify(Array.from(set)));
+    }
+  } catch {}
+};
+
+export const isInvoiceMarkedDeleted = (inv: any, customSet?: Set<string>): boolean => {
+  if (!inv) return true;
+  if (inv.status === 'Deleted' || inv.status === 'Cancelled' || inv.isDeleted || inv.is_deleted) return true;
+  const set = customSet || getDeletedLabInvoiceIds();
+  for (const k of ['invoice_id', 'id', 'invoiceId', 'invoice_no', 'invoiceNo']) {
+    const val = inv[k];
+    if (val !== undefined && val !== null && set.has(String(val).trim())) return true;
+  }
+  return false;
+};
+
 // Helper for robust ID extraction across various field name conventions
 export const getItemId = (it: any, idFields: string[]): string => {
   if (!it || typeof it !== 'object') return '';
@@ -309,7 +365,7 @@ export const mergeEntityList = (baseList: any[], extraList: any[], idFields: str
   extraList.forEach(item => {
     if (!item) return;
     const id = getItemId(item, idFields);
-    const isMarkedDeleted = item.status === 'Deleted' || item.status === 'Cancelled' || item.isDeleted;
+    const isMarkedDeleted = item.status === 'Deleted' || item.status === 'Cancelled' || item.isDeleted || item.is_deleted || isInvoiceMarkedDeleted(item);
     
     if (id && map.has(id)) {
       const existingIdx = map.get(id)!;
@@ -560,164 +616,184 @@ export const dbService = {
           fetchTableSafe(supabase, 'ncd_monthly_adjustments')
         ]);
 
-        // A. Load historical baseline from ncd_state (Single Table Archive for January-July 2026)
+        // A. Load historical baseline from ncd_state (Single Table Archive)
+        // Load and merge across ALL rows in ncd_state (chronologically) so no historical or multi-month records are lost
         const legacyRecords = ncdRes && !ncdRes.error ? (ncdRes.data || []) : [];
+        const activeDeletedLabIds = getDeletedLabInvoiceIds();
         if (legacyRecords.length > 0) {
+          legacyRecords.forEach((r: any) => {
+            let rowData = r.data;
+            if (typeof rowData === 'string') {
+              try { rowData = JSON.parse(rowData); } catch { rowData = null; }
+            }
+            if (rowData && Array.isArray(rowData.deleted_lab_invoices)) {
+              rowData.deleted_lab_invoices.forEach((id: any) => {
+                if (id) activeDeletedLabIds.add(String(id).trim());
+              });
+            }
+          });
+
           const sortedLegacy = [...legacyRecords].sort((a: any, b: any) => {
             const tA = new Date(a.updated_at || a.created_at || 0).getTime();
             const tB = new Date(b.updated_at || b.created_at || 0).getTime();
             return tA - tB;
           });
 
-          // Pick the authoritative master row
-          const master = legacyRecords.find((r: any) => r.id === MASTER_RECORD_ID) || sortedLegacy[sortedLegacy.length - 1];
+          const master = legacyRecords.find((r: any) => r.id === MASTER_RECORD_ID) || legacyRecords[0];
           if (master && master.id) cachedLegacyRecordId = master.id;
 
-          let masterData = master.data;
-          if (typeof masterData === 'string') {
-            try { masterData = JSON.parse(masterData); } catch { masterData = null; }
-          }
-          if (!masterData || typeof masterData !== 'object') masterData = master;
+          sortedLegacy.forEach((row: any) => {
+            let rowData = row.data;
+            if (typeof rowData === 'string') {
+              try { rowData = JSON.parse(rowData); } catch { rowData = null; }
+            }
+            if (!rowData || typeof rowData !== 'object') rowData = row;
+            if (!rowData || typeof rowData !== 'object') return;
 
-          cachedLegacyState = { ...masterData };
-          const rowData = masterData;
+            cachedLegacyState = { ...(cachedLegacyState || {}), ...rowData };
 
-          // Detailed Expenses from ncd_state
-          const expSources = [
-            rowData.detailedExpenses,
-            rowData.detailed_expenses,
-            rowData.expenses
-          ].filter(x => x && typeof x === 'object');
+            // Detailed Expenses from ncd_state (check all possible field variations)
+            const expSources = [
+              rowData.detailedExpenses,
+              rowData.detailed_expenses,
+              rowData.expenses,
+              (row as any).detailed_expenses,
+              (row as any).detailedExpenses
+            ].filter(x => x && typeof x === 'object');
 
-          if (expSources.length > 0) {
-            if (!state.detailedExpenses) state.detailedExpenses = {};
+            if (expSources.length > 0) {
+              if (!state.detailedExpenses) state.detailedExpenses = {};
 
-            const registerExpense = (it: any, fallbackDate?: string) => {
-              if (!it || it.isDeleted) return;
-              const rawDate = it.date || it.expense_date || it.created_at || fallbackDate || '';
-              let normDate = normalizeDate(rawDate);
-              if (!normDate && it.id) {
-                const m = String(it.id).match(/(\d{4})[-_]?(\d{2})[-_]?(\d{2})/);
-                if (m) normDate = `${m[1]}-${m[2]}-${m[3]}`;
-              }
-              if (!normDate) return;
-              if (!state.detailedExpenses[normDate]) state.detailedExpenses[normDate] = [];
-              const itId = String(it.id || `exp_${normDate.replace(/-/g, '')}_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`);
-              const expPaid = Number(it.paidAmount ?? it.paid_amount ?? it.amount ?? it.billAmount ?? it.bill_amount ?? 0);
-              const expBill = Number(it.billAmount ?? it.bill_amount ?? it.paidAmount ?? it.paid_amount ?? expPaid);
-              const normalizedItem = {
-                ...it,
-                id: itId,
-                date: normDate,
-                category: it.category || 'General',
-                subCategory: it.subCategory || it.sub_category || '',
-                description: it.description || '',
-                paidAmount: expPaid,
-                billAmount: expBill,
-                dept: it.dept || 'Diagnostic'
+              const registerExpense = (it: any, fallbackDate?: string) => {
+                if (!it || it.isDeleted) return;
+                const rawDate = it.date || it.expense_date || it.created_at || fallbackDate || '';
+                let normDate = normalizeDate(rawDate);
+                if (!normDate && it.id) {
+                  const m = String(it.id).match(/(\d{4})[-_]?(\d{2})[-_]?(\d{2})/);
+                  if (m) normDate = `${m[1]}-${m[2]}-${m[3]}`;
+                }
+                if (!normDate) return;
+                if (!state.detailedExpenses[normDate]) state.detailedExpenses[normDate] = [];
+                const itId = String(it.id || `exp_${normDate.replace(/-/g, '')}_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`);
+                const expPaid = Number(it.paidAmount ?? it.paid_amount ?? it.amount ?? it.billAmount ?? it.bill_amount ?? 0);
+                const expBill = Number(it.billAmount ?? it.bill_amount ?? it.paidAmount ?? it.paid_amount ?? expPaid);
+                const normalizedItem = {
+                  ...it,
+                  id: itId,
+                  date: normDate,
+                  category: it.category || 'General',
+                  subCategory: it.subCategory || it.sub_category || '',
+                  description: it.description || '',
+                  paidAmount: expPaid,
+                  billAmount: expBill,
+                  dept: it.dept || 'Diagnostic'
+                };
+                const existingIdx = state.detailedExpenses[normDate].findIndex((x: any) => String(x.id || '') === itId && itId !== '');
+                if (existingIdx >= 0) {
+                  state.detailedExpenses[normDate][existingIdx] = { ...state.detailedExpenses[normDate][existingIdx], ...normalizedItem };
+                } else {
+                  state.detailedExpenses[normDate].push(normalizedItem);
+                }
               };
-              const existingIdx = state.detailedExpenses[normDate].findIndex((x: any) => String(x.id || '') === itId && itId !== '');
-              if (existingIdx >= 0) {
-                state.detailedExpenses[normDate][existingIdx] = { ...state.detailedExpenses[normDate][existingIdx], ...normalizedItem };
-              } else {
-                state.detailedExpenses[normDate].push(normalizedItem);
-              }
-            };
 
-            expSources.forEach((expSource: any) => {
-              if (Array.isArray(expSource)) {
-                expSource.forEach(it => registerExpense(it));
-              } else {
-                Object.entries(expSource).forEach(([dKey, items]: [string, any]) => {
-                  const itemList = Array.isArray(items) ? items : (items && typeof items === 'object' ? Object.values(items) : []);
-                  itemList.forEach(it => registerExpense(it, dKey));
+              expSources.forEach((expSource: any) => {
+                if (Array.isArray(expSource)) {
+                  expSource.forEach(it => registerExpense(it));
+                } else {
+                  Object.entries(expSource).forEach(([dKey, items]: [string, any]) => {
+                    const itemList = Array.isArray(items) ? items : (items && typeof items === 'object' ? Object.values(items) : []);
+                    itemList.forEach(it => registerExpense(it, dKey));
+                  });
+                }
+              });
+            }
+
+            // Lab Invoices from ncd_state (filter out any deleted records)
+            const labs = rowData.labInvoices || rowData.invoices || rowData.lab_invoices || rowData.diagnostic_invoices || (row as any).lab_invoices || (row as any).invoices;
+            if (Array.isArray(labs) && labs.length > 0) {
+              const mappedLabs = labs
+                .filter((l: any) => !isInvoiceMarkedDeleted(l, activeDeletedLabIds))
+                .map((l: any) => {
+                  const rawDate = l.invoice_date || l.date || l.invoiceDate || l.created_at || '';
+                  const normDate = normalizeDate(rawDate) || rawDate;
+                  return { ...l, invoice_date: normDate, invoiceDate: normDate, date: normDate };
                 });
+              state.labInvoices = mergeEntityList(state.labInvoices || [], mappedLabs, ['invoice_id', 'invoiceId', 'id']);
+            }
+
+            // Due Collections from ncd_state
+            const dues = rowData.dueCollections || rowData.due_collections || rowData.dues || rowData.collections || (row as any).due_collections || (row as any).dues;
+            if (Array.isArray(dues) && dues.length > 0) {
+              const mappedDues = dues.map((d: any) => {
+                const rawDate = d.collection_date || d.date || d.created_at || '';
+                const normDate = normalizeDate(rawDate) || rawDate;
+                return { ...d, collection_date: normDate, date: normDate };
+              });
+              state.dueCollections = mergeEntityList(state.dueCollections || [], mappedDues, ['collection_id', 'collectionId', 'id']);
+            }
+
+            // Indoor Invoices from ncd_state
+            const indoor = rowData.indoorInvoices || rowData.indoor_invoices || rowData.clinicInvoices || (row as any).indoor_invoices;
+            if (Array.isArray(indoor) && indoor.length > 0) {
+              const mappedIndoor = indoor.map((ind: any) => {
+                const rawDate = ind.admission_date || ind.invoice_date || ind.date || '';
+                const normDate = normalizeDate(rawDate) || rawDate;
+                return { ...ind, admission_date: normDate, invoice_date: normDate, date: normDate };
+              });
+              state.indoorInvoices = mergeEntityList(state.indoorInvoices || [], mappedIndoor, ['daily_id', 'invoice_id', 'invoiceId', 'id']);
+            }
+
+            // Purchase Invoices from ncd_state
+            const purs = rowData.purchaseInvoices || rowData.purchase_invoices || rowData.purchases || rowData.medicinePurchases || (row as any).purchase_invoices;
+            if (Array.isArray(purs) && purs.length > 0) {
+              const mappedPurs = purs.map((p: any) => {
+                const rawDate = p.invoiceDate || p.invoice_date || p.date || p.createdDate || '';
+                const normDate = normalizeDate(rawDate) || rawDate;
+                return { ...p, invoiceDate: normDate, invoice_date: normDate, date: normDate };
+              });
+              state.purchaseInvoices = mergeEntityList(state.purchaseInvoices || [], mappedPurs, ['invoice_id', 'invoiceId', 'id']);
+            }
+
+            // Sales Invoices from ncd_state
+            const sals = rowData.salesInvoices || rowData.sales_invoices || rowData.sales || rowData.medicineSales || (row as any).sales_invoices;
+            if (Array.isArray(sals) && sals.length > 0) {
+              const mappedSals = sals.map((s: any) => {
+                const rawDate = s.invoiceDate || s.invoice_date || s.date || s.createdDate || '';
+                const normDate = normalizeDate(rawDate) || rawDate;
+                return { ...s, invoiceDate: normDate, invoice_date: normDate, date: normDate };
+              });
+              state.salesInvoices = mergeEntityList(state.salesInvoices || [], mappedSals, ['invoice_id', 'invoiceId', 'id']);
+            }
+
+            // Medicines from ncd_state
+            const medList = rowData.medicines || row.medicines;
+            if (Array.isArray(medList) && medList.length > 0) {
+              state.medicines = mergeEntityList(state.medicines || [], medList, ['id', 'name']);
+            }
+
+            // Entity lists from ncd_state
+            ['patients', 'doctors', 'referrars', 'tests', 'reagents', 'employees'].forEach(k => {
+              const list = rowData[k] || (row as any)[k];
+              if (Array.isArray(list) && list.length > 0) {
+                state[k] = mergeEntityList(state[k] || [], list, ['id']);
               }
             });
-          }
 
-          // Lab Invoices from ncd_state
-          const labs = rowData.labInvoices || rowData.invoices || rowData.lab_invoices || rowData.diagnostic_invoices;
-          if (Array.isArray(labs)) {
-            state.labInvoices = labs.map((l: any) => {
-              const rawDate = l.invoice_date || l.date || l.invoiceDate || l.created_at || '';
-              const normDate = normalizeDate(rawDate) || rawDate;
-              return { ...l, invoice_date: normDate, invoiceDate: normDate, date: normDate };
+            // Dated activity records from ncd_state
+            ['reports', 'prescriptions', 'appointments', 'admissions'].forEach(k => {
+              const list = rowData[k] || (row as any)[k];
+              if (Array.isArray(list) && list.length > 0) {
+                state[k] = mergeEntityList(state[k] || [], list, ['id']);
+              }
             });
-          }
 
-          // Due Collections from ncd_state
-          const dues = rowData.dueCollections || rowData.due_collections || rowData.dues || rowData.collections;
-          if (Array.isArray(dues)) {
-            state.dueCollections = dues.map((d: any) => {
-              const rawDate = d.collection_date || d.date || d.created_at || '';
-              const normDate = normalizeDate(rawDate) || rawDate;
-              return { ...d, collection_date: normDate, date: normDate };
+            // Settings and maps from ncd_state
+            ['diagnosticSettings', 'employeeReferrerMap', 'passwords', 'attendanceLog', 'leaveLog', 'monthlyRoster'].forEach(k => {
+              const obj = rowData[k] || (row as any)[k];
+              if (obj && typeof obj === 'object') {
+                if (!state[k]) state[k] = obj;
+              }
             });
-          }
-
-          // Indoor Invoices from ncd_state
-          const indoor = rowData.indoorInvoices || rowData.indoor_invoices || rowData.clinicInvoices;
-          if (Array.isArray(indoor)) {
-            state.indoorInvoices = indoor.map((ind: any) => {
-              const rawDate = ind.admission_date || ind.invoice_date || ind.date || '';
-              const normDate = normalizeDate(rawDate) || rawDate;
-              return { ...ind, admission_date: normDate, invoice_date: normDate, date: normDate };
-            });
-          }
-
-          // Purchase Invoices from ncd_state
-          const purs = rowData.purchaseInvoices || rowData.purchase_invoices || rowData.purchases || rowData.medicinePurchases;
-          if (Array.isArray(purs)) {
-            state.purchaseInvoices = purs.map((p: any) => {
-              const rawDate = p.invoiceDate || p.invoice_date || p.date || p.createdDate || '';
-              const normDate = normalizeDate(rawDate) || rawDate;
-              return { ...p, invoiceDate: normDate, invoice_date: normDate, date: normDate };
-            });
-          }
-
-          // Sales Invoices from ncd_state
-          const sals = rowData.salesInvoices || rowData.sales_invoices || rowData.sales || rowData.medicineSales;
-          if (Array.isArray(sals)) {
-            state.salesInvoices = sals.map((s: any) => {
-              const rawDate = s.invoiceDate || s.invoice_date || s.date || s.createdDate || '';
-              const normDate = normalizeDate(rawDate) || rawDate;
-              return { ...s, invoiceDate: normDate, invoice_date: normDate, date: normDate };
-            });
-          }
-
-          // Consolidated Lab Entries from ncd_state
-          const rawCons = rowData.consolidatedLabEntries || rowData.consolidated_lab_entries || rowData.consolidatedEntries || rowData.consolidated_entries;
-          if (Array.isArray(rawCons)) {
-            state.consolidatedLabEntries = rawCons;
-          }
-
-          // Medicines from ncd_state
-          const medList = rowData.medicines;
-          if (Array.isArray(medList)) {
-            state.medicines = medList;
-          }
-
-          // Entity lists from ncd_state
-          ['patients', 'doctors', 'referrars', 'tests', 'reagents', 'employees', 'reports', 'prescriptions', 'appointments', 'admissions'].forEach(k => {
-            const list = rowData[k];
-            if (Array.isArray(list)) {
-              state[k] = list;
-            }
-          });
-
-          // Settings and maps from ncd_state
-          ['diagnosticSettings', 'employeeReferrerMap', 'passwords', 'attendanceLog', 'leaveLog', 'monthlyRoster', 'rtTemplates'].forEach(k => {
-            const obj = rowData[k];
-            if (obj !== undefined) {
-              state[k] = obj;
-            }
-          });
-
-          if (rowData.monthlyAdjustments && typeof rowData.monthlyAdjustments === 'object') {
-            state.monthlyAdjustments = { ...(state.monthlyAdjustments || {}), ...rowData.monthlyAdjustments };
-          }
-        }
 
             if (!state.monthlyAdjustments) state.monthlyAdjustments = {};
             ['monthlyAdjustments', 'monthly_adjustments', 'ncd_monthly_adjustments', 'adjustments', 'profitShare', 'profit_share', 'accountSheet', 'account_sheet', 'dividend', 'dividends', 'profitDistribution', 'profit_distribution', 'monthly_reports', 'monthly_accounts'].forEach(k => {
@@ -792,7 +868,7 @@ export const dbService = {
           });
         }
 
-        // Merge Consolidated Lab Entries from modular table(s) if available (strictly >= 2026-08-01)
+        // Merge Consolidated Lab Entries from modular table(s) if available
         const combinedConsRows = [...(consRows || []), ...(altConsRows || [])];
         if (combinedConsRows.length > 0) {
           const parsedCons = combinedConsRows.map((r: any) => {
@@ -801,12 +877,9 @@ export const dbService = {
               try { raw = JSON.parse(raw); } catch { raw = {}; }
             }
             if (!raw || typeof raw !== 'object') raw = {};
-            const normD = normalizeDate(r.date || raw.date || '') || r.date || raw.date;
-            return { ...raw, ...r, date: normD };
-          }).filter((r: any) => r.date && isMultiTableDate(r.date));
-          if (parsedCons.length > 0) {
-            state.consolidatedLabEntries = mergeEntityList(state.consolidatedLabEntries || [], parsedCons, ['id', 'date']);
-          }
+            return { ...raw, ...r, date: normalizeDate(r.date || raw.date || '') || r.date || raw.date };
+          });
+          state.consolidatedLabEntries = mergeEntityList(state.consolidatedLabEntries || [], parsedCons, ['id', 'date']);
         }
 
         // Merge Monthly Adjustments from modular table(s) if available
@@ -869,10 +942,21 @@ export const dbService = {
         if (empRows && empRows.length > 0) state.employees = mergeEntityList(state.employees || [], empRows, ['id', 'emp_id']);
         if (medRows && medRows.length > 0) state.medicines = mergeEntityList(state.medicines || [], medRows, ['id', 'name']);
 
-        // Merge Lab Invoices from modular table(s) - Load ALL records without date restrictions
+        // Merge Lab Invoices from modular table(s) - Load records (ignoring deleted records)
         const combinedLabRows = [...(labInvRows || []), ...(altInvRows || [])];
         if (combinedLabRows.length > 0) {
-          const parsedLabInvs = combinedLabRows.map((r: any) => {
+          const parsedLabInvs = combinedLabRows
+            .filter((r: any) => {
+              if (r.status === 'Deleted' || r.is_deleted) return false;
+              let raw = r.data;
+              if (typeof raw === 'string') {
+                try { raw = JSON.parse(raw); } catch { raw = null; }
+              }
+              if (raw && (raw.status === 'Deleted' || raw.is_deleted)) return false;
+              if (isInvoiceMarkedDeleted(r, activeDeletedLabIds) || isInvoiceMarkedDeleted(raw, activeDeletedLabIds)) return false;
+              return true;
+            })
+            .map((r: any) => {
             let raw = r.data;
             if (typeof raw === 'string') {
               try { raw = JSON.parse(raw); } catch { raw = {}; }
@@ -914,7 +998,7 @@ export const dbService = {
               special_commission: Number(r.special_commission ?? r.specialCommission ?? raw.special_commission ?? 0),
               status: r.status || raw.status || (due > 0 ? 'Due' : 'Paid')
             };
-          }).filter(r => r.invoice_id);
+          }).filter(r => r.invoice_id && !isInvoiceMarkedDeleted(r, activeDeletedLabIds));
           state.labInvoices = mergeEntityList(state.labInvoices || [], parsedLabInvs, ['invoice_id', 'id', 'invoice_no', 'invoiceId']);
         }
 
@@ -1324,21 +1408,28 @@ export const dbService = {
       if (!Array.isArray(state.admissions)) state.admissions = [];
       if (!Array.isArray(state.appointments)) state.appointments = [];
 
-      // Normalize lab invoices dates
-      state.labInvoices = state.labInvoices.map((inv: any) => {
-        const invId = String(inv.invoice_id || inv.invoiceId || inv.id || inv.invoice_no || '').trim();
-        const rawDate = inv.invoice_date || inv.date || inv.invoiceDate || inv.created_date || inv.created_at || '';
-        const invDate = normalizeDate(rawDate) || rawDate;
-        return {
-          ...inv,
-          id: invId,
-          invoice_id: invId,
-          invoiceId: invId,
-          invoice_date: invDate,
-          invoiceDate: invDate,
-          date: invDate
-        };
-      }).filter((inv: any) => inv.invoice_id);
+      // Normalize lab invoices dates and filter out deleted invoices
+      const finalDeletedLabIds = getDeletedLabInvoiceIds();
+      state.labInvoices = (Array.isArray(state.labInvoices) ? state.labInvoices : [])
+        .filter((inv: any) => !isInvoiceMarkedDeleted(inv, finalDeletedLabIds))
+        .map((inv: any) => {
+          const invId = String(inv.invoice_id || inv.invoiceId || inv.id || inv.invoice_no || '').trim();
+          const rawDate = inv.invoice_date || inv.date || inv.invoiceDate || inv.created_date || inv.created_at || '';
+          const invDate = normalizeDate(rawDate) || rawDate;
+          return {
+            ...inv,
+            id: invId,
+            invoice_id: invId,
+            invoiceId: invId,
+            invoice_date: invDate,
+            invoiceDate: invDate,
+            date: invDate
+          };
+        }).filter((inv: any) => inv.invoice_id && !isInvoiceMarkedDeleted(inv, finalDeletedLabIds));
+
+      if (cachedLegacyState && Array.isArray(cachedLegacyState.labInvoices)) {
+        cachedLegacyState.labInvoices = cachedLegacyState.labInvoices.filter((inv: any) => !isInvoiceMarkedDeleted(inv, finalDeletedLabIds));
+      }
 
       // Normalize due collections dates
       state.dueCollections = state.dueCollections.map((dc: any) => {
@@ -1575,9 +1666,10 @@ export const dbService = {
             ? sanitizeList(appState.salesInvoices)
             : sanitizeList(legacyBase.salesInvoices || []);
 
-          const masterLabs = appState.labInvoices !== undefined 
+          const deletedLabIds = getDeletedLabInvoiceIds();
+          const masterLabs = (appState.labInvoices !== undefined 
             ? sanitizeList(appState.labInvoices)
-            : sanitizeList(legacyBase.labInvoices || []);
+            : sanitizeList(legacyBase.labInvoices || [])).filter(inv => !isInvoiceMarkedDeleted(inv, deletedLabIds));
 
           const masterDues = appState.dueCollections !== undefined 
             ? sanitizeList(appState.dueCollections)
@@ -1663,6 +1755,7 @@ export const dbService = {
             appointments: masterAppointments,
             admissions: masterAdmissions,
             detailedExpenses: masterExpenses,
+            deleted_lab_invoices: Array.from(deletedLabIds),
             last_updated_at: now
           };
 
@@ -1754,7 +1847,7 @@ export const dbService = {
 
       // 2e. Modular Sync for lab_invoices (strictly >= 2026-08-01)
       try {
-        const modernLabs = (appState.labInvoices || []).filter((r: any) => isMultiTableDate(getRecordDate(r)));
+        const modernLabs = (appState.labInvoices || []).filter((r: any) => isMultiTableDate(getRecordDate(r)) && !isInvoiceMarkedDeleted(r, deletedLabIds));
         if (modernLabs.length > 0) {
           const labSync = await dbService.syncLabInvoicesToModularTable(modernLabs);
           if (labSync) hasAnySaveSuccess = true;
@@ -2812,72 +2905,124 @@ export const dbService = {
     try {
       if (!inv) return { success: true };
       const now = new Date().toISOString();
-      const targetInvoiceId = String(inv.invoice_id || (inv as any).id || '').trim();
+      const targetInvoiceId = String(inv.invoice_id || inv.invoiceId || inv.invoice_no || inv.id || '').trim();
       const targetId = String((inv as any).id || '').trim();
+      const allTargetIds = Array.from(new Set([
+        targetInvoiceId,
+        targetId,
+        String(inv.invoice_no || '').trim(),
+        String(inv.invoiceId || '').trim()
+      ].filter(Boolean)));
 
-      // Clean from localStorage offline cache
+      if (allTargetIds.length === 0) return { success: true };
+
+      // 1. Register in persistent tombstone registry (both localStorage & memory)
+      allTargetIds.forEach(id => registerDeletedLabInvoiceId(id));
+      const deletedSet = getDeletedLabInvoiceIds();
+
+      // 2. Clean from all localStorage caches
       try {
-        const rawCache = localStorage.getItem('ncd_offline_cache_v1');
-        if (rawCache) {
-          const parsed = JSON.parse(rawCache);
-          if (Array.isArray(parsed.labInvoices)) {
-            parsed.labInvoices = parsed.labInvoices.filter((x: any) => {
-              const xId = String(x.invoice_id || x.id || '').trim();
-              return xId !== targetInvoiceId && xId !== targetId;
-            });
-            localStorage.setItem('ncd_offline_cache_v1', JSON.stringify(parsed));
+        ['ncd_offline_cache_v1', 'ncd_backup_state', 'ncd_last_clean_cloud_state'].forEach(cacheKey => {
+          const raw = localStorage.getItem(cacheKey);
+          if (raw) {
+            try {
+              const parsed = JSON.parse(raw);
+              if (Array.isArray(parsed.labInvoices)) {
+                parsed.labInvoices = parsed.labInvoices.filter((x: any) => !isInvoiceMarkedDeleted(x, deletedSet));
+              }
+              if (Array.isArray(parsed.invoices)) {
+                parsed.invoices = parsed.invoices.filter((x: any) => !isInvoiceMarkedDeleted(x, deletedSet));
+              }
+              localStorage.setItem(cacheKey, JSON.stringify(parsed));
+            } catch {}
           }
-        }
+        });
       } catch (cacheErr) {}
 
       if (!supabase) return { success: true };
 
-      // 1. Delete from ncd_state master record
+      // 3. Delete from ncd_state (Single Table System - crucial for April & historical records)
       try {
-        if (!cachedLegacyState) {
-          const { data } = await supabase.from('ncd_state').select('*').order('updated_at', { ascending: false }).limit(5);
-          if (data && data.length > 0) {
-            const masterRow = data.find((r: any) => r.id === MASTER_RECORD_ID) || data[0];
-            cachedLegacyRecordId = masterRow.id || MASTER_RECORD_ID;
-            cachedLegacyState = typeof masterRow.data === 'string' ? JSON.parse(masterRow.data) : masterRow.data;
+        // Query ALL rows from ncd_state so no row can ever resurrect this deleted invoice
+        const { data: allNcdRows } = await supabase.from('ncd_state').select('*');
+        const rowsToProcess = (allNcdRows && allNcdRows.length > 0) ? allNcdRows : (cachedLegacyRecordId ? [{ id: cachedLegacyRecordId }] : [{ id: MASTER_RECORD_ID }]);
+
+        for (const row of rowsToProcess) {
+          let rowData = row.data;
+          if (typeof rowData === 'string') {
+            try { rowData = JSON.parse(rowData); } catch { rowData = null; }
           }
-        }
-        if (cachedLegacyState && Array.isArray(cachedLegacyState.labInvoices)) {
-          cachedLegacyState.labInvoices = cachedLegacyState.labInvoices.filter((x: any) => {
-            const xInvoiceId = String(x.invoice_id || x.id || '').trim();
-            if (targetInvoiceId && xInvoiceId && targetInvoiceId === xInvoiceId) return false;
-            if (targetId && x.id && targetId === String(x.id).trim()) return false;
-            return true;
+          if (!rowData || typeof rowData !== 'object') {
+            rowData = (cachedLegacyState && typeof cachedLegacyState === 'object') ? { ...cachedLegacyState } : {};
+          }
+
+          // Clean all possible array keys in ncd_state row
+          ['labInvoices', 'invoices', 'lab_invoices', 'diagnostic_invoices'].forEach(col => {
+            if (Array.isArray(rowData[col])) {
+              rowData[col] = rowData[col].filter((x: any) => !isInvoiceMarkedDeleted(x, deletedSet));
+            }
           });
-          cachedLegacyState.last_updated_at = now;
+
+          // Store deleted tombstone list inside ncd_state
+          const existingDeleted = Array.isArray(rowData.deleted_lab_invoices) ? rowData.deleted_lab_invoices : [];
+          rowData.deleted_lab_invoices = Array.from(new Set([...existingDeleted, ...allTargetIds]));
+          rowData.last_updated_at = now;
 
           await supabase.from('ncd_state').upsert({
-            id: cachedLegacyRecordId || MASTER_RECORD_ID,
-            data: cachedLegacyState,
+            id: row.id || MASTER_RECORD_ID,
+            data: rowData,
             updated_at: now
           }, { onConflict: 'id' });
-          console.log(`[dbService] Deleted lab invoice from ncd_state: ${targetInvoiceId || targetId}`);
+
+          if (row.id === MASTER_RECORD_ID || row.id === cachedLegacyRecordId || !cachedLegacyState) {
+            cachedLegacyState = rowData;
+            cachedLegacyRecordId = row.id || MASTER_RECORD_ID;
+          }
         }
+
+        // Also ensure in-memory cachedLegacyState is completely cleaned
+        if (cachedLegacyState) {
+          ['labInvoices', 'invoices', 'lab_invoices', 'diagnostic_invoices'].forEach(col => {
+            if (Array.isArray(cachedLegacyState[col])) {
+              cachedLegacyState[col] = cachedLegacyState[col].filter((x: any) => !isInvoiceMarkedDeleted(x, deletedSet));
+            }
+          });
+          const curDel = Array.isArray(cachedLegacyState.deleted_lab_invoices) ? cachedLegacyState.deleted_lab_invoices : [];
+          cachedLegacyState.deleted_lab_invoices = Array.from(new Set([...curDel, ...allTargetIds]));
+          cachedLegacyState.last_updated_at = now;
+        }
+
+        console.log(`[dbService] Deleted invoice from ncd_state across all rows: ${allTargetIds.join(', ')}`);
       } catch (delErr) {
         console.warn("[dbService] ncd_state delete lab invoice notice:", delErr);
       }
 
-      // 2. Also delete from modular tables 'lab_invoices' and 'invoices'
+      // 4. Also clean from Modular Tables ('lab_invoices' and 'invoices')
+      // (Even for April data, if it was copied into modular table, purge it completely!)
       try {
-        const orConditions = [];
-        if (targetInvoiceId) {
-          orConditions.push(`invoice_id.eq.${targetInvoiceId}`);
-          orConditions.push(`id.eq.${targetInvoiceId}`);
-        }
-        if (targetId && targetId !== targetInvoiceId) orConditions.push(`id.eq.${targetId}`);
-        
+        const orConditions: string[] = [];
+        allTargetIds.forEach(id => {
+          orConditions.push(`invoice_id.eq.${id}`);
+          orConditions.push(`id.eq.${id}`);
+          orConditions.push(`invoice_no.eq.${id}`);
+        });
+
         if (orConditions.length > 0) {
           const condStr = orConditions.join(',');
+          
+          // 4a. Execute SQL DELETE
           await Promise.allSettled([
             supabase.from('lab_invoices').delete().or(condStr),
             supabase.from('invoices').delete().or(condStr)
           ]);
-          console.log(`[dbService] Deleted lab invoice from modular tables: ${targetInvoiceId || targetId}`);
+
+          // 4b. Execute Soft-Delete UPDATE (fallback in case RLS disallows DELETE query)
+          await Promise.allSettled([
+            supabase.from('lab_invoices').update({ status: 'Deleted', updated_at: now }).or(condStr),
+            supabase.from('invoices').update({ status: 'Deleted', updated_at: now }).or(condStr)
+          ]);
+
+          console.log(`[dbService] Deleted lab invoice from modular tables: ${allTargetIds.join(', ')}`);
         }
       } catch (modDelErr) {
         console.warn("[dbService] modular lab invoice delete notice:", modDelErr);
