@@ -217,7 +217,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onNavigate }) => {
       </div>
 
       {/* DESKTOP & TABLET VIEW - Responsive Single Cohesive Screen, All Elements Visible at Once */}
-      <div className="hidden md:flex flex-1 flex-col w-full max-w-6xl mx-auto px-4 md:px-6 pt-5 md:pt-6 pb-3 md:pb-4 z-10 h-full max-h-full overflow-y-auto md:overflow-y-visible lg:overflow-hidden justify-between">
+      <div className="hidden md:flex flex-1 flex-col w-full max-w-7xl mx-auto px-5 md:px-7 lg:px-8 pt-5 md:pt-6 lg:pt-7 pb-3 md:pb-4 z-10 h-full max-h-full overflow-y-auto md:overflow-y-visible lg:overflow-hidden justify-between">
           
           {/* HEADER - Compact horizontal row with 3-line stacked info, comfortably padded from top */}
           <header className="flex-none flex flex-row items-center justify-between gap-3 md:gap-4 lg:gap-6 w-full animate-fade-in-down pt-1 pb-1">
@@ -228,39 +228,44 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onNavigate }) => {
               </div>
               <div className="flex flex-col items-end justify-center text-right">
                   {/* Line 1: Clinic Name in English */}
-                  <h1 className="text-base sm:text-lg md:text-xl lg:text-[2.2rem] font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-sky-400 via-cyan-200 to-blue-500 drop-shadow-[0_0_15px_rgba(56,189,248,0.6)] font-sans tracking-tight leading-tight">
+                  <h1 className="text-lg sm:text-xl md:text-2xl lg:text-[2.35rem] font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-sky-400 via-cyan-200 to-blue-500 drop-shadow-[0_0_15px_rgba(56,189,248,0.6)] font-sans tracking-tight leading-tight">
                       Niramoy Clinic & Diagnostic
                   </h1>
 
+                  {/* Bangla Clinic Name */}
+                  <div className="font-bangla-display text-transparent bg-clip-text bg-gradient-to-r from-emerald-300 via-teal-200 to-cyan-300 text-sm sm:text-base md:text-lg lg:text-xl font-bold tracking-wide mt-1 drop-shadow-[0_2px_12px_rgba(20,184,166,0.35)]">
+                      নিরাময় ক্লিনিক অ্যান্ড ডায়াগনস্টিক
+                  </div>
+
                   {/* Line 2: Address */}
-                  <div className="flex items-center gap-1.5 text-teal-100 text-[11px] sm:text-xs md:text-xs lg:text-base font-medium tracking-wide mt-0.5">
-                    <MapPinIcon className="w-3.5 h-3.5 md:w-3.5 md:h-3.5 text-teal-400 shrink-0" />
+                  <div className="flex items-center gap-1.5 text-teal-100 text-[11px] sm:text-xs md:text-sm lg:text-base font-medium tracking-wide mt-1.5">
+                    <MapPinIcon className="w-3.5 h-3.5 md:w-4 md:h-4 text-teal-400 shrink-0" />
                     <span>এনায়েতপুর মন্ডলপাড়া, সিরাজগঞ্জ</span>
                   </div>
 
                   {/* Line 3: Mobile Number */}
-                  <div className="flex items-center mt-0.5">
+                  <div className="flex items-center mt-1.5">
                     <a 
                       href="tel:01730923007" 
-                      className="inline-flex items-center gap-1.5 text-cyan-300 font-bold tracking-wider hover:text-cyan-200 transition-colors text-[11px] sm:text-xs md:text-xs lg:text-base px-2.5 py-0.5 rounded-full bg-cyan-950/60 border border-cyan-500/40 hover:border-cyan-300"
+                      className="inline-flex items-center gap-1.5 text-cyan-300 font-bold tracking-wider hover:text-cyan-200 transition-colors text-xs sm:text-sm md:text-sm lg:text-base px-3 py-1 rounded-full bg-cyan-950/60 border border-cyan-500/40 hover:border-cyan-300"
                     >
                       <PhoneIcon className="w-3.5 h-3.5 text-cyan-400 shrink-0 animate-pulse" />
                       <span>01730-923007</span>
                     </a>
                   </div>
 
-                  <div className="w-full max-w-xl h-[1px] bg-gradient-to-r from-transparent via-cyan-500/60 to-transparent mt-0.5 opacity-70 ml-auto" />
+                  <div className="w-full max-w-xl h-[1px] bg-gradient-to-r from-transparent via-cyan-500/60 to-transparent mt-1.5 opacity-70 ml-auto" />
               </div>
           </header>
 
           {/* GRID SECTION - Spacious, comfortable distance from header and balanced layout */}
-          <main className="flex-none flex flex-col items-center justify-center w-full max-w-5xl mx-auto relative my-auto">
+          <main className="flex-none flex flex-col items-center justify-center w-full max-w-6xl mx-auto relative my-auto px-2 lg:px-4">
               
               {/* 2x2 Grid Container with Dead-Center Floating Marketing Management Badge */}
               <div className="relative w-full px-1 sm:px-2 md:px-4">
                 
                 {/* 2x2 Grid with generous vertical gap between top and bottom boxes to clear the center badge */}
-                <div className="grid grid-cols-2 gap-x-6 sm:gap-x-10 md:gap-x-12 lg:gap-x-32 gap-y-12 sm:gap-y-14 md:gap-y-16 lg:gap-y-20 xl:gap-y-24 w-full relative z-10">
+                <div className="grid grid-cols-2 gap-x-6 sm:gap-x-8 md:gap-x-10 lg:gap-x-20 xl:gap-x-24 gap-y-10 sm:gap-y-12 md:gap-y-14 lg:gap-y-16 xl:gap-y-20 w-full relative z-10">
                   <DashboardButton 
                     label={
                         <>
@@ -409,7 +414,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onNavigate }) => {
                 </button>
               </div>
 
-              <div className="mt-1 md:mt-1.5 lg:mt-3 text-center text-slate-500/60 text-[10px] md:text-xs font-medium tracking-wide">
+              <div className="mt-1 md:mt-1.5 lg:mt-2 text-center text-slate-500/60 text-[10px] md:text-xs font-medium tracking-wide">
                  &copy; 2024 NiramoyClinic. All rights reserved.
               </div>
           </footer>
@@ -419,10 +424,10 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onNavigate }) => {
       <div className="flex md:hidden flex-1 flex-col w-full max-w-md mx-auto px-3.5 py-3 xs:px-4 xs:py-3.5 z-10 justify-between min-h-full overflow-y-auto scrollbar-none">
         
         {/* MOBILE HEADER - 3-Line Stacked Structure with Glowing Compact Logo */}
-        <header className="flex-none flex flex-col items-center justify-center w-full animate-fade-in-down pt-0.5">
+        <header className="flex-none flex flex-col items-center justify-center w-full animate-fade-in-down pt-0.5 pb-1">
           {/* Minimized Logo on top with glowing halo - unified with desktop and admin settings */}
           <div className="mb-1 flex items-center justify-center">
-            <ClinicLogo size="sm" />
+            <ClinicLogo size="md" />
           </div>
 
           {/* Line 1: Clinic Name in English */}
@@ -430,6 +435,11 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onNavigate }) => {
             Niramoy Clinic & Diagnostic
           </h1>
           
+          {/* Bangla Clinic Name */}
+          <div className="font-bangla-display text-transparent bg-clip-text bg-gradient-to-r from-emerald-300 via-teal-200 to-cyan-300 text-[13.5px] xs:text-[14.5px] font-bold tracking-wide text-center mt-1 drop-shadow-[0_2px_10px_rgba(20,184,166,0.35)]">
+            নিরাময় ক্লিনিক অ্যান্ড ডায়াগনস্টিক
+          </div>
+
           {/* Line 2: Address with MapPin */}
           <div className="flex items-center justify-center gap-1.5 text-teal-200/90 text-[11.5px] xs:text-xs font-medium mt-1">
             <MapPinIcon className="w-3.5 h-3.5 text-teal-400 shrink-0" />
@@ -451,11 +461,11 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onNavigate }) => {
         </header>
 
         {/* MOBILE CORE 5 MANAGEMENT MODULES - 2x2 with centered floating Marketing Badge */}
-        <main className="flex-1 flex flex-col justify-center items-center w-full py-3 my-auto animate-fade-in-up" style={{ animationDelay: '150ms' }}>
+        <main className="flex-1 flex flex-col justify-center items-center w-full py-2 xs:py-2.5 sm:py-3 my-auto animate-fade-in-up" style={{ animationDelay: '150ms' }}>
           <div className="relative w-full max-w-sm mx-auto flex items-center justify-center">
             
             {/* 2x2 Management Grid with generous vertical gap for the center badge */}
-            <div className="grid grid-cols-2 gap-x-3 gap-y-12 xs:gap-y-14 w-full">
+            <div className="grid grid-cols-2 gap-x-3 gap-y-8 xs:gap-y-10 sm:gap-y-12 w-full">
               {/* Diagnostic Management */}
               <DashboardButton 
                 label={
@@ -541,24 +551,24 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onNavigate }) => {
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-30 animate-fade-in-up" style={{ animationDelay: '250ms' }}>
               <button 
                 onClick={() => onNavigate(ViewState.MARKETING)}
-                className="pointer-events-auto group relative flex items-center justify-center gap-2 px-4 py-2 xs:px-5 xs:py-2.5 rounded-full border-2 border-purple-400/90 hover:border-purple-300 active:border-purple-300 bg-gradient-to-r from-slate-950/95 via-purple-950/95 to-slate-950/95 backdrop-blur-2xl shadow-[0_0_30px_rgba(168,85,247,0.85),0_8px_20px_rgba(0,0,0,0.7)] active:scale-95 transition-all duration-300 cursor-pointer"
+                className="pointer-events-auto group relative flex items-center justify-center gap-2 sm:gap-2.5 px-4 py-2 xs:px-5 xs:py-2.5 rounded-full border-2 border-purple-400/90 hover:border-purple-300 active:border-purple-300 bg-gradient-to-r from-slate-950/95 via-purple-950/95 to-slate-950/95 backdrop-blur-2xl shadow-[0_0_35px_rgba(168,85,247,0.8),0_10px_25px_rgba(0,0,0,0.6)] hover:shadow-[0_0_50px_rgba(168,85,247,1)] active:shadow-[0_0_45px_rgba(168,85,247,0.95)] active:scale-95 transition-all duration-300 cursor-pointer"
                 title="মার্কেটিং ম্যানেজমেন্ট (Marketing Management)"
               >
                 {/* Perimeter Glow Aura */}
-                <div className="absolute -inset-1 rounded-full bg-gradient-to-r from-purple-600 via-fuchsia-500 to-pink-600 opacity-60 group-active:opacity-100 blur-md transition-all duration-300 -z-10 pointer-events-none" />
+                <div className="absolute -inset-1 rounded-full bg-gradient-to-r from-purple-600 via-fuchsia-500 to-pink-600 opacity-70 group-hover:opacity-100 group-active:opacity-100 blur-md transition-all duration-300 -z-10 pointer-events-none" />
 
-                <div className="p-1.5 rounded-full bg-purple-500/30 text-purple-300 border border-purple-400/60 group-active:scale-110 group-active:bg-purple-500 group-active:text-white transition-all duration-300 shadow-inner">
+                <div className="p-1.5 xs:p-2 rounded-full bg-purple-500/30 text-purple-300 border border-purple-400/60 group-hover:scale-110 group-active:scale-110 group-hover:bg-purple-500 group-hover:text-white group-active:bg-purple-500 group-active:text-white transition-all duration-300 shadow-inner">
                   <TrendingUpIcon className="w-4 h-4 xs:w-4.5 xs:h-4.5" />
                 </div>
                 <div className="text-left">
-                  <span className="block text-[11.5px] xs:text-xs font-extrabold text-white tracking-tight drop-shadow-md group-hover:text-purple-200 group-active:text-purple-200 transition-colors whitespace-nowrap">
+                  <span className="block text-xs xs:text-sm font-extrabold text-white tracking-wide drop-shadow-md group-hover:text-purple-200 group-active:text-purple-200 transition-colors whitespace-nowrap">
                     মার্কেটিং ম্যানেজমেন্ট
                   </span>
-                  <span className="block text-[7.5px] xs:text-[8px] font-bold text-purple-300 tracking-wider uppercase whitespace-nowrap">
+                  <span className="block text-[8px] xs:text-[9px] font-bold text-purple-300 tracking-wider uppercase whitespace-nowrap">
                     Marketing Management
                   </span>
                 </div>
-                <div className="flex items-center text-purple-400 group-hover:translate-x-0.5 group-active:translate-x-0.5 transition-transform pl-0.5">
+                <div className="flex items-center text-purple-400 group-hover:translate-x-1 group-active:translate-x-1 transition-transform pl-0.5">
                   <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
                   </svg>

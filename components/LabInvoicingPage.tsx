@@ -601,6 +601,9 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
 
   const handleReferrarSelect = (id: string, name: string) => {
     setFormData(prev => ({ ...prev, referrar_id: id, referrar_name: name }));
+    if (id) {
+      setApplyPC(true);
+    }
     if (errors.referrar_id) setErrors(prev => ({ ...prev, referrar_id: false }));
     setShowNewReferrarForm(false);
   };
@@ -1707,11 +1710,15 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
              <div className="bg-slate-100 p-2 rounded-xl border border-gray-300 shadow-inner">
                 <SearchableSelect
                   theme="light" label=""
-                  options={(Array.isArray(filteredTestsForSelect) ? filteredTestsForSelect : []).map(t => ({ id: String(t.test_id || ''), name: String(t.test_name || t.test_id || ''), details: `${t.category || 'General'} - BDT ${(Number(t.price) || 0).toFixed(2)} ${!getTestAvailability(t, reagents) ? '(Unavailable)' : ''}` }))}
+                  options={(Array.isArray(filteredTestsForSelect) ? filteredTestsForSelect : []).map(t => ({ 
+                    id: String(t.test_id || ''), 
+                    name: String(t.test_name || t.test_id || ''), 
+                    details: `${t.category || 'General'} • প্রাইস: ৳${(Number(t.price) || 0).toFixed(2)} • PC: ৳${(Number(t.test_commission) || 0).toFixed(2)} ${!getTestAvailability(t, reagents) ? '(স্টক অপ্রতুল)' : ''}` 
+                  }))}
                   value="" 
                   onChange={handleTestSelect}
                   onAddNew={() => setShowNewTestForm(true)}
-                  placeholder="Search and add tests to invoice"
+                  placeholder="টেস্ট সার্চ করুন (নাম বা কোড)..."
                   inputHeightClass="h-10"
                 />
             </div>
@@ -1722,7 +1729,7 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
               <h3 className="text-base font-semibold text-sky-200">Invoice Items</h3>
               <div className="flex items-center">
                 <input type="checkbox" id="apply_pc" name="apply_pc" checked={applyPC} onChange={(e) => handleApplyPCChange(e.target.checked)} className="h-4 w-4 text-blue-600 border-slate-500 rounded focus:ring-blue-500 bg-slate-700" />
-                <label htmlFor="apply_pc" className="ml-2 text-sm font-medium text-sky-300">Apply PC</label>
+                <label htmlFor="apply_pc" className="ml-2 text-sm font-medium text-sky-300">Apply PC (পিসি কমিশন কার্যকর)</label>
               </div>
           </div>
           {(!formData.items || formData.items.length === 0) ? (
@@ -1735,7 +1742,7 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
                     <th className="px-6 py-4 text-left text-xs font-medium text-slate-300 uppercase">SL</th>
                     <th className="px-6 py-4 text-left text-xs font-medium text-slate-300 uppercase">Test Name</th>
                     <th className="px-6 py-4 text-right text-xs font-medium text-slate-300 uppercase">Service price</th>
-                    <th className="px-6 py-4 text-right text-xs font-medium text-slate-300 uppercase">Commission (BDT)</th>
+                    <th className="px-6 py-4 text-right text-xs font-medium text-slate-300 uppercase">Commission / PC</th>
                     <th className="px-6 py-4 text-right text-xs font-medium text-slate-300 uppercase">Quantity</th>
                     <th className="px-6 py-4 text-right text-xs font-medium text-slate-300 uppercase">Subtotal (BDT)</th>
                     <th className="px-6 py-4 text-center text-xs font-medium text-slate-300 uppercase tracking-wider">Actions</th>
@@ -1747,7 +1754,14 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-400">{idx + 1}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-200 font-medium">{item.test_name}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300 text-right">{(item.price || 0).toFixed(2)}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300 text-right">{applyPC ? (item.test_commission || 0).toFixed(2) : '0.00'}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-right">
+                        <span className={`font-mono font-bold ${applyPC ? 'text-emerald-400' : 'text-slate-400'}`}>
+                          ৳{(item.test_commission || 0).toFixed(2)}
+                        </span>
+                        {!applyPC && Number(item.test_commission || 0) > 0 && (
+                          <span className="block text-[10px] text-amber-500/90 font-medium">Apply PC বন্ধ</span>
+                        )}
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300 text-right">
                         <div className="flex items-center justify-end gap-1.5">
                           <button

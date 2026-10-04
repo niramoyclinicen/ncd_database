@@ -24,51 +24,197 @@ const DashboardButton: React.FC<DashboardButtonProps> = ({
       className="w-full h-full animate-fade-in-up relative"
       style={{ animationDelay: delay }}
     >
-      <div className="relative group w-full h-full transition-all duration-300 ease-out hover:z-40 hover:scale-105 sm:hover:scale-[1.07] lg:hover:scale-110 hover:-translate-y-1.5 sm:hover:-translate-y-2.5 active:scale-95 active:-translate-y-1">
-        {/* Outer Side/Perimeter Glow Aura - Placed strictly behind the card (-z-10) with blur, extending outside the edges */}
+      <div
+        className="
+          relative group w-full h-full
+          transition-all duration-300 ease-out
+          hover:z-40
+          hover:scale-[1.02]
+          sm:hover:scale-[1.04]
+          lg:hover:scale-[1.06]
+          hover:-translate-y-1
+          sm:hover:-translate-y-1.5
+          active:scale-[0.98]
+        "
+      >
+        {/* Outer Glow Aura */}
         <div
           className={`
-            absolute -inset-1.5 sm:-inset-2 rounded-2xl sm:rounded-3xl
+            absolute
+            -inset-1
+            sm:-inset-1.5
+            lg:-inset-2
+            rounded-2xl
+            sm:rounded-3xl
             bg-gradient-to-r ${glowGradient}
-            opacity-0 group-hover:opacity-90 group-active:opacity-90 blur-md sm:blur-xl
-            transition-all duration-300 -z-10 pointer-events-none
+            opacity-0
+            group-hover:opacity-80
+            group-active:opacity-80
+            blur-md
+            sm:blur-lg
+            lg:blur-xl
+            transition-all duration-300
+            -z-10
+            pointer-events-none
           `}
         />
 
-        {/* Main Solid Card - Clean, crisp, high-contrast dark background so text is 100% sharp and no haze can bleed inside */}
+        {/* Main Card */}
         <button
+          type="button"
           onClick={onClick}
           className={`
-            relative flex flex-col items-center justify-center cursor-pointer w-full
-            py-1 px-1 xs:py-1.5 xs:px-1.5 sm:py-2 sm:px-2 md:py-3.5 md:px-3 lg:py-6 lg:px-6 
-            h-[110px] xs:h-[118px] sm:h-28 md:h-[154px] lg:h-48 xl:h-52 active:scale-95
-            rounded-2xl sm:rounded-3xl border-2 ${borderColor}
-            bg-gradient-to-b from-slate-900 to-slate-950 shadow-xl transition-all duration-300
+            relative
+            flex flex-col items-center justify-center
+            cursor-pointer
+            w-full
+            min-w-0
+
+            py-2
+            px-2
+            xs:py-2.5
+            xs:px-2
+            sm:py-3
+            sm:px-3
+            md:py-4
+            md:px-4
+            lg:py-5
+            lg:px-5
+
+            h-[110px]
+            xs:h-[118px]
+            sm:h-[128px]
+            md:h-[150px]
+            lg:h-[180px]
+            xl:h-[196px]
+
+            rounded-2xl
+            sm:rounded-3xl
+
+            border-2
+            ${borderColor}
+
+            bg-gradient-to-b
+            from-slate-900
+            via-slate-900
+            to-slate-950
+
+            shadow-xl
+            hover:shadow-2xl
+
+            transition-all
+            duration-300
+
+            focus:outline-none
+            focus-visible:ring-2
+            focus-visible:ring-white/70
+            focus-visible:ring-offset-2
+            focus-visible:ring-offset-slate-950
+
+            active:scale-[0.98]
           `}
         >
-          {/* Icon circle */}
+          {/* Icon Circle */}
           <div
             className={`
-              mb-0.5 xs:mb-1 sm:mb-1.5 md:mb-1.5 lg:mb-3 p-1.5 xs:p-2 sm:p-2.5 md:p-2.5 lg:p-3 rounded-full
-              bg-slate-800/90 border border-slate-700/80 text-slate-300
+              flex items-center justify-center
+              shrink-0
+
+              mb-1
+              xs:mb-1.5
+              sm:mb-2
+              md:mb-2.5
+              lg:mb-3
+
+              p-1.5
+              xs:p-2
+              sm:p-2.5
+              md:p-2.5
+              lg:p-3
+
+              rounded-full
+
+              bg-slate-800/95
+              border
+              border-slate-700/80
+
+              text-slate-300
+
               ${iconBgColor || 'group-hover:text-white'}
-              group-hover:scale-115 group-active:scale-115
-              transition-all duration-300 shadow-inner
+
+              group-hover:scale-105
+              group-active:scale-105
+
+              transition-all
+              duration-300
+
+              shadow-inner
             `}
           >
             {React.isValidElement(icon) ? (
-              <div className="scale-[0.68] xs:scale-[0.75] sm:scale-80 md:scale-85 lg:scale-100">
-                {React.cloneElement(icon as React.ReactElement<any>, { size: 36 })}
+              <div
+                className="
+                  flex items-center justify-center
+                  scale-[0.68]
+                  xs:scale-[0.74]
+                  sm:scale-[0.80]
+                  md:scale-[0.88]
+                  lg:scale-100
+                "
+              >
+                {React.cloneElement(
+                  icon as React.ReactElement<any>,
+                  {
+                    size: 36,
+                  }
+                )}
               </div>
             ) : (
               icon
             )}
           </div>
 
-          {/* Text Container - razor sharp text, no blur, clearly enlarges with the card */}
-          <div className="text-center z-10 w-full px-1 sm:px-2 group-hover:scale-105 group-active:scale-105 transition-transform duration-300">
+          {/* Label */}
+          <div
+            className="
+              text-center
+              z-10
+              w-full
+              min-w-0
+              px-1
+              sm:px-2
+              leading-tight
+
+              group-hover:scale-[1.03]
+              group-active:scale-[1.03]
+
+              transition-transform
+              duration-300
+            "
+          >
             {typeof label === 'string' ? (
-              <span className="text-lg md:text-xl font-bold text-slate-200 group-hover:text-white tracking-wide transition-colors">
+              <span
+                className="
+                  block
+                  text-sm
+                  xs:text-base
+                  sm:text-lg
+                  md:text-xl
+                  lg:text-2xl
+
+                  font-bold
+                  text-slate-200
+                  group-hover:text-white
+
+                  tracking-wide
+                  leading-tight
+
+                  transition-colors
+                  duration-300
+
+                  break-words
+                "
+              >
                 {label}
               </span>
             ) : (
@@ -82,4 +228,3 @@ const DashboardButton: React.FC<DashboardButtonProps> = ({
 };
 
 export default DashboardButton;
-

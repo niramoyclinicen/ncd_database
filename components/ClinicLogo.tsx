@@ -1,101 +1,204 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { dbService } from '../dbService';
 
-interface ClinicLogoProps {
-  size?: 'sm' | 'md' | 'lg' | 'xl';
+export interface ClinicLogoProps {
+  size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
   logoUrl?: string;
   className?: string;
   showAura?: boolean;
+  variant?: 'default' | 'print' | 'minimal';
 }
 
-const hexClip = 'polygon(25% 5%, 75% 5%, 100% 50%, 75% 95%, 25% 95%, 0% 50%)';
-
+/**
+ * Universal Medical Ring Logo Component for Niramoy Clinic & Diagnostic.
+ * Features:
+ * 1. Prestigious Circular Ring Architecture across Computer, Tablet, and Mobile.
+ * 2. High-Tech Concentric Orbitals, Medical Cross, Lifeline Pulse, and Crisp NcD Typography.
+ * 3. Seamless Auto-Integration: If custom logo is uploaded via Admin, it is centered & framed inside the ring.
+ * 4. Print Mode Optimization: Ultra-crisp vector seal for official medical pads & test reports without ink bleeding.
+ * 5. Single Source of Truth: Zero duplicate data stored in reports; reads dynamically from central clinic profile.
+ */
 export const ClinicLogo: React.FC<ClinicLogoProps> = ({
   size = 'md',
   logoUrl,
   className = '',
   showAura = true,
+  variant = 'default',
 }) => {
   const [imgError, setImgError] = useState(false);
+  const [profileLogo, setProfileLogo] = useState<string>(() => {
+    try {
+      return dbService.getClinicProfile().logoUrl || '';
+    } catch {
+      return '';
+    }
+  });
 
-  // If logoUrl prop is provided, use it. Otherwise, query dbService
-  const activeLogoUrl = logoUrl !== undefined ? logoUrl : dbService.getClinicProfile().logoUrl;
+  // Listen for real-time logo updates from Admin Settings
+  useEffect(() => {
+    const handleUpdate = () => {
+      try {
+        const latest = dbService.getClinicProfile().logoUrl || '';
+        setProfileLogo(latest);
+        setImgError(false);
+      } catch {}
+    };
 
-  // Size mapping
-  const sizeClasses = {
-    sm: 'w-9 h-9',
-    md: 'w-12 h-12',
-    lg: 'w-16 h-16',
-    xl: 'w-20 h-20',
+    window.addEventListener('ncd_clinic_profile_updated', handleUpdate);
+    window.addEventListener('storage', handleUpdate);
+    return () => {
+      window.removeEventListener('ncd_clinic_profile_updated', handleUpdate);
+      window.removeEventListener('storage', handleUpdate);
+    };
+  }, []);
+
+  const activeLogoUrl = logoUrl !== undefined ? logoUrl : profileLogo;
+
+  // Size specifications
+  const sizeMap = {
+    xs: { dim: 'w-7 h-7', px: 28, stroke: 1.5, text: 'text-[8.5px]', cross: 12 },
+    sm: { dim: 'w-9 h-9', px: 36, stroke: 1.8, text: 'text-[11px]', cross: 15 },
+    md: { dim: 'w-12 h-12', px: 48, stroke: 2, text: 'text-sm', cross: 20 },
+    lg: { dim: 'w-16 h-16', px: 64, stroke: 2.2, text: 'text-lg', cross: 26 },
+    xl: { dim: 'w-20 h-20', px: 80, stroke: 2.5, text: 'text-xl', cross: 34 },
   };
 
-  const textSizes = {
-    sm: 'text-[11px]',
-    md: 'text-sm font-black',
-    lg: 'text-xl font-black',
-    xl: 'text-2xl font-black',
-  };
+  const current = sizeMap[size] || sizeMap.md;
 
-  const crossSizes = {
-    sm: { w: 'w-1', h: 'h-5', w2: 'w-5', h2: 'h-1' },
-    md: { w: 'w-1.5', h: 'h-6', w2: 'w-6', h2: 'h-1.5' },
-    lg: { w: 'w-1.5', h: 'h-8', w2: 'w-8', h2: 'h-1.5' },
-    xl: { w: 'w-2', h: 'h-10', w2: 'w-10', h2: 'h-2' },
-  };
-
-  const currentSizeClass = sizeClasses[size] || sizeClasses.md;
-  const currentTextSize = textSizes[size] || textSizes.md;
-  const cross = crossSizes[size] || crossSizes.md;
-
-  // If custom logo image is provided and hasn't failed to load
-  if (activeLogoUrl && !imgError) {
-    return (
-      <div className={`relative flex items-center justify-center shrink-0 ${currentSizeClass} ${className} group`}>
-        {showAura && (
-          <div className="absolute -inset-1 rounded-2xl bg-cyan-400/25 blur-md pointer-events-none group-hover:bg-cyan-400/40 transition-all duration-300" />
-        )}
-        <div className="relative w-full h-full rounded-2xl bg-slate-900/90 border-2 border-cyan-400/60 p-1.5 flex items-center justify-center shadow-lg shadow-cyan-950/50 backdrop-blur-sm overflow-hidden transition-all duration-300 group-hover:border-cyan-300">
+  // PRINT VARIANT: Crisp Medical Seal for A4 Paper Reports / Invoices / Lab Pads
+  if (variant === 'print') {
+    if (activeLogoUrl && !imgError) {
+      return (
+        <div className={`relative flex items-center justify-center shrink-0 rounded-full border border-teal-700 bg-white p-1 overflow-hidden ${current.dim} ${className}`}>
           <img
             src={activeLogoUrl}
-            alt="Clinic Official Logo"
-            className="w-full h-full object-contain"
+            alt="NCD Logo"
+            className="w-full h-full object-contain rounded-full"
             onError={() => setImgError(true)}
           />
+        </div>
+      );
+    }
+
+    return (
+      <div className={`relative flex items-center justify-center shrink-0 ${current.dim} ${className}`}>
+        <svg viewBox="0 0 100 100" className="w-full h-full text-teal-800">
+          {/* Outer Ring */}
+          <circle cx="50" cy="50" r="46" fill="none" stroke="currentColor" strokeWidth="2.5" />
+          <circle cx="50" cy="50" r="41" fill="none" stroke="currentColor" strokeWidth="1" strokeDasharray="3 2" />
+          
+          {/* Medical Cross */}
+          <rect x="44" y="24" width="12" height="34" rx="2" fill="currentColor" opacity="0.85" />
+          <rect x="33" y="35" width="34" height="12" rx="2" fill="currentColor" opacity="0.85" />
+          
+          {/* Center EKG Line */}
+          <path d="M 22 58 L 38 58 L 44 48 L 52 68 L 58 54 L 64 58 L 78 58" fill="none" stroke="#0f766e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          
+          {/* Text Seal */}
+          <text x="50" y="86" textAnchor="middle" fontSize="13" fontWeight="900" fill="currentColor" letterSpacing="0.05em">
+            NCD
+          </text>
+        </svg>
+      </div>
+    );
+  }
+
+  // CUSTOM UPLOADED LOGO: Framed in the Sleek Concentric Ring Bezel
+  if (activeLogoUrl && !imgError) {
+    return (
+      <div className={`relative flex items-center justify-center shrink-0 ${current.dim} ${className} group`}>
+        {showAura && (
+          <div className="absolute -inset-1 rounded-full bg-gradient-to-r from-cyan-500 via-sky-400 to-teal-400 opacity-60 blur-md pointer-events-none group-hover:opacity-90 group-hover:scale-105 transition-all duration-300" />
+        )}
+        <div className="relative w-full h-full rounded-full bg-gradient-to-b from-slate-900 via-slate-950 to-cyan-950 p-[2.5px] border-2 border-cyan-400/90 shadow-[0_0_20px_rgba(6,182,212,0.5)] transition-all duration-300 group-hover:border-cyan-300 group-hover:shadow-[0_0_28px_rgba(34,211,238,0.7)] overflow-hidden flex items-center justify-center">
+          <div className="w-full h-full rounded-full bg-slate-900/90 flex items-center justify-center p-1 overflow-hidden backdrop-blur-sm">
+            <img
+              src={activeLogoUrl}
+              alt="Niramoy Clinic Official Logo"
+              className="w-full h-full object-contain rounded-full transition-transform duration-300 group-hover:scale-105"
+              onError={() => setImgError(true)}
+            />
+          </div>
         </div>
       </div>
     );
   }
 
-  // Unified Prestigious Hex Logo (Default Brand Emblem)
+  // DEFAULT MEDICAL RING EMBLEM (Concentric Glowing Rings, Lifeline Pulse, Medical Cross & NcD)
   return (
-    <div className={`relative flex items-center justify-center shrink-0 ${currentSizeClass} ${className} group`}>
-      {/* Outer Hex Glow Ring */}
+    <div className={`relative flex items-center justify-center shrink-0 ${current.dim} ${className} group`}>
+      {/* Outer Glow Aura */}
       {showAura && (
-        <div
-          className="absolute -inset-1.5 bg-gradient-to-r from-blue-600 via-cyan-400 to-teal-400 opacity-70 blur-md group-hover:opacity-100 transition-all duration-500 animate-pulse pointer-events-none"
-          style={{ clipPath: hexClip }}
-        />
+        <div className="absolute -inset-1 rounded-full bg-gradient-to-tr from-blue-600 via-cyan-400 to-teal-400 opacity-60 blur-md pointer-events-none group-hover:opacity-95 group-hover:scale-110 transition-all duration-500 animate-pulse-slow" />
       )}
 
-      {/* Main Solid Hex Container */}
-      <div
-        className="relative w-full h-full bg-gradient-to-br from-slate-950 via-blue-950 to-slate-900 flex items-center justify-center border-2 border-cyan-400/80 shadow-[0_0_20px_rgba(34,211,238,0.5)] group-hover:shadow-[0_0_30px_rgba(34,211,238,0.8)] transition-all duration-500"
-        style={{ clipPath: hexClip }}
-      >
-        {/* Subtle Inner Medical Cross Accent */}
-        <div className="absolute inset-0 flex items-center justify-center opacity-25 pointer-events-none">
-          <div className={`${cross.w} ${cross.h} bg-cyan-400 rounded-full`} />
-          <div className={`absolute ${cross.w2} ${cross.h2} bg-cyan-400 rounded-full`} />
-        </div>
+      {/* Main Circular Ring Emblem */}
+      <div className="relative w-full h-full rounded-full bg-gradient-to-b from-slate-900 via-cyan-950 to-slate-950 p-[2px] border-2 border-cyan-400/80 shadow-[0_0_22px_rgba(6,182,212,0.55)] transition-all duration-500 group-hover:border-cyan-300 group-hover:shadow-[0_0_32px_rgba(34,211,238,0.85)] flex items-center justify-center overflow-hidden">
+        
+        {/* Vector Medical Ring Graphic */}
+        <svg viewBox="0 0 100 100" className="w-full h-full">
+          <defs>
+            <linearGradient id="ringGlowGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#38bdf8" />
+              <stop offset="50%" stopColor="#22d3ee" />
+              <stop offset="100%" stopColor="#14b8a6" />
+            </linearGradient>
+            <linearGradient id="crossGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="#67e8f9" />
+              <stop offset="100%" stopColor="#0891b2" />
+            </linearGradient>
+            <filter id="softGlow" x="-20%" y="-20%" width="140%" height="140%">
+              <feGaussianBlur stdDeviation="2" result="blur" />
+              <feComposite in="SourceGraphic" in2="blur" operator="over" />
+            </filter>
+          </defs>
 
-        {/* Center Typography "NcD" */}
-        <div className="relative z-10 flex items-center justify-center tracking-tighter">
-          <span
-            className={`${currentTextSize} font-black text-transparent bg-clip-text bg-gradient-to-b from-white via-cyan-100 to-cyan-300 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] font-sans`}
+          {/* Deep Core Circular Background */}
+          <circle cx="50" cy="50" r="47" fill="#040b17" />
+          
+          {/* Subtle Radar/Concentric Grid */}
+          <circle cx="50" cy="50" r="44" fill="none" stroke="url(#ringGlowGrad)" strokeWidth="1.2" opacity="0.8" />
+          <circle cx="50" cy="50" r="38" fill="none" stroke="#0e7490" strokeWidth="0.8" strokeDasharray="3 3" opacity="0.7" />
+          
+          {/* Orbital Dot Accents */}
+          <circle cx="50" cy="6" r="2.2" fill="#38bdf8" />
+          <circle cx="94" cy="50" r="2.2" fill="#22d3ee" />
+          <circle cx="50" cy="94" r="2.2" fill="#14b8a6" />
+          <circle cx="6" cy="50" r="2.2" fill="#38bdf8" />
+
+          {/* Medical Cross Graphic */}
+          <g filter="url(#softGlow)" opacity="0.95">
+            <rect x="44" y="20" width="12" height="34" rx="3" fill="url(#crossGrad)" />
+            <rect x="33" y="31" width="34" height="12" rx="3" fill="url(#crossGrad)" />
+          </g>
+
+          {/* EKG Lifeline Pulse Through Cross Center */}
+          <path
+            d="M 18 53 L 34 53 L 40 44 L 47 62 L 53 47 L 58 56 L 64 53 L 82 53"
+            fill="none"
+            stroke="#a5f3fc"
+            strokeWidth="2.2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            filter="url(#softGlow)"
+          />
+          <circle cx="53" cy="47" r="1.8" fill="#ffffff" />
+
+          {/* Bottom Monogram "NcD" */}
+          <text
+            x="50"
+            y="85"
+            textAnchor="middle"
+            fill="#e0f2fe"
+            fontSize="14.5"
+            fontWeight="900"
+            letterSpacing="0.08em"
+            fontFamily="sans-serif"
+            style={{ filter: 'drop-shadow(0px 1px 3px rgba(0,0,0,0.9))' }}
           >
             NcD
-          </span>
-        </div>
+          </text>
+        </svg>
       </div>
     </div>
   );

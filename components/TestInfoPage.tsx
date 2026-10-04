@@ -23,6 +23,8 @@ const TestInfoPage: React.FC<Props> = ({ reagents, tests, setTests, isEmbedded =
   const [selectedFilterCategory, setSelectedFilterCategory] = useState('All');
   const [successMessage, setSuccessMessage] = useState('');
   const [isReloading, setIsReloading] = useState(false);
+  const [isRestoringNcdState, setIsRestoringNcdState] = useState(false);
+  const [restoreProgressMsg, setRestoreProgressMsg] = useState('');
 
   const [tempSubTests, setTempSubTests] = useState<SubTest[]>([]);
 
@@ -131,6 +133,37 @@ const TestInfoPage: React.FC<Props> = ({ reagents, tests, setTests, isEmbedded =
       alert("টেস্ট ডাটা লোড করতে ব্যর্থ: " + (e?.message || e));
     } finally {
       setIsReloading(false);
+    }
+  };
+
+  const handleRestoreFromNcdState = async () => {
+    if (!window.confirm("আপনি কি পুরাতন ncd_state টেবিল (জানুয়ারি-জুলাই ২০২৬) থেকে টেস্টের আসল কমিশন ও সার্ভিস প্রাইজ নতুন পৃথক টেবিলে রিস্টোর করতে চান?")) {
+      return;
+    }
+    setIsRestoringNcdState(true);
+    setRestoreProgressMsg('শুরু হচ্ছে...');
+    try {
+      const res = await dbService.migrateTestsFromNcdStateToModular((msg, pct) => {
+        setRestoreProgressMsg(`${msg} (${pct}%)`);
+      });
+
+      if (res.success) {
+        if (Array.isArray(res.tests) && res.tests.length > 0) {
+          setTests(res.tests);
+        }
+        if (performBlockingSync) {
+          await performBlockingSync({ tests: res.tests });
+        }
+        setSuccessMessage(`✓ ${res.message}`);
+      } else {
+        alert(res.message);
+      }
+    } catch (e: any) {
+      console.error("Restore from ncd_state error:", e);
+      alert("রিস্টোর ব্যর্থ: " + (e?.message || e));
+    } finally {
+      setIsRestoringNcdState(false);
+      setRestoreProgressMsg('');
     }
   };
 
@@ -429,7 +462,7 @@ const TestInfoPage: React.FC<Props> = ({ reagents, tests, setTests, isEmbedded =
         <div className="bg-slate-800 rounded-[2.5rem] border border-slate-700 shadow-2xl overflow-hidden flex flex-col">
             <div className="p-8 bg-slate-900/80 border-b border-slate-700 flex flex-col gap-6">
                 <div className="flex flex-wrap justify-between items-center gap-4">
-                    <div className="flex items-center gap-3">
+                    <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                         <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Test Master Library</h3>
                         <span className="bg-sky-900/60 border border-sky-600/40 text-sky-300 text-xs px-3 py-1 rounded-full font-bold">
                             মোট: {Array.isArray(tests) ? tests.length : 0}টি টেস্ট
@@ -437,11 +470,20 @@ const TestInfoPage: React.FC<Props> = ({ reagents, tests, setTests, isEmbedded =
                         <button
                             type="button"
                             onClick={handleReloadFromCloud}
-                            disabled={isReloading}
+                            disabled={isReloading || isRestoringNcdState}
                             className="flex items-center gap-1.5 px-3 py-1.5 bg-sky-700 hover:bg-sky-600 text-white rounded-xl text-xs font-bold shadow transition-all active:scale-95 disabled:opacity-50"
                             title="ক্লাউড ডাটাবেজ (test/tests টেবিল) থেকে টেস্ট লোড করুন"
                         >
                             <span className={isReloading ? "animate-spin" : ""}>🔄</span> {isReloading ? 'লোড হচ্ছে...' : 'Reload from Cloud'}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={handleRestoreFromNcdState}
+                            disabled={isRestoringNcdState || isReloading}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-700 hover:bg-emerald-600 text-white rounded-xl text-xs font-bold shadow transition-all active:scale-95 disabled:opacity-50"
+                            title="পুরাতন ncd_state টেবিল (জানুয়ারি-জুলাই ২০২৬) থেকে টেস্ট ও আসল কমিশন রিস্টোর করুন"
+                        >
+                            <span className={isRestoringNcdState ? "animate-spin" : ""}>💎</span> {isRestoringNcdState ? (restoreProgressMsg || 'রিস্টোর চলছে...') : 'ncd_state থেকে কমিশন ও টেস্ট রিস্টোর'}
                         </button>
                     </div>
                     <div className="relative w-80">

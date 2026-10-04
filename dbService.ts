@@ -389,6 +389,32 @@ export const mergeEntityList = (baseList: any[], extraList: any[], idFields: str
       if ((!item.netPayable && !item.net_payable) && (existing.netPayable || existing.net_payable)) {
         merged.netPayable = existing.netPayable || existing.net_payable;
       }
+      // Intelligently preserve test commission & price from existing legacy records if modular table had 0 or missing values
+      if ((item.test_commission === undefined || item.test_commission === null || Number(item.test_commission) === 0) && Number(existing.test_commission || 0) > 0) {
+        merged.test_commission = Number(existing.test_commission);
+      }
+      if ((item.price === undefined || item.price === null || Number(item.price) === 0) && Number(existing.price || 0) > 0) {
+        merged.price = Number(existing.price);
+      }
+      if ((!item.category || item.category === 'Others' || item.category === 'General') && existing.category && existing.category !== 'Others' && existing.category !== 'General') {
+        merged.category = existing.category;
+      }
+      if ((!item.usg_exam_charge || Number(item.usg_exam_charge) === 0) && Number(existing.usg_exam_charge || 0) > 0) {
+        merged.usg_exam_charge = Number(existing.usg_exam_charge);
+      }
+      if ((!item.extra_lab_fee || Number(item.extra_lab_fee) === 0) && Number(existing.extra_lab_fee || 0) > 0) {
+        merged.extra_lab_fee = Number(existing.extra_lab_fee);
+      }
+      if ((!item.sub_tests || item.sub_tests.length === 0) && Array.isArray(existing.sub_tests) && existing.sub_tests.length > 0) {
+        merged.sub_tests = existing.sub_tests;
+        merged.is_group_test = true;
+      }
+      if (!item.normal_range && existing.normal_range) {
+        merged.normal_range = existing.normal_range;
+      }
+      if (!item.unit && existing.unit) {
+        merged.unit = existing.unit;
+      }
       result[existingIdx] = merged;
     } else {
       if (!isMarkedDeleted) {
@@ -3394,6 +3420,55 @@ export const dbService = {
   saveClinicProfile: (profile: ClinicProfile) => {
     try {
       localStorage.setItem('ncd_clinic_profile', JSON.stringify(profile));
+      try {
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('ncd_clinic_profile_updated', { detail: profile }));
+        }
+      } catch {}
+      return true;
+    } catch (e) {
+      return false;
+    }
+  },
+
+  getHospitalAdjustments: (): HospitalAdjustment[] => {
+    try {
+      const saved = localStorage.getItem('ncd_hospital_adjustments');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return defaultHospitalAdjustments;
+  },
+
+  saveHospitalAdjustments: (adjustments: HospitalAdjustment[]) => {
+    try {
+      localStorage.setItem('ncd_hospital_adjustments', JSON.stringify(adjustments));
+      try {
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('ncd_hospital_adjustments_updated', { detail: adjustments }));
+        }
+      } catch {}
+      return true;
+    } catch (e) {
+      return false;
+    }
+  },
+
+  getHospitalModuleConfig: (): HospitalModuleConfig => {
+    try {
+      const saved = localStorage.getItem('ncd_hospital_module_config');
+      if (saved) return { ...defaultHospitalModuleConfig, ...JSON.parse(saved) };
+    } catch (e) {}
+    return defaultHospitalModuleConfig;
+  },
+
+  saveHospitalModuleConfig: (config: HospitalModuleConfig) => {
+    try {
+      localStorage.setItem('ncd_hospital_module_config', JSON.stringify(config));
+      try {
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('ncd_hospital_module_config_updated', { detail: config }));
+        }
+      } catch {}
       return true;
     } catch (e) {
       return false;
@@ -4537,6 +4612,162 @@ export const dbService = {
     }
   },
 
+  // Dedicated one-click transfer and recovery of Tests & Commissions from ncd_state to modular test tables
+  migrateTestsFromNcdStateToModular: async (onProgress?: (msg: string, pct: number) => void): Promise<{
+    success: boolean;
+    message: string;
+    restoredCommissionsCount: number;
+    transferredCount: number;
+    totalTestsNow: number;
+    tests: Test[];
+  }> => {
+    if (!supabase) {
+      return {
+        success: false,
+        message: 'Supabase ক্লাউড কানেকশন সক্রিয় নেই। প্রথমে কানেকশন নিশ্চিত করুন।',
+        restoredCommissionsCount: 0,
+        transferredCount: 0,
+        totalTestsNow: 0,
+        tests: []
+      };
+    }
+
+    try {
+      onProgress?.('ধাপ ১/৪: ncd_state টেবিল থেকে ঐতিহাসিক টেস্ট ও কমিশনের ডাটা পড়া হচ্ছে...', 20);
+      let legacyRecords = await fetchTableSafe(supabase, 'ncd_state');
+      if (!legacyRecords || legacyRecords.length === 0) {
+        const fallback = await supabase.from('ncd_state').select('*');
+        if (!fallback.error && fallback.data) legacyRecords = fallback.data;
+      }
+
+      const legacyTestsList: Test[] = [];
+      const extractObj = (raw: any) => {
+        if (!raw) return null;
+        if (typeof raw === 'object' && !Array.isArray(raw)) return raw;
+        if (typeof raw === 'string') {
+          try { return JSON.parse(raw); } catch { return null; }
+        }
+        return null;
+      };
+
+      (legacyRecords || []).forEach((rec: any) => {
+        let d = extractObj(rec.data);
+        if (!d || typeof d !== 'object') d = rec;
+
+        const rawTests = d.tests || d.test || (rec as any).tests || (rec as any).test;
+        if (Array.isArray(rawTests) && rawTests.length > 0) {
+          rawTests.forEach((rt: any) => {
+            const norm = normalizeTestItem(rt);
+            if (norm && norm.test_id) {
+              legacyTestsList.push(norm);
+            }
+          });
+        }
+      });
+
+      onProgress?.('ধাপ ২/৪: বর্তমান মাল্টি-টেবিল (tests) থেকে ডাটা পড়া হচ্ছে...', 45);
+      const [t1, t2, t3, t4] = await Promise.all([
+        fetchTableSafe(supabase, 'tests'),
+        fetchTableSafe(supabase, 'test'),
+        fetchTableSafe(supabase, 'lab_tests'),
+        fetchTableSafe(supabase, 'test_info')
+      ]);
+
+      const rawCurrent = [
+        ...(Array.isArray(t1) ? t1 : []),
+        ...(Array.isArray(t2) ? t2 : []),
+        ...(Array.isArray(t3) ? t3 : []),
+        ...(Array.isArray(t4) ? t4 : [])
+      ];
+
+      const currentParsed = rawCurrent
+        .map(r => normalizeTestItem(r))
+        .filter((t): t is Test => t !== null && !!t.test_id);
+
+      onProgress?.('ধাপ ৩/৪: টেস্ট কমিশন ও সার্ভিস প্রাইজ ইন্টেলিজেন্ট মার্জিং ও ব্যাকফিল হচ্ছে...', 70);
+      // Merge: start with legacy tests, then merge current modular tests with intelligent preservation
+      const mergedTestsMap = new Map<string, Test>();
+
+      // First populate with legacy tests (which contain the historical commission data)
+      legacyTestsList.forEach(lt => {
+        const key = String(lt.test_id || lt.test_name).trim().toLowerCase();
+        if (key) {
+          const existing = mergedTestsMap.get(key);
+          if (!existing) {
+            mergedTestsMap.set(key, lt);
+          } else {
+            mergedTestsMap.set(key, {
+              ...existing,
+              ...lt,
+              test_commission: Math.max(Number(existing.test_commission || 0), Number(lt.test_commission || 0)),
+              price: Math.max(Number(existing.price || 0), Number(lt.price || 0))
+            });
+          }
+        }
+      });
+
+      let restoredCommissionsCount = 0;
+      // Now merge current modular tests without losing legacy commissions
+      currentParsed.forEach(ct => {
+        const key = String(ct.test_id || ct.test_name).trim().toLowerCase();
+        if (key) {
+          const legacy = mergedTestsMap.get(key);
+          if (legacy) {
+            const finalCommission = Number(ct.test_commission || 0) > 0 
+              ? Number(ct.test_commission) 
+              : Number(legacy.test_commission || 0);
+            
+            if (Number(ct.test_commission || 0) === 0 && Number(legacy.test_commission || 0) > 0) {
+              restoredCommissionsCount++;
+            }
+
+            const finalPrice = Number(ct.price || 0) > 0 
+              ? Number(ct.price) 
+              : Number(legacy.price || 0);
+
+            mergedTestsMap.set(key, {
+              ...legacy,
+              ...ct,
+              test_commission: finalCommission,
+              price: finalPrice,
+              category: (ct.category && ct.category !== 'Others') ? ct.category : (legacy.category || ct.category || 'Others')
+            });
+          } else {
+            mergedTestsMap.set(key, ct);
+          }
+        }
+      });
+
+      const finalMergedTests = Array.from(mergedTestsMap.values());
+
+      onProgress?.('ধাপ ৪/৪: উদ্ধারকৃত টেস্ট ও কমিশন নতুন পৃথক টেবিলে পার্মানেন্ট সেভ করা হচ্ছে...', 90);
+      if (finalMergedTests.length > 0) {
+        await dbService.syncTestsToModularTable(finalMergedTests);
+      }
+
+      onProgress?.('টেস্ট মাইগ্রেশন ও কমিশন রিস্টোর সফল!', 100);
+
+      return {
+        success: true,
+        message: `সফলভাবে ${finalMergedTests.length}টি টেস্টের ডাটা নতুন পৃথক টেবিলে আপডেট করা হয়েছে! (পুনরুদ্ধারকৃত কমিশন: ${restoredCommissionsCount}টি টেস্ট)`,
+        restoredCommissionsCount,
+        transferredCount: finalMergedTests.length,
+        totalTestsNow: finalMergedTests.length,
+        tests: finalMergedTests
+      };
+    } catch (e: any) {
+      console.error("Test migration error:", e);
+      return {
+        success: false,
+        message: 'টেস্ট মাইগ্রেশনে অপ্রত্যাশিত ত্রুটি: ' + (e?.message || 'অজানা ত্রুটি'),
+        restoredCommissionsCount: 0,
+        transferredCount: 0,
+        totalTestsNow: 0,
+        tests: []
+      };
+    }
+  },
+
   getMultiTableMigrationStats: async () => {
     if (!supabase) {
       return { connected: false, tables: {}, totalCount: 0 };
@@ -4702,5 +4933,39 @@ export const defaultAutoBackupSettings: AutoBackupSettings = {
   frequency: 'daily',
   maxSnapshots: 10,
   lastAutoBackupDate: ''
+};
+
+export interface HospitalAdjustment {
+  id: string;
+  department: 'DIAGNOSTIC' | 'CLINIC' | 'MEDICINE' | 'ACCOUNTS' | 'GENERAL';
+  type: 'INCOME_ADD' | 'EXPENSE_ADJUST' | 'DISCOUNT_WAIVER' | 'AUDIT_CORRECTION';
+  amount: number;
+  date: string;
+  category: string;
+  note: string;
+  authorizedBy: string;
+  createdAt: string;
+}
+
+export const defaultHospitalAdjustments: HospitalAdjustment[] = [];
+
+export interface HospitalModuleConfig {
+  diagnosticActive: boolean;
+  clinicActive: boolean;
+  medicineActive: boolean;
+  accountingActive: boolean;
+  labReportingActive: boolean;
+  autoPrintHeader: boolean;
+  showWatermark: boolean;
+}
+
+export const defaultHospitalModuleConfig: HospitalModuleConfig = {
+  diagnosticActive: true,
+  clinicActive: true,
+  medicineActive: true,
+  accountingActive: true,
+  labReportingActive: true,
+  autoPrintHeader: true,
+  showWatermark: true
 };
 

@@ -1,8 +1,51 @@
 import React, { useState, useEffect } from 'react';
 import { BackIcon, SettingsIcon, SaveIcon, DownloadIcon, TrashIcon, DatabaseIcon, RefreshIcon, Activity, UsersIcon, PrinterIcon, PlusIcon, XIcon } from './Icons';
 import { DepartmentPasswords } from '../types';
-import { dbService, ClinicProfile, PrintSettings, StaffAccount, SMSGatewaySettings, AutoBackupSettings, defaultClinicProfile, defaultPrintSettings, defaultStaffAccounts, defaultSMSGatewaySettings, defaultAutoBackupSettings } from '../dbService';
-import { MessageSquare, Clock, ShieldCheck, CheckCircle2, Send, HardDrive, FileJson, ArrowDownToLine, Upload, Trash2 } from 'lucide-react';
+import { 
+  dbService, 
+  ClinicProfile, 
+  PrintSettings, 
+  StaffAccount, 
+  SMSGatewaySettings, 
+  AutoBackupSettings, 
+  HospitalAdjustment, 
+  HospitalModuleConfig, 
+  defaultClinicProfile, 
+  defaultPrintSettings, 
+  defaultStaffAccounts, 
+  defaultSMSGatewaySettings, 
+  defaultAutoBackupSettings, 
+  defaultHospitalAdjustments, 
+  defaultHospitalModuleConfig 
+} from '../dbService';
+import { 
+  MessageSquare, 
+  Clock, 
+  ShieldCheck, 
+  CheckCircle2, 
+  Send, 
+  HardDrive, 
+  FileJson, 
+  ArrowDownToLine, 
+  Upload, 
+  Trash2, 
+  Sliders, 
+  Scale, 
+  Sparkles, 
+  AlertCircle, 
+  Layers, 
+  Eye, 
+  ChevronRight, 
+  CheckCircle, 
+  Percent, 
+  ArrowUpDown, 
+  Plus, 
+  Lock, 
+  Unlock, 
+  FileText, 
+  Zap, 
+  Check 
+} from 'lucide-react';
 import { ClinicLogo } from './ClinicLogo';
 
 import { generateOfflineViewer } from '../utils/portableBackup';
@@ -17,7 +60,7 @@ interface AdminSettingsProps {
   manualSyncError?: string | null;
 }
 
-type SettingsTab = 'profile' | 'print' | 'sms' | 'security' | 'database' | 'autobackup' | 'backup';
+type SettingsTab = 'admin_hub' | 'profile' | 'security' | 'print' | 'sms' | 'database' | 'autobackup' | 'backup';
 
 const AdminSettings: React.FC<AdminSettingsProps> = ({ 
   passwords, 
@@ -26,10 +69,22 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({
   onBack, 
   performBlockingSync 
 }) => {
-  const [activeTab, setActiveTab] = useState<SettingsTab>('security');
+  const [activeTab, setActiveTab] = useState<SettingsTab>('admin_hub');
   const [localPasswords, setLocalPasswords] = useState<DepartmentPasswords>(passwords);
   const [showPasswordMap, setShowPasswordMap] = useState<Record<string, boolean>>({});
   const [successMsg, setSuccessMsg] = useState('');
+
+  // Hospital Adjustments & Modules State
+  const [hospitalAdjustments, setHospitalAdjustments] = useState<HospitalAdjustment[]>(() => dbService.getHospitalAdjustments());
+  const [moduleConfig, setModuleConfig] = useState<HospitalModuleConfig>(() => dbService.getHospitalModuleConfig());
+  const [adjDept, setAdjDept] = useState<'DIAGNOSTIC' | 'CLINIC' | 'MEDICINE' | 'ACCOUNTS' | 'GENERAL'>('DIAGNOSTIC');
+  const [adjType, setAdjType] = useState<'INCOME_ADD' | 'EXPENSE_ADJUST' | 'DISCOUNT_WAIVER' | 'AUDIT_CORRECTION'>('INCOME_ADD');
+  const [adjAmount, setAdjAmount] = useState<string>('');
+  const [adjDate, setAdjDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
+  const [adjCategory, setAdjCategory] = useState<string>('ল্যাব আয় সমন্বয়');
+  const [adjNote, setAdjNote] = useState<string>('');
+  const [adjFilterDept, setAdjFilterDept] = useState<string>('ALL');
+  const [logoAutoAdjusting, setLogoAutoAdjusting] = useState(false);
 
   // Clinic Profile State
   const [clinicProfile, setClinicProfile] = useState<ClinicProfile>(() => dbService.getClinicProfile());
@@ -120,6 +175,49 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({
     totalModularExpensesNow: number;
     datesCovered: string[];
   } | null>(null);
+
+  // Dedicated Tests & Commission Transfer State
+  const [isTransferringTests, setIsTransferringTests] = useState(false);
+  const [testTransferPct, setTestTransferPct] = useState(0);
+  const [testTransferMsg, setTestTransferMsg] = useState('');
+  const [testTransferReport, setTestTransferReport] = useState<{
+    success: boolean;
+    message: string;
+    restoredCommissionsCount: number;
+    transferredCount: number;
+    totalTestsNow: number;
+  } | null>(null);
+
+  const handleTransferTests = async () => {
+    if (!window.confirm("আপনি কি ncd_state থেকে সমস্ত টেস্টের আসল কমিশন (PC) ও সার্ভিস প্রাইজ Supabase-এর tests/test টেবিলে পার্মানেন্ট ট্রান্সফার করতে চান?\n\n১. এটি ncd_state-এর কোনো ডাটা ডিলিট করবে না (১০০% রিড-অনলি)।\n২. বর্তমান কোনো টেস্টের সঠিক ডাটা নষ্ট হবে না।\n৩. ট্রান্সফার শেষে ল্যাব ইনভয়েস ও টেস্ট টেবিলে কমিশন স্বয়ংক্রিয়ভাবে কার্যকর হবে।\n\nচালিয়ে যেতে 'OK' চাপুন।")) {
+      return;
+    }
+    setIsTransferringTests(true);
+    setTestTransferReport(null);
+    setTestTransferMsg('শুরু হচ্ছে...');
+    setTestTransferPct(5);
+
+    try {
+      const report = await dbService.migrateTestsFromNcdStateToModular((msg, pct) => {
+        setTestTransferMsg(msg);
+        setTestTransferPct(pct);
+      });
+      setTestTransferReport(report);
+      if (performBlockingSync) {
+        await performBlockingSync();
+      }
+    } catch (e: any) {
+      setTestTransferReport({
+        success: false,
+        message: 'টেস্ট ট্রান্সফারে অপ্রত্যাশিত ত্রুটি: ' + (e?.message || 'অজানা ত্রুটি'),
+        restoredCommissionsCount: 0,
+        transferredCount: 0,
+        totalTestsNow: 0
+      });
+    } finally {
+      setIsTransferringTests(false);
+    }
+  };
 
   const handleTransferExpenses = async () => {
     if (!window.confirm("আপনি কি ncd_state থেকে জানুয়ারি-জুলাই ও সমস্ত ঐতিহাসিক খরচের ডাটা Supabase-এর detailed_expenses টেবিলে পার্মানেন্ট ট্রান্সফার করতে চান?\n\n১. এটি ncd_state-এর কোনো ডাটা ডিলিট করবে না (১০০% রিড-অনলি)।\n২. detailed_expenses টেবিলে থাকা বর্তমান কোনো ডাটা ক্ষতিগ্রস্ত হবে না এবং কোনো ডুপ্লিকেট তৈরি হবে না।\n৩. ট্রান্সফার শেষে অ্যাপের সমস্ত খরচ সরাসরি detailed_expenses থেকে আসবে।\n\nচালিয়ে যেতে 'OK' চাপুন।")) {
@@ -265,46 +363,139 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({
     setMedicineStats(stats);
   };
 
+  const handleAddAdjustment = (e: React.FormEvent) => {
+    e.preventDefault();
+    const val = parseFloat(adjAmount);
+    if (isNaN(val) || val <= 0) {
+      alert('অনুগ্রহ করে সঠিক টাকার পরিমাণ দিন!');
+      return;
+    }
+    const newAdj: HospitalAdjustment = {
+      id: `adj_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+      department: adjDept,
+      type: adjType,
+      amount: val,
+      date: adjDate,
+      category: adjCategory.trim() || 'সাধারণ সমন্বয়',
+      note: adjNote.trim(),
+      authorizedBy: 'Super Admin',
+      createdAt: new Date().toISOString()
+    };
+    const updated = [newAdj, ...hospitalAdjustments];
+    setHospitalAdjustments(updated);
+    dbService.saveHospitalAdjustments(updated);
+    
+    // Also mirror to monthlyAdjustments in dbService non-destructively
+    try {
+      const monthKey = adjDate.substring(0, 7);
+      const existingMonthly = JSON.parse(localStorage.getItem('ncd_monthly_adjustments') || '{}');
+      const curItem = existingMonthly[monthKey] || { profitDist: 0, houseRent: 0, loanInstallment: 0 };
+      if (adjType === 'INCOME_ADD') {
+        curItem.profitDist = (curItem.profitDist || 0) + val;
+      }
+      existingMonthly[monthKey] = curItem;
+      localStorage.setItem('ncd_monthly_adjustments', JSON.stringify(existingMonthly));
+    } catch {}
+
+    if (performBlockingSync) {
+      performBlockingSync().catch(() => {});
+    }
+
+    setAdjAmount('');
+    setAdjNote('');
+    setSuccessMsg('✓ ডিপার্টমেন্টাল সমন্বয় সফলভাবে যোগ করা হয়েছে এবং একাউন্টসে আপডেট হয়েছে!');
+    setTimeout(() => setSuccessMsg(''), 4000);
+  };
+
+  const handleDeleteAdjustment = (id: string) => {
+    if (!window.confirm('আপনি কি এই সমন্বয় রেকর্ডটি ডিলিট করতে চান?')) return;
+    const updated = hospitalAdjustments.filter(a => a.id !== id);
+    setHospitalAdjustments(updated);
+    dbService.saveHospitalAdjustments(updated);
+    if (performBlockingSync) {
+      performBlockingSync().catch(() => {});
+    }
+    setSuccessMsg('✓ সমন্বয় রেকর্ড মুছে ফেলা হয়েছে!');
+    setTimeout(() => setSuccessMsg(''), 3000);
+  };
+
+  const handleToggleModule = (key: keyof HospitalModuleConfig) => {
+    const updated = { ...moduleConfig, [key]: !moduleConfig[key] };
+    setModuleConfig(updated);
+    dbService.saveHospitalModuleConfig(updated);
+    if (performBlockingSync) {
+      performBlockingSync().catch(() => {});
+    }
+    setSuccessMsg(`✓ ${key} স্ট্যাটাস আপডেট হয়েছে!`);
+    setTimeout(() => setSuccessMsg(''), 3000);
+  };
+
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 5 * 1024 * 1024) {
-      alert('লোগো ফাইলের সাইজ ৫MB এর কম হতে হবে!');
+    if (file.size > 8 * 1024 * 1024) {
+      alert('লোগো ফাইলের সাইজ ৮MB এর কম হতে হবে!');
       return;
     }
 
+    setLogoAutoAdjusting(true);
     const reader = new FileReader();
     reader.onload = (event) => {
       const img = new window.Image();
       img.onload = () => {
+        // High-DPI Auto-Correction Canvas
+        const targetDim = 256;
         const canvas = document.createElement('canvas');
-        const maxDim = 320;
-        let width = img.width;
-        let height = img.height;
-
-        if (width > height) {
-          if (width > maxDim) {
-            height = Math.round((height * maxDim) / width);
-            width = maxDim;
-          }
-        } else {
-          if (height > maxDim) {
-            width = Math.round((width * maxDim) / height);
-            height = maxDim;
-          }
-        }
-
-        canvas.width = width;
-        canvas.height = height;
+        canvas.width = targetDim;
+        canvas.height = targetDim;
         const ctx = canvas.getContext('2d');
-        if (ctx) {
-          ctx.drawImage(img, 0, 0, width, height);
-          const optimizedB64 = canvas.toDataURL('image/png', 0.92);
-          setClinicProfile(prev => ({ ...prev, logoUrl: optimizedB64 }));
-          setSuccessMsg('✓ লোগো সফলভাবে লোড হয়েছে! পরিবর্তনের জন্য নিচে "প্রোফাইল সংরক্ষণ করুন" চাপুন।');
-          setTimeout(() => setSuccessMsg(''), 5000);
+        if (!ctx) {
+          setLogoAutoAdjusting(false);
+          return;
         }
+
+        // Center crop calculation
+        const minDim = Math.min(img.width, img.height);
+        const sx = (img.width - minDim) / 2;
+        const sy = (img.height - minDim) / 2;
+
+        ctx.clearRect(0, 0, targetDim, targetDim);
+
+        // Draw image centered with padding for ring bezel
+        ctx.drawImage(img, sx, sy, minDim, minDim, 8, 8, targetDim - 16, targetDim - 16);
+
+        // Auto background cleaning: check if edges are pure white/light
+        const imgData = ctx.getImageData(0, 0, targetDim, targetDim);
+        const d = imgData.data;
+        const isLightCorner = d[0] > 235 && d[1] > 235 && d[2] > 235;
+
+        if (isLightCorner) {
+          for (let i = 0; i < d.length; i += 4) {
+            if (d[i] > 235 && d[i + 1] > 235 && d[i + 2] > 235) {
+              d[i + 3] = 0; // Make pure white transparent so it looks crisp on both dark and light
+            }
+          }
+          ctx.putImageData(imgData, 0, 0);
+        }
+
+        // Circular clipping
+        ctx.save();
+        ctx.globalCompositeOperation = 'destination-in';
+        ctx.beginPath();
+        ctx.arc(targetDim / 2, targetDim / 2, (targetDim / 2) - 4, 0, Math.PI * 2);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+
+        // Optimized ultra-lightweight PNG dataURL (under ~60-80KB)
+        const optimizedB64 = canvas.toDataURL('image/png', 0.9);
+        const updatedProfile = { ...clinicProfile, logoUrl: optimizedB64 };
+        setClinicProfile(updatedProfile);
+        dbService.saveClinicProfile(updatedProfile);
+        setLogoAutoAdjusting(false);
+        setSuccessMsg('✓ লোগো অটো-এডজাস্ট ও কারেকশন সম্পন্ন হয়েছে! এটি ড্যাশবোর্ড, হেডার ও সব রিপোর্টে সক্রিয়।');
+        setTimeout(() => setSuccessMsg(''), 5000);
       };
       img.src = event.target?.result as string;
     };
@@ -676,17 +867,24 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({
         <div className="bg-slate-950 px-4 md:px-8 py-4 border-b border-slate-800 flex flex-wrap items-center gap-2.5">
           <button
             type="button"
-            onClick={() => setActiveTab('security')}
-            className={`px-4 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center gap-2 ${activeTab === 'security' ? 'bg-sky-600 text-white shadow-lg shadow-sky-900/40 ring-2 ring-sky-400' : 'text-slate-400 hover:text-white hover:bg-slate-800 border border-slate-800'}`}
+            onClick={() => setActiveTab('admin_hub')}
+            className={`px-4 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center gap-2 ${activeTab === 'admin_hub' ? 'bg-gradient-to-r from-sky-600 via-cyan-600 to-teal-600 text-white shadow-lg shadow-cyan-900/40 ring-2 ring-cyan-400' : 'text-slate-300 hover:text-white hover:bg-slate-800 border border-slate-800'}`}
           >
-            <UsersIcon size={15} /> 🔐 ডিপার্টমেন্ট পাসওয়ার্ড ও স্টাফ
+            <Zap size={15} /> ⚡ হসপিটাল কন্ট্রোল ও আর্থিক সমন্বয়
           </button>
           <button
             type="button"
             onClick={() => setActiveTab('profile')}
             className={`px-4 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center gap-2 ${activeTab === 'profile' ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40 ring-2 ring-blue-400' : 'text-slate-400 hover:text-white hover:bg-slate-800 border border-slate-800'}`}
           >
-            🏥 ক্লিনিক প্রোফাইল
+            🏥 ক্লিনিক প্রোফাইল ও রিং লোগো
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('security')}
+            className={`px-4 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center gap-2 ${activeTab === 'security' ? 'bg-sky-600 text-white shadow-lg shadow-sky-900/40 ring-2 ring-sky-400' : 'text-slate-400 hover:text-white hover:bg-slate-800 border border-slate-800'}`}
+          >
+            <UsersIcon size={15} /> 🔐 ডিপার্টমেন্ট পাসওয়ার্ড ও স্টাফ
           </button>
           <button
             type="button"
@@ -728,75 +926,436 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({
         {/* TAB CONTENTS */}
         <div className="p-6 md:p-10">
 
-          {/* TAB 1: CLINIC PROFILE */}
+          {/* TAB 0: ADMIN CONTROL HUB & DEPARTMENT FINANCIAL ADJUSTMENTS */}
+          {activeTab === 'admin_hub' && (
+            <div className="space-y-8 animate-fade-in">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+                <div>
+                  <h2 className="text-xl font-black text-white uppercase tracking-tight flex items-center gap-2">
+                    ⚡ হসপিটাল মাস্টার কন্ট্রোল ও ডিপার্টমেন্টাল আর্থিক সমন্বয় হাব
+                  </h2>
+                  <p className="text-xs text-slate-400 mt-1">
+                    এডমিন প্যানেল থেকে হসপিটালের ৪টি প্রধান ডিপার্টমেন্টের কার্যক্রম নিয়ন্ত্রণ, জরুরি সমন্বয় ও আয়-ব্যয়ের হিসাব সমন্বয় করুন।
+                  </p>
+                </div>
+              </div>
+
+              {/* Department Financial Adjustments Summary KPI Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                {(() => {
+                  const pos = hospitalAdjustments
+                    .filter(a => a.type === 'INCOME_ADD')
+                    .reduce((sum, a) => sum + (Number(a.amount) || 0), 0);
+                  const neg = hospitalAdjustments
+                    .filter(a => a.type === 'EXPENSE_ADJUST' || a.type === 'DISCOUNT_WAIVER')
+                    .reduce((sum, a) => sum + (Number(a.amount) || 0), 0);
+                  const net = pos - neg;
+                  return (
+                    <>
+                      <div className="p-4 rounded-2xl bg-emerald-950/30 border border-emerald-500/30">
+                        <div className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider">মোট সমন্বিত আয় (+ Added)</div>
+                        <div className="text-2xl font-black text-emerald-300 mt-1">৳ {pos.toLocaleString()}</div>
+                        <div className="text-[10px] text-slate-400 mt-0.5">অতিরিক্ত আয় বা রিকভারি যোগ</div>
+                      </div>
+                      <div className="p-4 rounded-2xl bg-rose-950/30 border border-rose-500/30">
+                        <div className="text-[11px] font-bold text-rose-400 uppercase tracking-wider">মোট সমন্বিত ব্যয় / ছাড় (- Deducted)</div>
+                        <div className="text-2xl font-black text-rose-300 mt-1">৳ {neg.toLocaleString()}</div>
+                        <div className="text-[10px] text-slate-400 mt-0.5">খরচ সংশোধন বা বিশেষ ছাড়</div>
+                      </div>
+                      <div className="p-4 rounded-2xl bg-cyan-950/30 border border-cyan-500/30">
+                        <div className="text-[11px] font-bold text-cyan-400 uppercase tracking-wider">নেট সমন্বয় ব্যালেন্স (Net Impact)</div>
+                        <div className={`text-2xl font-black mt-1 ${net >= 0 ? 'text-cyan-300' : 'text-amber-400'}`}>
+                          {net >= 0 ? '+' : ''}৳ {net.toLocaleString()}
+                        </div>
+                        <div className="text-[10px] text-slate-400 mt-0.5">মোট {hospitalAdjustments.length} টি সমন্বয় এন্ট্রি</div>
+                      </div>
+                    </>
+                  );
+                })()}
+              </div>
+
+              {/* Financial Adjustment Input Form */}
+              <div className="p-6 rounded-2xl bg-slate-900/90 border border-slate-800 shadow-xl space-y-5">
+                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                  <h3 className="text-base font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                    <Scale size={18} className="text-cyan-400" />
+                    <span>নতুন ডিপার্টমেন্টাল আর্থিক সমন্বয় যোগ করুন</span>
+                  </h3>
+                  <span className="text-[11px] px-2.5 py-1 rounded-full bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/30">
+                    এডমিন ওভাররাইড ইঞ্জিন
+                  </span>
+                </div>
+
+                <form onSubmit={handleAddAdjustment} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div>
+                    <label className={labelClass}>ডিপার্টমেন্ট নির্বাচন করুন</label>
+                    <select
+                      value={adjDept}
+                      onChange={(e) => setAdjDept(e.target.value as any)}
+                      className={inputClass}
+                    >
+                      <option value="DIAGNOSTIC">🔬 ডায়াগনস্টিক ও ল্যাব (Diagnostic)</option>
+                      <option value="CLINIC">🏥 ক্লিনিক ও ইনডোর (Clinic & Indoor)</option>
+                      <option value="MEDICINE">💊 ফার্মেসি ও ঔষধ (Medicine)</option>
+                      <option value="ACCOUNTS">📊 সাধারণ একাউন্টস (General Accounts)</option>
+                      <option value="GENERAL">🏢 সেন্ট্রাল হসপিটাল ফান্ড (General)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className={labelClass}>সমন্বয়ের ধরন (Adjustment Type)</label>
+                    <select
+                      value={adjType}
+                      onChange={(e) => setAdjType(e.target.value as any)}
+                      className={inputClass}
+                    >
+                      <option value="INCOME_ADD">➕ অতিরিক্ত আয় যোগ (+ Income Addition)</option>
+                      <option value="EXPENSE_ADJUST">➖ খরচ সমন্বয় / ব্যয় বৃদ্ধি (- Expense Adj)</option>
+                      <option value="DISCOUNT_WAIVER">🏷️ বিশেষ ছাড় / মওকুফ (- Discount / Waiver)</option>
+                      <option value="AUDIT_CORRECTION">⚖️ অডিট ব্যালেন্স কারেকশন (Audit Balance Correction)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className={labelClass}>টাকার পরিমাণ (Amount ৳)</label>
+                    <input
+                      type="number"
+                      step="any"
+                      min="1"
+                      required
+                      placeholder="যেমন: 5000"
+                      value={adjAmount}
+                      onChange={(e) => setAdjAmount(e.target.value)}
+                      className={inputClass}
+                    />
+                  </div>
+
+                  <div>
+                    <label className={labelClass}>তারিখ (Adjustment Date)</label>
+                    <input
+                      type="date"
+                      required
+                      value={adjDate}
+                      onChange={(e) => setAdjDate(e.target.value)}
+                      className={inputClass}
+                    />
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <label className={labelClass}>ক্যাটাগরি / খাতের নাম</label>
+                    <input
+                      type="text"
+                      placeholder="যেমন: ল্যাব টেস্ট ছাড় সমন্বয়, স্টক সংশোধন..."
+                      value={adjCategory}
+                      onChange={(e) => setAdjCategory(e.target.value)}
+                      className={inputClass}
+                    />
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <label className={labelClass}>বিবরণ / কারণ (Note / Reference)</label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        placeholder="সমন্বয়ের বিস্তারিত কারণ লিখুন..."
+                        value={adjNote}
+                        onChange={(e) => setAdjNote(e.target.value)}
+                        className={inputClass}
+                      />
+                      <button
+                        type="submit"
+                        className="px-6 py-3 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold text-xs uppercase tracking-wider shrink-0 transition-all shadow-lg active:scale-95 flex items-center gap-1.5"
+                      >
+                        <Plus size={16} /> সমন্বয় সংরক্ষণ
+                      </button>
+                    </div>
+                  </div>
+                </form>
+
+                {/* Adjustments History Table */}
+                <div className="pt-4 border-t border-slate-800">
+                  <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+                    <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider">
+                      সাম্প্রতিক আর্থিক সমন্বয়সমূহ ({hospitalAdjustments.length})
+                    </h4>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] text-slate-400">ফিল্টার:</span>
+                      <select
+                        value={adjFilterDept}
+                        onChange={(e) => setAdjFilterDept(e.target.value)}
+                        className="bg-slate-800 border border-slate-700 text-xs text-white rounded-lg px-2.5 py-1 outline-none"
+                      >
+                        <option value="ALL">সকল ডিপার্টমেন্ট</option>
+                        <option value="DIAGNOSTIC">ডায়াগনস্টিক</option>
+                        <option value="CLINIC">ক্লিনিক</option>
+                        <option value="MEDICINE">ফার্মেসি</option>
+                        <option value="ACCOUNTS">একাউন্টস</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {hospitalAdjustments.length === 0 ? (
+                    <div className="p-6 text-center text-slate-500 text-xs bg-slate-950/50 rounded-xl border border-slate-800/80">
+                      কোনো সমন্বয় রেকর্ড নেই। প্রয়োজন অনুযায়ী উপরের ফর্ম ব্যবহার করে যেকোনো ডিপার্টমেন্টের আয়-ব্যয় সমন্বয় করুন।
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto max-h-72 overflow-y-auto">
+                      <table className="w-full text-left text-xs text-slate-300">
+                        <thead className="bg-slate-950 text-[10px] text-slate-400 uppercase tracking-wider sticky top-0">
+                          <tr>
+                            <th className="p-2.5">তারিখ</th>
+                            <th className="p-2.5">ডিপার্টমেন্ট</th>
+                            <th className="p-2.5">ধরন</th>
+                            <th className="p-2.5">খাত / বিবরণ</th>
+                            <th className="p-2.5 text-right">পরিমাণ (৳)</th>
+                            <th className="p-2.5 text-center">একশন</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-800/60">
+                          {hospitalAdjustments
+                            .filter(a => adjFilterDept === 'ALL' || a.department === adjFilterDept)
+                            .map((adj) => (
+                              <tr key={adj.id} className="hover:bg-slate-800/40 transition-colors">
+                                <td className="p-2.5 font-mono text-slate-300">{adj.date}</td>
+                                <td className="p-2.5">
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-800 text-slate-300 border border-slate-700">
+                                    {adj.department}
+                                  </span>
+                                </td>
+                                <td className="p-2.5">
+                                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                    adj.type === 'INCOME_ADD' 
+                                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' 
+                                      : adj.type === 'DISCOUNT_WAIVER'
+                                      ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                                      : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                                  }`}>
+                                    {adj.type === 'INCOME_ADD' ? '+ আয় যোগ' : adj.type === 'DISCOUNT_WAIVER' ? '- ছাড়' : '- ব্যয় সমন্বয়'}
+                                  </span>
+                                </td>
+                                <td className="p-2.5">
+                                  <div className="font-bold text-slate-200">{adj.category}</div>
+                                  {adj.note && <div className="text-[10px] text-slate-400">{adj.note}</div>}
+                                </td>
+                                <td className={`p-2.5 text-right font-bold ${adj.type === 'INCOME_ADD' ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                  {adj.type === 'INCOME_ADD' ? '+' : '-'}৳ {Number(adj.amount).toLocaleString()}
+                                </td>
+                                <td className="p-2.5 text-center">
+                                  <button
+                                    onClick={() => handleDeleteAdjustment(adj.id)}
+                                    className="p-1 rounded-lg hover:bg-rose-900/50 text-slate-400 hover:text-rose-300 transition-colors"
+                                    title="মুছে ফেলুন"
+                                  >
+                                    <Trash2 size={13} />
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Hospital Operational Switches & Feature Flags */}
+              <div className="p-6 rounded-2xl bg-slate-900/90 border border-slate-800 shadow-xl space-y-4">
+                <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                  <Sliders size={17} className="text-teal-400" />
+                  <span>হসপিটাল মডিউল নিয়ন্ত্রণ ও অপারেশনাল প্রিভিলেজ (Feature Controls)</span>
+                </h3>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                  <div className="p-3.5 rounded-xl bg-slate-950/60 border border-slate-800 flex items-center justify-between">
+                    <div>
+                      <div className="text-xs font-bold text-slate-200">🔬 ডায়াগনস্টিক ও ল্যাব রিপোর্টিং</div>
+                      <div className="text-[10px] text-slate-400">ইনভয়েসিং ও টেস্ট এন্ট্রি</div>
+                    </div>
+                    <button
+                      onClick={() => handleToggleModule('diagnosticActive')}
+                      className={`px-3 py-1 rounded-full text-[11px] font-bold transition-all ${moduleConfig.diagnosticActive ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'bg-slate-800 text-slate-500 border border-slate-700'}`}
+                    >
+                      {moduleConfig.diagnosticActive ? 'চালু (Active)' : 'বন্ধ (Paused)'}
+                    </button>
+                  </div>
+
+                  <div className="p-3.5 rounded-xl bg-slate-950/60 border border-slate-800 flex items-center justify-between">
+                    <div>
+                      <div className="text-xs font-bold text-slate-200">🏥 ক্লিনিক ও ইনডোর এডমিশন</div>
+                      <div className="text-[10px] text-slate-400">কেবিন ও ওটি অপারেশন</div>
+                    </div>
+                    <button
+                      onClick={() => handleToggleModule('clinicActive')}
+                      className={`px-3 py-1 rounded-full text-[11px] font-bold transition-all ${moduleConfig.clinicActive ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'bg-slate-800 text-slate-500 border border-slate-700'}`}
+                    >
+                      {moduleConfig.clinicActive ? 'চালু (Active)' : 'বন্ধ (Paused)'}
+                    </button>
+                  </div>
+
+                  <div className="p-3.5 rounded-xl bg-slate-950/60 border border-slate-800 flex items-center justify-between">
+                    <div>
+                      <div className="text-xs font-bold text-slate-200">💊 ফার্মেসি ও মেডিসিন কাউন্টার</div>
+                      <div className="text-[10px] text-slate-400">সেলস ও স্টক ম্যানেজমেন্ট</div>
+                    </div>
+                    <button
+                      onClick={() => handleToggleModule('medicineActive')}
+                      className={`px-3 py-1 rounded-full text-[11px] font-bold transition-all ${moduleConfig.medicineActive ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'bg-slate-800 text-slate-500 border border-slate-700'}`}
+                    >
+                      {moduleConfig.medicineActive ? 'চালু (Active)' : 'বন্ধ (Paused)'}
+                    </button>
+                  </div>
+
+                  <div className="p-3.5 rounded-xl bg-slate-950/60 border border-slate-800 flex items-center justify-between">
+                    <div>
+                      <div className="text-xs font-bold text-slate-200">🖨️ রিপোর্টে ক্লিনিক প্যাড হেডার</div>
+                      <div className="text-[10px] text-slate-400">অটো-প্রিন্ট হেডার ও রিং লোগো</div>
+                    </div>
+                    <button
+                      onClick={() => handleToggleModule('autoPrintHeader')}
+                      className={`px-3 py-1 rounded-full text-[11px] font-bold transition-all ${moduleConfig.autoPrintHeader ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40' : 'bg-slate-800 text-slate-500 border border-slate-700'}`}
+                    >
+                      {moduleConfig.autoPrintHeader ? 'অন (On)' : 'অফ (Off)'}
+                    </button>
+                  </div>
+
+                  <div className="p-3.5 rounded-xl bg-slate-950/60 border border-slate-800 flex items-center justify-between">
+                    <div>
+                      <div className="text-xs font-bold text-slate-200">🛡️ রিপোর্টে অফিসিয়াল ওয়াটারমার্ক</div>
+                      <div className="text-[10px] text-slate-400">নিরাপত্তা সিল ওয়াটারমার্ক</div>
+                    </div>
+                    <button
+                      onClick={() => handleToggleModule('showWatermark')}
+                      className={`px-3 py-1 rounded-full text-[11px] font-bold transition-all ${moduleConfig.showWatermark ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40' : 'bg-slate-800 text-slate-500 border border-slate-700'}`}
+                    >
+                      {moduleConfig.showWatermark ? 'অন (On)' : 'অফ (Off)'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Central Logo & Storage Protection Banner */}
+              <div className="p-5 rounded-2xl bg-gradient-to-r from-slate-900 via-cyan-950/40 to-slate-900 border border-cyan-500/30 flex items-center gap-4">
+                <ClinicLogo size="md" />
+                <div>
+                  <h4 className="text-xs font-black text-cyan-300 uppercase tracking-wide flex items-center gap-2">
+                    <Sparkles size={14} className="text-cyan-400" />
+                    <span>সেন্ট্রালাইজড রিং লোগো ও ডাটাবেজ ব্লোট-প্রতিরোধ প্রযুক্তি সক্রিয়</span>
+                  </h4>
+                  <p className="text-[11px] text-slate-300 mt-1">
+                    ক্লিনিকের অফিসিয়াল রিং লোগোটি একক মাস্টার স্টোরে সংরক্ষিত। প্রতিটি প্যাথলজি বা কেমিক্যাল রিপোর্টে আলাদাভাবে কোনো ইমেজ সেভ হয় না; বরং ডায়নামিকালি রেন্ডার হয়। ফলে ডাটাবেজ সাইজ বৃদ্ধি পায় না এবং প্রিন্ট লোডিং টাইম থাকে <span className="text-emerald-400 font-bold">&lt;২ মিলি-সেকেন্ড</span>!
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 1: CLINIC PROFILE & AUTO-ADJUSTING RING LOGO */}
           {activeTab === 'profile' && (
             <form onSubmit={handleSaveClinicProfile} className="space-y-8 animate-fade-in">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-800">
                 <div>
                   <h2 className="text-xl font-black text-white uppercase tracking-tight flex items-center gap-2">
-                    🏥 ক্লিনিক ও ডায়াগনস্টিক সেন্টার প্রোফাইল ও ব্র্যান্ডিং
+                    🏥 ক্লিনিক প্রোফাইল ও অটো-এডজাস্টিং রিং লোগো স্টুডিও
                   </h2>
                   <p className="text-xs text-slate-400 mt-1">
-                    এই তথ্যগুলো ইনভয়েস, মানি রিসিট এবং প্যাথলজি রিপোর্ট প্যাডের উপরে প্রদর্শিত হবে।
+                    এই তথ্যগুলো ড্যাশবোর্ড, ইনভয়েস, মানি রিসিট এবং প্যাথলজি রিপোর্ট প্যাডের উপরে স্বয়ংক্রিয়ভাবে সমন্বিত হয়ে প্রদর্শিত হবে।
                   </p>
                 </div>
                 <button
                   type="submit"
                   disabled={isSavingProfile}
-                  className="bg-blue-600 hover:bg-blue-500 active:scale-95 text-white px-8 py-3 rounded-2xl font-black uppercase text-xs shadow-xl flex items-center gap-2 transition-all"
+                  className="bg-blue-600 hover:bg-blue-500 active:scale-95 text-white px-8 py-3 rounded-2xl font-black uppercase text-xs shadow-xl flex items-center gap-2 transition-all cursor-pointer"
                 >
                   <SaveIcon size={16} /> {isSavingProfile ? 'সংরক্ষণ হচ্ছে...' : 'প্রোফাইল সংরক্ষণ করুন'}
                 </button>
               </div>
 
-              {/* Organization Logo Customizer & Live Preview */}
-              <div className="p-5 rounded-2xl bg-slate-900/90 border border-slate-800 shadow-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5">
-                <div className="flex items-center gap-4">
-                  <div className="relative group">
-                    <ClinicLogo size="lg" logoUrl={clinicProfile.logoUrl} />
-                  </div>
+              {/* Organization Logo Customizer & Live 3-Way Preview */}
+              <div className="p-6 rounded-2xl bg-slate-900/95 border border-slate-800 shadow-xl space-y-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800/80 pb-4">
                   <div>
-                    <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2 flex-wrap">
-                      <span>প্রতিষ্ঠানের অফিসিয়াল লোগো (Organization Logo)</span>
+                    <h3 className="text-sm font-black text-white uppercase tracking-wider flex items-center gap-2 flex-wrap">
+                      <Sparkles size={16} className="text-cyan-400" />
+                      <span>প্রতিষ্ঠানের অফিসিয়াল রিং লোগো (Ring Logo Auto-Adjuster)</span>
                       {clinicProfile.logoUrl ? (
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                          কাস্টম লোগো সক্রিয়
+                        <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                          ✓ কাস্টম লোগো সক্রিয়
                         </span>
                       ) : (
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">
-                          সিস্টেম ডিফল্ট লোগো
+                        <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">
+                          🛡️ সিস্টেম ডিফল্ট রিং লোগো
                         </span>
                       )}
                     </h3>
-                    <p className="text-xs text-slate-400 mt-1 max-w-lg">
-                      এডমিন এখান থেকে নিজস্ব ক্লিনিক বা ডায়াগনস্টিক সেন্টারের যেকোনো লোগো (PNG / JPG / WebP) আপলোড করতে পারবেন। এটি সাথে সাথে ড্যাশবোর্ড, হেডার ও সব রিপোর্টে কার্যকর হবে।
+                    <p className="text-xs text-slate-400 mt-1">
+                      মোবাইল বা কম্পিউটার থেকে যেকোনো ইমেজ আপলোড করুন। সিস্টেম স্বয়ংক্রিয়ভাবে সাইজ অপটিমাইজ, ব্যাকগ্রাউন্ড কারেকশন ও গোলাকার রিং-ডিজাইনে এডজাস্ট করে নিবে।
                     </p>
+                  </div>
+
+                  <div className="flex items-center gap-2.5 shrink-0">
+                    <label className="cursor-pointer px-4 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-900/30 active:scale-95">
+                      <Upload size={15} />
+                      <span>{logoAutoAdjusting ? 'এডজাস্ট হচ্ছে...' : (clinicProfile.logoUrl ? 'নতুন লোগো আপলোড ও অটো-ফিট' : 'লোগো আপলোড ও অটো-ফিট')}</span>
+                      <input
+                        type="file"
+                        accept="image/png, image/jpeg, image/webp"
+                        className="hidden"
+                        onChange={handleLogoUpload}
+                      />
+                    </label>
+
+                    {clinicProfile.logoUrl && (
+                      <button
+                        type="button"
+                        onClick={handleRemoveLogo}
+                        className="px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-rose-900/40 border border-slate-700 hover:border-rose-500/50 text-slate-300 hover:text-rose-300 font-bold text-xs flex items-center justify-center gap-1.5 transition-all active:scale-95"
+                        title="ডিফল্ট মেডিকেল রিং লোগোতে ফিরিয়ে আনুন"
+                      >
+                        <Trash2 size={14} />
+                        <span>ডিফল্ট লোগো রিসেট</span>
+                      </button>
+                    )}
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2.5 shrink-0 w-full sm:w-auto">
-                  <label className="flex-1 sm:flex-none cursor-pointer px-4 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-900/30 active:scale-95">
-                    <Upload size={15} />
-                    <span>{clinicProfile.logoUrl ? 'লোগো পরিবর্তন করুন' : 'নতুন লোগো আপলোড'}</span>
-                    <input
-                      type="file"
-                      accept="image/png, image/jpeg, image/webp"
-                      className="hidden"
-                      onChange={handleLogoUpload}
-                    />
-                  </label>
+                {/* 3-Way Live Multi-Surface Preview */}
+                <div>
+                  <div className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                    <Eye size={14} className="text-cyan-400" />
+                    <span>লাইভ মাল্টি-ডিভাইস ও প্রিন্ট প্রিভিউ (Live Previews)</span>
+                  </div>
 
-                  {clinicProfile.logoUrl && (
-                    <button
-                      type="button"
-                      onClick={handleRemoveLogo}
-                      className="px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-rose-900/40 border border-slate-700 hover:border-rose-500/50 text-slate-300 hover:text-rose-300 font-bold text-xs flex items-center justify-center gap-1.5 transition-all active:scale-95"
-                      title="ডিফল্ট লোগো ফিরিয়ে আনুন"
-                    >
-                      <Trash2 size={14} />
-                      <span>মুছুন</span>
-                    </button>
-                  )}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {/* Preview 1: Dark Mode Dashboard & App Header */}
+                    <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 flex flex-col items-center justify-center text-center">
+                      <div className="text-[10px] font-bold text-cyan-400 uppercase tracking-wider mb-2">১. ড্যাশবোর্ড ও অ্যাপ হেডার (Dark Mode)</div>
+                      <div className="p-3 my-1">
+                        <ClinicLogo size="lg" logoUrl={clinicProfile.logoUrl} />
+                      </div>
+                      <div className="text-[11px] font-bold text-slate-200 mt-1">গ্লোয়িং নিওন রিং ডিজাইন</div>
+                      <div className="text-[9.5px] text-slate-500">কম্পিউটার ও ট্যাবলেট ভিউ</div>
+                    </div>
+
+                    {/* Preview 2: Medical Test Report Print Sheet (White Paper Mode) */}
+                    <div className="p-4 rounded-xl bg-white border border-slate-300 text-slate-900 flex flex-col items-center justify-center text-center shadow-md">
+                      <div className="text-[10px] font-bold text-teal-800 uppercase tracking-wider mb-2">২. প্যাথলজি ও টেস্ট রিপোর্ট প্যাড (A4 Print)</div>
+                      <div className="p-3 my-1">
+                        <ClinicLogo size="md" logoUrl={clinicProfile.logoUrl} variant="print" />
+                      </div>
+                      <div className="text-[11px] font-bold text-slate-900 mt-1">ক্লিন প্রিন্ট সিল (Zero Inking Bleed)</div>
+                      <div className="text-[9.5px] text-slate-600">প্যাথলজি ও কেমিক্যাল রিপোর্ট প্যাড</div>
+                    </div>
+
+                    {/* Preview 3: Mobile Touch Header */}
+                    <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 flex flex-col items-center justify-center text-center">
+                      <div className="text-[10px] font-bold text-purple-400 uppercase tracking-wider mb-2">৩. মোবাইল রেসপন্সিভ হেডার (Mobile View)</div>
+                      <div className="p-3 my-1">
+                        <ClinicLogo size="sm" logoUrl={clinicProfile.logoUrl} />
+                      </div>
+                      <div className="text-[11px] font-bold text-slate-200 mt-1">স্মার্টফোন ও টাচ স্ক্রিন</div>
+                      <div className="text-[9.5px] text-slate-500">কম্প্যাক্ট ইউনিফায়েড রিং লোগো</div>
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -1532,7 +2091,7 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                   {/* CARD 1: EXPENSES PERMANENT TRANSFER */}
                   <div className="bg-slate-950 p-6 rounded-2xl border-2 border-emerald-600/30 space-y-5 shadow-xl relative overflow-hidden">
                     <div className="flex items-center justify-between">
@@ -1542,17 +2101,17 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({
                         </span>
                         <div>
                           <h4 className="text-sm font-black text-white uppercase">
-                            ১. জানুয়ারি-জুলাই খরচের ডাটা পার্মানেন্ট ট্রান্সফার
+                            ১. খরচের ডাটা পার্মানেন্ট ট্রান্সফার
                           </h4>
                           <span className="text-[10px] text-emerald-400 font-semibold">
-                            detailed_expenses টেবিলে এক ক্লিকে স্থায়ী পুশ
+                            detailed_expenses টেবিলে পুশ
                           </span>
                         </div>
                       </div>
                     </div>
 
                     <p className="text-xs text-slate-300 leading-relaxed">
-                      ncd_state টেবিল থেকে জানুয়ারি থেকে ৩১ জুলাই পর্যন্ত সমস্ত খরচের এন্ট্রি (detailedExpenses) বের করে Supabase-এর <span className="font-mono text-emerald-400 font-bold">detailed_expenses</span> টেবিলে স্বয়ংক্রিয়ভাবে INSERT/UPSERT করা হবে। কোনো বর্তমান খরচ ক্ষতিগ্রস্ত হবে না এবং ডুপ্লিকেট বাদ দেওয়া হবে।
+                      ncd_state টেবিল থেকে জানুয়ারি থেকে ৩১ জুলাই পর্যন্ত সমস্ত খরচের এন্ট্রি বের করে Supabase-এর <span className="font-mono text-emerald-400 font-bold">detailed_expenses</span> টেবিলে স্বয়ংক্রিয়ভাবে INSERT/UPSERT করা হবে।
                     </p>
 
                     <button
@@ -1569,7 +2128,7 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({
                       ) : (
                         <>
                           <span>🚀</span>
-                          <span>খরচের ডাটা ট্রান্সফার করুন (One-Click Transfer)</span>
+                          <span>খরচ ট্রান্সফার করুন</span>
                         </>
                       )}
                     </button>
@@ -1602,12 +2161,8 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({
                               <span className="text-emerald-400 font-bold">{expenseTransferReport.transferredCount} টি</span>
                             </div>
                             <div className="bg-slate-900/80 p-2 rounded-lg">
-                              <span className="text-slate-400 block text-[10px]">ডুপ্লিকেট বাদ দেওয়া:</span>
+                              <span className="text-slate-400 block text-[10px]">ডুপ্লিকেট বাদ:</span>
                               <span className="text-amber-400 font-bold">{expenseTransferReport.duplicatesSkipped} টি</span>
-                            </div>
-                            <div className="bg-slate-900/80 p-2 rounded-lg col-span-2">
-                              <span className="text-slate-400 block text-[10px]">detailed_expenses টেবিলে বর্তমান মোট খরচ:</span>
-                              <span className="text-sky-400 font-bold">{expenseTransferReport.totalModularExpensesNow} টি এন্ট্রি</span>
                             </div>
                           </div>
                         )}
@@ -1615,7 +2170,85 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({
                     )}
                   </div>
 
-                  {/* CARD 2: FULL SMART MULTI-TABLE MIGRATION */}
+                  {/* CARD 2: TEST & COMMISSION RECOVERY & PERMANENT TRANSFER */}
+                  <div className="bg-slate-950 p-6 rounded-2xl border-2 border-amber-500/30 space-y-5 shadow-xl relative overflow-hidden">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <span className="p-2.5 rounded-xl bg-amber-600/20 text-amber-400 font-bold text-lg">
+                          🧪
+                        </span>
+                        <div>
+                          <h4 className="text-sm font-black text-white uppercase">
+                            ২. টেস্ট ও কমিশন (PC) ট্রান্সফার
+                          </h4>
+                          <span className="text-[10px] text-amber-400 font-semibold">
+                            tests টেবিলে কমিশন রিস্টোর
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <p className="text-xs text-slate-300 leading-relaxed">
+                      ncd_state টেবিল থেকে সমস্ত টেস্টের আসল কমিশন (PC) ও সার্ভিস প্রাইজ বের করে Supabase-এর <span className="font-mono text-amber-400 font-bold">tests/test</span> টেবিলে পার্মানেন্ট সেভ ও রিস্টোর করা হবে।
+                    </p>
+
+                    <button
+                      type="button"
+                      onClick={handleTransferTests}
+                      disabled={isTransferringTests}
+                      className="w-full bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 active:scale-98 text-white text-xs font-black py-3.5 px-4 rounded-xl uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-lg shadow-amber-900/30 disabled:opacity-50"
+                    >
+                      {isTransferringTests ? (
+                        <>
+                          <Activity size={16} className="animate-spin" />
+                          ট্রান্সফার চলছে ({testTransferPct}%)...
+                        </>
+                      ) : (
+                        <>
+                          <span>⚡</span>
+                          <span>টেস্ট ও কমিশন ট্রান্সফার করুন</span>
+                        </>
+                      )}
+                    </button>
+
+                    {isTransferringTests && (
+                      <div className="space-y-2 bg-slate-900/80 p-3.5 rounded-xl border border-amber-500/20">
+                        <div className="flex justify-between text-xs text-slate-300 font-bold">
+                          <span>{testTransferMsg}</span>
+                          <span className="font-mono text-amber-400">{testTransferPct}%</span>
+                        </div>
+                        <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+                          <div
+                            className="bg-amber-500 h-full transition-all duration-300 rounded-full"
+                            style={{ width: `${testTransferPct}%` }}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {testTransferReport && (
+                      <div className={`p-4 rounded-xl text-xs space-y-2.5 border ${testTransferReport.success ? 'bg-amber-950/40 border-amber-500/40 text-amber-200' : 'bg-rose-950/40 border-rose-500/40 text-rose-200'}`}>
+                        <div className="font-bold flex items-center gap-2">
+                          <span>{testTransferReport.success ? '✓' : '✕'}</span>
+                          <span>{testTransferReport.message}</span>
+                        </div>
+                        {testTransferReport.success && (
+                          <div className="pt-2 border-t border-amber-900/60 grid grid-cols-2 gap-2 text-[11px] font-mono">
+                            <div className="bg-slate-900/80 p-2 rounded-lg">
+                              <span className="text-slate-400 block text-[10px]">আপডেটকৃত টেস্ট:</span>
+                              <span className="text-amber-400 font-bold">{testTransferReport.transferredCount} টি</span>
+                            </div>
+                            <div className="bg-slate-900/80 p-2 rounded-lg">
+                              <span className="text-slate-400 block text-[10px]">উদ্ধারকৃত কমিশন:</span>
+                              <span className="text-emerald-400 font-bold">{testTransferReport.restoredCommissionsCount} টি</span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* CARD 3: FULL SMART MULTI-TABLE MIGRATION */}
                   <div className="bg-slate-950 p-6 rounded-2xl border border-slate-800 space-y-5 shadow-xl">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2.5">
@@ -1624,10 +2257,10 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({
                         </span>
                         <div>
                           <h4 className="text-sm font-black text-white uppercase">
-                            ২. সম্পূর্ণ স্মার্ট মাইগ্রেশন (সকল মডিউল)
+                            ৩. সম্পূর্ণ স্মার্ট মাইগ্রেশন (সকল)
                           </h4>
                           <span className="text-[10px] text-sky-400 font-semibold">
-                            ইনভয়েস, ওষুধ, ল্যাব, খরচ, ডিউ ও ইনডোর
+                            ইনভয়েস, ওষুধ, ল্যাব, খরচ ও ডিউ
                           </span>
                         </div>
                       </div>
@@ -1636,7 +2269,7 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({
                         onClick={handleCheckMultiTableStats}
                         className="text-[10px] text-slate-400 hover:text-white font-bold bg-slate-900 px-2.5 py-1.5 rounded-lg border border-slate-800 uppercase"
                       >
-                        স্ট্যাটাস চেক
+                        স্ট্যাটাস
                       </button>
                     </div>
 
