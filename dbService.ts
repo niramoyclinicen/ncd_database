@@ -2057,7 +2057,18 @@ export const dbService = {
         console.warn("Modular indoor sync notice:", indoorErr);
       }
 
-      // 2h. Modular Sync for monthly_adjustments
+      // 2h. Modular Sync for admissions (strictly >= 2026-08-01)
+      try {
+        const modernAdmissions = (appState.admissions || []).filter((r: any) => isMultiTableDate(getRecordDate(r)));
+        if (modernAdmissions.length > 0) {
+          const admSync = await dbService.syncAdmissionsToModularTable(modernAdmissions);
+          if (admSync) hasAnySaveSuccess = true;
+        }
+      } catch (admErr) {
+        console.warn("Modular admissions sync notice:", admErr);
+      }
+
+      // 2i. Modular Sync for monthly_adjustments
       try {
         const adjObj = appState.monthlyAdjustments;
         if (adjObj && typeof adjObj === 'object' && Object.keys(adjObj).length > 0) {
@@ -2890,72 +2901,78 @@ export const dbService = {
 
   saveIndoorInvoiceDirectly: async (inv: any) => {
     try {
-      if (!supabase) return { success: false, error: 'Supabase not connected' };
+      if (!supabase || !inv) return { success: false, error: 'Supabase not connected' };
       const now = new Date().toISOString();
+      const recDate = getRecordDate(inv);
+      const isHistorical = isLegacyDate(recDate);
 
-      // 1. ALWAYS save to ncd_state master archive
-      try {
-        if (!cachedLegacyState) {
-          const { data } = await supabase.from('ncd_state').select('*').order('updated_at', { ascending: false }).limit(5);
-          if (data && data.length > 0) {
-            const masterRow = data.find((r: any) => r.id === MASTER_RECORD_ID) || data[0];
-            cachedLegacyRecordId = masterRow.id || MASTER_RECORD_ID;
-            cachedLegacyState = typeof masterRow.data === 'string' ? JSON.parse(masterRow.data) : masterRow.data;
+      // 1. If Historical Date (January - July 2026 < 2026-08-01): Save ONLY to single table ncd_state
+      if (isHistorical) {
+        try {
+          if (!cachedLegacyState) {
+            const { data } = await supabase.from('ncd_state').select('*').order('updated_at', { ascending: false }).limit(5);
+            if (data && data.length > 0) {
+              const masterRow = data.find((r: any) => r.id === MASTER_RECORD_ID) || data[0];
+              cachedLegacyRecordId = masterRow.id || MASTER_RECORD_ID;
+              cachedLegacyState = typeof masterRow.data === 'string' ? JSON.parse(masterRow.data) : masterRow.data;
+            }
           }
-        }
-        if (!cachedLegacyState) cachedLegacyState = {};
-        const existing = Array.isArray(cachedLegacyState.indoorInvoices) ? cachedLegacyState.indoorInvoices : [];
-        
-        const invDailyId = String(inv.daily_id || '').trim();
-        const invInvoiceId = String(inv.invoice_id || '').trim();
-        const invId = String((inv as any).id || '').trim();
-        const invAdmId = String(inv.admission_id || '').trim();
-        const invPtId = String(inv.patient_id || '').trim();
+          if (!cachedLegacyState) cachedLegacyState = {};
+          const existing = Array.isArray(cachedLegacyState.indoorInvoices) ? cachedLegacyState.indoorInvoices : [];
+          
+          const invDailyId = String(inv.daily_id || '').trim();
+          const invInvoiceId = String(inv.invoice_id || '').trim();
+          const invId = String((inv as any).id || '').trim();
+          const invAdmId = String(inv.admission_id || '').trim();
+          const invPtId = String(inv.patient_id || '').trim();
 
-        const isMatch = (x: any) => {
-          if (!x) return false;
-          const xDailyId = String(x.daily_id || '').trim();
-          const xInvoiceId = String(x.invoice_id || '').trim();
-          const xId = String(x.id || '').trim();
-          const xAdmId = String(x.admission_id || '').trim();
-          const xPtId = String(x.patient_id || '').trim();
+          const isMatch = (x: any) => {
+            if (!x) return false;
+            const xDailyId = String(x.daily_id || '').trim();
+            const xInvoiceId = String(x.invoice_id || '').trim();
+            const xId = String(x.id || '').trim();
+            const xAdmId = String(x.admission_id || '').trim();
+            const xPtId = String(x.patient_id || '').trim();
 
-          if (invId && xId && invId === xId) return true;
-          if (invDailyId && xDailyId && invDailyId === xDailyId) return true;
-          if (invInvoiceId && xInvoiceId && invInvoiceId === xInvoiceId) return true;
-          if (invDailyId && xInvoiceId && invDailyId === xInvoiceId) return true;
-          if (invInvoiceId && xDailyId && invInvoiceId === xDailyId) return true;
-          if (invAdmId && xAdmId && invAdmId === xAdmId && invPtId && xPtId && invPtId === xPtId) return true;
-          return false;
-        };
+            if (invId && xId && invId === xId) return true;
+            if (invDailyId && xDailyId && invDailyId === xDailyId) return true;
+            if (invInvoiceId && xInvoiceId && invInvoiceId === xInvoiceId) return true;
+            if (invDailyId && xInvoiceId && invDailyId === xInvoiceId) return true;
+            if (invInvoiceId && xDailyId && invInvoiceId === xDailyId) return true;
+            if (invAdmId && xAdmId && invAdmId === xAdmId && invPtId && xPtId && invPtId === xPtId) return true;
+            return false;
+          };
 
-        let updated = false;
-        const newArr = existing.map((x: any) => {
-          if (isMatch(x)) {
-            updated = true;
-            return { ...x, ...inv, last_modified: now };
+          let updated = false;
+          const newArr = existing.map((x: any) => {
+            if (isMatch(x)) {
+              updated = true;
+              return { ...x, ...inv, last_modified: now };
+            }
+            return x;
+          });
+          if (!updated) {
+            newArr.push({ ...inv, created_at: inv.created_at || now, last_modified: now });
           }
-          return x;
-        });
-        if (!updated) {
-          newArr.push({ ...inv, created_at: inv.created_at || now, last_modified: now });
-        }
-        cachedLegacyState.indoorInvoices = newArr;
-        cachedLegacyState.last_updated_at = now;
+          cachedLegacyState.indoorInvoices = newArr;
+          cachedLegacyState.last_updated_at = now;
 
-        await supabase.from('ncd_state').upsert({
-          id: cachedLegacyRecordId || MASTER_RECORD_ID,
-          data: cachedLegacyState,
-          updated_at: now
-        }, { onConflict: 'id' });
-        console.log("[dbService] Saved indoor invoice to ncd_state master:", invDailyId || invInvoiceId);
-      } catch (sbErr) {
-        console.warn("[dbService] ncd_state indoor save notice:", sbErr);
+          await supabase.from('ncd_state').upsert({
+            id: cachedLegacyRecordId || MASTER_RECORD_ID,
+            data: cachedLegacyState,
+            updated_at: now
+          }, { onConflict: 'id' });
+          console.log("[dbService] Saved historical indoor invoice to ncd_state master:", invDailyId || invInvoiceId);
+        } catch (sbErr) {
+          console.warn("[dbService] ncd_state historical indoor save notice:", sbErr);
+        }
+        return { success: true };
       }
 
-      // 2. ALSO sync to modular table indoor_invoices
+      // 2. If Modern/Future Date (August 2026+ >= 2026-08-01): Save ONLY to modular table 'indoor_invoices' (Zero ncd_state overhead!)
       try {
         await dbService.syncIndoorInvoicesToModularTable([inv]);
+        console.log("[dbService] Fast saved modern indoor invoice to modular table:", inv.daily_id || inv.invoice_id);
       } catch (modErr) {
         console.warn("[dbService] Modular indoor save notice:", modErr);
       }
@@ -2967,47 +2984,117 @@ export const dbService = {
     }
   },
 
-  saveLabInvoiceDirectly: async (inv: any) => {
+  saveAdmissionDirectly: async (adm: any) => {
     try {
-      if (!supabase) return { success: false, error: 'Supabase not connected' };
+      if (!supabase || !adm) return { success: false, error: 'Supabase not connected' };
       const now = new Date().toISOString();
+      const recDate = getRecordDate(adm) || normalizeDate(adm.admission_date);
+      const isHistorical = isLegacyDate(recDate);
 
-      // 1. ALWAYS save to ncd_state master archive
-      try {
-        if (!cachedLegacyState) {
-          const { data } = await supabase.from('ncd_state').select('*').order('updated_at', { ascending: false }).limit(5);
-          if (data && data.length > 0) {
-            const masterRow = data.find((r: any) => r.id === MASTER_RECORD_ID) || data[0];
-            cachedLegacyRecordId = masterRow.id || MASTER_RECORD_ID;
-            cachedLegacyState = typeof masterRow.data === 'string' ? JSON.parse(masterRow.data) : masterRow.data;
+      // 1. Historical Date (< 2026-08-01): Save to ncd_state
+      if (isHistorical) {
+        try {
+          if (!cachedLegacyState) {
+            const { data } = await supabase.from('ncd_state').select('*').order('updated_at', { ascending: false }).limit(5);
+            if (data && data.length > 0) {
+              const masterRow = data.find((r: any) => r.id === MASTER_RECORD_ID) || data[0];
+              cachedLegacyRecordId = masterRow.id || MASTER_RECORD_ID;
+              cachedLegacyState = typeof masterRow.data === 'string' ? JSON.parse(masterRow.data) : masterRow.data;
+            }
           }
-        }
-        if (!cachedLegacyState) cachedLegacyState = {};
-        const existing = Array.isArray(cachedLegacyState.labInvoices) ? cachedLegacyState.labInvoices : [];
-        cachedLegacyState.labInvoices = mergeEntityList(existing, [inv], ['invoice_id', 'id', 'invoice_no', 'invoiceId']);
-        cachedLegacyState.last_updated_at = now;
+          if (!cachedLegacyState) cachedLegacyState = {};
+          const existing = Array.isArray(cachedLegacyState.admissions) ? cachedLegacyState.admissions : [];
+          const admId = String(adm.admission_id || adm.id || '').trim();
+          
+          let updated = false;
+          const newArr = existing.map((x: any) => {
+            const xId = String(x.admission_id || x.id || '').trim();
+            if (admId && xId && admId === xId) {
+              updated = true;
+              return { ...x, ...adm, last_modified: now };
+            }
+            return x;
+          });
+          if (!updated) {
+            newArr.push({ ...adm, last_modified: now });
+          }
+          cachedLegacyState.admissions = newArr;
+          cachedLegacyState.last_updated_at = now;
 
-        await supabase.from('ncd_state').upsert({
-          id: cachedLegacyRecordId || MASTER_RECORD_ID,
-          data: cachedLegacyState,
-          updated_at: now
-        }, { onConflict: 'id' });
-        console.log("[dbService] Saved lab invoice to ncd_state master:", inv.invoice_id);
-      } catch (sbErr) {
-        console.warn("[dbService] ncd_state lab invoice save notice:", sbErr);
+          await supabase.from('ncd_state').upsert({
+            id: cachedLegacyRecordId || MASTER_RECORD_ID,
+            data: cachedLegacyState,
+            updated_at: now
+          }, { onConflict: 'id' });
+        } catch (sbErr) {
+          console.warn("[dbService] ncd_state admission save notice:", sbErr);
+        }
+        return { success: true };
       }
 
-      // 2. ALSO sync to modular table lab_invoices
+      // 2. Modern Date (>= 2026-08-01): Save ONLY to modular table 'admissions'
       try {
-        await dbService.syncLabInvoicesToModularTable([inv]);
+        await dbService.syncAdmissionsToModularTable([adm]);
+        console.log("[dbService] Fast saved modern admission to modular table:", adm.admission_id);
       } catch (modErr) {
-        console.warn("[dbService] Modular lab invoice save notice:", modErr);
+        console.warn("[dbService] Modular admission save notice:", modErr);
       }
 
       return { success: true };
     } catch (e: any) {
-      console.warn("[dbService] saveLabInvoiceDirectly notice:", e);
+      console.warn("[dbService] saveAdmissionDirectly notice:", e);
       return { success: true, warning: e?.message };
+    }
+  },
+
+  deleteAdmissionDirectly: async (admOrId: any, admDate?: string) => {
+    try {
+      if (!supabase || !admOrId) return { success: true };
+      const now = new Date().toISOString();
+      const targetId = typeof admOrId === 'string' ? admOrId.trim() : String(admOrId?.admission_id || admOrId?.id || '').trim();
+      const recDate = typeof admOrId === 'object' ? getRecordDate(admOrId) : (admDate ? normalizeDate(admDate) : '');
+      const isHistorical = isLegacyDate(recDate);
+
+      // Historical delete
+      if (isHistorical || !recDate) {
+        try {
+          if (!cachedLegacyState) {
+            const { data } = await supabase.from('ncd_state').select('*').order('updated_at', { ascending: false }).limit(5);
+            if (data && data.length > 0) {
+              const masterRow = data.find((r: any) => r.id === MASTER_RECORD_ID) || data[0];
+              cachedLegacyRecordId = masterRow.id || MASTER_RECORD_ID;
+              cachedLegacyState = typeof masterRow.data === 'string' ? JSON.parse(masterRow.data) : masterRow.data;
+            }
+          }
+          if (cachedLegacyState && Array.isArray(cachedLegacyState.admissions)) {
+            cachedLegacyState.admissions = cachedLegacyState.admissions.filter((x: any) => {
+              const xId = String(x.admission_id || x.id || '').trim();
+              return xId !== targetId;
+            });
+            cachedLegacyState.last_updated_at = now;
+
+            await supabase.from('ncd_state').upsert({
+              id: cachedLegacyRecordId || MASTER_RECORD_ID,
+              data: cachedLegacyState,
+              updated_at: now
+            }, { onConflict: 'id' });
+          }
+        } catch (delErr) {
+          console.warn("[dbService] ncd_state delete admission notice:", delErr);
+        }
+      }
+
+      // Modular table delete
+      try {
+        await supabase.from('admissions').delete().or(`admission_id.eq.${targetId},id.eq.${targetId}`);
+      } catch (modDelErr) {
+        console.warn("[dbService] modular admission delete notice:", modDelErr);
+      }
+
+      return { success: true };
+    } catch (e) {
+      console.warn("[dbService] deleteAdmissionDirectly notice:", e);
+      return { success: true };
     }
   },
 
@@ -3021,67 +3108,61 @@ export const dbService = {
       const targetAdmissionId = String(inv.admission_id || '').trim();
       const targetPatientId = String(inv.patient_id || '').trim();
       const targetDate = String(inv.invoice_date || inv.admission_date || '').trim();
-      const targetCreatedAt = String(inv.created_at || '').trim();
       const targetBill = Number(inv.total_bill || 0);
 
-      // 1. Delete from ncd_state master record
-      try {
-        if (!cachedLegacyState) {
-          const { data } = await supabase.from('ncd_state').select('*').order('updated_at', { ascending: false }).limit(5);
-          if (data && data.length > 0) {
-            const masterRow = data.find((r: any) => r.id === MASTER_RECORD_ID) || data[0];
-            cachedLegacyRecordId = masterRow.id || MASTER_RECORD_ID;
-            cachedLegacyState = typeof masterRow.data === 'string' ? JSON.parse(masterRow.data) : masterRow.data;
+      const recDate = getRecordDate(inv);
+      const isHistorical = isLegacyDate(recDate);
+
+      // 1. If historical date (< 2026-08-01): Delete from ncd_state master record
+      if (isHistorical || !recDate) {
+        try {
+          if (!cachedLegacyState) {
+            const { data } = await supabase.from('ncd_state').select('*').order('updated_at', { ascending: false }).limit(5);
+            if (data && data.length > 0) {
+              const masterRow = data.find((r: any) => r.id === MASTER_RECORD_ID) || data[0];
+              cachedLegacyRecordId = masterRow.id || MASTER_RECORD_ID;
+              cachedLegacyState = typeof masterRow.data === 'string' ? JSON.parse(masterRow.data) : masterRow.data;
+            }
           }
-        }
-        if (cachedLegacyState && Array.isArray(cachedLegacyState.indoorInvoices)) {
-          let matchedOne = false;
-          cachedLegacyState.indoorInvoices = cachedLegacyState.indoorInvoices.filter((x: any) => {
-            const xDailyId = String(x.daily_id || '').trim();
-            const xId = String(x.id || '').trim();
-            const xInvoiceId = String(x.invoice_id || '').trim();
-            
-            // If explicit unique id matches
-            if (targetId && xId && targetId === xId) return false;
-            
-            // If targetDailyId matches
-            if (targetDailyId && xDailyId && targetDailyId === xDailyId) {
-              if (!matchedOne) {
-                matchedOne = true;
+          if (cachedLegacyState && Array.isArray(cachedLegacyState.indoorInvoices)) {
+            let matchedOne = false;
+            cachedLegacyState.indoorInvoices = cachedLegacyState.indoorInvoices.filter((x: any) => {
+              const xDailyId = String(x.daily_id || '').trim();
+              const xId = String(x.id || '').trim();
+              const xInvoiceId = String(x.invoice_id || '').trim();
+              
+              if (targetId && xId && targetId === xId) return false;
+              if (targetDailyId && xDailyId && targetDailyId === xDailyId) {
+                if (!matchedOne) { matchedOne = true; return false; }
                 return false;
               }
-              return false;
-            }
-            if (targetInvoiceId && xInvoiceId && targetInvoiceId === xInvoiceId) return false;
+              if (targetInvoiceId && xInvoiceId && targetInvoiceId === xInvoiceId) return false;
 
-            // Match by admission_id + patient_id + invoice_date + total_bill
-            if (targetAdmissionId && x.admission_id && targetAdmissionId === String(x.admission_id).trim()) {
-              if (targetPatientId === String(x.patient_id || '').trim() && targetDate === String(x.invoice_date || '').trim()) {
-                if (Math.abs(Number(x.total_bill || 0) - targetBill) < 0.01) {
-                  if (!matchedOne) {
-                    matchedOne = true;
+              if (targetAdmissionId && x.admission_id && targetAdmissionId === String(x.admission_id).trim()) {
+                if (targetPatientId === String(x.patient_id || '').trim() && targetDate === String(x.invoice_date || '').trim()) {
+                  if (Math.abs(Number(x.total_bill || 0) - targetBill) < 0.01) {
+                    if (!matchedOne) { matchedOne = true; return false; }
                     return false;
                   }
-                  return false;
                 }
               }
-            }
-            return true;
-          });
-          cachedLegacyState.last_updated_at = now;
+              return true;
+            });
+            cachedLegacyState.last_updated_at = now;
 
-          await supabase.from('ncd_state').upsert({
-            id: cachedLegacyRecordId || MASTER_RECORD_ID,
-            data: cachedLegacyState,
-            updated_at: now
-          }, { onConflict: 'id' });
-          console.log(`[dbService] Deleted indoor invoice from ncd_state: ${targetDailyId || targetId}`);
+            await supabase.from('ncd_state').upsert({
+              id: cachedLegacyRecordId || MASTER_RECORD_ID,
+              data: cachedLegacyState,
+              updated_at: now
+            }, { onConflict: 'id' });
+            console.log(`[dbService] Deleted historical indoor invoice from ncd_state: ${targetDailyId || targetId}`);
+          }
+        } catch (delErr) {
+          console.warn("[dbService] ncd_state delete indoor notice:", delErr);
         }
-      } catch (delErr) {
-        console.warn("[dbService] ncd_state delete indoor notice:", delErr);
       }
 
-      // 2. Also delete from modular table 'indoor_invoices' (cleans both modern records and any legacy duplicates)
+      // 2. Delete from modular table 'indoor_invoices'
       try {
         const orConditions = [];
         if (targetId) orConditions.push(`id.eq.${targetId}`);
@@ -3942,17 +4023,42 @@ export const dbService = {
       const now = new Date().toISOString();
       const rows = invoices.map((inv: any) => {
         const invId = String(inv.invoice_id || inv.daily_id || inv.id || `IN-${Date.now()}`).trim();
-        const invDate = inv.invoice_date || inv.admission_date || inv.date || now.split('T')[0];
+        const invDate = normalizeDate(inv.invoice_date || inv.admission_date || inv.date || now.split('T')[0]);
         const items = Array.isArray(inv.items) ? inv.items : [];
         const paid = Number(inv.paid_amount ?? inv.paidAmount ?? 0);
+        const total = Number(inv.total_bill ?? inv.totalAmount ?? inv.total ?? 0);
+        const discount = Number(inv.total_discount ?? inv.discount ?? 0);
+        const due = Number(inv.due_bill ?? inv.dueAmount ?? Math.max(0, total - discount - paid));
+        const net = Number(inv.net_payable ?? Math.max(0, total - discount));
+
         return {
           id: invId,
           invoice_id: invId,
           daily_id: inv.daily_id || invId,
+          patient_id: String(inv.patient_id || ''),
           patient_name: inv.patient_name || inv.patientName || '',
+          doctor_id: String(inv.doctor_id || ''),
+          doctor_name: String(inv.doctor_name || ''),
+          referrar_id: String(inv.referrar_id || inv.referrer_id || ''),
+          referrar_name: String(inv.referrar_name || inv.referrer_name || ''),
+          admission_id: String(inv.admission_id || ''),
+          admission_date: inv.admission_date ? normalizeDate(inv.admission_date) : invDate,
+          discharge_date: inv.discharge_date ? normalizeDate(inv.discharge_date) : null,
           invoice_date: invDate,
+          indication: String(inv.indication || ''),
+          service_category: String(inv.serviceCategory || inv.service_category || ''),
+          sub_category: String(inv.subCategory || inv.sub_category || ''),
+          ot_details: String(inv.ot_details || ''),
           items,
+          total_bill: total,
+          total_discount: discount,
           paid_amount: paid,
+          due_bill: due,
+          net_payable: net,
+          special_commission: Number(inv.special_commission || 0),
+          commission_paid: Number(inv.commission_paid || 0),
+          bill_created_by: String(inv.bill_created_by || inv.billCreatedBy || 'Admin'),
+          status: inv.status || 'Posted',
           data: inv,
           updated_at: now
         };
@@ -3960,6 +4066,46 @@ export const dbService = {
       return await upsertTableSafe(supabase, 'indoor_invoices', rows);
     } catch (e) {
       console.warn("syncIndoorInvoicesToModularTable notice:", e);
+      return false;
+    }
+  },
+
+  syncAdmissionsToModularTable: async (admissionsList: any[]) => {
+    if (!supabase || !Array.isArray(admissionsList) || admissionsList.length === 0) return true;
+    try {
+      const now = new Date().toISOString();
+      const rows = admissionsList.map((adm: any) => {
+        const admId = String(adm.admission_id || adm.id || `ADM-${Date.now()}`).trim();
+        const admDate = normalizeDate(adm.admission_date || adm.date || now.split('T')[0]);
+        return {
+          id: admId,
+          admission_id: admId,
+          admission_date: admDate,
+          patient_id: String(adm.patient_id || ''),
+          patient_name: String(adm.patient_name || ''),
+          doctor_id: String(adm.doctor_id || ''),
+          doctor_name: String(adm.doctor_name || ''),
+          referrer_id: String(adm.referrer_id || adm.referrar_id || ''),
+          referrer_name: String(adm.referrer_name || adm.referrar_name || ''),
+          indication: String(adm.indication || ''),
+          service_name: String(adm.service_name || ''),
+          service_category: String(adm.service_category || ''),
+          contract_type: String(adm.contract_type || 'Non-Contact'),
+          contract_amount: Number(adm.contract_amount || 0),
+          bed_no: String(adm.bed_no || ''),
+          discharge_date: adm.discharge_date ? normalizeDate(adm.discharge_date) : null,
+          discharge_note: String(adm.discharge_note || ''),
+          patient_mobile: String(adm.patient_mobile || ''),
+          clinical_orders: Array.isArray(adm.clinical_orders) ? adm.clinical_orders : [],
+          doctor_rounds: Array.isArray(adm.doctor_rounds) ? adm.doctor_rounds : [],
+          nurse_chart: Array.isArray(adm.nurse_chart) ? adm.nurse_chart : [],
+          data: adm,
+          updated_at: now
+        };
+      });
+      return await upsertTableSafe(supabase, 'admissions', rows);
+    } catch (e) {
+      console.warn("syncAdmissionsToModularTable notice:", e);
       return false;
     }
   },

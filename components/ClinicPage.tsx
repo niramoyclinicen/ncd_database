@@ -906,18 +906,35 @@ const AdmissionAndTreatmentPage: React.FC<{
         }
     }, []);
 
-    // SYNC FUNCTION: Propagates current admission record changes to the global admissions list
+    // SYNC FUNCTION: Propagates current admission record changes to the global admissions list and database
     const syncAdmissionToGlobal = (record: AdmissionRecord) => {
         setAdmissions((prev: AdmissionRecord[]) => {
             const safePrev = Array.isArray(prev) ? prev : [];
             const idx = safePrev.findIndex((a: AdmissionRecord) => a.admission_id === record.admission_id);
+            let newArr: AdmissionRecord[];
             if(idx >= 0) { 
-                const newArr = [...safePrev]; 
+                newArr = [...safePrev]; 
                 newArr[idx] = record; 
-                return newArr; 
+            } else {
+                newArr = [...safePrev, record];
             }
-            return [...safePrev, record];
+            try {
+                const cachedRaw = localStorage.getItem('ncd_offline_cache_v1');
+                if (cachedRaw) {
+                    const cached = JSON.parse(cachedRaw);
+                    cached.admissions = newArr;
+                    localStorage.setItem('ncd_offline_cache_v1', JSON.stringify(cached));
+                }
+            } catch (e) {}
+            return newArr;
         });
+
+        // Background direct database save
+        try {
+            dbService.saveAdmissionDirectly(record);
+        } catch (e) {
+            console.warn("Direct admission sync notice:", e);
+        }
     };
 
     const handleSaveAdmission = () => {
@@ -996,16 +1013,11 @@ const AdmissionAndTreatmentPage: React.FC<{
             console.warn("Local storage cache write notice:", e);
         }
 
-        // 2. Persist to Supabase Cloud via performBlockingSync
-        if (performBlockingSync) {
-            try {
-                const success = await performBlockingSync({ admissions: newAdmissions });
-                if (!success) {
-                    console.warn("Cloud sync warning: Record saved locally, but cloud sync returned false.");
-                }
-            } catch (err) {
-                console.error("Cloud sync error during admission save:", err);
-            }
+        // 2. Persist to Supabase Cloud directly based on date routing (Jan-Jul 2026 to ncd_state, Aug 2026+ to admissions table)
+        try {
+            await dbService.saveAdmissionDirectly(targetRecord);
+        } catch (err) {
+            console.error("Cloud direct save error during admission save:", err);
         }
     };
 
@@ -1399,8 +1411,9 @@ const AdmissionAndTreatmentPage: React.FC<{
                                             <td className="p-5 text-center flex gap-2 justify-center">
                                                 <button onClick={()=>handleSelectPatientForTreatment(adm)} className="bg-gradient-to-br from-emerald-600 to-teal-800 hover:from-emerald-500 hover:to-teal-700 text-white px-4 py-2 rounded-lg font-black text-[10px] uppercase tracking-widest shadow-lg shadow-emerald-900/40 transition-all border border-emerald-400/30">Treatment</button>
                                                 <button onClick={()=>handleEditAdmissionInfo(adm)} className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-4 py-2 rounded-lg font-black text-[10px] uppercase tracking-widest shadow-lg transition-all border border-slate-700">Edit</button>
-                                                <button onClick={()=>{
+                                                <button onClick={async ()=>{
                                                     if(confirm(`Are you sure you want to CANCEL admission for ${adm.patient_name}? This will free the bed.`)) {
+                                                        await dbService.deleteAdmissionDirectly(adm);
                                                         setAdmissions(prev => prev.filter(a => a.admission_id !== adm.admission_id));
                                                         setSuccessMessage("Admission cancelled successfully.");
                                                     }
@@ -2882,10 +2895,25 @@ const IndoorInvoicePage: React.FC<{
             // 1. Direct database save according to January-July 2026 (ncd_state) vs August 2026+ (indoor_invoices)
             await dbService.saveIndoorInvoiceDirectly(finalInvoice);
 
-            // 2. Perform blocking cloud sync
-            if (performBlockingSync) {
-                await performBlockingSync({ indoorInvoices: newInvoicesArr, admissions: newAdmissions });
+            // 2. If an admission record is associated, save it directly as well
+            if (finalInvoice.admission_id) {
+                const targetAdm = newAdmissions.find((a: any) => a && a.admission_id === finalInvoice.admission_id);
+                if (targetAdm) {
+                    await dbService.saveAdmissionDirectly(targetAdm);
+                }
             }
+
+            // 3. Update local storage cache immediately for offline protection
+            try {
+                const cachedRaw = localStorage.getItem('ncd_offline_cache_v1');
+                if (cachedRaw) {
+                    const cached = JSON.parse(cachedRaw);
+                    cached.indoorInvoices = newInvoicesArr;
+                    cached.admissions = newAdmissions;
+                    cached.last_updated_at = now;
+                    localStorage.setItem('ncd_offline_cache_v1', JSON.stringify(cached));
+                }
+            } catch (e) {}
 
             setIndoorInvoices(newInvoicesArr);
             setAdmissions(newAdmissions);
@@ -2966,12 +2994,18 @@ const IndoorInvoicePage: React.FC<{
                 return item;
             });
             
-            // Direct save to update status in appropriate table
+            // Direct save to update status in appropriate table based on date
             await dbService.saveIndoorInvoiceDirectly({ ...inv, status: 'Cancelled' });
 
-            if (performBlockingSync) {
-                await performBlockingSync({ indoorInvoices: newInvoicesArr });
-            }
+            try {
+                const cachedRaw = localStorage.getItem('ncd_offline_cache_v1');
+                if (cachedRaw) {
+                    const cached = JSON.parse(cachedRaw);
+                    cached.indoorInvoices = newInvoicesArr;
+                    localStorage.setItem('ncd_offline_cache_v1', JSON.stringify(cached));
+                }
+            } catch (e) {}
+
             setIndoorInvoices(newInvoicesArr);
             const msg = `ইনভয়েস (${inv.daily_id || ''}) বাতিল (Cancelled) করা হয়েছে। একাউন্টসে কোনো প্রভাব পড়বে না।`;
             setSuccessMessage(msg);
@@ -3009,9 +3043,15 @@ const IndoorInvoicePage: React.FC<{
             
             await dbService.saveIndoorInvoiceDirectly({ ...inv, status: 'Posted' });
 
-            if (performBlockingSync) {
-                await performBlockingSync({ indoorInvoices: newInvoicesArr });
-            }
+            try {
+                const cachedRaw = localStorage.getItem('ncd_offline_cache_v1');
+                if (cachedRaw) {
+                    const cached = JSON.parse(cachedRaw);
+                    cached.indoorInvoices = newInvoicesArr;
+                    localStorage.setItem('ncd_offline_cache_v1', JSON.stringify(cached));
+                }
+            } catch (e) {}
+
             setIndoorInvoices(newInvoicesArr);
             const msg = `রোগী "${inv.patient_name}" এর ইনভয়েস সফলভাবে সচল (Restore) করা হয়েছে।`;
             setSuccessMessage(msg);
@@ -3248,9 +3288,15 @@ const IndoorInvoicePage: React.FC<{
                 return true;
             });
             
-            if (performBlockingSync) {
-                await performBlockingSync({ indoorInvoices: newInvoicesArr });
-            }
+            try {
+                const cachedRaw = localStorage.getItem('ncd_offline_cache_v1');
+                if (cachedRaw) {
+                    const cached = JSON.parse(cachedRaw);
+                    cached.indoorInvoices = newInvoicesArr;
+                    localStorage.setItem('ncd_offline_cache_v1', JSON.stringify(cached));
+                }
+            } catch (e) {}
+
             setIndoorInvoices(newInvoicesArr);
 
             // Clear form if the currently loaded invoice was the deleted one
