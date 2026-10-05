@@ -113,13 +113,32 @@ export function useAppData() {
               });
             }
           }
-          // If cloud data is loaded, only fill in missing fields from local cache if completely undefined in cloud
-          ['tests', 'reagents', 'patients', 'doctors', 'referrars', 'employees', 'labInvoices', 'indoorInvoices', 'dueCollections', 'salesInvoices', 'purchaseInvoices', 'medicines', 'consolidatedLabEntries'].forEach(col => {
-            if (finalDataToLoad[col] === undefined || (Array.isArray(finalDataToLoad[col]) && finalDataToLoad[col].length === 0)) {
-              const src = localData[col] || (col === 'consolidatedLabEntries' ? (localData.consolidated_lab_entries || localData.consolidatedEntries) : undefined);
-              if (Array.isArray(src) && src.length > 0) {
-                finalDataToLoad[col] = src;
-              }
+          // If cloud data is loaded, merge any local offline or newly created records non-destructively
+          const mergeConfig: Record<string, string[]> = {
+            indoorInvoices: ['daily_id', 'invoice_id', 'id'],
+            admissions: ['admission_id', 'id'],
+            labInvoices: ['invoice_id', 'invoiceId', 'id', 'invoice_no'],
+            dueCollections: ['collection_id', 'id', 'collectionId'],
+            salesInvoices: ['invoiceId', 'invoice_id', 'id'],
+            purchaseInvoices: ['invoiceId', 'invoice_id', 'id'],
+            medicines: ['id', 'tradeName', 'trade_name'],
+            tests: ['test_id', 'id', 'test_name'],
+            reagents: ['reagent_id', 'id'],
+            patients: ['pt_id', 'patient_id', 'id'],
+            doctors: ['doctor_id', 'id'],
+            referrars: ['ref_id', 'referrar_id', 'referrer_id', 'id'],
+            employees: ['emp_id', 'id'],
+            reports: ['report_id', 'id'],
+            prescriptions: ['id'],
+            appointments: ['appointment_id', 'id'],
+            consolidatedLabEntries: ['id', 'date']
+          };
+
+          Object.entries(mergeConfig).forEach(([col, idFields]) => {
+            const cloudArr = finalDataToLoad[col];
+            const src = localData[col] || (col === 'consolidatedLabEntries' ? (localData.consolidated_lab_entries || localData.consolidatedEntries) : undefined);
+            if (Array.isArray(src) && src.length > 0) {
+              finalDataToLoad[col] = dbService.mergeEntityList(cloudArr || [], src, idFields);
             }
           });
         }

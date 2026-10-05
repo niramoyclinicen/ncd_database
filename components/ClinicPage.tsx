@@ -2905,15 +2905,22 @@ const IndoorInvoicePage: React.FC<{
 
             // 3. Update local storage cache immediately for offline protection
             try {
-                const cachedRaw = localStorage.getItem('ncd_offline_cache_v1');
-                if (cachedRaw) {
-                    const cached = JSON.parse(cachedRaw);
-                    cached.indoorInvoices = newInvoicesArr;
-                    cached.admissions = newAdmissions;
-                    cached.last_updated_at = now;
-                    localStorage.setItem('ncd_offline_cache_v1', JSON.stringify(cached));
-                }
+                let cached: any = {};
+                try {
+                    const cachedRaw = localStorage.getItem('ncd_offline_cache_v1');
+                    if (cachedRaw) cached = JSON.parse(cachedRaw);
+                } catch {}
+                if (!cached || typeof cached !== 'object') cached = {};
+                cached.indoorInvoices = newInvoicesArr;
+                cached.admissions = newAdmissions;
+                cached.last_updated_at = now;
+                localStorage.setItem('ncd_offline_cache_v1', JSON.stringify(cached));
             } catch (e) {}
+
+            // 4. Also trigger global state sync
+            if (performBlockingSync) {
+                performBlockingSync({ indoorInvoices: newInvoicesArr, admissions: newAdmissions }).catch(err => console.warn("Global sync notice:", err));
+            }
 
             setIndoorInvoices(newInvoicesArr);
             setAdmissions(newAdmissions);
