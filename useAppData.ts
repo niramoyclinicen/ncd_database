@@ -136,7 +136,10 @@ export function useAppData() {
 
           Object.entries(mergeConfig).forEach(([col, idFields]) => {
             const cloudArr = finalDataToLoad[col];
-            const src = localData[col] || (col === 'consolidatedLabEntries' ? (localData.consolidated_lab_entries || localData.consolidatedEntries) : undefined);
+            let src = localData[col] || (col === 'consolidatedLabEntries' ? (localData.consolidated_lab_entries || localData.consolidatedEntries) : undefined);
+            if (col === 'consolidatedLabEntries' && (!Array.isArray(src) || src.length === 0)) {
+              src = dbService.getConsolidatedEntries();
+            }
             if (Array.isArray(src) && src.length > 0) {
               finalDataToLoad[col] = dbService.mergeEntityList(cloudArr || [], src, idFields);
             }

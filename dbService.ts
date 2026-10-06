@@ -363,10 +363,12 @@ export const mergeEntityList = (baseList: any[], extraList: any[], idFields: str
     if (id) map.set(id, index);
   });
 
+  const checkInvoiceDeleted = idFields.includes('invoice_id') || idFields.includes('invoiceId');
+
   extraList.forEach(item => {
     if (!item) return;
     const id = getItemId(item, idFields);
-    const isMarkedDeleted = item.status === 'Deleted' || item.status === 'Cancelled' || item.isDeleted || item.is_deleted || isInvoiceMarkedDeleted(item);
+    const isMarkedDeleted = item.status === 'Deleted' || item.status === 'Cancelled' || item.isDeleted || item.is_deleted || (checkInvoiceDeleted && isInvoiceMarkedDeleted(item));
     
     if (id && map.has(id)) {
       const existingIdx = map.get(id)!;
@@ -3678,8 +3680,25 @@ export const dbService = {
 
   getConsolidatedEntries: (): DailyConsolidatedEntry[] => {
     try {
+      let list: DailyConsolidatedEntry[] = [];
       const saved = localStorage.getItem('ncd_consolidated_lab_entries');
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) list = parsed;
+        } catch (e) {}
+      }
+      try {
+        const cachedRaw = localStorage.getItem(LOCAL_STORAGE_KEY) || localStorage.getItem('ncd_offline_cache_v1');
+        if (cachedRaw) {
+          const cached = JSON.parse(cachedRaw);
+          const rawCons = cached.consolidatedLabEntries || cached.consolidated_lab_entries || cached.consolidatedEntries;
+          if (Array.isArray(rawCons) && rawCons.length > 0) {
+            list = mergeEntityList(list, rawCons, ['id', '_id']);
+          }
+        }
+      } catch (e) {}
+      return list;
     } catch (e) {}
     return [];
   },

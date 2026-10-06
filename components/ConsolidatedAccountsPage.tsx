@@ -1083,9 +1083,9 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
             const isEntryForDay = (e: any) => {
                 if (!e) return false;
                 const rawDate = e.date || e.created_at || e.createdAt || e.entry_date || e.invoice_date || e.collection_date || '';
-                if (isSameDay(rawDate, dateStr)) return true;
                 const normE = normalizeDateStr(rawDate);
-                if (normE === dateStr) return true;
+                if (normE && normE === dateStr) return true;
+                if (isSameDay(rawDate, dateStr)) return true;
                 if (!normE && e.id) {
                     const m = String(e.id).match(/(\d{4})[-_]?(\d{2})[-_]?(\d{2})/);
                     if (m && `${m[1]}-${m[2]}-${m[3]}` === dateStr) return true;
@@ -1101,7 +1101,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                         const parts = normE.split('-');
                         const ey = Number(parts[0]);
                         const em = Number(parts[1]);
-                        return ey === selectedYear && em === selectedMonth + 1;
+                        return ey === selectedYear && (em === selectedMonth + 1 || em === selectedMonth);
                     }
                     return isSelectedMonth(rawDate);
                 }
