@@ -65,14 +65,18 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
   const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth());
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
 
-  // Live History filter on entry tab
+  // Live History filters on entry tab
   const [liveSearchQuery, setLiveSearchQuery] = useState('');
   const [liveTypeFilter, setLiveTypeFilter] = useState<'all' | 'daily' | 'monthly'>('all');
+  const [liveMonthFilter, setLiveMonthFilter] = useState<string>('all');
+  const [liveYearFilter, setLiveYearFilter] = useState<string>('all');
+  const [liveDueFilter, setLiveDueFilter] = useState<'all' | 'due' | 'paid'>('all');
 
   // History filters
   const [historyTypeFilter, setHistoryTypeFilter] = useState<'all' | 'daily' | 'monthly'>('all');
   const [historyMonthFilter, setHistoryMonthFilter] = useState<string>('all');
   const [historyYearFilter, setHistoryYearFilter] = useState<string>('all');
+  const [historyDueFilter, setHistoryDueFilter] = useState<'all' | 'due' | 'paid'>('all');
 
   // Handle start editing an existing consolidated entry
   const handleStartEdit = (row: DailyConsolidatedEntry) => {
@@ -335,15 +339,16 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
     try {
       const monthBn = BENGALI_MONTHS[selectedMonth]?.bn || '';
       const uniqueSuffix = Math.random().toString(36).substring(2, 7);
+      const generatedId = editingRecordId || ((isMonthly ? `MCE-${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}` : `DCE-${computedDate}`) + '-' + Date.now() + '-' + uniqueSuffix);
       const newRecord: DailyConsolidatedEntry = {
-        id: editingRecordId || ((isMonthly ? 'MCE-' : 'DCE-') + Date.now() + '-' + uniqueSuffix),
+        id: generatedId,
         date: computedDate,
         shift: isMonthly ? 'Monthly' : ((formData.shift as any) || 'Full Day'),
         entryType: isMonthly ? 'monthly' : 'daily',
         month: isMonthly ? selectedMonth : (computedDate ? parseInt(computedDate.split('-')[1]) - 1 : new Date().getMonth()),
         year: isMonthly ? selectedYear : (computedDate ? parseInt(computedDate.split('-')[0]) : new Date().getFullYear()),
         entryTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        operatorName: formData.operatorName || 'Cashier',
+        operatorName: formData.operatorName || currentUserEmail || 'Cashier',
         totalPatients: Number(formData.totalPatients) || 0,
         totalTests: Number(formData.totalTests) || 0,
         grossAmount: gross,
@@ -360,13 +365,17 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
 
       // 1. Direct database save according to January-July 2026 (ncd_state) vs August 2026+ (modular tables)
       await dbService.saveConsolidatedEntryDirectly(newRecord);
-      const updatedList = dbService.getConsolidatedEntries();
+      
+      // 2. Immediately prepend to local state so UI updates instantaneously without any race condition
+      const currentList = entries || [];
+      const updatedList = [newRecord, ...currentList.filter(e => String(e.id || (e as any)._id).trim() !== String(newRecord.id).trim())];
       setEntries(updatedList);
+      dbService.saveConsolidatedEntries(updatedList);
       if (setConsolidatedLabEntries) {
         setConsolidatedLabEntries(updatedList);
       }
 
-      // 2. Also trigger global state sync without blocking UI
+      // 3. Also trigger global state sync without blocking UI
       if (performBlockingSync) {
         performBlockingSync({ consolidatedLabEntries: updatedList }).catch(err => console.warn("Global sync notice:", err));
       }
@@ -569,29 +578,67 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
     });
   }, [entries]);
 
+  // Helper to match a query string against all attributes of an entry
+  const matchesSearchQuery = (item: DailyConsolidatedEntry, query: string): boolean => {
+    if (!query) return true;
+    const q = query.toLowerCase().trim();
+    const dateStr = (item.date || '').toLowerCase();
+    const idStr = (item.id || '').toLowerCase();
+    const opStr = (item.operatorName || '').toLowerCase();
+    const shiftStr = (item.shift || '').toLowerCase();
+    const notesStr = (item.notes || '').toLowerCase();
+    const itemMonth = item.month !== undefined ? item.month : (item.date ? parseInt(item.date.split('-')[1]) - 1 : 0);
+    const itemYear = item.year !== undefined ? item.year : (item.date ? item.date.split('-')[0] : '');
+    const monthBn = (BENGALI_MONTHS[itemMonth]?.bn || '').toLowerCase();
+    const monthEn = (BENGALI_MONTHS[itemMonth]?.en || '').toLowerCase();
+
+    return dateStr.includes(q) ||
+           idStr.includes(q) ||
+           opStr.includes(q) ||
+           shiftStr.includes(q) ||
+           notesStr.includes(q) ||
+           monthBn.includes(q) ||
+           monthEn.includes(q) ||
+           String(itemYear).includes(q) ||
+           (q === 'due' && (Number(item.dueAmount) || 0) > 0) ||
+           (q === 'বকেয়া' && (Number(item.dueAmount) || 0) > 0) ||
+           (q === 'বাকি' && (Number(item.dueAmount) || 0) > 0);
+  };
+
   // Live Filtered Entries for the entry tab embedded history
   const liveFilteredEntries = useMemo(() => {
     return sortedEntries.filter(item => {
       if (!item) return false;
       const isItemMonthly = item.entryType === 'monthly' || item.shift === 'Monthly';
+      const itemDue = Number(item.dueAmount) || 0;
 
+      // Type filter
       if (liveTypeFilter === 'daily' && isItemMonthly) return false;
       if (liveTypeFilter === 'monthly' && !isItemMonthly) return false;
 
-      if (liveSearchQuery) {
-        const q = liveSearchQuery.toLowerCase().trim();
-        const dateStr = (item.date || '').toLowerCase();
-        const idStr = (item.id || '').toLowerCase();
-        const opStr = (item.operatorName || '').toLowerCase();
-        const shiftStr = (item.shift || '').toLowerCase();
-        const notesStr = (item.notes || '').toLowerCase();
-        if (!dateStr.includes(q) && !idStr.includes(q) && !opStr.includes(q) && !shiftStr.includes(q) && !notesStr.includes(q)) {
-          return false;
-        }
+      // Due filter
+      if (liveDueFilter === 'due' && itemDue <= 0) return false;
+      if (liveDueFilter === 'paid' && itemDue > 0) return false;
+
+      // Month filter
+      if (liveMonthFilter !== 'all') {
+        const itemMonth = item.month !== undefined ? item.month : (item.date ? parseInt(item.date.split('-')[1]) - 1 : null);
+        if (String(itemMonth) !== liveMonthFilter) return false;
+      }
+
+      // Year filter
+      if (liveYearFilter !== 'all') {
+        const itemYear = item.year !== undefined ? item.year : (item.date ? parseInt(item.date.split('-')[0]) : null);
+        if (String(itemYear) !== liveYearFilter) return false;
+      }
+
+      // Search query (date, month, year, operator, etc.)
+      if (liveSearchQuery && !matchesSearchQuery(item, liveSearchQuery)) {
+        return false;
       }
       return true;
     });
-  }, [sortedEntries, liveTypeFilter, liveSearchQuery]);
+  }, [sortedEntries, liveTypeFilter, liveDueFilter, liveMonthFilter, liveYearFilter, liveSearchQuery]);
 
   // Live Stats for embedded entry view
   const liveStats = useMemo(() => {
@@ -611,9 +658,14 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
     return sortedEntries.filter(item => {
       if (!item) return false;
       const isItemMonthly = item.entryType === 'monthly' || item.shift === 'Monthly';
+      const itemDue = Number(item.dueAmount) || 0;
 
       if (historyTypeFilter === 'daily' && isItemMonthly) return false;
       if (historyTypeFilter === 'monthly' && !isItemMonthly) return false;
+
+      // Due filter
+      if (historyDueFilter === 'due' && itemDue <= 0) return false;
+      if (historyDueFilter === 'paid' && itemDue > 0) return false;
 
       if (searchDate && item.date !== searchDate) return false;
       if (filterShift !== 'all' && item.shift !== filterShift) return false;
@@ -629,7 +681,7 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
 
       return true;
     });
-  }, [sortedEntries, historyTypeFilter, searchDate, filterShift, historyYearFilter, historyMonthFilter]);
+  }, [sortedEntries, historyTypeFilter, historyDueFilter, searchDate, filterShift, historyYearFilter, historyMonthFilter]);
 
   // History Stats
   const historyStats = useMemo(() => {
@@ -1273,40 +1325,85 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
               </div>
 
               {/* Filter & Search Bar */}
-              <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
-                <div className="flex-1 sm:flex-initial">
+              <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto">
+                <div>
                   <select
                     value={liveTypeFilter}
                     onChange={e => setLiveTypeFilter(e.target.value as any)}
-                    className="w-full sm:w-auto bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-bold text-xs outline-none"
+                    className="bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-bold text-xs outline-none focus:border-sky-500"
                   >
-                    <option value="all">সকল ভাউচার ({sortedEntries.length})</option>
+                    <option value="all">সকল ধরন ({sortedEntries.length})</option>
                     <option value="daily">📅 শুধুমাত্র দৈনিক</option>
                     <option value="monthly">🗓️ শুধুমাত্র মাসিক</option>
                   </select>
                 </div>
 
-                <div className="relative flex-1 sm:w-64">
+                <div>
+                  <select
+                    value={liveDueFilter}
+                    onChange={e => setLiveDueFilter(e.target.value as any)}
+                    className={`border rounded-xl px-3 py-2 font-black text-xs outline-none transition-all ${
+                      liveDueFilter === 'due'
+                        ? 'bg-rose-950 border-rose-500 text-rose-200'
+                        : 'bg-slate-950 border-slate-700 text-white focus:border-sky-500'
+                    }`}
+                  >
+                    <option value="all">সকল পেমেন্ট স্ট্যাটাস</option>
+                    <option value="due">⚠️ শুধুমাত্র বকেয়া (Due Only)</option>
+                    <option value="paid">✅ সম্পূর্ণ পরিশোধিত (Paid)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <select
+                    value={liveMonthFilter}
+                    onChange={e => setLiveMonthFilter(e.target.value)}
+                    className="bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-bold text-xs outline-none focus:border-sky-500"
+                  >
+                    <option value="all">সকল মাস</option>
+                    {BENGALI_MONTHS.map(m => (
+                      <option key={m.value} value={String(m.value)}>{m.bn}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <select
+                    value={liveYearFilter}
+                    onChange={e => setLiveYearFilter(e.target.value)}
+                    className="bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-bold text-xs outline-none focus:border-sky-500"
+                  >
+                    <option value="all">সকল সন</option>
+                    {AVAILABLE_YEARS.map(y => (
+                      <option key={y} value={String(y)}>{y} সন</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="relative flex-1 sm:w-56">
                   <input
                     type="text"
                     value={liveSearchQuery}
                     onChange={e => setLiveSearchQuery(e.target.value)}
-                    placeholder="তারিখ বা অপারেটর দিয়ে খুঁজুন..."
+                    placeholder="তারিখ, মাস, সন বা অপারেটর..."
                     className="w-full bg-slate-950 border border-slate-700 rounded-xl pl-8 pr-3 py-2 text-white font-bold text-xs outline-none focus:border-sky-500"
                   />
                   <SearchIcon className="w-3.5 h-3.5 absolute left-2.5 top-3 text-slate-500" />
                 </div>
 
-                {(liveSearchQuery || liveTypeFilter !== 'all') && (
+                {(liveSearchQuery || liveTypeFilter !== 'all' || liveDueFilter !== 'all' || liveMonthFilter !== 'all' || liveYearFilter !== 'all') && (
                   <button
                     type="button"
                     onClick={() => {
                       setLiveSearchQuery('');
                       setLiveTypeFilter('all');
+                      setLiveDueFilter('all');
+                      setLiveMonthFilter('all');
+                      setLiveYearFilter('all');
                     }}
-                    className="px-3 py-2 bg-slate-800 text-slate-300 rounded-xl text-xs font-bold hover:text-white"
+                    className="px-3 py-2 bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white rounded-xl text-xs font-black transition-all"
                   >
-                    রিসেট
+                    ✕ ফিল্টার রিসেট
                   </button>
                 )}
               </div>
@@ -1334,10 +1431,24 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
                 <span className="text-emerald-400 font-mono font-black text-base">৳{(Number(liveStats?.cash) || 0).toLocaleString()}</span>
               </div>
               <div className="h-5 w-px bg-slate-800"></div>
-              <div>
-                <span className="text-slate-400 block text-[10px] uppercase">মোট বকেয়া:</span>
-                <span className="text-rose-400 font-mono font-black text-base">৳{(Number(liveStats?.due) || 0).toLocaleString()}</span>
-              </div>
+              <button
+                type="button"
+                onClick={() => setLiveDueFilter(prev => prev === 'due' ? 'all' : 'due')}
+                className={`text-left rounded-xl px-3 py-1 transition-all cursor-pointer ${
+                  liveDueFilter === 'due'
+                    ? 'bg-rose-500/30 border border-rose-500 ring-2 ring-rose-500/50'
+                    : 'hover:bg-slate-900 border border-transparent'
+                }`}
+                title="ক্লিক করে বকেয়া ভাউচার ফিল্টার করুন"
+              >
+                <span className="text-slate-400 block text-[10px] uppercase flex items-center gap-1">
+                  মোট বকেয়া {liveDueFilter === 'due' && <span className="text-rose-400 font-bold">(ফিল্টার সক্রিয়)</span>}:
+                </span>
+                <span className="text-rose-400 font-mono font-black text-base flex items-center gap-1">
+                  ৳{(Number(liveStats?.due) || 0).toLocaleString()}
+                  {(Number(liveStats?.due) || 0) > 0 && <span className="text-[11px]">⚠️</span>}
+                </span>
+              </button>
             </div>
 
             {/* Embedded Table */}
@@ -1372,6 +1483,7 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
                         const rowMonth = row.month !== undefined ? row.month : (row.date ? parseInt(row.date.split('-')[1]) - 1 : 0);
                         const rowYear = row.year !== undefined ? row.year : (row.date ? row.date.split('-')[0] : '');
                         const isEditingThis = editingRecordId === row.id;
+                        const rowDue = Number(row.dueAmount) || 0;
 
                         return (
                           <tr key={row.id} className={`transition-colors ${isEditingThis ? 'bg-amber-950/40 border-l-4 border-amber-500' : 'hover:bg-slate-900/60'}`}>
@@ -1404,7 +1516,15 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
                             <td className="p-3 text-right font-mono text-rose-300">-৳{(Number(row.discountAmount) || 0).toLocaleString()}</td>
                             <td className="p-3 text-right font-mono text-sky-300 font-bold">৳{(Number(row.netPayable) || 0).toLocaleString()}</td>
                             <td className="p-3 text-right font-mono text-emerald-400 font-black bg-emerald-950/20">৳{(Number(row.cashCollected) || 0).toLocaleString()}</td>
-                            <td className="p-3 text-right font-mono text-amber-300 font-bold">৳{(Number(row.dueAmount) || 0).toLocaleString()}</td>
+                            <td className="p-3 text-right font-mono">
+                              {rowDue > 0 ? (
+                                <span className="px-2 py-0.5 rounded bg-rose-950 border border-rose-500/60 text-rose-300 font-black inline-flex items-center gap-1 shadow-sm">
+                                  ৳{rowDue.toLocaleString()} <span className="text-[10px]">⚠️</span>
+                                </span>
+                              ) : (
+                                <span className="text-slate-500">৳0</span>
+                              )}
+                            </td>
                             <td className="p-3 text-center">
                               <div className="flex items-center justify-center gap-1.5">
                                 <button
@@ -1475,11 +1595,28 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
                   <select
                     value={historyTypeFilter || 'all'}
                     onChange={e => setHistoryTypeFilter(e.target.value as any)}
-                    className="bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-bold text-xs outline-none"
+                    className="bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-bold text-xs outline-none focus:border-sky-500"
                   >
-                    <option value="all">সকল ভাউচার</option>
+                    <option value="all">সকল ভাউচার ({sortedEntries.length})</option>
                     <option value="daily">📅 শুধুমাত্র দৈনিক</option>
                     <option value="monthly">🗓️ শুধুমাত্র মাসিক</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 uppercase block mb-1">পেমেন্ট স্ট্যাটাস (Due)</label>
+                  <select
+                    value={historyDueFilter}
+                    onChange={e => setHistoryDueFilter(e.target.value as any)}
+                    className={`border rounded-xl px-3 py-2 font-black text-xs outline-none transition-all ${
+                      historyDueFilter === 'due'
+                        ? 'bg-rose-950 border-rose-500 text-rose-200'
+                        : 'bg-slate-950 border-slate-700 text-white focus:border-sky-500'
+                    }`}
+                  >
+                    <option value="all">সকল পেমেন্ট স্ট্যাটাস</option>
+                    <option value="due">⚠️ শুধুমাত্র বকেয়া ভাউচার (Due Only)</option>
+                    <option value="paid">✅ সম্পূর্ণ পরিশোধিত (Paid)</option>
                   </select>
                 </div>
 
@@ -1488,7 +1625,7 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
                   <select
                     value={historyMonthFilter || 'all'}
                     onChange={e => setHistoryMonthFilter(e.target.value)}
-                    className="bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-bold text-xs outline-none"
+                    className="bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-bold text-xs outline-none focus:border-sky-500"
                   >
                     <option value="all">সকল মাস</option>
                     {BENGALI_MONTHS.map(m => (
@@ -1502,7 +1639,7 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
                   <select
                     value={historyYearFilter || 'all'}
                     onChange={e => setHistoryYearFilter(e.target.value)}
-                    className="bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-bold text-xs outline-none"
+                    className="bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-bold text-xs outline-none focus:border-sky-500"
                   >
                     <option value="all">সকল বৎসর</option>
                     {AVAILABLE_YEARS.map(y => (
@@ -1517,21 +1654,22 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
                     type="date"
                     value={searchDate || ''}
                     onChange={e => setSearchDate(e.target.value)}
-                    className="bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-bold text-xs outline-none"
+                    className="bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-bold text-xs outline-none focus:border-sky-500"
                   />
                 </div>
 
-                {(searchDate || historyTypeFilter !== 'all' || historyMonthFilter !== 'all' || historyYearFilter !== 'all') && (
+                {(searchDate || historyTypeFilter !== 'all' || historyDueFilter !== 'all' || historyMonthFilter !== 'all' || historyYearFilter !== 'all') && (
                   <button
                     onClick={() => {
                       setSearchDate('');
                       setHistoryTypeFilter('all');
+                      setHistoryDueFilter('all');
                       setHistoryMonthFilter('all');
                       setHistoryYearFilter('all');
                     }}
-                    className="mt-4 px-3 py-2 bg-slate-800 text-slate-300 rounded-xl text-xs font-bold hover:text-white"
+                    className="mt-4 px-3 py-2 bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white rounded-xl text-xs font-black transition-all"
                   >
-                    রিসেট
+                    ✕ ফিল্টার রিসেট
                   </button>
                 )}
               </div>
@@ -1548,10 +1686,24 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
                   <span className="text-emerald-400 font-mono font-black text-base">৳{(Number(historyStats?.cash) || 0).toLocaleString()}</span>
                 </div>
                 <div className="h-6 w-px bg-slate-800"></div>
-                <div>
-                  <span className="text-slate-400 block text-[10px] uppercase">মোট বকেয়া:</span>
-                  <span className="text-rose-400 font-mono font-black text-base">৳{(Number(historyStats?.due) || 0).toLocaleString()}</span>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setHistoryDueFilter(prev => prev === 'due' ? 'all' : 'due')}
+                  className={`text-left rounded-xl px-3 py-1 transition-all cursor-pointer ${
+                    historyDueFilter === 'due'
+                      ? 'bg-rose-500/30 border border-rose-500 ring-2 ring-rose-500/50'
+                      : 'hover:bg-slate-900 border border-transparent'
+                  }`}
+                  title="ক্লিক করে বকেয়া ভাউচার ফিল্টার করুন"
+                >
+                  <span className="text-slate-400 block text-[10px] uppercase flex items-center gap-1">
+                    মোট বকেয়া {historyDueFilter === 'due' && <span className="text-rose-400 font-bold">(ফিল্টার সক্রিয়)</span>}:
+                  </span>
+                  <span className="text-rose-400 font-mono font-black text-base flex items-center gap-1">
+                    ৳{(Number(historyStats?.due) || 0).toLocaleString()}
+                    {(Number(historyStats?.due) || 0) > 0 && <span className="text-[11px]">⚠️</span>}
+                  </span>
+                </button>
               </div>
             </div>
 
@@ -1641,7 +1793,15 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
                             <td className="p-3.5 text-right font-mono text-rose-300 text-sm">-৳{(Number(row.discountAmount) || 0).toLocaleString()}</td>
                             <td className="p-3.5 text-right font-mono text-sky-300 font-bold text-sm">৳{(Number(row.netPayable) || 0).toLocaleString()}</td>
                             <td className="p-3.5 text-right font-mono text-emerald-400 font-black text-base bg-emerald-950/20">৳{(Number(row.cashCollected) || 0).toLocaleString()}</td>
-                            <td className="p-3.5 text-right font-mono text-amber-300 font-bold text-sm">৳{(Number(row.dueAmount) || 0).toLocaleString()}</td>
+                            <td className="p-3.5 text-right font-mono">
+                              {(Number(row.dueAmount) || 0) > 0 ? (
+                                <span className="px-2.5 py-1 rounded-lg bg-rose-950 border border-rose-500/60 text-rose-300 font-black inline-flex items-center gap-1 shadow-sm text-sm">
+                                  ৳{(Number(row.dueAmount) || 0).toLocaleString()} <span className="text-xs">⚠️</span>
+                                </span>
+                              ) : (
+                                <span className="text-slate-500 font-bold text-sm">৳0</span>
+                              )}
+                            </td>
                             <td className="p-3.5 text-center">
                               <div className="flex items-center justify-center gap-2">
                                 <button

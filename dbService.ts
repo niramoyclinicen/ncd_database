@@ -3680,12 +3680,16 @@ export const dbService = {
 
   getConsolidatedEntries: (): DailyConsolidatedEntry[] => {
     try {
-      let list: DailyConsolidatedEntry[] = [];
       const saved = localStorage.getItem('ncd_consolidated_lab_entries');
       if (saved) {
         try {
           const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed)) list = parsed;
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            return parsed.map((e: any, idx: number) => ({
+              ...e,
+              id: String(e.id || e._id || `DCE-${e.date || 'entry'}-${idx}-${Date.now()}`).trim()
+            }));
+          }
         } catch (e) {}
       }
       try {
@@ -3694,23 +3698,29 @@ export const dbService = {
           const cached = JSON.parse(cachedRaw);
           const rawCons = cached.consolidatedLabEntries || cached.consolidated_lab_entries || cached.consolidatedEntries;
           if (Array.isArray(rawCons) && rawCons.length > 0) {
-            list = mergeEntityList(list, rawCons, ['id', '_id']);
+            return rawCons.map((e: any, idx: number) => ({
+              ...e,
+              id: String(e.id || e._id || `DCE-${e.date || 'entry'}-${idx}-${Date.now()}`).trim()
+            }));
           }
         }
       } catch (e) {}
-      return list;
     } catch (e) {}
     return [];
   },
 
   saveConsolidatedEntries: (entries: DailyConsolidatedEntry[]) => {
     try {
-      localStorage.setItem('ncd_consolidated_lab_entries', JSON.stringify(entries));
+      const sanitized = (entries || []).map((e: any, idx: number) => ({
+        ...e,
+        id: String(e.id || e._id || `DCE-${e.date || 'entry'}-${idx}-${Date.now()}`).trim()
+      }));
+      localStorage.setItem('ncd_consolidated_lab_entries', JSON.stringify(sanitized));
       try {
         const cachedRaw = localStorage.getItem(LOCAL_STORAGE_KEY) || localStorage.getItem('ncd_offline_cache_v1');
         if (cachedRaw) {
           const cached = JSON.parse(cachedRaw);
-          cached.consolidatedLabEntries = entries;
+          cached.consolidatedLabEntries = sanitized;
           cached.last_updated_at = new Date().toISOString();
           localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(cached));
           localStorage.setItem('ncd_offline_cache_v1', JSON.stringify(cached));
@@ -3724,8 +3734,10 @@ export const dbService = {
 
   saveSingleConsolidatedEntry: (entry: DailyConsolidatedEntry) => {
     try {
+      const cleanId = String(entry.id || (entry as any)._id || '').trim();
       const existing = dbService.getConsolidatedEntries();
-      const updated = [entry, ...existing.filter(e => String(e.id || (e as any)._id) !== String(entry.id || (entry as any)._id))];
+      const filtered = existing.filter(e => String(e.id || (e as any)._id).trim() !== cleanId);
+      const updated = [entry, ...filtered];
       dbService.saveConsolidatedEntries(updated);
       return true;
     } catch (e) {
@@ -3764,7 +3776,7 @@ export const dbService = {
           ? cachedLegacyState.consolidatedLabEntries 
           : (Array.isArray(cachedLegacyState.consolidated_lab_entries) ? cachedLegacyState.consolidated_lab_entries : []);
 
-        const newArr = mergeEntityList(existingNcd, [entry], ['id', '_id']);
+        const newArr = [entry, ...existingNcd.filter((x: any) => String(x.id || x._id || '').trim() !== entryId)];
         cachedLegacyState.consolidatedLabEntries = newArr;
         cachedLegacyState.consolidated_lab_entries = newArr;
         cachedLegacyState.last_updated_at = now;
