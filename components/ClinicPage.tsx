@@ -2672,10 +2672,18 @@ const IndoorInvoicePage: React.FC<{
     const handleGenerateId = () => {
         if (!selectedAdmission && !formData.patient_id) return alert("প্রথমে পেশেন্ট সিলেক্ট করুন।");
         
-        const dateToUse = formData.invoice_date || new Date().toISOString().split('T')[0];
+        const dateToUse = normalizeDate(formData.invoice_date || new Date().toISOString().split('T')[0]) || new Date().toISOString().split('T')[0];
         const safeInvoices = Array.isArray(indoorInvoices) ? indoorInvoices : [];
-        const count = safeInvoices.filter(i => i && i.invoice_date === dateToUse).length + 1;
-        const newId = `CLIN-${dateToUse}-${String(count).padStart(3, '0')}`;
+        const existingSeqNumbers = safeInvoices
+            .filter(i => i && normalizeDate(i.invoice_date || i.admission_date) === dateToUse)
+            .map(i => {
+                const id = String(i.daily_id || i.invoice_id || (i as any).id || '');
+                const m = id.match(/CLIN-.*-(\d+)$/);
+                return m ? parseInt(m[1], 10) : 0;
+            })
+            .filter(n => !isNaN(n) && n > 0);
+        const maxSeq = existingSeqNumbers.length > 0 ? Math.max(...existingSeqNumbers) : safeInvoices.filter(i => i && normalizeDate(i.invoice_date || i.admission_date) === dateToUse).length;
+        const newId = `CLIN-${dateToUse}-${String(maxSeq + 1).padStart(3, '0')}`;
         
         const safePatients = Array.isArray(patients) ? patients : [];
         const patientIdToFind = selectedAdmission?.patient_id || formData.patient_id;
@@ -2715,10 +2723,18 @@ const IndoorInvoicePage: React.FC<{
 
     const handleNewVisit = () => {
         if (!formData.patient_id) return;
-        const dateToUse = formData.invoice_date || new Date().toISOString().split('T')[0];
+        const dateToUse = normalizeDate(formData.invoice_date || new Date().toISOString().split('T')[0]) || new Date().toISOString().split('T')[0];
         const safeInvoices = Array.isArray(indoorInvoices) ? indoorInvoices : [];
-        const count = safeInvoices.filter(i => i && i.invoice_date === dateToUse).length + 1;
-        const newId = `CLIN-${dateToUse}-${String(count).padStart(3, '0')}`;
+        const existingSeqNumbers = safeInvoices
+            .filter(i => i && normalizeDate(i.invoice_date || i.admission_date) === dateToUse)
+            .map(i => {
+                const id = String(i.daily_id || i.invoice_id || (i as any).id || '');
+                const m = id.match(/CLIN-.*-(\d+)$/);
+                return m ? parseInt(m[1], 10) : 0;
+            })
+            .filter(n => !isNaN(n) && n > 0);
+        const maxSeq = existingSeqNumbers.length > 0 ? Math.max(...existingSeqNumbers) : safeInvoices.filter(i => i && normalizeDate(i.invoice_date || i.admission_date) === dateToUse).length;
+        const newId = `CLIN-${dateToUse}-${String(maxSeq + 1).padStart(3, '0')}`;
         
         setFormData(prev => ({
             ...emptyIndoorInvoice,
@@ -2836,9 +2852,17 @@ const IndoorInvoicePage: React.FC<{
             const isDateChanged = selectedInvoiceId && formData.invoice_date !== oldInvoice?.invoice_date;
 
             if (isDateChanged) {
-                const dateToUse = formData.invoice_date;
-                const count = safeInvoices.filter(i => i && i.invoice_date === dateToUse).length + 1;
-                const newId = `CLIN-${dateToUse}-${String(count).padStart(3, '0')}`;
+                const dateToUse = normalizeDate(formData.invoice_date) || formData.invoice_date;
+                const existingSeqNumbers = safeInvoices
+                    .filter(i => i && normalizeDate(i.invoice_date || i.admission_date) === dateToUse)
+                    .map(i => {
+                        const id = String(i.daily_id || i.invoice_id || (i as any).id || '');
+                        const m = id.match(/CLIN-.*-(\d+)$/);
+                        return m ? parseInt(m[1], 10) : 0;
+                    })
+                    .filter(n => !isNaN(n) && n > 0);
+                const maxSeq = existingSeqNumbers.length > 0 ? Math.max(...existingSeqNumbers) : safeInvoices.filter(i => i && normalizeDate(i.invoice_date || i.admission_date) === dateToUse).length;
+                const newId = `CLIN-${dateToUse}-${String(maxSeq + 1).padStart(3, '0')}`;
                 finalInvoice.daily_id = newId;
             }
 

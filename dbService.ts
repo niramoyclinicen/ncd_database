@@ -1031,8 +1031,42 @@ export const dbService = {
               try { raw = JSON.parse(raw); } catch { raw = {}; }
             }
             if (!raw || typeof raw !== 'object') raw = {};
-            return { ...raw, ...r, date: normalizeDate(r.date || raw.date || '') || r.date || raw.date };
-          });
+            const gross = Number(r.grossAmount ?? r.gross_amount ?? raw.grossAmount ?? raw.gross_amount ?? 0);
+            const discount = Number(r.discountAmount ?? r.discount_amount ?? raw.discountAmount ?? raw.discount_amount ?? 0);
+            const net = Number(r.netPayable ?? r.net_payable ?? raw.netPayable ?? raw.net_payable ?? Math.max(0, gross - discount));
+            const cash = Number(r.cashCollected ?? r.cash_collected ?? raw.cashCollected ?? raw.cash_collected ?? 0);
+            const due = Number(r.dueAmount ?? r.due_amount ?? raw.dueAmount ?? raw.due_amount ?? Math.max(0, net - cash));
+            const docPC = Number(r.doctorCommissionPaid ?? r.doctor_commission_paid ?? raw.doctorCommissionPaid ?? raw.doctor_commission_paid ?? 0);
+            const usgFee = Number(r.usgDoctorFeePaid ?? r.usg_doctor_fee_paid ?? raw.usgDoctorFeePaid ?? raw.usg_doctor_fee_paid ?? 0);
+            const normDate = normalizeDate(r.date || raw.date || '') || r.date || raw.date;
+
+            return {
+              ...raw,
+              ...r,
+              id: String(r.id || raw.id || r._id || raw._id || '').trim(),
+              date: normDate,
+              shift: r.shift || raw.shift || 'Full Day',
+              entryType: r.entryType || r.entry_type || raw.entryType || raw.entry_type || 'daily',
+              grossAmount: gross,
+              gross_amount: gross,
+              discountAmount: discount,
+              discount_amount: discount,
+              netPayable: net,
+              net_payable: net,
+              cashCollected: cash,
+              cash_collected: cash,
+              dueAmount: due,
+              due_amount: due,
+              doctorCommissionPaid: docPC,
+              doctor_commission_paid: docPC,
+              usgDoctorFeePaid: usgFee,
+              usg_doctor_fee_paid: usgFee,
+              totalPatients: Number(r.totalPatients ?? r.total_patients ?? raw.totalPatients ?? raw.total_patients ?? 0),
+              totalTests: Number(r.totalTests ?? r.total_tests ?? raw.totalTests ?? raw.total_tests ?? 0),
+              breakdown: r.breakdown || raw.breakdown || { pathology: 0, usg: 0, xray: 0, ecg: 0, hormone: 0, others: 0 },
+              notes: r.notes || raw.notes || ''
+            };
+          }).filter((e: any) => e.id);
           state.consolidatedLabEntries = mergeEntityList(state.consolidatedLabEntries || [], parsedCons, ['id', '_id']);
         }
 

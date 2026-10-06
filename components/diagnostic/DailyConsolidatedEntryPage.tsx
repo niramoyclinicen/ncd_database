@@ -323,8 +323,9 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
     setIsSaving(true);
     try {
       const monthBn = BENGALI_MONTHS[selectedMonth]?.bn || '';
+      const uniqueSuffix = Math.random().toString(36).substring(2, 7);
       const newRecord: DailyConsolidatedEntry = {
-        id: editingRecordId || ((isMonthly ? 'MCE-' : 'DCE-') + Date.now()),
+        id: editingRecordId || ((isMonthly ? 'MCE-' : 'DCE-') + Date.now() + '-' + uniqueSuffix),
         date: computedDate,
         shift: isMonthly ? 'Monthly' : ((formData.shift as any) || 'Full Day'),
         entryType: isMonthly ? 'monthly' : 'daily',
@@ -364,7 +365,7 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
       // Reset form & editing state
       setEditingRecordId(null);
       setFormData({
-        date: isMonthly ? `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-01` : new Date().toISOString().split('T')[0],
+        date: isMonthly ? `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-01` : computedDate,
         shift: isMonthly ? 'Monthly' : 'Full Day',
         entryType: isMonthly ? 'monthly' : 'daily',
         month: isMonthly ? selectedMonth : undefined,
