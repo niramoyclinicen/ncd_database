@@ -131,7 +131,7 @@ export function useAppData() {
             reports: ['report_id', 'id'],
             prescriptions: ['id'],
             appointments: ['appointment_id', 'id'],
-            consolidatedLabEntries: ['id', 'date']
+            consolidatedLabEntries: ['id', '_id']
           };
 
           Object.entries(mergeConfig).forEach(([col, idFields]) => {

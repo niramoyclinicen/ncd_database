@@ -3296,13 +3296,20 @@ const IndoorInvoicePage: React.FC<{
             });
             
             try {
-                const cachedRaw = localStorage.getItem('ncd_offline_cache_v1');
-                if (cachedRaw) {
-                    const cached = JSON.parse(cachedRaw);
-                    cached.indoorInvoices = newInvoicesArr;
-                    localStorage.setItem('ncd_offline_cache_v1', JSON.stringify(cached));
-                }
+                let cached: any = {};
+                try {
+                    const cachedRaw = localStorage.getItem('ncd_offline_cache_v1');
+                    if (cachedRaw) cached = JSON.parse(cachedRaw);
+                } catch {}
+                if (!cached || typeof cached !== 'object') cached = {};
+                cached.indoorInvoices = newInvoicesArr;
+                cached.last_updated_at = new Date().toISOString();
+                localStorage.setItem('ncd_offline_cache_v1', JSON.stringify(cached));
             } catch (e) {}
+
+            if (performBlockingSync) {
+                performBlockingSync({ indoorInvoices: newInvoicesArr }).catch(err => console.warn("Delete sync notice:", err));
+            }
 
             setIndoorInvoices(newInvoicesArr);
 

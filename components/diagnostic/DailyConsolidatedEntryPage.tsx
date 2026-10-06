@@ -346,15 +346,17 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
         createdAt: new Date().toISOString()
       };
 
-      dbService.saveSingleConsolidatedEntry(newRecord);
+      // 1. Direct database save according to January-July 2026 (ncd_state) vs August 2026+ (modular tables)
+      await dbService.saveConsolidatedEntryDirectly(newRecord);
       const updatedList = dbService.getConsolidatedEntries();
       setEntries(updatedList);
       if (setConsolidatedLabEntries) {
         setConsolidatedLabEntries(updatedList);
       }
 
+      // 2. Also trigger global state sync without blocking UI
       if (performBlockingSync) {
-        await performBlockingSync({ consolidatedLabEntries: updatedList });
+        performBlockingSync({ consolidatedLabEntries: updatedList }).catch(err => console.warn("Global sync notice:", err));
       }
 
       triggerSuccess(isMonthly ? `মাসিক কনসোলিডেটেড ভাউচার (${monthBn} ${selectedYear}) সফলভাবে সংরক্ষিত হয়েছে!` : 'ডেইলি কনসোলিডেটেড ভাউচার সফলভাবে সংরক্ষিত হয়েছে!');

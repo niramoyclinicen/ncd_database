@@ -1017,7 +1017,7 @@ export const dbService = {
 
             const rawCons = rowData.consolidatedLabEntries || rowData.consolidated_lab_entries || rowData.consolidatedEntries || rowData.consolidated_entries || (row as any).consolidated_lab_entries || (row as any).consolidatedLabEntries;
             if (Array.isArray(rawCons) && rawCons.length > 0) {
-              state.consolidatedLabEntries = mergeEntityList(state.consolidatedLabEntries || [], rawCons, ['id', 'date']);
+              state.consolidatedLabEntries = mergeEntityList(state.consolidatedLabEntries || [], rawCons, ['id', '_id']);
             }
           });
         }
@@ -1033,7 +1033,7 @@ export const dbService = {
             if (!raw || typeof raw !== 'object') raw = {};
             return { ...raw, ...r, date: normalizeDate(r.date || raw.date || '') || r.date || raw.date };
           });
-          state.consolidatedLabEntries = mergeEntityList(state.consolidatedLabEntries || [], parsedCons, ['id', 'date']);
+          state.consolidatedLabEntries = mergeEntityList(state.consolidatedLabEntries || [], parsedCons, ['id', '_id']);
         }
 
         // Merge Monthly Adjustments from modular table(s) if available
@@ -2098,6 +2098,17 @@ export const dbService = {
         }
       } catch (adjErr) {
         console.warn("Modular monthly_adjustments sync notice:", adjErr);
+      }
+
+      // 2j. Modular Sync for consolidated_lab_entries (strictly >= 2026-08-01)
+      try {
+        const modernConsolidated = (appState.consolidatedLabEntries || []).filter((r: any) => isMultiTableDate(getRecordDate(r)));
+        if (modernConsolidated.length > 0) {
+          const consSync = await dbService.syncConsolidatedLabEntriesToModularTable(modernConsolidated);
+          if (consSync) hasAnySaveSuccess = true;
+        }
+      } catch (consErr) {
+        console.warn("Modular consolidated lab entries sync notice:", consErr);
       }
 
       // Master tables sync (patients, doctors, referrars, tests, reagents, employees)
@@ -3661,11 +3672,73 @@ export const dbService = {
   saveSingleConsolidatedEntry: (entry: DailyConsolidatedEntry) => {
     try {
       const existing = dbService.getConsolidatedEntries();
-      const updated = [entry, ...existing.filter(e => e.id !== entry.id)];
+      const updated = [entry, ...existing.filter(e => String(e.id || (e as any)._id) !== String(entry.id || (entry as any)._id))];
       dbService.saveConsolidatedEntries(updated);
       return true;
     } catch (e) {
       return false;
+    }
+  },
+
+  saveConsolidatedEntryDirectly: async (entry: DailyConsolidatedEntry | any) => {
+    try {
+      if (!entry) return { success: false, error: 'No entry provided' };
+      const now = new Date().toISOString();
+      const recDate = getRecordDate(entry) || normalizeDate(entry.date) || now.split('T')[0];
+      const entryId = String(entry.id || entry._id || '').trim();
+
+      // 0. Update all local storage keys immediately
+      try {
+        dbService.saveSingleConsolidatedEntry(entry);
+      } catch (e) {}
+
+      if (!supabase) return { success: true };
+
+      const isHistorical = isLegacyDate(recDate);
+
+      // 1. ALWAYS persist to ncd_state master archive
+      try {
+        if (!cachedLegacyState) {
+          const { data } = await supabase.from('ncd_state').select('*').order('updated_at', { ascending: false }).limit(5);
+          if (data && data.length > 0) {
+            const masterRow = data.find((r: any) => r.id === MASTER_RECORD_ID) || data[0];
+            cachedLegacyRecordId = masterRow.id || MASTER_RECORD_ID;
+            cachedLegacyState = typeof masterRow.data === 'string' ? JSON.parse(masterRow.data) : masterRow.data;
+          }
+        }
+        if (!cachedLegacyState) cachedLegacyState = {};
+        const existingNcd = Array.isArray(cachedLegacyState.consolidatedLabEntries) 
+          ? cachedLegacyState.consolidatedLabEntries 
+          : (Array.isArray(cachedLegacyState.consolidated_lab_entries) ? cachedLegacyState.consolidated_lab_entries : []);
+
+        const newArr = mergeEntityList(existingNcd, [entry], ['id', '_id']);
+        cachedLegacyState.consolidatedLabEntries = newArr;
+        cachedLegacyState.consolidated_lab_entries = newArr;
+        cachedLegacyState.last_updated_at = now;
+
+        await supabase.from('ncd_state').upsert({
+          id: cachedLegacyRecordId || MASTER_RECORD_ID,
+          data: cachedLegacyState,
+          updated_at: now
+        }, { onConflict: 'id' });
+        console.log("[dbService] Saved consolidated entry to ncd_state master:", entryId || recDate);
+      } catch (sbErr) {
+        console.warn("[dbService] ncd_state consolidated save notice:", sbErr);
+      }
+
+      // 2. If modern date (>= 2026-08-01), ALSO sync to modular tables 'consolidated_lab_entries' & 'consolidated_entries'
+      if (!isHistorical) {
+        try {
+          await dbService.syncConsolidatedLabEntriesToModularTable([entry]);
+        } catch (modErr) {
+          console.warn("[dbService] Modular consolidated save notice:", modErr);
+        }
+      }
+
+      return { success: true };
+    } catch (e: any) {
+      console.warn("[dbService] saveConsolidatedEntryDirectly notice:", e);
+      return { success: true, warning: e?.message };
     }
   },
 
@@ -4170,6 +4243,65 @@ export const dbService = {
       return true;
     } catch (e) {
       console.warn("syncDetailedExpensesToModularTable notice:", e);
+      return false;
+    }
+  },
+
+  syncConsolidatedLabEntriesToModularTable: async (entries: DailyConsolidatedEntry[] | any[]) => {
+    if (!supabase || !Array.isArray(entries) || entries.length === 0) return true;
+    try {
+      const now = new Date().toISOString();
+      const rows = entries.map((entry: any) => {
+        const id = String(entry.id || entry._id || `DCE-${Date.now()}_${Math.random().toString(36).substring(2, 6)}`).trim();
+        const date = normalizeDate(entry.date || entry.created_at || now.split('T')[0]);
+        const shift = String(entry.shift || 'Full Day');
+        const entryType = String(entry.entryType || entry.entry_type || (shift === 'Monthly' ? 'monthly' : 'daily'));
+        const gross = Number(entry.grossAmount ?? entry.gross_amount ?? entry.gross ?? 0);
+        const discount = Number(entry.discountAmount ?? entry.discount_amount ?? entry.discount ?? 0);
+        const net = Number(entry.netPayable ?? entry.net_payable ?? Math.max(0, gross - discount));
+        const cash = Number(entry.cashCollected ?? entry.cash_collected ?? entry.cash ?? 0);
+        const due = Number(entry.dueAmount ?? entry.due_amount ?? Math.max(0, net - cash));
+        const docPC = Number(entry.doctorCommissionPaid ?? entry.doctor_commission_paid ?? entry.commission ?? 0);
+        const usgFee = Number(entry.usgDoctorFeePaid ?? entry.usg_doctor_fee_paid ?? entry.usg_fee ?? 0);
+
+        return {
+          id,
+          date,
+          shift,
+          entry_type: entryType,
+          entryType,
+          month: entry.month !== undefined ? entry.month : (date ? parseInt(date.split('-')[1], 10) - 1 : new Date().getMonth()),
+          year: entry.year !== undefined ? entry.year : (date ? parseInt(date.split('-')[0], 10) : new Date().getFullYear()),
+          entry_time: entry.entryTime || entry.entry_time || '',
+          operator_name: entry.operatorName || entry.operator_name || 'Cashier',
+          total_patients: Number(entry.totalPatients ?? entry.total_patients ?? 0),
+          total_tests: Number(entry.totalTests ?? entry.total_tests ?? 0),
+          gross_amount: gross,
+          grossAmount: gross,
+          discount_amount: discount,
+          discountAmount: discount,
+          net_payable: net,
+          netPayable: net,
+          cash_collected: cash,
+          cashCollected: cash,
+          due_amount: due,
+          dueAmount: due,
+          doctor_commission_paid: docPC,
+          doctorCommissionPaid: docPC,
+          usg_doctor_fee_paid: usgFee,
+          usgDoctorFeePaid: usgFee,
+          breakdown: entry.breakdown || { pathology: 0, usg: 0, xray: 0, ecg: 0, hormone: 0, others: 0 },
+          notes: entry.notes || '',
+          data: entry,
+          updated_at: now
+        };
+      });
+
+      const res1 = await upsertTableSafe(supabase, 'consolidated_lab_entries', rows);
+      const res2 = await upsertTableSafe(supabase, 'consolidated_entries', rows);
+      return res1 || res2;
+    } catch (e) {
+      console.warn("syncConsolidatedLabEntriesToModularTable notice:", e);
       return false;
     }
   },
