@@ -2360,7 +2360,7 @@ export const dbService = {
         ['labInvoices', 'indoorInvoices', 'dueCollections', 'salesInvoices', 'purchaseInvoices', 'patients', 'doctors', 'medicines', 'consolidatedLabEntries'].forEach(col => {
           const sourceList = cand[col] || (col === 'consolidatedLabEntries' ? (cand.consolidated_lab_entries || cand.consolidatedEntries) : undefined);
           if (Array.isArray(sourceList) && sourceList.length > 0) {
-            const idFields = col === 'dueCollections' ? ['collection_id', 'id'] : (col === 'consolidatedLabEntries' ? ['id', 'date'] : ['invoice_id', 'daily_id', 'invoiceId', 'id']);
+            const idFields = col === 'dueCollections' ? ['collection_id', 'id'] : (col === 'consolidatedLabEntries' ? ['id', '_id'] : ['invoice_id', 'daily_id', 'invoiceId', 'id']);
             mergedBackup[col] = mergeEntityList(mergedBackup[col] || [], sourceList, idFields);
           }
         });
@@ -2369,7 +2369,7 @@ export const dbService = {
       try {
         const localCons = dbService.getConsolidatedEntries();
         if (Array.isArray(localCons) && localCons.length > 0) {
-          mergedBackup.consolidatedLabEntries = mergeEntityList(mergedBackup.consolidatedLabEntries || [], localCons, ['id', 'date']);
+          mergedBackup.consolidatedLabEntries = mergeEntityList(mergedBackup.consolidatedLabEntries || [], localCons, ['id', '_id']);
         }
       } catch {}
 

@@ -65,6 +65,10 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
   const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth());
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
 
+  // Live History filter on entry tab
+  const [liveSearchQuery, setLiveSearchQuery] = useState('');
+  const [liveTypeFilter, setLiveTypeFilter] = useState<'all' | 'daily' | 'monthly'>('all');
+
   // History filters
   const [historyTypeFilter, setHistoryTypeFilter] = useState<'all' | 'daily' | 'monthly'>('all');
   const [historyMonthFilter, setHistoryMonthFilter] = useState<string>('all');
@@ -100,6 +104,11 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
       breakdown: row.breakdown || { pathology: 0, usg: 0, xray: 0, ecg: 0, hormone: 0, others: 0 },
       notes: row.notes || ''
     });
+    try {
+      if (typeof window !== 'undefined') {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    } catch {}
   };
 
   const handleCancelEdit = () => {
@@ -124,12 +133,14 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
     });
   };
 
-  // Sync entries if parent prop updates
+  // Sync entries if parent prop updates without losing local entries
   useEffect(() => {
-    if (consolidatedLabEntries !== undefined) {
-      setEntries(consolidatedLabEntries);
-    } else {
-      setEntries(dbService.getConsolidatedEntries());
+    const local = dbService.getConsolidatedEntries();
+    if (Array.isArray(consolidatedLabEntries) && consolidatedLabEntries.length > 0) {
+      const merged = dbService.mergeEntityList(local, consolidatedLabEntries, ['id', '_id']);
+      setEntries(merged);
+    } else if (local && local.length > 0) {
+      setEntries(local);
     }
   }, [consolidatedLabEntries]);
 
@@ -545,9 +556,59 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
     }
   };
 
-  // Filtered Entries for History
+  // Sorted Entries for consistent chronology (Newest entries first)
+  const sortedEntries = useMemo(() => {
+    return [...(entries || [])].filter(Boolean).sort((a, b) => {
+      const dateA = a.date || '';
+      const dateB = b.date || '';
+      if (dateA !== dateB) return dateB.localeCompare(dateA);
+      const createdA = a.createdAt || '';
+      const createdB = b.createdAt || '';
+      if (createdA !== createdB) return createdB.localeCompare(createdA);
+      return String(b.id || '').localeCompare(String(a.id || ''));
+    });
+  }, [entries]);
+
+  // Live Filtered Entries for the entry tab embedded history
+  const liveFilteredEntries = useMemo(() => {
+    return sortedEntries.filter(item => {
+      if (!item) return false;
+      const isItemMonthly = item.entryType === 'monthly' || item.shift === 'Monthly';
+
+      if (liveTypeFilter === 'daily' && isItemMonthly) return false;
+      if (liveTypeFilter === 'monthly' && !isItemMonthly) return false;
+
+      if (liveSearchQuery) {
+        const q = liveSearchQuery.toLowerCase().trim();
+        const dateStr = (item.date || '').toLowerCase();
+        const idStr = (item.id || '').toLowerCase();
+        const opStr = (item.operatorName || '').toLowerCase();
+        const shiftStr = (item.shift || '').toLowerCase();
+        const notesStr = (item.notes || '').toLowerCase();
+        if (!dateStr.includes(q) && !idStr.includes(q) && !opStr.includes(q) && !shiftStr.includes(q) && !notesStr.includes(q)) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }, [sortedEntries, liveTypeFilter, liveSearchQuery]);
+
+  // Live Stats for embedded entry view
+  const liveStats = useMemo(() => {
+    return liveFilteredEntries.reduce((acc, curr) => {
+      acc.patients += curr.totalPatients || 0;
+      acc.gross += curr.grossAmount || 0;
+      acc.discount += curr.discountAmount || 0;
+      acc.net += curr.netPayable || 0;
+      acc.cash += curr.cashCollected || 0;
+      acc.due += curr.dueAmount || 0;
+      return acc;
+    }, { patients: 0, gross: 0, discount: 0, net: 0, cash: 0, due: 0 });
+  }, [liveFilteredEntries]);
+
+  // Filtered Entries for History Tab
   const filteredEntries = useMemo(() => {
-    return entries.filter(item => {
+    return sortedEntries.filter(item => {
       if (!item) return false;
       const isItemMonthly = item.entryType === 'monthly' || item.shift === 'Monthly';
 
@@ -568,7 +629,7 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
 
       return true;
     });
-  }, [entries, historyTypeFilter, searchDate, filterShift, historyYearFilter, historyMonthFilter]);
+  }, [sortedEntries, historyTypeFilter, searchDate, filterShift, historyYearFilter, historyMonthFilter]);
 
   // History Stats
   const historyStats = useMemo(() => {
@@ -800,7 +861,8 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
       {/* Main Content - Seamless width without gap */}
       <main className="flex-1 p-3 sm:p-5 md:p-6 w-full overflow-y-auto">
         {activeSubTab === 'new_entry' && (
-          <form onSubmit={handleSaveEntry} className="space-y-6 w-full max-w-[98%] 2xl:max-w-[1800px] mx-auto animate-fade-in">
+          <div className="space-y-6 w-full max-w-[98%] 2xl:max-w-[1800px] mx-auto animate-fade-in">
+            <form onSubmit={handleSaveEntry} className="space-y-6">
             {/* Editing Notice Banner */}
             {editingRecordId && (
               <div className="bg-amber-950/90 border-2 border-amber-500 text-amber-200 p-4 rounded-3xl flex items-center justify-between shadow-xl">
@@ -1189,7 +1251,7 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
                   <button
                     type="submit"
                     disabled={isSaving}
-                    className="flex-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 active:scale-95 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl flex items-center justify-center gap-2 transition-all"
+                    className="flex-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 active:scale-95 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl flex items-center justify-center gap-2 transition-all cursor-pointer"
                   >
                     <Save size={18} /> {isSaving ? 'সংরক্ষণ হচ্ছে...' : (entryMode === 'monthly' ? `মাসিক ভাউচার (${BENGALI_MONTHS[selectedMonth]?.bn} ${selectedYear}) সেভ ও প্রিন্ট করুন` : 'ভাউচার সেভ করুন ও স্লিপ প্রিন্ট করুন')}
                   </button>
@@ -1197,6 +1259,192 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
               </div>
             </div>
           </form>
+
+          {/* Embedded Saved Vouchers History List right below the form */}
+          <div className="bg-slate-900/95 border border-slate-800 p-5 sm:p-6 rounded-3xl shadow-2xl space-y-4">
+            <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 border-b border-slate-800 pb-4">
+              <div>
+                <h3 className="text-base font-black text-white uppercase tracking-wide flex items-center gap-2">
+                  <FileSpreadsheet className="text-sky-400" size={20} /> সংরক্ষিত ভাউচার তালিকা ও হিস্ট্রি ({sortedEntries.length} টি)
+                </h3>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  উপরে নতুন এন্ট্রি করার সময় পূর্বের সকল ভাউচার এখানে দেখতে পারবেন এবং প্রয়োজনে সাথে সাথে এডিট বা প্রিন্ট করতে পারবেন।
+                </p>
+              </div>
+
+              {/* Filter & Search Bar */}
+              <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+                <div className="flex-1 sm:flex-initial">
+                  <select
+                    value={liveTypeFilter}
+                    onChange={e => setLiveTypeFilter(e.target.value as any)}
+                    className="w-full sm:w-auto bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-bold text-xs outline-none"
+                  >
+                    <option value="all">সকল ভাউচার ({sortedEntries.length})</option>
+                    <option value="daily">📅 শুধুমাত্র দৈনিক</option>
+                    <option value="monthly">🗓️ শুধুমাত্র মাসিক</option>
+                  </select>
+                </div>
+
+                <div className="relative flex-1 sm:w-64">
+                  <input
+                    type="text"
+                    value={liveSearchQuery}
+                    onChange={e => setLiveSearchQuery(e.target.value)}
+                    placeholder="তারিখ বা অপারেটর দিয়ে খুঁজুন..."
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl pl-8 pr-3 py-2 text-white font-bold text-xs outline-none focus:border-sky-500"
+                  />
+                  <SearchIcon className="w-3.5 h-3.5 absolute left-2.5 top-3 text-slate-500" />
+                </div>
+
+                {(liveSearchQuery || liveTypeFilter !== 'all') && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLiveSearchQuery('');
+                      setLiveTypeFilter('all');
+                    }}
+                    className="px-3 py-2 bg-slate-800 text-slate-300 rounded-xl text-xs font-bold hover:text-white"
+                  >
+                    রিসেট
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Live Stats Pill */}
+            <div className="flex flex-wrap items-center gap-4 text-xs font-bold bg-slate-950 px-5 py-3 rounded-2xl border border-slate-800 justify-around">
+              <div>
+                <span className="text-slate-400 block text-[10px] uppercase">মোট ভাউচার:</span>
+                <span className="text-white font-mono font-black text-sm">{liveFilteredEntries.length} টি</span>
+              </div>
+              <div className="h-5 w-px bg-slate-800"></div>
+              <div>
+                <span className="text-slate-400 block text-[10px] uppercase">মোট রোগী:</span>
+                <span className="text-white font-mono font-black text-sm">{Number(liveStats?.patients || 0).toLocaleString()} জন</span>
+              </div>
+              <div className="h-5 w-px bg-slate-800"></div>
+              <div>
+                <span className="text-slate-400 block text-[10px] uppercase">মোট গ্রস বিল:</span>
+                <span className="text-sky-300 font-mono font-black text-sm">৳{(Number(liveStats?.gross) || 0).toLocaleString()}</span>
+              </div>
+              <div className="h-5 w-px bg-slate-800"></div>
+              <div>
+                <span className="text-slate-400 block text-[10px] uppercase">মোট ক্যাশ আদায়:</span>
+                <span className="text-emerald-400 font-mono font-black text-base">৳{(Number(liveStats?.cash) || 0).toLocaleString()}</span>
+              </div>
+              <div className="h-5 w-px bg-slate-800"></div>
+              <div>
+                <span className="text-slate-400 block text-[10px] uppercase">মোট বকেয়া:</span>
+                <span className="text-rose-400 font-mono font-black text-base">৳{(Number(liveStats?.due) || 0).toLocaleString()}</span>
+              </div>
+            </div>
+
+            {/* Embedded Table */}
+            <div className="bg-slate-950 border border-slate-800 rounded-2xl overflow-hidden shadow-inner">
+              <div className="overflow-x-auto max-h-[500px]">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead className="bg-slate-900 text-slate-400 uppercase font-black tracking-wider border-b border-slate-800 sticky top-0 z-10">
+                    <tr>
+                      <th className="p-3 text-center">ক্রমিক</th>
+                      <th className="p-3">তারিখ / মাস-বছর</th>
+                      <th className="p-3">এন্ট্রি টাইপ ও শিফট</th>
+                      <th className="p-3">অপারেটর</th>
+                      <th className="p-3 text-center">রোগী</th>
+                      <th className="p-3 text-right">গ্রস বিল</th>
+                      <th className="p-3 text-right text-rose-300">ছাড়</th>
+                      <th className="p-3 text-right text-sky-300">নিট বিল</th>
+                      <th className="p-3 text-right text-emerald-400">ক্যাশ আদায়</th>
+                      <th className="p-3 text-right text-amber-400">বাকি (Due)</th>
+                      <th className="p-3 text-center">অ্যাকশন</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800 font-bold">
+                    {liveFilteredEntries.length === 0 ? (
+                      <tr>
+                        <td colSpan={11} className="p-8 text-center text-slate-500 font-bold">
+                          কোনো সংরক্ষিত রেকর্ড পাওয়া যায়নি।
+                        </td>
+                      </tr>
+                    ) : (
+                      liveFilteredEntries.map((row, index) => {
+                        const isRowMonthly = row.entryType === 'monthly' || row.shift === 'Monthly';
+                        const rowMonth = row.month !== undefined ? row.month : (row.date ? parseInt(row.date.split('-')[1]) - 1 : 0);
+                        const rowYear = row.year !== undefined ? row.year : (row.date ? row.date.split('-')[0] : '');
+                        const isEditingThis = editingRecordId === row.id;
+
+                        return (
+                          <tr key={row.id} className={`transition-colors ${isEditingThis ? 'bg-amber-950/40 border-l-4 border-amber-500' : 'hover:bg-slate-900/60'}`}>
+                            <td className="p-3 text-center font-mono text-slate-400">{index + 1}</td>
+                            <td className="p-3 font-mono text-slate-100">
+                              {isRowMonthly ? (
+                                <span className="font-black text-emerald-300">
+                                  🗓️ {BENGALI_MONTHS[rowMonth]?.bn} {rowYear}
+                                </span>
+                              ) : (
+                                <>
+                                  <span className="font-bold">{row.date}</span> <span className="text-[10px] text-slate-400">({row.entryTime || 'N/A'})</span>
+                                </>
+                              )}
+                            </td>
+                            <td className="p-3">
+                              {isRowMonthly ? (
+                                <span className="px-2.5 py-0.5 rounded bg-emerald-950/90 border border-emerald-500/40 text-emerald-300 text-[10px] font-black uppercase">
+                                  মাসিক এককালীন
+                                </span>
+                              ) : (
+                                <span className="px-2.5 py-0.5 rounded bg-sky-950/90 border border-sky-500/40 text-sky-300 text-[10px] font-black uppercase">
+                                  দৈনিক ({row.shift || 'Full Day'})
+                                </span>
+                              )}
+                            </td>
+                            <td className="p-3 text-slate-300">{row.operatorName || 'Cashier'}</td>
+                            <td className="p-3 text-center font-mono text-white font-black">{row.totalPatients || 0}</td>
+                            <td className="p-3 text-right font-mono text-slate-200">৳{(Number(row.grossAmount) || 0).toLocaleString()}</td>
+                            <td className="p-3 text-right font-mono text-rose-300">-৳{(Number(row.discountAmount) || 0).toLocaleString()}</td>
+                            <td className="p-3 text-right font-mono text-sky-300 font-bold">৳{(Number(row.netPayable) || 0).toLocaleString()}</td>
+                            <td className="p-3 text-right font-mono text-emerald-400 font-black bg-emerald-950/20">৳{(Number(row.cashCollected) || 0).toLocaleString()}</td>
+                            <td className="p-3 text-right font-mono text-amber-300 font-bold">৳{(Number(row.dueAmount) || 0).toLocaleString()}</td>
+                            <td className="p-3 text-center">
+                              <div className="flex items-center justify-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => handleStartEdit(row)}
+                                  className={`p-2 rounded-lg transition-all shadow active:scale-95 cursor-pointer ${
+                                    isEditingThis ? 'bg-amber-500 text-slate-950 font-black' : 'bg-amber-600/20 hover:bg-amber-600 text-amber-300 hover:text-white'
+                                  }`}
+                                  title="সম্পাদনা করুন (Edit)"
+                                >
+                                  ✏️
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handlePrintVoucher(row)}
+                                  className="p-2 bg-sky-600/20 hover:bg-sky-600 text-sky-300 hover:text-white rounded-lg transition-all shadow active:scale-95 cursor-pointer"
+                                  title="প্রিন্ট ভাউচার"
+                                >
+                                  <PrinterIcon size={14} />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setEntryToDelete(row)}
+                                  className="p-2 bg-rose-600/20 hover:bg-rose-600 text-rose-400 hover:text-white rounded-lg transition-all shadow active:scale-95 cursor-pointer"
+                                  title="মুছে ফেলুন"
+                                >
+                                  <TrashIcon size={14} />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
         )}
 
         {/* History Tab */}
