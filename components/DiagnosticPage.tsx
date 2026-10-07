@@ -542,7 +542,7 @@ const DiagnosticPage: React.FC<DiagnosticPageProps> = ({
                 <DiagnosticIcon className="w-4 h-4 sm:w-7 sm:h-7 text-cyan-400 mr-1 sm:mr-2 drop-shadow-[0_0_5px_rgba(34,211,238,0.5)]" />
                 <div className="flex flex-col items-end">
                    <h2 className="text-xs sm:text-2xl font-bold text-cyan-400 font-bengali leading-tight text-right">
-                     ডায়াগনস্টিক
+                     ডায়াগনস্টিক ডিপার্টমেন্ট
                    </h2>
                    <p className="text-[9px] font-bold text-slate-500 font-bengali tracking-tight hidden sm:block">
                      গভমেন্ট লাইসেন্স: HSM41671

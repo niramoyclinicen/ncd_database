@@ -948,51 +948,51 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
               <div className="p-3 sm:px-4 bg-slate-950/90 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3">
                 <div className="flex flex-wrap items-center gap-2.5">
                   {/* Mode Switcher */}
-                  <div className="flex bg-slate-900 p-0.5 rounded-xl border border-slate-800 shadow-inner">
+                  <div className="flex bg-slate-900 p-1 rounded-xl border border-slate-800 shadow-inner h-10 sm:h-11 items-center">
                     <button
                       type="button"
                       onClick={() => handleModeChange('daily')}
-                      className={`px-3 py-1 rounded-lg text-xs font-black uppercase transition-all flex items-center gap-1.5 cursor-pointer ${
+                      className={`h-full px-3.5 sm:px-4 rounded-lg text-xs sm:text-sm font-black uppercase transition-all flex items-center gap-1.5 cursor-pointer ${
                         entryMode === 'daily'
                           ? 'bg-gradient-to-r from-sky-600 to-blue-600 text-white shadow-md'
                           : 'text-slate-400 hover:text-white'
                       }`}
                     >
-                      <Calendar size={12} /> দিনভিত্তিক শিফট এন্ট্রি
+                      <Calendar size={14} /> দিনভিত্তিক শিফট এন্ট্রি
                     </button>
                     <button
                       type="button"
                       onClick={() => handleModeChange('monthly')}
-                      className={`px-3 py-1 rounded-lg text-xs font-black uppercase transition-all flex items-center gap-1.5 cursor-pointer ${
+                      className={`h-full px-3.5 sm:px-4 rounded-lg text-xs sm:text-sm font-black uppercase transition-all flex items-center gap-1.5 cursor-pointer ${
                         entryMode === 'monthly'
                           ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md'
                           : 'text-slate-400 hover:text-white'
                       }`}
                     >
-                      <CalendarRange size={12} /> মাসভিত্তিক এককালীন
+                      <CalendarRange size={14} /> মাসভিত্তিক এককালীন
                     </button>
                   </div>
 
                   {/* Date or Month Picker */}
                   {entryMode === 'daily' ? (
-                    <div className="flex items-center gap-1.5 bg-slate-900 border border-slate-700/80 rounded-xl px-2.5 py-1">
-                      <span className="text-slate-400 text-xs">📅 তারিখ:</span>
+                    <div className="flex items-center gap-2 bg-slate-900 border border-slate-700/80 rounded-xl px-3 h-10 sm:h-11 shadow-inner">
+                      <span className="text-slate-300 text-xs sm:text-sm font-bold whitespace-nowrap">📅 তারিখ:</span>
                       <input
                         type="date"
                         value={selectedDate}
                         onChange={e => setSelectedDate(e.target.value)}
-                        className="bg-transparent text-white font-mono font-bold text-xs outline-none cursor-pointer"
+                        className="bg-transparent text-white font-mono font-bold text-xs sm:text-sm outline-none cursor-pointer"
                         required
                       />
                     </div>
                   ) : (
                     <div className="flex items-center gap-2">
-                      <div className="flex items-center gap-1.5 bg-slate-900 border border-slate-700/80 rounded-xl px-2.5 py-1">
-                        <span className="text-slate-400 text-xs">🗓️ মাস:</span>
+                      <div className="flex items-center gap-2 bg-slate-900 border border-slate-700/80 rounded-xl px-3 h-10 sm:h-11 shadow-inner">
+                        <span className="text-slate-300 text-xs sm:text-sm font-bold whitespace-nowrap">🗓️ মাস:</span>
                         <select
                           value={selectedMonth}
                           onChange={e => setSelectedMonth(parseInt(e.target.value))}
-                          className="bg-transparent text-white font-bold text-xs outline-none cursor-pointer"
+                          className="bg-transparent text-white font-bold text-xs sm:text-sm outline-none cursor-pointer"
                         >
                           {BENGALI_MONTHS.map(m => (
                             <option key={m.value} value={m.value} className="bg-slate-900 text-white">{m.bn} ({m.en})</option>
@@ -1000,12 +1000,12 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
                         </select>
                       </div>
 
-                      <div className="flex items-center gap-1.5 bg-slate-900 border border-slate-700/80 rounded-xl px-2.5 py-1">
-                        <span className="text-slate-400 text-xs">📅 সন:</span>
+                      <div className="flex items-center gap-2 bg-slate-900 border border-slate-700/80 rounded-xl px-3 h-10 sm:h-11 shadow-inner">
+                        <span className="text-slate-300 text-xs sm:text-sm font-bold whitespace-nowrap">📅 সন:</span>
                         <select
                           value={selectedYear}
                           onChange={e => setSelectedYear(parseInt(e.target.value))}
-                          className="bg-transparent text-white font-bold text-xs outline-none cursor-pointer"
+                          className="bg-transparent text-white font-bold text-xs sm:text-sm outline-none cursor-pointer"
                         >
                           {AVAILABLE_YEARS.map(y => (
                             <option key={y} value={y} className="bg-slate-900 text-white">{y} সন</option>
@@ -1016,14 +1016,14 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
                   )}
 
                   {/* Operator Name */}
-                  <div className="flex items-center gap-1.5 bg-slate-900 border border-slate-700/80 rounded-xl px-2.5 py-1">
-                    <span className="text-slate-400 text-xs">👤 অপারেটর:</span>
+                  <div className="flex items-center gap-2 bg-slate-900 border border-slate-700/80 rounded-xl px-3 h-10 sm:h-11 shadow-inner">
+                    <span className="text-slate-300 text-xs sm:text-sm font-bold whitespace-nowrap">👤 অপারেটর:</span>
                     <input
                       type="text"
                       value={defaultOperator}
                       onChange={e => setDefaultOperator(e.target.value)}
                       placeholder="Cashier"
-                      className="bg-transparent text-white font-bold text-xs outline-none w-24 sm:w-28"
+                      className="bg-transparent text-white font-bold text-xs sm:text-sm outline-none w-24 sm:w-32"
                     />
                   </div>
                 </div>
@@ -1033,16 +1033,16 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
                   <button
                     type="button"
                     onClick={handleAddShiftRow}
-                    className="px-3 py-1.5 bg-sky-600/20 hover:bg-sky-600 text-sky-300 hover:text-white rounded-xl text-xs font-bold transition-all border border-sky-500/40 flex items-center gap-1 cursor-pointer active:scale-95"
+                    className="h-10 sm:h-11 px-3.5 sm:px-4 bg-sky-600/20 hover:bg-sky-600 text-sky-300 hover:text-white rounded-xl text-xs sm:text-sm font-bold transition-all border border-sky-500/40 flex items-center gap-1.5 cursor-pointer active:scale-95 shadow-sm"
                     title="নতুন শিফট লাইন যোগ করুন"
                   >
-                    <PlusIcon size={13} /> + নতুন শিফট লাইন
+                    <PlusIcon size={15} /> + নতুন শিফট লাইন
                   </button>
 
                   <button
                     type="button"
                     onClick={handleResetSheet}
-                    className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold transition-all border border-slate-700 cursor-pointer"
+                    className="h-10 sm:h-11 px-3 sm:px-3.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs sm:text-sm font-bold transition-all border border-slate-700 cursor-pointer shadow-sm flex items-center"
                     title="সম্পূর্ণ শিট ক্লিয়ার করুন"
                   >
                     🔄 ক্লিয়ার
@@ -1052,9 +1052,9 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
                     type="button"
                     onClick={() => handleSaveAllShifts()}
                     disabled={isSaving}
-                    className="px-4 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-lg flex items-center gap-1.5 transition-all cursor-pointer active:scale-95"
+                    className="h-10 sm:h-11 px-4 sm:px-5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs sm:text-sm font-black uppercase tracking-wider shadow-lg flex items-center gap-2 transition-all cursor-pointer active:scale-95"
                   >
-                    <Save size={13} /> {isSaving ? 'সংরক্ষণ...' : 'সব শিফট সেভ ও প্রিন্ট'}
+                    <Save size={15} /> {isSaving ? 'সংরক্ষণ...' : 'সব শিফট সেভ ও প্রিন্ট'}
                   </button>
                 </div>
               </div>
@@ -1114,23 +1114,23 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
                       <th className="py-2.5 px-1 text-center w-10 whitespace-nowrap text-slate-500">মুছুন</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-700/70 bg-slate-900/90 font-bold">
+                  <tbody className="divide-y divide-slate-300 bg-slate-100 font-bold">
                     {shiftRows.map((row, idx) => {
                       const rowNetCash = (Number(row.cashCollected) || 0) - (Number(row.doctorCommissionPaid) || 0) - (Number(row.usgDoctorFeePaid) || 0);
 
                       return (
-                        <tr key={row.id} className="divide-x divide-slate-700/60 bg-slate-900 hover:bg-slate-850 transition-colors">
+                        <tr key={row.id} className="divide-x divide-slate-300 bg-slate-100 hover:bg-slate-200/90 transition-colors">
                           {/* Row Index */}
-                          <td className="p-1.5 text-center font-mono text-slate-400 bg-slate-950/60 font-medium">
+                          <td className="p-1.5 text-center font-mono text-slate-700 bg-slate-200/90 font-bold">
                             {idx + 1}
                           </td>
 
                           {/* Shift Dropdown Menu */}
-                          <td className="p-0 min-w-[170px] bg-slate-900">
+                          <td className="p-0 min-w-[170px] bg-slate-100">
                             <select
                               value={row.shift}
                               onChange={e => updateShiftRow(row.id, { shift: e.target.value })}
-                              className="w-full h-8.5 bg-transparent border-0 outline-none focus:outline-none focus:ring-1 focus:ring-sky-400 px-2 text-sky-200 font-bold text-xs cursor-pointer"
+                              className="w-full h-9 bg-transparent border-0 outline-none focus:outline-none focus:ring-1 focus:ring-sky-600 focus:bg-white px-2 text-slate-900 font-bold text-xs cursor-pointer"
                             >
                               <option value="সারাদিন (Full Day)" className="bg-slate-900 text-white">সারাদিন (Full Day)</option>
                               <option value="সকল শিফট" className="bg-slate-900 text-white">সকল শিফট (All Shifts)</option>
@@ -1153,173 +1153,173 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
                           </td>
 
                           {/* Patients */}
-                          <td className="p-0 w-14 bg-slate-900">
+                          <td className="p-0 w-14 bg-slate-50">
                             <input
                               type="number"
                               min="0"
                               value={row.totalPatients || ''}
                               onChange={e => updateShiftRow(row.id, { totalPatients: parseInt(e.target.value) || 0 })}
-                              className="w-full h-8.5 bg-transparent border-0 outline-none focus:outline-none focus:ring-1 focus:ring-sky-400 px-1 text-slate-100 font-mono font-bold text-xs text-center select-all"
+                              className="w-full h-9 bg-transparent border-0 outline-none focus:outline-none focus:ring-1 focus:ring-sky-600 focus:bg-white px-1 text-slate-900 font-mono font-bold text-xs text-center select-all"
                               placeholder="0"
                             />
                           </td>
 
                           {/* Pathology */}
-                          <td className="p-0 min-w-[85px] bg-slate-900">
+                          <td className="p-0 min-w-[85px] bg-slate-50">
                             <input
                               type="number"
                               min="0"
                               value={row.pathology || ''}
                               onChange={e => updateShiftRow(row.id, { pathology: parseFloat(e.target.value) || 0 })}
-                              className="w-full h-8.5 bg-transparent border-0 outline-none focus:outline-none focus:ring-1 focus:ring-indigo-400 px-1.5 text-slate-100 font-mono font-bold text-xs text-right select-all"
+                              className="w-full h-9 bg-transparent border-0 outline-none focus:outline-none focus:ring-1 focus:ring-indigo-600 focus:bg-white px-1.5 text-slate-900 font-mono font-bold text-xs text-right select-all"
                               placeholder="0"
                             />
                           </td>
 
                           {/* USG */}
-                          <td className="p-0 min-w-[85px] bg-slate-900">
+                          <td className="p-0 min-w-[85px] bg-slate-50">
                             <input
                               type="number"
                               min="0"
                               value={row.usg || ''}
                               onChange={e => updateShiftRow(row.id, { usg: parseFloat(e.target.value) || 0 })}
-                              className="w-full h-8.5 bg-transparent border-0 outline-none focus:outline-none focus:ring-1 focus:ring-cyan-400 px-1.5 text-slate-100 font-mono font-bold text-xs text-right select-all"
+                              className="w-full h-9 bg-transparent border-0 outline-none focus:outline-none focus:ring-1 focus:ring-cyan-600 focus:bg-white px-1.5 text-slate-900 font-mono font-bold text-xs text-right select-all"
                               placeholder="0"
                             />
                           </td>
 
                           {/* X-Ray */}
-                          <td className="p-0 min-w-[80px] bg-slate-900">
+                          <td className="p-0 min-w-[80px] bg-slate-50">
                             <input
                               type="number"
                               min="0"
                               value={row.xray || ''}
                               onChange={e => updateShiftRow(row.id, { xray: parseFloat(e.target.value) || 0 })}
-                              className="w-full h-8.5 bg-transparent border-0 outline-none focus:outline-none focus:ring-1 focus:ring-amber-400 px-1.5 text-slate-100 font-mono font-bold text-xs text-right select-all"
+                              className="w-full h-9 bg-transparent border-0 outline-none focus:outline-none focus:ring-1 focus:ring-amber-600 focus:bg-white px-1.5 text-slate-900 font-mono font-bold text-xs text-right select-all"
                               placeholder="0"
                             />
                           </td>
 
                           {/* ECG */}
-                          <td className="p-0 min-w-[75px] bg-slate-900">
+                          <td className="p-0 min-w-[75px] bg-slate-50">
                             <input
                               type="number"
                               min="0"
                               value={row.ecg || ''}
                               onChange={e => updateShiftRow(row.id, { ecg: parseFloat(e.target.value) || 0 })}
-                              className="w-full h-8.5 bg-transparent border-0 outline-none focus:outline-none focus:ring-1 focus:ring-rose-400 px-1.5 text-slate-100 font-mono font-bold text-xs text-right select-all"
+                              className="w-full h-9 bg-transparent border-0 outline-none focus:outline-none focus:ring-1 focus:ring-rose-600 focus:bg-white px-1.5 text-slate-900 font-mono font-bold text-xs text-right select-all"
                               placeholder="0"
                             />
                           </td>
 
                           {/* Hormone & Others */}
-                          <td className="p-0 min-w-[85px] bg-slate-900">
+                          <td className="p-0 min-w-[85px] bg-slate-50">
                             <input
                               type="number"
                               min="0"
                               value={(row.hormone || row.others) || ''}
                               onChange={e => updateShiftRow(row.id, { others: parseFloat(e.target.value) || 0 })}
-                              className="w-full h-8.5 bg-transparent border-0 outline-none focus:outline-none focus:ring-1 focus:ring-purple-400 px-1.5 text-slate-100 font-mono font-bold text-xs text-right select-all"
+                              className="w-full h-9 bg-transparent border-0 outline-none focus:outline-none focus:ring-1 focus:ring-purple-600 focus:bg-white px-1.5 text-slate-900 font-mono font-bold text-xs text-right select-all"
                               placeholder="0"
                             />
                           </td>
 
                           {/* Gross Amount */}
-                          <td className="p-0 min-w-[90px] bg-slate-900 font-black">
+                          <td className="p-0 min-w-[90px] bg-slate-200/70 font-black">
                             <input
                               type="number"
                               min="0"
                               value={row.grossAmount || ''}
                               onChange={e => updateShiftRow(row.id, { grossAmount: parseFloat(e.target.value) || 0 })}
-                              className="w-full h-8.5 bg-transparent border-0 outline-none focus:outline-none focus:ring-1 focus:ring-sky-400 px-1.5 text-white font-mono font-black text-xs text-right select-all"
+                              className="w-full h-9 bg-transparent border-0 outline-none focus:outline-none focus:ring-1 focus:ring-sky-600 focus:bg-white px-1.5 text-slate-950 font-mono font-black text-xs text-right select-all"
                               placeholder="0"
                             />
                           </td>
 
                           {/* Discount */}
-                          <td className="p-0 min-w-[75px] bg-slate-900">
+                          <td className="p-0 min-w-[75px] bg-slate-50">
                             <input
                               type="number"
                               min="0"
                               value={row.discountAmount || ''}
                               onChange={e => updateShiftRow(row.id, { discountAmount: parseFloat(e.target.value) || 0 })}
-                              className="w-full h-8.5 bg-transparent border-0 outline-none focus:outline-none focus:ring-1 focus:ring-rose-400 px-1.5 text-rose-300 font-mono font-bold text-xs text-right select-all"
+                              className="w-full h-9 bg-transparent border-0 outline-none focus:outline-none focus:ring-1 focus:ring-rose-600 focus:bg-white px-1.5 text-rose-700 font-mono font-bold text-xs text-right select-all"
                               placeholder="0"
                             />
                           </td>
 
                           {/* Net Payable (Auto) */}
-                          <td className="px-2 py-1 min-w-[85px] text-right font-mono font-bold text-slate-100 bg-slate-950/50">
+                          <td className="px-2 py-1 min-w-[85px] text-right font-mono font-black text-slate-900 bg-slate-200/80">
                             ৳{(Number(row.netPayable) || 0).toLocaleString()}
                           </td>
 
                           {/* Cash Collected (Key Excel Cell) */}
-                          <td className="p-0 min-w-[100px] bg-emerald-950/30">
+                          <td className="p-0 min-w-[100px] bg-emerald-50">
                             <input
                               type="number"
                               min="0"
                               value={row.cashCollected !== undefined && row.cashCollected !== null ? row.cashCollected : ''}
                               onChange={e => updateShiftRow(row.id, { cashCollected: parseFloat(e.target.value) || 0 })}
-                              className="w-full h-8.5 bg-transparent border-0 outline-none focus:outline-none focus:ring-1 focus:ring-emerald-400 px-2 text-emerald-300 font-mono font-black text-xs text-right select-all"
+                              className="w-full h-9 bg-transparent border-0 outline-none focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:bg-white px-2 text-emerald-900 font-mono font-black text-xs text-right select-all"
                               placeholder="0"
                             />
                           </td>
 
                           {/* Due Amount (Auto) */}
-                          <td className="px-2 py-1 min-w-[80px] text-right font-mono bg-slate-900">
+                          <td className="px-2 py-1 min-w-[80px] text-right font-mono bg-amber-50/70">
                             {(Number(row.dueAmount) || 0) > 0 ? (
-                              <span className="text-amber-400 font-bold">৳{(Number(row.dueAmount) || 0).toLocaleString()}</span>
+                              <span className="text-amber-800 font-black">৳{(Number(row.dueAmount) || 0).toLocaleString()}</span>
                             ) : (
-                              <span className="text-slate-500">৳0</span>
+                              <span className="text-slate-400 font-normal">৳0</span>
                             )}
                           </td>
 
                           {/* Doctor PC */}
-                          <td className="p-0 min-w-[85px] bg-slate-900">
+                          <td className="p-0 min-w-[85px] bg-slate-50">
                             <input
                               type="number"
                               min="0"
                               value={row.doctorCommissionPaid || ''}
                               onChange={e => updateShiftRow(row.id, { doctorCommissionPaid: parseFloat(e.target.value) || 0 })}
-                              className="w-full h-8.5 bg-transparent border-0 outline-none focus:outline-none focus:ring-1 focus:ring-amber-400 px-1.5 text-amber-300 font-mono font-bold text-xs text-right select-all"
+                              className="w-full h-9 bg-transparent border-0 outline-none focus:outline-none focus:ring-1 focus:ring-amber-600 focus:bg-white px-1.5 text-amber-900 font-mono font-bold text-xs text-right select-all"
                               placeholder="0"
                             />
                           </td>
 
                           {/* USG Doctor Fee */}
-                          <td className="p-0 min-w-[85px] bg-slate-900">
+                          <td className="p-0 min-w-[85px] bg-slate-50">
                             <input
                               type="number"
                               min="0"
                               value={row.usgDoctorFeePaid || ''}
                               onChange={e => updateShiftRow(row.id, { usgDoctorFeePaid: parseFloat(e.target.value) || 0 })}
-                              className="w-full h-8.5 bg-transparent border-0 outline-none focus:outline-none focus:ring-1 focus:ring-amber-400 px-1.5 text-amber-300 font-mono font-bold text-xs text-right select-all"
+                              className="w-full h-9 bg-transparent border-0 outline-none focus:outline-none focus:ring-1 focus:ring-amber-600 focus:bg-white px-1.5 text-amber-900 font-mono font-bold text-xs text-right select-all"
                               placeholder="0"
                             />
                           </td>
 
                           {/* Net Center Cash In Hand */}
-                          <td className="px-2 py-1 min-w-[95px] text-right font-mono font-bold text-emerald-300 bg-slate-950/60">
+                          <td className="px-2 py-1 min-w-[95px] text-right font-mono font-black text-emerald-950 bg-emerald-100/90">
                             ৳{rowNetCash.toLocaleString()}
                           </td>
 
                           {/* Notes */}
-                          <td className="p-0 min-w-[110px] bg-slate-900">
+                          <td className="p-0 min-w-[110px] bg-slate-50">
                             <input
                               type="text"
                               value={row.notes || ''}
                               onChange={e => updateShiftRow(row.id, { notes: e.target.value })}
-                              className="w-full h-8.5 bg-transparent border-0 outline-none focus:outline-none focus:ring-1 focus:ring-sky-400 px-2 text-slate-200 text-xs"
+                              className="w-full h-9 bg-transparent border-0 outline-none focus:outline-none focus:ring-1 focus:ring-sky-600 focus:bg-white px-2 text-slate-900 font-medium text-xs"
                               placeholder="নোট..."
                             />
                           </td>
 
                           {/* Remove Row Button */}
-                          <td className="p-1 text-center w-10 bg-slate-900">
+                          <td className="p-1 text-center w-10 bg-slate-100">
                             <button
                               type="button"
                               onClick={() => handleRemoveShiftRow(row.id)}
-                              className="p-1 text-slate-500 hover:text-rose-400 hover:bg-rose-950/40 rounded transition-all cursor-pointer"
+                              className="p-1 text-slate-400 hover:text-rose-700 hover:bg-rose-100 rounded transition-all cursor-pointer font-black"
                               title="লাইনটি মুছুন"
                             >
                               ✕
