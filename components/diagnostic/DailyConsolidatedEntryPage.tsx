@@ -21,13 +21,26 @@ export const BENGALI_MONTHS = [
 
 export const AVAILABLE_YEARS = [2024, 2025, 2026, 2027, 2028, 2029, 2030];
 
-interface DailyConsolidatedEntryPageProps {
-  onBack?: () => void;
-  performBlockingSync?: (stateOverride?: any) => Promise<boolean>;
-  currentUserEmail?: string;
-  onPostToAccounts?: (entry: DailyConsolidatedEntry) => void;
-  consolidatedLabEntries?: DailyConsolidatedEntry[];
-  setConsolidatedLabEntries?: React.Dispatch<React.SetStateAction<DailyConsolidatedEntry[]>>;
+interface ShiftRowItem {
+  id: string;
+  isExistingRecord?: boolean;
+  shift: string;
+  operatorName: string;
+  totalPatients: number;
+  pathology: number;
+  usg: number;
+  xray: number;
+  ecg: number;
+  hormone: number;
+  others: number;
+  grossAmount: number;
+  discountAmount: number;
+  netPayable: number;
+  cashCollected: number;
+  dueAmount: number;
+  doctorCommissionPaid: number;
+  usgDoctorFeePaid: number;
+  notes: string;
 }
 
 export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProps> = ({
@@ -62,8 +75,37 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
 
   // Entry Mode: 'daily' (দিনভিত্তিক) or 'monthly' (মাসভিত্তিক একবারে)
   const [entryMode, setEntryMode] = useState<'daily' | 'monthly'>('daily');
+  const [selectedDate, setSelectedDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
   const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth());
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
+  const [defaultOperator, setDefaultOperator] = useState<string>(currentUserEmail || 'Cashier');
+
+  // Excel Sheet multi-shift row generator
+  const createDefaultShiftRow = (shiftName = 'সারাদিন (Full Day)', op = 'Cashier'): ShiftRowItem => ({
+    id: 'ROW-' + Math.random().toString(36).substring(2, 9),
+    shift: shiftName,
+    operatorName: op,
+    totalPatients: 0,
+    pathology: 0,
+    usg: 0,
+    xray: 0,
+    ecg: 0,
+    hormone: 0,
+    others: 0,
+    grossAmount: 0,
+    discountAmount: 0,
+    netPayable: 0,
+    cashCollected: 0,
+    dueAmount: 0,
+    doctorCommissionPaid: 0,
+    usgDoctorFeePaid: 0,
+    notes: ''
+  });
+
+  // Shift rows for Excel-style multi-line entry (Default to 1 'সারাদিন' row)
+  const [shiftRows, setShiftRows] = useState<ShiftRowItem[]>([
+    createDefaultShiftRow('সারাদিন (Full Day)', currentUserEmail || 'Cashier')
+  ]);
 
   // Live History filters on entry tab
   const [liveSearchQuery, setLiveSearchQuery] = useState('');
@@ -78,65 +120,6 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
   const [historyYearFilter, setHistoryYearFilter] = useState<string>('all');
   const [historyDueFilter, setHistoryDueFilter] = useState<'all' | 'due' | 'paid'>('all');
 
-  // Handle start editing an existing consolidated entry
-  const handleStartEdit = (row: DailyConsolidatedEntry) => {
-    setActiveSubTab('new_entry');
-    setEditingRecordId(row.id);
-    const isMonthly = row.entryType === 'monthly' || row.shift === 'Monthly';
-    setEntryMode(isMonthly ? 'monthly' : 'daily');
-    if (isMonthly) {
-      const m = row.month !== undefined ? row.month : (row.date ? parseInt(row.date.split('-')[1]) - 1 : new Date().getMonth());
-      const y = row.year !== undefined ? row.year : (row.date ? parseInt(row.date.split('-')[0]) : new Date().getFullYear());
-      setSelectedMonth(m);
-      setSelectedYear(y);
-    }
-    setFormData({
-      date: row.date || new Date().toISOString().split('T')[0],
-      shift: row.shift || 'Full Day',
-      entryType: row.entryType || (isMonthly ? 'monthly' : 'daily'),
-      entryTime: row.entryTime || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      operatorName: row.operatorName || currentUserEmail || 'Cashier',
-      totalPatients: row.totalPatients || 0,
-      totalTests: row.totalTests || 0,
-      grossAmount: row.grossAmount || 0,
-      discountAmount: row.discountAmount || 0,
-      netPayable: row.netPayable || 0,
-      cashCollected: row.cashCollected || 0,
-      dueAmount: row.dueAmount || 0,
-      doctorCommissionPaid: row.doctorCommissionPaid || 0,
-      usgDoctorFeePaid: row.usgDoctorFeePaid || 0,
-      breakdown: row.breakdown || { pathology: 0, usg: 0, xray: 0, ecg: 0, hormone: 0, others: 0 },
-      notes: row.notes || ''
-    });
-    try {
-      if (typeof window !== 'undefined') {
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-      }
-    } catch {}
-  };
-
-  const handleCancelEdit = () => {
-    setEditingRecordId(null);
-    setFormData({
-      date: new Date().toISOString().split('T')[0],
-      shift: 'Full Day',
-      entryType: 'daily',
-      entryTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      operatorName: currentUserEmail || 'Cashier',
-      totalPatients: 0,
-      totalTests: 0,
-      grossAmount: 0,
-      discountAmount: 0,
-      netPayable: 0,
-      cashCollected: 0,
-      dueAmount: 0,
-      doctorCommissionPaid: 0,
-      usgDoctorFeePaid: 0,
-      breakdown: { pathology: 0, usg: 0, xray: 0, ecg: 0, hormone: 0, others: 0 },
-      notes: ''
-    });
-  };
-
   // Sync entries if parent prop updates without losing local entries
   useEffect(() => {
     const local = dbService.getConsolidatedEntries();
@@ -148,78 +131,135 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
     }
   }, [consolidatedLabEntries]);
 
-  // Form State
-  const [formData, setFormData] = useState<Partial<DailyConsolidatedEntry>>({
-    date: new Date().toISOString().split('T')[0],
-    shift: 'Full Day',
-    entryType: 'daily',
-    entryTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    operatorName: currentUserEmail || 'Cashier',
-    totalPatients: 0,
-    totalTests: 0,
-    grossAmount: 0,
-    discountAmount: 0,
-    netPayable: 0,
-    cashCollected: 0,
-    dueAmount: 0,
-    doctorCommissionPaid: 0,
-    usgDoctorFeePaid: 0,
-    breakdown: {
-      pathology: 0,
-      usg: 0,
-      xray: 0,
-      ecg: 0,
-      hormone: 0,
-      others: 0
-    },
-    notes: ''
-  });
-
-  const [useDepartmentBreakdown, setUseDepartmentBreakdown] = useState(true);
-
   // Load existing entries
   useEffect(() => {
     setEntries(dbService.getConsolidatedEntries());
     setClinicProfile(dbService.getClinicProfile());
   }, []);
 
-  // Handle switching between Daily and Monthly entry modes
-  const handleModeChange = (mode: 'daily' | 'monthly') => {
-    setEntryMode(mode);
-    if (mode === 'monthly') {
-      const monthStr = String(selectedMonth + 1).padStart(2, '0');
-      setFormData(prev => ({
-        ...prev,
-        entryType: 'monthly',
-        date: `${selectedYear}-${monthStr}-01`,
-        shift: 'Monthly',
-        month: selectedMonth,
-        year: selectedYear,
-      }));
+  // Update a specific cell / field in the shift rows with instant live calculation
+  const updateShiftRow = (rowId: string, updates: Partial<ShiftRowItem>) => {
+    setShiftRows(prev => prev.map(r => {
+      if (r.id !== rowId) return r;
+      const merged = { ...r, ...updates };
+
+      // If any department breakdown was edited, recompute gross
+      if ('pathology' in updates || 'usg' in updates || 'xray' in updates || 'ecg' in updates || 'hormone' in updates || 'others' in updates) {
+        const bGross = (Number(merged.pathology) || 0) + 
+                       (Number(merged.usg) || 0) + 
+                       (Number(merged.xray) || 0) + 
+                       (Number(merged.ecg) || 0) + 
+                       (Number(merged.hormone) || 0) + 
+                       (Number(merged.others) || 0);
+        if (bGross > 0 || !('grossAmount' in updates)) {
+          merged.grossAmount = bGross;
+        }
+      }
+
+      const gross = Number(merged.grossAmount) || 0;
+      const discount = Number(merged.discountAmount) || 0;
+      const net = Math.max(0, gross - discount);
+      merged.netPayable = net;
+
+      // If user did not manually specify cash, default cashCollected to netPayable
+      if (!('cashCollected' in updates) && (r.cashCollected === 0 || r.cashCollected === r.netPayable)) {
+        merged.cashCollected = net;
+        merged.dueAmount = 0;
+      } else {
+        const cash = Number(merged.cashCollected) || 0;
+        merged.dueAmount = Math.max(0, net - cash);
+      }
+
+      return merged;
+    }));
+  };
+
+  // Add new line in Excel spreadsheet
+  const handleAddShiftRow = () => {
+    const shiftOptions = ['সকাল (Morning)', 'বিকাল (Afternoon)', 'সন্ধ্যা (Evening)', 'রাত (Night)', 'জরুরি (Emergency)', 'শিফট-১', 'শিফট-২'];
+    const nextShift = shiftOptions[shiftRows.length - 1] || `শিফট #${shiftRows.length + 1}`;
+    setShiftRows(prev => [...prev, createDefaultShiftRow(nextShift, defaultOperator)]);
+  };
+
+  // Remove a line from Excel spreadsheet
+  const handleRemoveShiftRow = (rowId: string) => {
+    if (shiftRows.length <= 1) {
+      setShiftRows([createDefaultShiftRow(entryMode === 'monthly' ? 'মাসিক এককালীন (Monthly)' : 'সারাদিন (Full Day)', defaultOperator)]);
+      return;
+    }
+    setShiftRows(prev => prev.filter(r => r.id !== rowId));
+  };
+
+  // Reset spreadsheet
+  const handleResetSheet = () => {
+    setEditingRecordId(null);
+    if (entryMode === 'monthly') {
+      setShiftRows([createDefaultShiftRow('মাসিক এককালীন (Monthly)', defaultOperator)]);
     } else {
-      setFormData(prev => ({
-        ...prev,
-        entryType: 'daily',
-        date: new Date().toISOString().split('T')[0],
-        shift: 'Full Day',
-        month: undefined,
-        year: undefined,
-      }));
+      setShiftRows([
+        createDefaultShiftRow('সারাদিন (Full Day)', defaultOperator)
+      ]);
     }
   };
 
-  const handleMonthYearChange = (m: number, y: number) => {
-    setSelectedMonth(m);
-    setSelectedYear(y);
-    const monthStr = String(m + 1).padStart(2, '0');
-    setFormData(prev => ({
-      ...prev,
-      date: `${y}-${monthStr}-01`,
-      entryType: 'monthly',
-      shift: 'Monthly',
-      month: m,
-      year: y,
-    }));
+  // Handle Mode Change (Daily vs Monthly)
+  const handleModeChange = (mode: 'daily' | 'monthly') => {
+    setEntryMode(mode);
+    setEditingRecordId(null);
+    if (mode === 'monthly') {
+      setShiftRows([createDefaultShiftRow('মাসিক এককালীন (Monthly)', defaultOperator)]);
+    } else {
+      setShiftRows([
+        createDefaultShiftRow('সারাদিন (Full Day)', defaultOperator)
+      ]);
+    }
+  };
+
+  // Handle start editing an existing consolidated entry
+  const handleStartEdit = (row: DailyConsolidatedEntry) => {
+    setActiveSubTab('new_entry');
+    setEditingRecordId(row.id);
+    const isMonthly = row.entryType === 'monthly' || row.shift === 'Monthly';
+    setEntryMode(isMonthly ? 'monthly' : 'daily');
+    if (isMonthly) {
+      const m = row.month !== undefined ? row.month : (row.date ? parseInt(row.date.split('-')[1]) - 1 : new Date().getMonth());
+      const y = row.year !== undefined ? row.year : (row.date ? parseInt(row.date.split('-')[0]) : new Date().getFullYear());
+      setSelectedMonth(m);
+      setSelectedYear(y);
+    } else {
+      setSelectedDate(row.date || new Date().toISOString().split('T')[0]);
+    }
+    setDefaultOperator(row.operatorName || currentUserEmail || 'Cashier');
+
+    const b = row.breakdown || { pathology: 0, usg: 0, xray: 0, ecg: 0, hormone: 0, others: 0 };
+    const editRowItem: ShiftRowItem = {
+      id: row.id,
+      isExistingRecord: true,
+      shift: row.shift || (isMonthly ? 'মাসিক এককালীন' : 'সারাদিন'),
+      operatorName: row.operatorName || currentUserEmail || 'Cashier',
+      totalPatients: row.totalPatients || 0,
+      pathology: Number(b.pathology) || 0,
+      usg: Number(b.usg) || 0,
+      xray: Number(b.xray) || 0,
+      ecg: Number(b.ecg) || 0,
+      hormone: Number(b.hormone) || 0,
+      others: Number(b.others) || 0,
+      grossAmount: Number(row.grossAmount) || 0,
+      discountAmount: Number(row.discountAmount) || 0,
+      netPayable: Number(row.netPayable) || 0,
+      cashCollected: Number(row.cashCollected) || 0,
+      dueAmount: Number(row.dueAmount) || 0,
+      doctorCommissionPaid: Number(row.doctorCommissionPaid) || 0,
+      usgDoctorFeePaid: Number(row.usgDoctorFeePaid) || 0,
+      notes: row.notes || ''
+    };
+
+    setShiftRows([editRowItem]);
+    try {
+      if (typeof window !== 'undefined') {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    } catch {}
   };
 
   // Show temporary success banner
@@ -228,192 +268,159 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
     setTimeout(() => setSuccessMsg(null), 3500);
   };
 
-  // Live Calculations
-  const breakdownSum = useMemo(() => {
-    const b = formData.breakdown || { pathology: 0, usg: 0, xray: 0, ecg: 0, hormone: 0, others: 0 };
-    return (Number(b.pathology) || 0) + 
-           (Number(b.usg) || 0) + 
-           (Number(b.xray) || 0) + 
-           (Number(b.ecg) || 0) + 
-           (Number(b.hormone) || 0) + 
-           (Number(b.others) || 0);
-  }, [formData.breakdown]);
+  // Live Calculations across all spreadsheet shift rows (Grand Totals)
+  const shiftSheetTotals = useMemo(() => {
+    return shiftRows.reduce((acc, r) => {
+      acc.patients += Number(r.totalPatients) || 0;
+      acc.pathology += Number(r.pathology) || 0;
+      acc.usg += Number(r.usg) || 0;
+      acc.xray += Number(r.xray) || 0;
+      acc.ecg += Number(r.ecg) || 0;
+      acc.hormone += Number(r.hormone) || 0;
+      acc.others += Number(r.others) || 0;
+      acc.gross += Number(r.grossAmount) || 0;
+      acc.discount += Number(r.discountAmount) || 0;
+      acc.net += Number(r.netPayable) || 0;
+      acc.cash += Number(r.cashCollected) || 0;
+      acc.due += Number(r.dueAmount) || 0;
+      acc.doctorPC += Number(r.doctorCommissionPaid) || 0;
+      acc.usgFee += Number(r.usgDoctorFeePaid) || 0;
+      acc.centerNet += (Number(r.cashCollected) || 0) - (Number(r.doctorCommissionPaid) || 0) - (Number(r.usgDoctorFeePaid) || 0);
+      return acc;
+    }, {
+      patients: 0,
+      pathology: 0,
+      usg: 0,
+      xray: 0,
+      ecg: 0,
+      hormone: 0,
+      others: 0,
+      gross: 0,
+      discount: 0,
+      net: 0,
+      cash: 0,
+      due: 0,
+      doctorPC: 0,
+      usgFee: 0,
+      centerNet: 0,
+    });
+  }, [shiftRows]);
 
-  // When breakdown sum changes and useDepartmentBreakdown is on, auto-update gross
-  useEffect(() => {
-    if (useDepartmentBreakdown && breakdownSum > 0) {
-      setFormData(prev => {
-        const gross = breakdownSum;
-        const discount = Number(prev.discountAmount) || 0;
-        const net = Math.max(0, gross - discount);
-        const cash = prev.cashCollected !== undefined && prev.cashCollected !== 0 ? Number(prev.cashCollected) : net;
-        const due = Math.max(0, net - cash);
-        return {
-          ...prev,
-          grossAmount: gross,
-          netPayable: net,
-          cashCollected: cash,
-          dueAmount: due
-        };
-      });
-    }
-  }, [breakdownSum, useDepartmentBreakdown]);
-
-  // Recalculate Net & Due on direct field changes
-  const handleGrossOrDiscountChange = (gross: number, discount: number, cash?: number) => {
-    const g = Number(gross) || 0;
-    const d = Number(discount) || 0;
-    const net = Math.max(0, g - d);
-    const c = cash !== undefined ? Number(cash) : net;
-    const due = Math.max(0, net - c);
-    setFormData(prev => ({
-      ...prev,
-      grossAmount: g,
-      discountAmount: d,
-      netPayable: net,
-      cashCollected: c,
-      dueAmount: due
-    }));
-  };
-
-  const handleBreakdownField = (field: keyof NonNullable<DailyConsolidatedEntry['breakdown']>, val: number) => {
-    const updatedBreakdown = {
-      ...(formData.breakdown || { pathology: 0, usg: 0, xray: 0, ecg: 0, hormone: 0, others: 0 }),
-      [field]: val
-    };
-    const sum = Object.values(updatedBreakdown).reduce((acc, curr) => acc + (Number(curr) || 0), 0);
-    const discount = Number(formData.discountAmount) || 0;
-    const net = Math.max(0, sum - discount);
-    const cash = formData.cashCollected !== undefined && formData.cashCollected !== 0 ? Number(formData.cashCollected) : net;
-    const due = Math.max(0, net - cash);
-
-    setFormData(prev => ({
-      ...prev,
-      breakdown: updatedBreakdown,
-      grossAmount: sum,
-      netPayable: net,
-      cashCollected: cash,
-      dueAmount: due
-    }));
-  };
-
-  // Center net income calculation
-  const calculatedNetCenterIncome = useMemo(() => {
-    const cash = Number(formData.cashCollected) || 0;
-    const docPC = Number(formData.doctorCommissionPaid) || 0;
-    const usgFee = Number(formData.usgDoctorFeePaid) || 0;
-    return cash - docPC - usgFee;
-  }, [formData.cashCollected, formData.doctorCommissionPaid, formData.usgDoctorFeePaid]);
-
-  const handleSaveEntry = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // Save All Active Shifts from the Excel Spreadsheet
+  const handleSaveAllShifts = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     const isMonthly = entryMode === 'monthly';
 
     const computedDate = isMonthly
       ? `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-01`
-      : (formData.date || new Date().toISOString().split('T')[0]);
+      : selectedDate;
 
     if (!computedDate) {
       alert('অনুগ্রহ করে তারিখ বা মাস-বছর নির্বাচন করুন!');
       return;
     }
-    const gross = Number(formData.grossAmount) || 0;
-    if (gross <= 0) {
-      alert('মোট গ্রস বিল এর পরিমাণ ০ এর চেয়ে বেশি হতে হবে!');
+
+    // Filter rows that have meaningful entries
+    const activeRows = shiftRows.filter(r => 
+      (Number(r.grossAmount) || 0) > 0 || 
+      (Number(r.cashCollected) || 0) > 0 || 
+      (Number(r.totalPatients) || 0) > 0 ||
+      (Number(r.pathology) || 0) > 0 ||
+      (Number(r.usg) || 0) > 0 ||
+      (Number(r.xray) || 0) > 0 ||
+      (Number(r.ecg) || 0) > 0
+    );
+
+    if (activeRows.length === 0) {
+      alert('অনুগ্রহ করে অন্তত একটি শিফটের টেস্ট বা ক্যাশ কালেকশন ডাটা লিখুন!');
       return;
-    }
-
-    const discount = Number(formData.discountAmount) || 0;
-    const net = Number(formData.netPayable) || Math.max(0, gross - discount);
-    let cash = Number(formData.cashCollected) || 0;
-    let due = Number(formData.dueAmount) || 0;
-
-    if (cash === 0 && due === 0 && net > 0) {
-      cash = net;
-      due = 0;
-    } else if (cash > 0 && due === 0 && cash < net) {
-      due = net - cash;
     }
 
     setIsSaving(true);
     try {
       const monthBn = BENGALI_MONTHS[selectedMonth]?.bn || '';
-      const uniqueSuffix = Math.random().toString(36).substring(2, 7);
-      const generatedId = editingRecordId || ((isMonthly ? `MCE-${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}` : `DCE-${computedDate}`) + '-' + Date.now() + '-' + uniqueSuffix);
-      const newRecord: DailyConsolidatedEntry = {
-        id: generatedId,
-        date: computedDate,
-        shift: isMonthly ? 'Monthly' : ((formData.shift as any) || 'Full Day'),
-        entryType: isMonthly ? 'monthly' : 'daily',
-        month: isMonthly ? selectedMonth : (computedDate ? parseInt(computedDate.split('-')[1]) - 1 : new Date().getMonth()),
-        year: isMonthly ? selectedYear : (computedDate ? parseInt(computedDate.split('-')[0]) : new Date().getFullYear()),
-        entryTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        operatorName: formData.operatorName || currentUserEmail || 'Cashier',
-        totalPatients: Number(formData.totalPatients) || 0,
-        totalTests: Number(formData.totalTests) || 0,
-        grossAmount: gross,
-        discountAmount: discount,
-        netPayable: net,
-        cashCollected: cash,
-        dueAmount: due,
-        doctorCommissionPaid: Number(formData.doctorCommissionPaid) || 0,
-        usgDoctorFeePaid: Number(formData.usgDoctorFeePaid) || 0,
-        breakdown: formData.breakdown || { pathology: 0, usg: 0, xray: 0, ecg: 0, hormone: 0, others: 0 },
-        notes: formData.notes || (isMonthly ? `মাসিক এককালীন এন্ট্রি: ${monthBn} ${selectedYear}` : ''),
-        createdAt: new Date().toISOString()
-      };
+      const savedRecords: DailyConsolidatedEntry[] = [];
 
-      // 1. Direct database save according to January-July 2026 (ncd_state) vs August 2026+ (modular tables)
-      await dbService.saveConsolidatedEntryDirectly(newRecord);
-      
-      // 2. Immediately prepend to local state so UI updates instantaneously without any race condition
+      for (let i = 0; i < activeRows.length; i++) {
+        const r = activeRows[i];
+        const uniqueSuffix = Math.random().toString(36).substring(2, 7);
+        const shiftSlug = String(r.shift || 'shift').replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
+        const generatedId = (editingRecordId && activeRows.length === 1) 
+          ? editingRecordId 
+          : (r.isExistingRecord ? r.id : ((isMonthly ? `MCE-${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}` : `DCE-${computedDate}-${shiftSlug}`) + '-' + Date.now() + '-' + uniqueSuffix));
+
+        const gross = Number(r.grossAmount) || 0;
+        const discount = Number(r.discountAmount) || 0;
+        const net = Number(r.netPayable) || Math.max(0, gross - discount);
+        let cash = Number(r.cashCollected) || 0;
+        let due = Number(r.dueAmount) || 0;
+
+        if (cash === 0 && due === 0 && net > 0) {
+          cash = net;
+          due = 0;
+        } else if (cash > 0 && due === 0 && cash < net) {
+          due = net - cash;
+        }
+
+        const rec: DailyConsolidatedEntry = {
+          id: generatedId,
+          date: computedDate,
+          shift: isMonthly ? 'Monthly' : (r.shift || 'Full Day'),
+          entryType: isMonthly ? 'monthly' : 'daily',
+          month: isMonthly ? selectedMonth : (computedDate ? parseInt(computedDate.split('-')[1]) - 1 : new Date().getMonth()),
+          year: isMonthly ? selectedYear : (computedDate ? parseInt(computedDate.split('-')[0]) : new Date().getFullYear()),
+          entryTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          operatorName: r.operatorName || defaultOperator || currentUserEmail || 'Cashier',
+          totalPatients: Number(r.totalPatients) || 0,
+          totalTests: 0,
+          grossAmount: gross,
+          discountAmount: discount,
+          netPayable: net,
+          cashCollected: cash,
+          dueAmount: due,
+          doctorCommissionPaid: Number(r.doctorCommissionPaid) || 0,
+          usgDoctorFeePaid: Number(r.usgDoctorFeePaid) || 0,
+          breakdown: {
+            pathology: Number(r.pathology) || 0,
+            usg: Number(r.usg) || 0,
+            xray: Number(r.xray) || 0,
+            ecg: Number(r.ecg) || 0,
+            hormone: Number(r.hormone) || 0,
+            others: Number(r.others) || 0
+          },
+          notes: r.notes || (isMonthly ? `মাসিক এককালীন এন্ট্রি: ${monthBn} ${selectedYear}` : ''),
+          createdAt: new Date().toISOString()
+        };
+
+        await dbService.saveConsolidatedEntryDirectly(rec);
+        savedRecords.push(rec);
+      }
+
+      // Merge saved records into state
       const currentList = entries || [];
-      const updatedList = [newRecord, ...currentList.filter(e => String(e.id || (e as any)._id).trim() !== String(newRecord.id).trim())];
+      const savedIds = new Set(savedRecords.map(s => String(s.id).trim()));
+      const remaining = currentList.filter(e => !savedIds.has(String(e.id || (e as any)._id).trim()));
+      const updatedList = [...savedRecords, ...remaining];
+
       setEntries(updatedList);
       dbService.saveConsolidatedEntries(updatedList);
       if (setConsolidatedLabEntries) {
         setConsolidatedLabEntries(updatedList);
       }
-
-      // 3. Also trigger global state sync without blocking UI
       if (performBlockingSync) {
-        performBlockingSync({ consolidatedLabEntries: updatedList }).catch(err => console.warn("Global sync notice:", err));
+        performBlockingSync({ consolidatedLabEntries: updatedList }).catch(err => console.warn("Sync error:", err));
       }
 
-      triggerSuccess(isMonthly ? `মাসিক কনসোলিডেটেড ভাউচার (${monthBn} ${selectedYear}) সফলভাবে সংরক্ষিত হয়েছে!` : 'ডেইলি কনসোলিডেটেড ভাউচার সফলভাবে সংরক্ষিত হয়েছে!');
+      triggerSuccess(isMonthly ? `মাসিক কনসোলিডেটেড ভাউচার (${monthBn} ${selectedYear}) সফলভাবে সংরক্ষিত হয়েছে!` : `তারিখ ${computedDate} এর ${savedRecords.length}টি শিফটের ডাটা সফলভাবে সংরক্ষিত হয়েছে!`);
 
-      // Reset form & editing state
+      // Reset editing and sheet
       setEditingRecordId(null);
-      setFormData({
-        date: isMonthly ? `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-01` : computedDate,
-        shift: isMonthly ? 'Monthly' : 'Full Day',
-        entryType: isMonthly ? 'monthly' : 'daily',
-        month: isMonthly ? selectedMonth : undefined,
-        year: isMonthly ? selectedYear : undefined,
-        entryTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        operatorName: currentUserEmail || 'Cashier',
-        totalPatients: 0,
-        totalTests: 0,
-        grossAmount: 0,
-        discountAmount: 0,
-        netPayable: 0,
-        cashCollected: 0,
-        dueAmount: 0,
-        doctorCommissionPaid: 0,
-        usgDoctorFeePaid: 0,
-        breakdown: {
-          pathology: 0,
-          usg: 0,
-          xray: 0,
-          ecg: 0,
-          hormone: 0,
-          others: 0
-        },
-        notes: ''
-      });
+      handleResetSheet();
 
-      // Switch to prompt print
-      setPrintingEntry(newRecord);
+      // Print first saved record
+      if (savedRecords.length > 0) {
+        setPrintingEntry(savedRecords[0]);
+      }
     } catch (err) {
       console.error(err);
       alert('সংরক্ষণে ত্রুটি হয়েছে!');
@@ -841,68 +848,70 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
     win.document.close();
   };
 
-  const inputClass = "w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-white font-bold text-sm focus:border-sky-500 focus:ring-1 focus:ring-sky-500 outline-none transition-all";
-  const labelClass = "text-[11px] font-black text-slate-400 uppercase tracking-wider block mb-1.5";
+  const inputClass = "w-full bg-slate-950 border border-slate-700/80 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 rounded-xl px-2.5 py-1.5 text-white font-bold text-xs outline-none transition-all";
+  const labelClass = "text-[10.5px] font-bold text-slate-300 uppercase tracking-wide block mb-1 flex items-center gap-1";
 
   return (
     <div className="w-full h-full min-h-0 flex-1 bg-slate-950 text-slate-100 flex flex-col font-sans overflow-hidden">
       {/* Top Header */}
-      <header className="bg-slate-900 border-b border-slate-800 p-4 sm:p-5 flex flex-col md:flex-row justify-between items-center gap-4 shadow-xl no-print shrink-0">
-        <div className="flex items-center gap-4">
+      <header className="bg-slate-900/95 border-b border-slate-800 px-4 sm:px-6 py-2 flex flex-col sm:flex-row justify-between items-center gap-2 shadow-xl no-print shrink-0">
+        <div className="flex items-center gap-3">
           {onBack && (
-            <button onClick={onBack} className="p-2.5 sm:p-3 bg-slate-800 rounded-2xl hover:bg-slate-700 active:scale-95 transition-all text-white shadow-md">
-              <BackIcon className="w-5 h-5" />
+            <button onClick={onBack} className="p-2 bg-slate-800 hover:bg-slate-700 rounded-xl active:scale-95 transition-all text-white shadow-sm border border-slate-700">
+              <BackIcon className="w-4 h-4" />
             </button>
           )}
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded-full bg-emerald-500 animate-pulse"></span>
-              <h1 className="text-lg sm:text-xl md:text-2xl font-black uppercase tracking-tight text-white flex items-center gap-2">
-                <Layers className="text-sky-400" /> কনসোলিডেটেড ল্যাব ডাটা এন্ট্রি (Consolidated Lab Entry)
+          <div className="flex items-center gap-2.5">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse ring-4 ring-emerald-500/20"></span>
+            <div>
+              <h1 className="text-sm sm:text-base font-black uppercase tracking-tight text-white flex items-center gap-2">
+                <Layers className="text-sky-400" size={18} /> কনসোলিডেটেড ল্যাব ডাটা এন্ট্রি
               </h1>
+              <p className="text-[10.5px] text-slate-400 font-medium">
+                ব্যস্ত দিনের দিনভিত্তিক অথবা সারামাসের মোট হিসেব একবারে জমা ও একাউন্টস সমন্বয়
+              </p>
             </div>
-            <p className="text-xs text-slate-400 font-bold mt-0.5">
-              ব্যস্ত দিনে দিনভিত্তিক অথবা সারামাসের মোট হিসেব একবারে জমা দিন এবং একাউন্টসে স্বয়ংক্রিয়ভাবে সংযুক্ত করুন।
-            </p>
           </div>
         </div>
 
         {/* Sub Navigation */}
-        <div className="flex bg-slate-800 p-1 rounded-2xl border border-slate-700 shadow-inner">
-          <button
-            onClick={() => setActiveSubTab('new_entry')}
-            className={`px-4 sm:px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 ${
-              activeSubTab === 'new_entry' ? 'bg-sky-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <PlusIcon size={16} /> নতুন এন্ট্রি ভাউচার
-          </button>
-          <button
-            onClick={() => setActiveSubTab('history')}
-            className={`px-4 sm:px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 ${
-              activeSubTab === 'history' ? 'bg-sky-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <FileSpreadsheet size={16} /> ভাউচার হিস্ট্রি ({entries.length})
-          </button>
+        <div className="flex items-center gap-2">
+          <div className="flex bg-slate-950 p-1 rounded-2xl border border-slate-800 shadow-inner">
+            <button
+              onClick={() => setActiveSubTab('new_entry')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer ${
+                activeSubTab === 'new_entry' ? 'bg-gradient-to-r from-sky-600 to-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <PlusIcon size={13} /> নতুন এন্ট্রি
+            </button>
+            <button
+              onClick={() => setActiveSubTab('history')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer ${
+                activeSubTab === 'history' ? 'bg-gradient-to-r from-sky-600 to-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <FileSpreadsheet size={13} /> ভাউচার হিস্ট্রি ({entries.length})
+            </button>
+          </div>
         </div>
       </header>
 
       {/* Success Notification Modal */}
       {successMsg && (
         <div className="fixed inset-0 z-[100001] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in pointer-events-auto">
-          <div className="bg-slate-900 border-2 border-emerald-500 p-6 sm:p-8 rounded-3xl max-w-md w-full text-center shadow-2xl space-y-4">
-            <div className="w-16 h-16 bg-emerald-500/20 text-emerald-400 rounded-full flex items-center justify-center mx-auto text-3xl">
+          <div className="bg-slate-900 border-2 border-emerald-500 p-6 sm:p-7 rounded-3xl max-w-md w-full text-center shadow-2xl space-y-3.5">
+            <div className="w-14 h-14 bg-emerald-500/20 text-emerald-400 rounded-full flex items-center justify-center mx-auto text-2xl font-black ring-8 ring-emerald-500/10">
               ✓
             </div>
-            <h3 className="text-xl font-black text-white font-['Hind_Siliguri']">অপারেশন সম্পন্ন হয়েছে</h3>
-            <p className="text-sm font-bold text-emerald-300">
+            <h3 className="text-lg font-black text-white font-['Hind_Siliguri']">অপারেশন সম্পন্ন হয়েছে</h3>
+            <p className="text-xs font-bold text-emerald-300">
               {successMsg}
             </p>
             <button
               type="button"
               onClick={() => setSuccessMsg(null)}
-              className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-black rounded-2xl text-xs uppercase tracking-wider transition-all shadow-lg active:scale-95 cursor-pointer"
+              className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black rounded-xl text-xs uppercase tracking-wider transition-all shadow-lg active:scale-95 cursor-pointer"
             >
               ঠিক আছে (OK)
             </button>
@@ -910,418 +919,521 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
         </div>
       )}
 
-      {/* Main Content - Seamless width without gap */}
-      <main className="flex-1 p-3 sm:p-5 md:p-6 w-full overflow-y-auto">
+      {/* Main Content */}
+      <main className="flex-1 p-2 sm:p-3 md:p-4 w-full overflow-y-auto">
         {activeSubTab === 'new_entry' && (
-          <div className="space-y-6 w-full max-w-[98%] 2xl:max-w-[1800px] mx-auto animate-fade-in">
-            <form onSubmit={handleSaveEntry} className="space-y-6">
+          <div className="space-y-3.5 w-full max-w-[99%] 2xl:max-w-[1900px] mx-auto animate-fade-in">
             {/* Editing Notice Banner */}
             {editingRecordId && (
-              <div className="bg-amber-950/90 border-2 border-amber-500 text-amber-200 p-4 rounded-3xl flex items-center justify-between shadow-xl">
-                <div className="flex items-center gap-3">
-                  <span className="text-xl">✏️</span>
+              <div className="bg-gradient-to-r from-amber-950/90 via-amber-900/70 to-slate-900 border-2 border-amber-500/80 text-amber-200 px-4 py-2 rounded-xl flex items-center justify-between shadow-xl">
+                <div className="flex items-center gap-2.5">
+                  <span className="p-1 bg-amber-500 text-slate-950 rounded-md font-black text-xs">EDIT</span>
                   <span className="text-xs font-bold">
-                    আপনি বর্তমানে ভাউচার আইডি <span className="font-mono text-white font-black">{editingRecordId}</span> সম্পাদনা (Edit) করছেন। সেভ করলে এটি আপডেট হয়ে যাবে।
+                    আপনি ভাউচার আইডি <span className="font-mono text-white font-black underline">{editingRecordId}</span> সম্পাদনা (Edit) করছেন। পরিবর্তন শেষে সেভ করুন।
                   </span>
                 </div>
                 <button
                   type="button"
-                  onClick={handleCancelEdit}
-                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold"
+                  onClick={handleResetSheet}
+                  className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-amber-200 rounded-lg text-xs font-bold transition-all border border-amber-500/30 cursor-pointer shadow"
                 >
-                  বাতিল করুন
+                  ✕ বাতিল করুন (Cancel)
                 </button>
               </div>
             )}
 
-            {/* Entry Mode Switcher: Daily vs Monthly */}
-            <div className="bg-slate-900/90 border border-slate-800 p-4 sm:p-5 rounded-3xl shadow-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-              <div>
-                <h3 className="text-sm font-black text-white uppercase tracking-wider flex items-center gap-2">
-                  <Layers className="text-sky-400" size={18} /> এন্ট্রি মোড নির্বাচন (Entry Mode)
-                </h3>
-                <p className="text-xs text-slate-400 font-bold mt-0.5">
-                  প্রতিদিনের আলাদা দৈনিক ভাউচার এন্ট্রি অথবা সারামাসের মোট হিসেব একবারে জমা দেওয়ার জন্য মোড বেছে নিন
-                </p>
-              </div>
-              <div className="flex bg-slate-950 p-1.5 rounded-2xl border border-slate-800 self-stretch sm:self-auto">
-                <button
-                  type="button"
-                  onClick={() => handleModeChange('daily')}
-                  className={`flex-1 sm:flex-initial px-5 py-2.5 rounded-xl text-xs font-black uppercase transition-all flex items-center justify-center gap-2 ${
-                    entryMode === 'daily' ? 'bg-sky-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'
-                  }`}
-                >
-                  <Calendar size={15} /> দিন হিসেবে (Daily Entry)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleModeChange('monthly')}
-                  className={`flex-1 sm:flex-initial px-5 py-2.5 rounded-xl text-xs font-black uppercase transition-all flex items-center justify-center gap-2 ${
-                    entryMode === 'monthly' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'
-                  }`}
-                >
-                  <CalendarRange size={15} /> মাস হিসেবে একবারে (Monthly Entry)
-                </button>
-              </div>
-            </div>
+            {/* PLAIN EXCEL SPREADSHEET CARD */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl shadow-xl overflow-hidden">
+              {/* Card Top Toolbar */}
+              <div className="p-3 sm:px-4 bg-slate-950/90 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-2.5">
+                  {/* Mode Switcher */}
+                  <div className="flex bg-slate-900 p-0.5 rounded-xl border border-slate-800 shadow-inner">
+                    <button
+                      type="button"
+                      onClick={() => handleModeChange('daily')}
+                      className={`px-3 py-1 rounded-lg text-xs font-black uppercase transition-all flex items-center gap-1.5 cursor-pointer ${
+                        entryMode === 'daily'
+                          ? 'bg-gradient-to-r from-sky-600 to-blue-600 text-white shadow-md'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <Calendar size={12} /> দিনভিত্তিক শিফট এন্ট্রি
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleModeChange('monthly')}
+                      className={`px-3 py-1 rounded-lg text-xs font-black uppercase transition-all flex items-center gap-1.5 cursor-pointer ${
+                        entryMode === 'monthly'
+                          ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <CalendarRange size={12} /> মাসভিত্তিক এককালীন
+                    </button>
+                  </div>
 
-            {/* Top Config Row */}
-            <div className="bg-slate-900/90 border border-slate-800 p-5 sm:p-6 rounded-3xl shadow-xl grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-5">
-              {entryMode === 'daily' ? (
-                <>
-                  <div>
-                    <label className={labelClass}>📅 তারিখ (Voucher Date)</label>
+                  {/* Date or Month Picker */}
+                  {entryMode === 'daily' ? (
+                    <div className="flex items-center gap-1.5 bg-slate-900 border border-slate-700/80 rounded-xl px-2.5 py-1">
+                      <span className="text-slate-400 text-xs">📅 তারিখ:</span>
+                      <input
+                        type="date"
+                        value={selectedDate}
+                        onChange={e => setSelectedDate(e.target.value)}
+                        className="bg-transparent text-white font-mono font-bold text-xs outline-none cursor-pointer"
+                        required
+                      />
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1.5 bg-slate-900 border border-slate-700/80 rounded-xl px-2.5 py-1">
+                        <span className="text-slate-400 text-xs">🗓️ মাস:</span>
+                        <select
+                          value={selectedMonth}
+                          onChange={e => setSelectedMonth(parseInt(e.target.value))}
+                          className="bg-transparent text-white font-bold text-xs outline-none cursor-pointer"
+                        >
+                          {BENGALI_MONTHS.map(m => (
+                            <option key={m.value} value={m.value} className="bg-slate-900 text-white">{m.bn} ({m.en})</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 bg-slate-900 border border-slate-700/80 rounded-xl px-2.5 py-1">
+                        <span className="text-slate-400 text-xs">📅 সন:</span>
+                        <select
+                          value={selectedYear}
+                          onChange={e => setSelectedYear(parseInt(e.target.value))}
+                          className="bg-transparent text-white font-bold text-xs outline-none cursor-pointer"
+                        >
+                          {AVAILABLE_YEARS.map(y => (
+                            <option key={y} value={y} className="bg-slate-900 text-white">{y} সন</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Operator Name */}
+                  <div className="flex items-center gap-1.5 bg-slate-900 border border-slate-700/80 rounded-xl px-2.5 py-1">
+                    <span className="text-slate-400 text-xs">👤 অপারেটর:</span>
                     <input
-                      type="date"
-                      value={formData.date || ''}
-                      onChange={e => setFormData({ ...formData, date: e.target.value })}
-                      className={inputClass}
-                      required
+                      type="text"
+                      value={defaultOperator}
+                      onChange={e => setDefaultOperator(e.target.value)}
+                      placeholder="Cashier"
+                      className="bg-transparent text-white font-bold text-xs outline-none w-24 sm:w-28"
                     />
                   </div>
-
-                  <div>
-                    <label className={labelClass}>⏱️ শিফট / সেশন (Shift)</label>
-                    <select
-                      value={formData.shift || 'Full Day'}
-                      onChange={e => setFormData({ ...formData, shift: e.target.value as any })}
-                      className={inputClass}
-                    >
-                      <option value="Full Day">সারাদিন (Full Day)</option>
-                      <option value="Morning">সকাল শিফট (Morning)</option>
-                      <option value="Evening">সন্ধ্যা শিফট (Evening)</option>
-                      <option value="Night">রাত শিফট (Night)</option>
-                    </select>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div>
-                    <label className={labelClass}>🗓️ মাস নির্বাচন (Month)</label>
-                    <select
-                      value={selectedMonth}
-                      onChange={e => handleMonthYearChange(parseInt(e.target.value), selectedYear)}
-                      className={inputClass}
-                    >
-                      {BENGALI_MONTHS.map(m => (
-                        <option key={m.value} value={m.value}>{m.bn} ({m.en})</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className={labelClass}>📅 বৎসর নির্বাচন (Year)</label>
-                    <select
-                      value={selectedYear}
-                      onChange={e => handleMonthYearChange(selectedMonth, parseInt(e.target.value))}
-                      className={inputClass}
-                    >
-                      {AVAILABLE_YEARS.map(y => (
-                        <option key={y} value={y}>{y} সন</option>
-                      ))}
-                    </select>
-                  </div>
-                </>
-              )}
-
-              <div>
-                <label className={labelClass}>👤 ক্যাশিয়ার / অপারেটর (Operator)</label>
-                <input
-                  type="text"
-                  value={formData.operatorName || ''}
-                  onChange={e => setFormData({ ...formData, operatorName: e.target.value })}
-                  className={inputClass}
-                  placeholder="e.g. Cashier 1"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className={labelClass}>
-                  👥 {entryMode === 'monthly' ? 'সারামাসের মোট রোগী (Monthly Patients)' : 'মোট রোগী সংখ্যা (Patients)'}
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  value={formData.totalPatients !== undefined && formData.totalPatients !== null ? formData.totalPatients : ''}
-                  onChange={e => setFormData({ ...formData, totalPatients: parseInt(e.target.value) || 0 })}
-                  className={inputClass}
-                  placeholder="e.g. 45"
-                />
-              </div>
-            </div>
-
-            {/* Department Breakdown vs Direct Entry Toggle */}
-            <div className="bg-slate-900/90 border border-slate-800 p-5 sm:p-6 rounded-3xl shadow-xl space-y-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
-                <div>
-                  <h3 className="text-base font-black text-white uppercase tracking-wide flex items-center gap-2">
-                    <DollarSign className="text-emerald-400" size={20} /> ১. বিভাগভিত্তিক কালেকশন এন্ট্রি (Department Breakdown)
-                  </h3>
-                  <p className="text-xs text-slate-400 mt-0.5">
-                    প্রতিটি বিভাগের মোট বিল লিখুন। সিস্টেম স্বয়ংক্রিয়ভাবে গ্রস বিল ও নিট হিসেব তৈরি করবে।
-                  </p>
                 </div>
-                <div className="flex items-center gap-3 bg-slate-950 p-1.5 rounded-2xl border border-slate-800">
-                  <span className="text-xs font-bold text-slate-400 pl-2">বিভাগীয় ভাগ:</span>
+
+                {/* Top Action Buttons */}
+                <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => setUseDepartmentBreakdown(!useDepartmentBreakdown)}
-                    className={`px-4 py-1.5 rounded-xl text-xs font-black uppercase transition-all ${
-                      useDepartmentBreakdown ? 'bg-sky-600 text-white' : 'bg-slate-800 text-slate-400'
-                    }`}
+                    onClick={handleAddShiftRow}
+                    className="px-3 py-1.5 bg-sky-600/20 hover:bg-sky-600 text-sky-300 hover:text-white rounded-xl text-xs font-bold transition-all border border-sky-500/40 flex items-center gap-1 cursor-pointer active:scale-95"
+                    title="নতুন শিফট লাইন যোগ করুন"
                   >
-                    {useDepartmentBreakdown ? 'সক্রিয় (Active)' : 'সরাসরি গ্রস এন্ট্রি'}
+                    <PlusIcon size={13} /> + নতুন শিফট লাইন
                   </button>
-                </div>
-              </div>
 
-              {useDepartmentBreakdown ? (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4">
-                  <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800">
-                    <label className="text-[10px] font-black text-indigo-400 uppercase block mb-1">🧪 প্যাথলজি</label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={formData.breakdown?.pathology !== undefined && formData.breakdown?.pathology !== null ? formData.breakdown.pathology : ''}
-                      onChange={e => handleBreakdownField('pathology', parseFloat(e.target.value) || 0)}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white font-mono font-bold text-sm text-right outline-none"
-                      placeholder="0"
-                    />
-                  </div>
-
-                  <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800">
-                    <label className="text-[10px] font-black text-sky-400 uppercase block mb-1">🩺 ইউএসজি (USG)</label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={formData.breakdown?.usg !== undefined && formData.breakdown?.usg !== null ? formData.breakdown.usg : ''}
-                      onChange={e => handleBreakdownField('usg', parseFloat(e.target.value) || 0)}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white font-mono font-bold text-sm text-right outline-none"
-                      placeholder="0"
-                    />
-                  </div>
-
-                  <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800">
-                    <label className="text-[10px] font-black text-amber-400 uppercase block mb-1">☢️ এক্স-রে (X-Ray)</label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={formData.breakdown?.xray !== undefined && formData.breakdown?.xray !== null ? formData.breakdown.xray : ''}
-                      onChange={e => handleBreakdownField('xray', parseFloat(e.target.value) || 0)}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white font-mono font-bold text-sm text-right outline-none"
-                      placeholder="0"
-                    />
-                  </div>
-
-                  <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800">
-                    <label className="text-[10px] font-black text-rose-400 uppercase block mb-1">📈 ইসিজি (ECG)</label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={formData.breakdown?.ecg !== undefined && formData.breakdown?.ecg !== null ? formData.breakdown.ecg : ''}
-                      onChange={e => handleBreakdownField('ecg', parseFloat(e.target.value) || 0)}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white font-mono font-bold text-sm text-right outline-none"
-                      placeholder="0"
-                    />
-                  </div>
-
-                  <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800">
-                    <label className="text-[10px] font-black text-teal-400 uppercase block mb-1">🔬 হরমোন</label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={formData.breakdown?.hormone !== undefined && formData.breakdown?.hormone !== null ? formData.breakdown.hormone : ''}
-                      onChange={e => handleBreakdownField('hormone', parseFloat(e.target.value) || 0)}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white font-mono font-bold text-sm text-right outline-none"
-                      placeholder="0"
-                    />
-                  </div>
-
-                  <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800">
-                    <label className="text-[10px] font-black text-slate-400 uppercase block mb-1">📦 অন্যান্য টেস্ট</label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={formData.breakdown?.others !== undefined && formData.breakdown?.others !== null ? formData.breakdown.others : ''}
-                      onChange={e => handleBreakdownField('others', parseFloat(e.target.value) || 0)}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white font-mono font-bold text-sm text-right outline-none"
-                      placeholder="0"
-                    />
-                  </div>
-                </div>
-              ) : (
-                <div>
-                  <label className={labelClass}>সরাসরি মোট গ্রস বিল (Direct Gross Amount ৳)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={formData.grossAmount !== undefined && formData.grossAmount !== null ? formData.grossAmount : ''}
-                    onChange={e => handleGrossOrDiscountChange(parseFloat(e.target.value) || 0, Number(formData.discountAmount) || 0, Number(formData.cashCollected) || 0)}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white font-mono font-black text-lg outline-none"
-                    placeholder="0"
-                    required
-                  />
-                </div>
-              )}
-            </div>
-
-            {/* Financial Summary & Calculations Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Left Column: Adjustments & Doctor Commissions */}
-              <div className="bg-slate-900/90 border border-slate-800 p-5 sm:p-6 rounded-3xl shadow-xl space-y-5">
-                <h3 className="text-sm font-black text-white uppercase tracking-wide border-b border-slate-800 pb-3 flex items-center gap-2">
-                  <UserCheck className="text-sky-400" size={18} /> ২. নগদ আদায়, ছাড় ও কমিশন প্রদান
-                </h3>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className={labelClass}>🎁 মোট বিশেষ ছাড় (Total Discount ৳)</label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={formData.discountAmount !== undefined && formData.discountAmount !== null ? formData.discountAmount : ''}
-                      onChange={e => handleGrossOrDiscountChange(Number(formData.grossAmount) || 0, parseFloat(e.target.value) || 0, Number(formData.cashCollected) || 0)}
-                      className="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-rose-400 font-black text-base text-right outline-none"
-                      placeholder="0"
-                    />
-                  </div>
-
-                  <div>
-                    <label className={labelClass}>💵 মোট নগদ আদায় (Cash Collected ৳)</label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={formData.cashCollected !== undefined && formData.cashCollected !== null ? formData.cashCollected : ''}
-                      onChange={e => handleGrossOrDiscountChange(Number(formData.grossAmount) || 0, Number(formData.discountAmount) || 0, parseFloat(e.target.value) || 0)}
-                      className="w-full bg-slate-950 border-2 border-emerald-500/80 rounded-xl p-3 text-emerald-400 font-black text-lg text-right outline-none focus:ring-2 focus:ring-emerald-500/50"
-                      placeholder="0"
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-slate-800">
-                  <div>
-                    <label className={labelClass}>👨‍⚕️ ডাক্তার পিসি কমিশন প্রদান (Doctor PC ৳)</label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={formData.doctorCommissionPaid !== undefined && formData.doctorCommissionPaid !== null ? formData.doctorCommissionPaid : ''}
-                      onChange={e => setFormData({ ...formData, doctorCommissionPaid: parseFloat(e.target.value) || 0 })}
-                      className="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-amber-300 font-black text-sm text-right outline-none"
-                      placeholder="0"
-                    />
-                  </div>
-
-                  <div>
-                    <label className={labelClass}>🩺 ইউএসজি ডাক্তার অনারিয়াম ফি (USG Doctor ৳)</label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={formData.usgDoctorFeePaid !== undefined && formData.usgDoctorFeePaid !== null ? formData.usgDoctorFeePaid : ''}
-                      onChange={e => setFormData({ ...formData, usgDoctorFeePaid: parseFloat(e.target.value) || 0 })}
-                      className="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-amber-300 font-black text-sm text-right outline-none"
-                      placeholder="0"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className={labelClass}>📝 বিবরণী বা নোট (Remarks / Notes)</label>
-                  <textarea
-                    rows={2}
-                    value={formData.notes || ''}
-                    onChange={e => setFormData({ ...formData, notes: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-slate-200 text-xs font-bold outline-none"
-                    placeholder={entryMode === 'monthly' ? `মাসিক এককালীন এন্ট্রি: ${BENGALI_MONTHS[selectedMonth]?.bn} ${selectedYear}...` : "ব্যস্ত দিনের নোট বা অতিরিক্ত তথ্য লিখুন..."}
-                  />
-                </div>
-              </div>
-
-              {/* Right Column: Live Calculated Voucher Summary Card */}
-              <div className="bg-gradient-to-br from-slate-900 to-slate-950 border-2 border-sky-500/30 p-5 sm:p-6 rounded-3xl shadow-2xl flex flex-col justify-between space-y-6">
-                <div>
-                  <div className="flex justify-between items-center border-b border-slate-800 pb-3">
-                    <span className="text-xs font-black uppercase tracking-widest text-sky-400">লাইভ ভাউচার সামারি</span>
-                    <span className="text-[11px] font-mono text-slate-400">
-                      {entryMode === 'monthly'
-                        ? `🗓️ ${BENGALI_MONTHS[selectedMonth]?.bn} ${selectedYear} (সারামাস)`
-                        : `📅 ${formData.date} | ${formData.shift}`}
-                    </span>
-                  </div>
-
-                  <div className="space-y-3 mt-4 text-sm font-bold">
-                    <div className="flex justify-between items-center text-slate-300">
-                      <span>মোট গ্রস বিল (Gross Total):</span>
-                      <span className="font-mono text-base font-black text-white">৳{(Number(formData.grossAmount) || 0).toLocaleString()}</span>
-                    </div>
-
-                    <div className="flex justify-between items-center text-slate-300">
-                      <span>মোট ছাড় (Total Discount):</span>
-                      <span className="font-mono text-rose-400 font-black">-৳{(Number(formData.discountAmount) || 0).toLocaleString()}</span>
-                    </div>
-
-                    <div className="flex justify-between items-center text-slate-100 border-t border-slate-800 pt-2 text-base">
-                      <span>নিট প্রদেয় বিল (Net Payable):</span>
-                      <span className="font-mono text-sky-300 font-black">৳{(Number(formData.netPayable) || 0).toLocaleString()}</span>
-                    </div>
-
-                    <div className="flex justify-between items-center text-emerald-400 bg-emerald-950/40 p-2.5 rounded-xl border border-emerald-500/30">
-                      <span>মোট নগদ ক্যাশ আদায় (Cash In):</span>
-                      <span className="font-mono text-lg font-black">৳{(Number(formData.cashCollected) || 0).toLocaleString()}</span>
-                    </div>
-
-                    <div className="flex justify-between items-center text-amber-400">
-                      <span>মোট বকেয়া / বাকি (Due Balance):</span>
-                      <span className="font-mono text-base font-black">৳{(Number(formData.dueAmount) || 0).toLocaleString()}</span>
-                    </div>
-
-                    <div className="flex justify-between items-center text-slate-400 text-xs border-t border-slate-800 pt-2">
-                      <span>মোট ডাক্তার কমিশন ও অনারিয়াম ফি:</span>
-                      <span className="font-mono text-rose-300">-৳{((Number(formData.doctorCommissionPaid) || 0) + (Number(formData.usgDoctorFeePaid) || 0)).toLocaleString()}</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Net Income Callout */}
-                <div className="bg-slate-950 p-4 rounded-2xl border border-emerald-500/50 flex items-center justify-between shadow-inner">
-                  <div>
-                    <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider block">
-                      {entryMode === 'monthly' ? 'সারামাসের ক্লিনিকের নিট ক্যাশ জমা' : 'ক্লিনিকের দিন শেষের নিট ক্যাশ জমা'}
-                    </span>
-                    <span className="text-xs text-emerald-400 font-bold">(ক্যাশ আদায় - কমিশন)</span>
-                  </div>
-                  <span className="text-2xl font-black text-emerald-400 font-mono">
-                    ৳{(Number(calculatedNetCenterIncome) || 0).toLocaleString()}
-                  </span>
-                </div>
-
-                {/* Submit Buttons */}
-                <div className="flex gap-4 pt-2">
                   <button
-                    type="submit"
-                    disabled={isSaving}
-                    className="flex-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 active:scale-95 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl flex items-center justify-center gap-2 transition-all cursor-pointer"
+                    type="button"
+                    onClick={handleResetSheet}
+                    className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold transition-all border border-slate-700 cursor-pointer"
+                    title="সম্পূর্ণ শিট ক্লিয়ার করুন"
                   >
-                    <Save size={18} /> {isSaving ? 'সংরক্ষণ হচ্ছে...' : (entryMode === 'monthly' ? `মাসিক ভাউচার (${BENGALI_MONTHS[selectedMonth]?.bn} ${selectedYear}) সেভ ও প্রিন্ট করুন` : 'ভাউচার সেভ করুন ও স্লিপ প্রিন্ট করুন')}
+                    🔄 ক্লিয়ার
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleSaveAllShifts()}
+                    disabled={isSaving}
+                    className="px-4 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-lg flex items-center gap-1.5 transition-all cursor-pointer active:scale-95"
+                  >
+                    <Save size={13} /> {isSaving ? 'সংরক্ষণ...' : 'সব শিফট সেভ ও প্রিন্ট'}
+                  </button>
+                </div>
+              </div>
+
+              {/* TOP LIVE KPI SUMMARY RIBBON (Centered, Compact, Balanced Width) */}
+              <div className="p-2.5 sm:p-3 bg-slate-950/70 border-b border-slate-800 flex justify-center">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 max-w-4xl w-full">
+                  <div className="bg-slate-900/90 border border-slate-700/80 rounded-xl px-3 py-2 flex flex-col items-center justify-center text-center shadow-sm">
+                    <span className="text-slate-400 text-[11px] font-bold uppercase tracking-wide">👥 মোট রোগী</span>
+                    <span className="text-white font-mono font-black text-sm sm:text-base mt-0.5">{shiftSheetTotals.patients} জন</span>
+                  </div>
+
+                  <div className="bg-slate-900/90 border border-slate-700/80 rounded-xl px-3 py-2 flex flex-col items-center justify-center text-center shadow-sm">
+                    <span className="text-slate-300 text-[11px] font-bold uppercase tracking-wide">📋 মোট গ্রস বিল</span>
+                    <span className="text-slate-100 font-mono font-black text-sm sm:text-base mt-0.5">৳{shiftSheetTotals.gross.toLocaleString()}</span>
+                  </div>
+
+                  <div className="bg-emerald-950/50 border border-emerald-500/50 rounded-xl px-3 py-2 flex flex-col items-center justify-center text-center shadow-sm shadow-emerald-950/40">
+                    <span className="text-emerald-300 text-[11px] font-black uppercase tracking-wide">💵 মোট ক্যাশ আদায়</span>
+                    <span className="text-emerald-300 font-mono font-black text-sm sm:text-base mt-0.5">৳{shiftSheetTotals.cash.toLocaleString()}</span>
+                  </div>
+
+                  <div className="bg-amber-950/30 border border-amber-500/40 rounded-xl px-3 py-2 flex flex-col items-center justify-center text-center shadow-sm">
+                    <span className="text-amber-400 text-[11px] font-bold uppercase tracking-wide">⚠️ মোট বকেয়া</span>
+                    <span className="text-amber-400 font-mono font-black text-sm sm:text-base mt-0.5">৳{shiftSheetTotals.due.toLocaleString()}</span>
+                  </div>
+
+                  <div className="col-span-2 sm:col-span-1 bg-gradient-to-r from-emerald-900/60 via-teal-900/60 to-emerald-900/60 border border-emerald-400/60 rounded-xl px-3 py-2 flex flex-col items-center justify-center text-center shadow-md shadow-emerald-950/40">
+                    <span className="text-emerald-200 text-[11px] font-black uppercase tracking-wide">🏦 ক্লিনিক নিট জমা</span>
+                    <span className="text-emerald-300 font-mono font-black text-sm sm:text-base mt-0.5">৳{shiftSheetTotals.centerNet.toLocaleString()}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* EXCEL SPREADSHEET TABLE */}
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead className="bg-slate-950 text-slate-300 uppercase font-black tracking-wider border-b-2 border-slate-700 select-none">
+                    <tr className="divide-x divide-slate-800 text-[11px]">
+                      <th className="py-2.5 px-1.5 text-center w-9 whitespace-nowrap text-slate-400">#</th>
+                      <th className="py-2.5 px-2 min-w-[170px] whitespace-nowrap text-sky-400 bg-sky-950/20">শিফট / সেশন</th>
+                      <th className="py-2.5 px-1 text-center w-14 whitespace-nowrap text-slate-200">রোগী</th>
+                      <th className="py-2.5 px-2 text-right min-w-[85px] whitespace-nowrap text-indigo-300 bg-indigo-950/30">প্যাথলজি</th>
+                      <th className="py-2.5 px-2 text-right min-w-[85px] whitespace-nowrap text-cyan-300 bg-cyan-950/30">ইউএসজি</th>
+                      <th className="py-2.5 px-2 text-right min-w-[80px] whitespace-nowrap text-amber-300 bg-amber-950/30">এক্স-রে</th>
+                      <th className="py-2.5 px-2 text-right min-w-[75px] whitespace-nowrap text-rose-300 bg-rose-950/30">ইসিজি</th>
+                      <th className="py-2.5 px-2 text-right min-w-[85px] whitespace-nowrap text-purple-300 bg-purple-950/30">অন্যান্য</th>
+                      <th className="py-2.5 px-2 text-right min-w-[90px] whitespace-nowrap text-white bg-slate-900 font-black">গ্রস বিল</th>
+                      <th className="py-2.5 px-2 text-right min-w-[75px] whitespace-nowrap text-rose-400 bg-rose-950/20">ছাড়</th>
+                      <th className="py-2.5 px-2 text-right min-w-[85px] whitespace-nowrap text-sky-300 bg-sky-950/30 font-black">নিট বিল</th>
+                      <th className="py-2.5 px-2 text-right min-w-[100px] whitespace-nowrap text-emerald-300 bg-emerald-950/50 font-black">নগদ আদায়</th>
+                      <th className="py-2.5 px-2 text-right min-w-[80px] whitespace-nowrap text-amber-400 bg-amber-950/20">বকেয়া</th>
+                      <th className="py-2.5 px-2 text-right min-w-[85px] whitespace-nowrap text-rose-300 bg-rose-950/20">ডাক্তার পিসি</th>
+                      <th className="py-2.5 px-2 text-right min-w-[85px] whitespace-nowrap text-amber-300 bg-amber-950/20">ইউএসজি ফি</th>
+                      <th className="py-2.5 px-2 text-right min-w-[95px] whitespace-nowrap text-emerald-400 bg-emerald-950/40 font-black">নিট জমা</th>
+                      <th className="py-2.5 px-2 min-w-[110px] whitespace-nowrap text-slate-400">মন্তব্য</th>
+                      <th className="py-2.5 px-1 text-center w-10 whitespace-nowrap text-slate-500">মুছুন</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-700/70 bg-slate-900/90 font-bold">
+                    {shiftRows.map((row, idx) => {
+                      const rowNetCash = (Number(row.cashCollected) || 0) - (Number(row.doctorCommissionPaid) || 0) - (Number(row.usgDoctorFeePaid) || 0);
+
+                      return (
+                        <tr key={row.id} className="divide-x divide-slate-700/60 bg-slate-900 hover:bg-slate-850 transition-colors">
+                          {/* Row Index */}
+                          <td className="p-1.5 text-center font-mono text-slate-400 bg-slate-950/60 font-medium">
+                            {idx + 1}
+                          </td>
+
+                          {/* Shift Dropdown Menu */}
+                          <td className="p-0 min-w-[170px] bg-slate-900">
+                            <select
+                              value={row.shift}
+                              onChange={e => updateShiftRow(row.id, { shift: e.target.value })}
+                              className="w-full h-8.5 bg-transparent border-0 outline-none focus:outline-none focus:ring-1 focus:ring-sky-400 px-2 text-sky-200 font-bold text-xs cursor-pointer"
+                            >
+                              <option value="সারাদিন (Full Day)" className="bg-slate-900 text-white">সারাদিন (Full Day)</option>
+                              <option value="সকল শিফট" className="bg-slate-900 text-white">সকল শিফট (All Shifts)</option>
+                              <option value="সকাল (Morning)" className="bg-slate-900 text-white">সকাল (Morning)</option>
+                              <option value="বিকাল (Afternoon)" className="bg-slate-900 text-white">বিকাল (Afternoon)</option>
+                              <option value="সন্ধ্যা (Evening)" className="bg-slate-900 text-white">সন্ধ্যা (Evening)</option>
+                              <option value="রাত (Night)" className="bg-slate-900 text-white">রাত (Night)</option>
+                              <option value="জরুরি (Emergency)" className="bg-slate-900 text-white">জরুরি (Emergency)</option>
+                              <option value="শিফট-১" className="bg-slate-900 text-white">শিফট-১ (Shift 1)</option>
+                              <option value="শিফট-২" className="bg-slate-900 text-white">শিফট-২ (Shift 2)</option>
+                              <option value="শিফট-৩" className="bg-slate-900 text-white">শিফট-৩ (Shift 3)</option>
+                              <option value="মাসিক এককালীন (Monthly)" className="bg-slate-900 text-white">মাসিক এককালীন (Monthly)</option>
+                              {row.shift && ![
+                                'সারাদিন (Full Day)', 'সকল শিফট', 'সকাল (Morning)', 'বিকাল (Afternoon)', 'সন্ধ্যা (Evening)',
+                                'রাত (Night)', 'জরুরি (Emergency)', 'শিফট-১', 'শিফট-২', 'শিফট-৩', 'মাসিক এককালীন (Monthly)'
+                              ].includes(row.shift) && (
+                                <option value={row.shift} className="bg-slate-900 text-white">{row.shift}</option>
+                              )}
+                            </select>
+                          </td>
+
+                          {/* Patients */}
+                          <td className="p-0 w-14 bg-slate-900">
+                            <input
+                              type="number"
+                              min="0"
+                              value={row.totalPatients || ''}
+                              onChange={e => updateShiftRow(row.id, { totalPatients: parseInt(e.target.value) || 0 })}
+                              className="w-full h-8.5 bg-transparent border-0 outline-none focus:outline-none focus:ring-1 focus:ring-sky-400 px-1 text-slate-100 font-mono font-bold text-xs text-center select-all"
+                              placeholder="0"
+                            />
+                          </td>
+
+                          {/* Pathology */}
+                          <td className="p-0 min-w-[85px] bg-slate-900">
+                            <input
+                              type="number"
+                              min="0"
+                              value={row.pathology || ''}
+                              onChange={e => updateShiftRow(row.id, { pathology: parseFloat(e.target.value) || 0 })}
+                              className="w-full h-8.5 bg-transparent border-0 outline-none focus:outline-none focus:ring-1 focus:ring-indigo-400 px-1.5 text-slate-100 font-mono font-bold text-xs text-right select-all"
+                              placeholder="0"
+                            />
+                          </td>
+
+                          {/* USG */}
+                          <td className="p-0 min-w-[85px] bg-slate-900">
+                            <input
+                              type="number"
+                              min="0"
+                              value={row.usg || ''}
+                              onChange={e => updateShiftRow(row.id, { usg: parseFloat(e.target.value) || 0 })}
+                              className="w-full h-8.5 bg-transparent border-0 outline-none focus:outline-none focus:ring-1 focus:ring-cyan-400 px-1.5 text-slate-100 font-mono font-bold text-xs text-right select-all"
+                              placeholder="0"
+                            />
+                          </td>
+
+                          {/* X-Ray */}
+                          <td className="p-0 min-w-[80px] bg-slate-900">
+                            <input
+                              type="number"
+                              min="0"
+                              value={row.xray || ''}
+                              onChange={e => updateShiftRow(row.id, { xray: parseFloat(e.target.value) || 0 })}
+                              className="w-full h-8.5 bg-transparent border-0 outline-none focus:outline-none focus:ring-1 focus:ring-amber-400 px-1.5 text-slate-100 font-mono font-bold text-xs text-right select-all"
+                              placeholder="0"
+                            />
+                          </td>
+
+                          {/* ECG */}
+                          <td className="p-0 min-w-[75px] bg-slate-900">
+                            <input
+                              type="number"
+                              min="0"
+                              value={row.ecg || ''}
+                              onChange={e => updateShiftRow(row.id, { ecg: parseFloat(e.target.value) || 0 })}
+                              className="w-full h-8.5 bg-transparent border-0 outline-none focus:outline-none focus:ring-1 focus:ring-rose-400 px-1.5 text-slate-100 font-mono font-bold text-xs text-right select-all"
+                              placeholder="0"
+                            />
+                          </td>
+
+                          {/* Hormone & Others */}
+                          <td className="p-0 min-w-[85px] bg-slate-900">
+                            <input
+                              type="number"
+                              min="0"
+                              value={(row.hormone || row.others) || ''}
+                              onChange={e => updateShiftRow(row.id, { others: parseFloat(e.target.value) || 0 })}
+                              className="w-full h-8.5 bg-transparent border-0 outline-none focus:outline-none focus:ring-1 focus:ring-purple-400 px-1.5 text-slate-100 font-mono font-bold text-xs text-right select-all"
+                              placeholder="0"
+                            />
+                          </td>
+
+                          {/* Gross Amount */}
+                          <td className="p-0 min-w-[90px] bg-slate-900 font-black">
+                            <input
+                              type="number"
+                              min="0"
+                              value={row.grossAmount || ''}
+                              onChange={e => updateShiftRow(row.id, { grossAmount: parseFloat(e.target.value) || 0 })}
+                              className="w-full h-8.5 bg-transparent border-0 outline-none focus:outline-none focus:ring-1 focus:ring-sky-400 px-1.5 text-white font-mono font-black text-xs text-right select-all"
+                              placeholder="0"
+                            />
+                          </td>
+
+                          {/* Discount */}
+                          <td className="p-0 min-w-[75px] bg-slate-900">
+                            <input
+                              type="number"
+                              min="0"
+                              value={row.discountAmount || ''}
+                              onChange={e => updateShiftRow(row.id, { discountAmount: parseFloat(e.target.value) || 0 })}
+                              className="w-full h-8.5 bg-transparent border-0 outline-none focus:outline-none focus:ring-1 focus:ring-rose-400 px-1.5 text-rose-300 font-mono font-bold text-xs text-right select-all"
+                              placeholder="0"
+                            />
+                          </td>
+
+                          {/* Net Payable (Auto) */}
+                          <td className="px-2 py-1 min-w-[85px] text-right font-mono font-bold text-slate-100 bg-slate-950/50">
+                            ৳{(Number(row.netPayable) || 0).toLocaleString()}
+                          </td>
+
+                          {/* Cash Collected (Key Excel Cell) */}
+                          <td className="p-0 min-w-[100px] bg-emerald-950/30">
+                            <input
+                              type="number"
+                              min="0"
+                              value={row.cashCollected !== undefined && row.cashCollected !== null ? row.cashCollected : ''}
+                              onChange={e => updateShiftRow(row.id, { cashCollected: parseFloat(e.target.value) || 0 })}
+                              className="w-full h-8.5 bg-transparent border-0 outline-none focus:outline-none focus:ring-1 focus:ring-emerald-400 px-2 text-emerald-300 font-mono font-black text-xs text-right select-all"
+                              placeholder="0"
+                            />
+                          </td>
+
+                          {/* Due Amount (Auto) */}
+                          <td className="px-2 py-1 min-w-[80px] text-right font-mono bg-slate-900">
+                            {(Number(row.dueAmount) || 0) > 0 ? (
+                              <span className="text-amber-400 font-bold">৳{(Number(row.dueAmount) || 0).toLocaleString()}</span>
+                            ) : (
+                              <span className="text-slate-500">৳0</span>
+                            )}
+                          </td>
+
+                          {/* Doctor PC */}
+                          <td className="p-0 min-w-[85px] bg-slate-900">
+                            <input
+                              type="number"
+                              min="0"
+                              value={row.doctorCommissionPaid || ''}
+                              onChange={e => updateShiftRow(row.id, { doctorCommissionPaid: parseFloat(e.target.value) || 0 })}
+                              className="w-full h-8.5 bg-transparent border-0 outline-none focus:outline-none focus:ring-1 focus:ring-amber-400 px-1.5 text-amber-300 font-mono font-bold text-xs text-right select-all"
+                              placeholder="0"
+                            />
+                          </td>
+
+                          {/* USG Doctor Fee */}
+                          <td className="p-0 min-w-[85px] bg-slate-900">
+                            <input
+                              type="number"
+                              min="0"
+                              value={row.usgDoctorFeePaid || ''}
+                              onChange={e => updateShiftRow(row.id, { usgDoctorFeePaid: parseFloat(e.target.value) || 0 })}
+                              className="w-full h-8.5 bg-transparent border-0 outline-none focus:outline-none focus:ring-1 focus:ring-amber-400 px-1.5 text-amber-300 font-mono font-bold text-xs text-right select-all"
+                              placeholder="0"
+                            />
+                          </td>
+
+                          {/* Net Center Cash In Hand */}
+                          <td className="px-2 py-1 min-w-[95px] text-right font-mono font-bold text-emerald-300 bg-slate-950/60">
+                            ৳{rowNetCash.toLocaleString()}
+                          </td>
+
+                          {/* Notes */}
+                          <td className="p-0 min-w-[110px] bg-slate-900">
+                            <input
+                              type="text"
+                              value={row.notes || ''}
+                              onChange={e => updateShiftRow(row.id, { notes: e.target.value })}
+                              className="w-full h-8.5 bg-transparent border-0 outline-none focus:outline-none focus:ring-1 focus:ring-sky-400 px-2 text-slate-200 text-xs"
+                              placeholder="নোট..."
+                            />
+                          </td>
+
+                          {/* Remove Row Button */}
+                          <td className="p-1 text-center w-10 bg-slate-900">
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveShiftRow(row.id)}
+                              className="p-1 text-slate-500 hover:text-rose-400 hover:bg-rose-950/40 rounded transition-all cursor-pointer"
+                              title="লাইনটি মুছুন"
+                            >
+                              ✕
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+
+                  {/* GRAND TOTAL SUMMARY ROW (AUTO-SUMMED) */}
+                  <tfoot className="bg-slate-950 font-black text-xs border-t-2 border-slate-700 select-none">
+                    <tr className="divide-x divide-slate-800 text-[11px]">
+                      <td colSpan={2} className="py-2.5 px-2 text-center text-sky-400 uppercase tracking-wider font-black whitespace-nowrap">
+                        📊 মোট যোগফল:
+                      </td>
+                      <td className="py-2.5 px-1 text-center font-mono text-white whitespace-nowrap">
+                        {shiftSheetTotals.patients}
+                      </td>
+                      <td className="py-2.5 px-2 text-right font-mono text-indigo-300 whitespace-nowrap">
+                        ৳{shiftSheetTotals.pathology.toLocaleString()}
+                      </td>
+                      <td className="py-2.5 px-2 text-right font-mono text-cyan-300 whitespace-nowrap">
+                        ৳{shiftSheetTotals.usg.toLocaleString()}
+                      </td>
+                      <td className="py-2.5 px-2 text-right font-mono text-amber-300 whitespace-nowrap">
+                        ৳{shiftSheetTotals.xray.toLocaleString()}
+                      </td>
+                      <td className="py-2.5 px-2 text-right font-mono text-rose-300 whitespace-nowrap">
+                        ৳{shiftSheetTotals.ecg.toLocaleString()}
+                      </td>
+                      <td className="py-2.5 px-2 text-right font-mono text-purple-300 whitespace-nowrap">
+                        ৳{(shiftSheetTotals.hormone + shiftSheetTotals.others).toLocaleString()}
+                      </td>
+                      <td className="py-2.5 px-2 text-right font-mono text-white bg-slate-900/90 font-black whitespace-nowrap">
+                        ৳{shiftSheetTotals.gross.toLocaleString()}
+                      </td>
+                      <td className="py-2.5 px-2 text-right font-mono text-rose-400 whitespace-nowrap">
+                        -৳{shiftSheetTotals.discount.toLocaleString()}
+                      </td>
+                      <td className="py-2.5 px-2 text-right font-mono text-sky-300 font-black whitespace-nowrap">
+                        ৳{shiftSheetTotals.net.toLocaleString()}
+                      </td>
+                      <td className="py-2.5 px-2 text-right font-mono text-emerald-300 bg-emerald-950/70 font-black text-xs sm:text-sm whitespace-nowrap">
+                        ৳{shiftSheetTotals.cash.toLocaleString()}
+                      </td>
+                      <td className="py-2.5 px-2 text-right font-mono text-amber-400 font-black whitespace-nowrap">
+                        ৳{shiftSheetTotals.due.toLocaleString()}
+                      </td>
+                      <td className="py-2.5 px-2 text-right font-mono text-rose-300 whitespace-nowrap">
+                        -৳{shiftSheetTotals.doctorPC.toLocaleString()}
+                      </td>
+                      <td className="py-2.5 px-2 text-right font-mono text-amber-300 whitespace-nowrap">
+                        -৳{shiftSheetTotals.usgFee.toLocaleString()}
+                      </td>
+                      <td className="py-2.5 px-2 text-right font-mono text-emerald-400 bg-slate-900 font-black text-xs sm:text-sm whitespace-nowrap">
+                        ৳{shiftSheetTotals.centerNet.toLocaleString()}
+                      </td>
+                      <td colSpan={2} className="py-2.5 px-2 text-center text-slate-400 font-bold text-[11px] whitespace-nowrap">
+                        {shiftRows.length}টি শিফট
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+
+              {/* SPREADSHEET BOTTOM ACTION TOOLBAR */}
+              <div className="p-3 sm:px-4 bg-slate-950 border-t border-slate-800 flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-2 text-xs text-slate-400">
+                  <span className="hidden sm:inline">💡 কি-বোর্ডের <b>Tab</b> চেপে দ্রুত এক সেল থেকে অন্য সেলে গিয়ে ডেটা এন্ট্রি করুন।</span>
+                  <span className="sm:hidden text-sky-400 font-medium text-[11px]">📱 ডানে-বামে স্ক্রোল করে সব কলাম দেখতে পারবেন</span>
+                </div>
+
+                <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                  <button
+                    type="button"
+                    onClick={handleAddShiftRow}
+                    className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-sky-300 hover:text-white rounded-xl text-xs font-bold transition-all border border-slate-700 flex items-center gap-1.5 cursor-pointer active:scale-95"
+                  >
+                    <PlusIcon size={14} /> + আরও শিফট যোগ
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleResetSheet}
+                    className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold transition-all border border-slate-700 cursor-pointer"
+                    title="সম্পূর্ণ শিট ক্লিয়ার করুন"
+                  >
+                    🔄 ক্লিয়ার
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleSaveAllShifts()}
+                    disabled={isSaving}
+                    className="flex-1 sm:flex-initial px-5 py-2 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-600 hover:from-emerald-500 hover:to-teal-500 active:scale-95 text-white rounded-xl font-black text-xs uppercase tracking-wider shadow-xl shadow-emerald-950/60 flex items-center justify-center gap-2 transition-all cursor-pointer"
+                  >
+                    <Save size={15} /> {isSaving ? 'সংরক্ষণ হচ্ছে...' : '💾 সেভ ও প্রিন্ট স্লিপ'}
                   </button>
                 </div>
               </div>
             </div>
-          </form>
 
-          {/* Embedded Saved Vouchers History List right below the form */}
-          <div className="bg-slate-900/95 border border-slate-800 p-5 sm:p-6 rounded-3xl shadow-2xl space-y-4">
-            <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 border-b border-slate-800 pb-4">
-              <div>
-                <h3 className="text-base font-black text-white uppercase tracking-wide flex items-center gap-2">
-                  <FileSpreadsheet className="text-sky-400" size={20} /> সংরক্ষিত ভাউচার তালিকা ও হিস্ট্রি ({sortedEntries.length} টি)
-                </h3>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  উপরে নতুন এন্ট্রি করার সময় পূর্বের সকল ভাউচার এখানে দেখতে পারবেন এবং প্রয়োজনে সাথে সাথে এডিট বা প্রিন্ট করতে পারবেন।
-                </p>
+            {/* Embedded Saved Vouchers History List right below the form */}
+            <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 shadow-xl space-y-3.5">
+              <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-3 border-b border-slate-800 pb-3">
+                <div>
+                  <h3 className="text-sm font-black text-white uppercase tracking-wide flex items-center gap-2">
+                    <FileSpreadsheet className="text-sky-400" size={16} /> সংরক্ষিত ভাউচার তালিকা ও হিস্ট্রি ({sortedEntries.length} টি)
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    উপরে এন্ট্রি করার পাশাপাশি পূর্বের সকল সংরক্ষিত ভাউচার দেখতে পারবেন এবং এডিট বা প্রিন্ট করতে পারবেন।
+                  </p>
+                </div>
               </div>
 
               {/* Filter & Search Bar */}
@@ -1564,7 +1676,6 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
               </div>
             </div>
           </div>
-        </div>
         )}
 
         {/* History Tab */}

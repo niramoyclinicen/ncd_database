@@ -90,6 +90,7 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
   const [barcodeInput, setBarcodeInput] = useState('');
   const [selectedTestCategory, setSelectedTestCategory] = useState('All');
   const [applyPC, setApplyPC] = useState(false); // State for Apply PC checkbox
+  const [showMobileHistory, setShowMobileHistory] = useState<boolean>(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [pendingFilmSelections, setPendingFilmSelections] = useState<{test_id: string, test_name: string, film_reagent_id: string}[] | null>(null);
@@ -1311,7 +1312,7 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
             </div>
         )}
         
-        <div className="border-b border-slate-700 pb-2 mb-4">
+        <div className="hidden md:block border-b border-slate-700 pb-2 mb-4">
             <div className="flex flex-row items-center justify-between gap-2 overflow-x-auto no-scrollbar">
                 <div className="flex items-center gap-3">
                     <div className="flex items-center gap-2">
@@ -1611,6 +1612,630 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
         </div>
       )}
 
+      {/* ========================================================================= */}
+      {/* MOBILE UNIFIED SINGLE LAB INVOICE INTERFACE (Single Screen, Compact) */}
+      {/* ========================================================================= */}
+      <div className="block md:hidden space-y-2.5 pb-16">
+        
+        {/* Sticky Live Status Header (ID + Net + Due + Quick Actions) */}
+        <div className="sticky top-0 z-20 bg-slate-950/95 backdrop-blur-md border border-cyan-800/70 rounded-xl p-2 shadow-xl flex items-center justify-between gap-2">
+          <div className="flex flex-col min-w-0">
+            <div className="flex items-center gap-1.5">
+              <span className="text-[9px] font-bold text-slate-400 uppercase">আইডি:</span>
+              <span className="text-xs font-mono font-black text-cyan-300 truncate">
+                {formData.invoice_id ? `#${formData.invoice_id}` : 'নতুন'}
+              </span>
+              {selectedInvoiceId && (
+                <span className="text-[9px] bg-amber-500/20 text-amber-300 px-1 rounded border border-amber-500/30">
+                  {isEditing ? 'এডিটিং' : 'লোড করা'}
+                </span>
+              )}
+            </div>
+            <div className="text-[10px] text-slate-300 font-medium">
+              নেট: <span className="text-cyan-300 font-bold font-mono">৳{(totals.netPayable || 0).toFixed(0)}</span> • 
+              বকেয়া: <span className={`font-bold font-mono ${(totals.dueAmount || 0) > 0.005 ? 'text-rose-400' : 'text-emerald-400'}`}>৳{(totals.dueAmount || 0).toFixed(0)}</span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1 shrink-0">
+            <button
+              type="button"
+              onClick={handleGetNewId}
+              disabled={readOnly}
+              className="px-2 py-1 bg-blue-700/80 hover:bg-blue-600 text-white rounded-lg text-[10px] font-bold border border-blue-400/30 active:scale-95 cursor-pointer"
+              title="নতুন আইডি নিন"
+            >
+              + আইডি
+            </button>
+            <button
+              type="button"
+              onClick={resetForm}
+              disabled={readOnly}
+              className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-[10px] font-bold border border-slate-700 active:scale-95 cursor-pointer"
+              title="ক্লিয়ার"
+            >
+              🔄 ক্লিয়ার
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSaveInvoice()}
+              disabled={readOnly}
+              className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-black uppercase flex items-center gap-1 shadow-md shadow-emerald-950 active:scale-95 disabled:opacity-50 cursor-pointer"
+            >
+              💾 সেভ
+            </button>
+          </div>
+        </div>
+
+        {/* ------------------------------------------------------------- */}
+        {/* SECTION 1: PATIENT & DOCTOR INFO (Compact) */}
+        {/* ------------------------------------------------------------- */}
+        <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-2.5 space-y-2 shadow-sm">
+          <div className="flex items-center justify-between border-b border-slate-800 pb-1.5">
+            <div className="flex items-center gap-1.5">
+              <span className="text-sm">👤</span>
+              <h3 className="font-bold text-white text-xs">রোগী ও ডাক্তারের তথ্য</h3>
+            </div>
+            <span className="text-[10px] text-slate-400 font-mono">
+              আজকের বিল: <span className="text-cyan-300 font-bold">{todayInvoiceCount}</span>
+            </span>
+          </div>
+
+          {/* Date & Delivery Time in 2 cols */}
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-[10px] font-bold text-slate-300 block mb-0.5">ইনভয়েস তারিখ</label>
+              <input 
+                type="date" 
+                name="invoice_date" 
+                value={formData.invoice_date || ''} 
+                onChange={handleInputChange} 
+                required 
+                className="w-full bg-slate-950 border border-slate-700 rounded-lg h-8.5 px-2 text-xs text-white font-mono outline-none focus:border-cyan-400" 
+              />
+            </div>
+            <div>
+              <label className="text-[10px] font-bold text-slate-300 block mb-0.5">ডেলিভারি সময়</label>
+              <input 
+                type="text" 
+                name="expected_delivery_time" 
+                value={formData.expected_delivery_time || ''} 
+                onChange={handleInputChange} 
+                placeholder="উদা: 5 PM"
+                className="w-full bg-slate-950 border border-slate-700 rounded-lg h-8.5 px-2 text-xs text-white outline-none focus:border-cyan-400" 
+              />
+            </div>
+          </div>
+
+          {/* Patient Search */}
+          <div className="space-y-0.5">
+            <div className="flex items-center justify-between">
+              <label className="text-[10px] font-bold text-slate-300">রোগী নির্বাচন</label>
+              <button
+                type="button"
+                onClick={() => setShowNewPatientForm(true)}
+                className="text-[10px] font-bold text-emerald-400 hover:text-emerald-300"
+              >
+                + নতুন রোগী
+              </button>
+            </div>
+            <SearchableSelect
+              theme="dark"
+              label=""
+              options={(Array.isArray(patients) ? patients : []).map(p => ({ 
+                id: p.pt_id, 
+                name: p.pt_name, 
+                details: `ID: ${p.pt_id} | ${p.gender}, ${p.ageY}Y | ${p.mobile}` 
+              }))}
+              value={formData.patient_id || ''}
+              onChange={handlePatientSelect}
+              onAddNew={() => openAdvancedPatientSearch('')}
+              onEnter={(term) => openAdvancedPatientSearch(term)}
+              placeholder="রোগীর নাম বা মোবাইল দিয়ে সার্চ..."
+              required
+              inputHeightClass="h-8.5"
+            />
+            {formData.patient_id && (
+              <div className="bg-sky-950/60 p-1.5 rounded-lg border border-sky-800/40 text-[10px] text-sky-200 flex items-center justify-between">
+                <span className="font-bold truncate">
+                  {(Array.isArray(patients) ? patients : []).find(p => p && p.pt_id === formData.patient_id)?.pt_name}
+                </span>
+                <span className="opacity-75 font-mono shrink-0 ml-1">
+                  {(Array.isArray(patients) ? patients : []).find(p => p && p.pt_id === formData.patient_id)?.mobile || ''}
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* Doctor and Referrer in 2 cols */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div className="space-y-0.5">
+              <div className="flex items-center justify-between">
+                <label className="text-[10px] font-bold text-slate-300">ডাক্তার</label>
+                <button
+                  type="button"
+                  onClick={() => setShowNewDoctorForm(true)}
+                  className="text-[10px] font-bold text-emerald-400 hover:text-emerald-300"
+                >
+                  + নতুন
+                </button>
+              </div>
+              <SearchableSelect
+                theme="dark"
+                label=""
+                options={(Array.isArray(doctors) ? doctors : []).map(d => ({ 
+                  id: d.doctor_id, 
+                  name: d.doctor_name, 
+                  details: `${d.degree}${d.speciality ? ` - ${d.speciality}` : ''}` 
+                }))}
+                value={formData.doctor_id || ''}
+                onChange={handleDoctorSelect}
+                onAddNew={() => setShowNewDoctorForm(true)}
+                placeholder="ডাক্তার সার্চ করুন..."
+                inputHeightClass="h-8.5"
+                required
+              />
+            </div>
+
+            <div className="space-y-0.5">
+              <div className="flex items-center justify-between">
+                <label className="text-[10px] font-bold text-slate-300">রেফারার</label>
+                <button
+                  type="button"
+                  onClick={() => setShowNewReferrarForm(true)}
+                  className="text-[10px] font-bold text-emerald-400 hover:text-emerald-300"
+                >
+                  + নতুন
+                </button>
+              </div>
+              <SearchableSelect
+                theme="dark"
+                label=""
+                options={(Array.isArray(referrars) ? referrars : []).map(r => ({ 
+                  id: r.ref_id, 
+                  name: r.ref_name, 
+                  details: `${r.ref_degrees || ''}${r.area ? ` | ${r.area}` : ''}` 
+                }))}
+                value={formData.referrar_id || ''}
+                onChange={handleReferrarSelect}
+                onAddNew={() => setShowNewReferrarForm(true)}
+                placeholder="রেফারার সার্চ করুন..."
+                inputHeightClass="h-8.5"
+                required
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* ------------------------------------------------------------- */}
+        {/* SECTION 2: TEST SELECTION & ITEMS LIST (Compact) */}
+        {/* ------------------------------------------------------------- */}
+        <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-2.5 space-y-2 shadow-sm">
+          <div className="flex items-center justify-between border-b border-slate-800 pb-1.5">
+            <div className="flex items-center gap-1.5">
+              <span className="text-sm">🔬</span>
+              <h3 className="font-bold text-white text-xs">টেস্টসমূহ ({formData.items?.length || 0}টি)</h3>
+            </div>
+            <div className="flex items-center gap-1">
+              <input 
+                type="checkbox" 
+                id="mobile_apply_pc" 
+                checked={applyPC} 
+                onChange={(e) => handleApplyPCChange(e.target.checked)} 
+                className="h-3.5 w-3.5 text-blue-600 rounded bg-slate-700 cursor-pointer" 
+              />
+              <label htmlFor="mobile_apply_pc" className="text-[10px] font-bold text-sky-300 cursor-pointer">Apply PC</label>
+            </div>
+          </div>
+
+          {/* Category Horizontal Scrolling Pills */}
+          <div className="flex items-center gap-1 overflow-x-auto pb-0.5 scrollbar-hide">
+            {allAvailableTestCategories.map(category => (
+              <button
+                key={category}
+                type="button"
+                onClick={() => setSelectedTestCategory(category)}
+                className={`px-2.5 py-0.5 text-[10px] font-bold rounded-full whitespace-nowrap transition-colors cursor-pointer ${
+                  selectedTestCategory === category
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                }`}
+              >
+                {category}
+              </button>
+            ))}
+          </div>
+
+          {/* Test Search Input */}
+          <div className="space-y-0.5">
+            <div className="flex items-center justify-between">
+              <label className="text-[10px] font-bold text-slate-300">টেস্ট সার্চ করে অ্যাড করুন</label>
+              <button
+                type="button"
+                onClick={() => setShowNewTestForm(true)}
+                className="text-[10px] font-bold text-emerald-400 hover:text-emerald-300"
+              >
+                + নতুন টেস্ট
+              </button>
+            </div>
+            <SearchableSelect
+              theme="dark"
+              label=""
+              options={(Array.isArray(filteredTestsForSelect) ? filteredTestsForSelect : []).map(t => ({ 
+                id: String(t.test_id || ''), 
+                name: String(t.test_name || t.test_id || ''), 
+                details: `${t.category || 'General'} • ৳${(Number(t.price) || 0).toFixed(0)} • PC: ৳${(Number(t.test_commission) || 0).toFixed(0)}` 
+              }))}
+              value=""
+              onChange={handleTestSelect}
+              onAddNew={() => setShowNewTestForm(true)}
+              placeholder="টেস্ট নাম সার্চ করুন..."
+              inputHeightClass="h-8.5"
+            />
+          </div>
+
+          {/* Selected Items List */}
+          {(!formData.items || formData.items.length === 0) ? (
+            <div className="text-center py-4 bg-slate-950/60 rounded-lg border border-dashed border-slate-800 p-2">
+              <p className="text-[11px] text-slate-400">কোনো টেস্ট যোগ করা হয়নি। উপরের সার্চবার থেকে টেস্ট যোগ করুন।</p>
+            </div>
+          ) : (
+            <div className="space-y-1.5 max-h-[40vh] overflow-y-auto pr-1">
+              {(Array.isArray(formData.items) ? formData.items : []).map((item, idx) => (
+                <div key={item.test_id} className="bg-slate-950/80 border border-slate-800 rounded-lg p-2 shadow-sm flex items-center justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] text-slate-500 font-mono">#{idx + 1}</span>
+                      <span className="font-bold text-white text-xs truncate">{item.test_name}</span>
+                    </div>
+                    <div className="text-[10px] text-slate-400 font-mono flex items-center gap-2 mt-0.5">
+                      <span>রেট: ৳{(item.price || 0).toFixed(0)}</span>
+                      {applyPC && <span className="text-emerald-400 font-bold">• PC: ৳{(item.test_commission || 0).toFixed(0)}</span>}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    {/* Stepper */}
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => handleItemQuantityChange(item.test_id, (item.quantity || 1) - 1)}
+                        className="w-6 h-6 rounded bg-slate-800 text-sky-400 font-bold text-xs flex items-center justify-center border border-slate-700 active:scale-95 cursor-pointer"
+                      >
+                        -
+                      </button>
+                      <span className="w-5 text-center font-mono font-bold text-xs text-white">
+                        {item.quantity || 1}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleItemQuantityChange(item.test_id, (item.quantity || 1) + 1)}
+                        className="w-6 h-6 rounded bg-slate-800 text-sky-400 font-bold text-xs flex items-center justify-center border border-slate-700 active:scale-95 cursor-pointer"
+                      >
+                        +
+                      </button>
+                    </div>
+
+                    <span className="font-mono font-bold text-xs text-cyan-300 w-12 text-right">
+                      ৳{((item.price || 0) * (item.quantity || 1)).toFixed(0)}
+                    </span>
+
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveItem(item.test_id)}
+                      className="w-6 h-6 rounded bg-rose-950/40 text-rose-400 hover:bg-rose-900/60 text-xs font-bold border border-rose-800/40 flex items-center justify-center cursor-pointer"
+                      title="বাদ দিন"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* ------------------------------------------------------------- */}
+        {/* SECTION 3: VOUCHER, BILL & PAYMENT (Compact) */}
+        {/* ------------------------------------------------------------- */}
+        <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-2.5 space-y-2 shadow-sm">
+          <div className="flex items-center justify-between border-b border-slate-800 pb-1.5">
+            <div className="flex items-center gap-1.5">
+              <span className="text-sm">💰</span>
+              <h3 className="font-bold text-white text-xs">ভাউচার ও পেমেন্ট হিসাব</h3>
+            </div>
+          </div>
+
+          <div className="space-y-2 text-xs">
+            {/* Gross Bill */}
+            <div className="flex justify-between items-center text-slate-300">
+              <span className="font-medium">মোট গ্রস বিল:</span>
+              <span className="font-mono font-bold text-sm text-white">৳{(totals.totalAmount || 0).toFixed(2)}</span>
+            </div>
+
+            {/* Discount Inputs in 2 cols */}
+            <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-800">
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 block mb-0.5">ডিসকাউন্ট (%)</label>
+                <input 
+                  type="text" 
+                  value={displayDiscountPercentage} 
+                  onChange={handleDiscountPercentageChange} 
+                  onBlur={handleDiscountPercentageBlur} 
+                  onFocus={handleFocusSelect} 
+                  className="w-full bg-slate-950 border border-slate-700 rounded-lg h-8 px-2 text-right font-mono font-bold text-white text-xs outline-none focus:border-cyan-400" 
+                  placeholder="0"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 block mb-0.5">ডিসকাউন্ট (টাকা)</label>
+                <input 
+                  type="text" 
+                  value={displayDiscountAmount} 
+                  onChange={handleDiscountAmountChange} 
+                  onBlur={handleDiscountAmountBlur} 
+                  onFocus={handleFocusSelect} 
+                  className="w-full bg-slate-950 border border-slate-700 rounded-lg h-8 px-2 text-right font-mono font-bold text-white text-xs outline-none focus:border-cyan-400" 
+                  placeholder="0.00"
+                />
+              </div>
+            </div>
+
+            {/* Net Payable */}
+            <div className="flex justify-between items-center pt-1.5 border-t border-slate-800">
+              <span className="font-bold text-white">সর্বমোট প্রদেয় (Net):</span>
+              <span className="text-cyan-300 text-sm font-black font-mono">৳{(totals.netPayable || 0).toFixed(2)}</span>
+            </div>
+
+            {/* Paid & Due in 2 cols */}
+            <div className="grid grid-cols-2 gap-2 pt-1.5 border-t border-slate-800 items-end">
+              <div>
+                <label className="text-[10px] font-bold text-emerald-400 block mb-0.5">জমা টাকা (Paid)</label>
+                <input 
+                  type="text" 
+                  value={displayPaidAmount} 
+                  onChange={handlePaidAmountChange} 
+                  onFocus={handlePaidAmountInputFocus} 
+                  onBlur={handlePaidAmountInputBlur} 
+                  className="w-full bg-slate-950 border-2 border-emerald-500/60 rounded-lg h-8.5 px-2 text-right font-mono font-black text-emerald-300 text-sm outline-none focus:border-emerald-400" 
+                  placeholder="0.00"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-bold text-slate-300 block mb-0.5">বকেয়া (Due)</label>
+                <div className={`h-8.5 px-2 flex items-center justify-end font-mono font-black text-sm rounded-lg border ${
+                  totals.dueAmount > 0.005 
+                    ? 'bg-rose-950/70 text-rose-300 border-rose-800/60' 
+                    : 'bg-emerald-950/70 text-emerald-300 border-emerald-800/60'
+                }`}>
+                  ৳{(totals.dueAmount || 0).toFixed(2)}
+                </div>
+              </div>
+            </div>
+
+            {/* Bill Created By & Payment Method */}
+            <div className="grid grid-cols-2 gap-2 pt-1.5 border-t border-slate-800">
+              <div className="space-y-0.5">
+                <label className="text-[10px] font-bold text-slate-400 block">বিল প্রস্তুতকারী</label>
+                <SearchableSelect 
+                  theme="dark" 
+                  label="" 
+                  options={employeeOptions} 
+                  value={formData.bill_created_by || ''} 
+                  onChange={(id, name) => handleEmployeeSelect('bill_created_by', id, name)} 
+                  onAddNew={() => onNavigateSubPage && onNavigateSubPage('employee_info' as DiagnosticSubPage)} 
+                  placeholder="কর্মচারী..." 
+                  required
+                  allowCustom={true}
+                  inputHeightClass="h-8.5" 
+                />
+              </div>
+              <div className="space-y-0.5">
+                <label className="text-[10px] font-bold text-slate-400 block">পেমেন্ট মেথড</label>
+                <select 
+                  name="payment_method" 
+                  value={formData.payment_method} 
+                  onChange={handleInputChange} 
+                  className="w-full bg-slate-950 border border-slate-700 rounded-lg h-8.5 px-2 text-xs text-white outline-none"
+                >
+                  <option value="Cash">Cash (ক্যাশ)</option>
+                  <option value="Card">Card</option>
+                  <option value="Mobile Banking">Mobile Banking</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Optional Note */}
+            <div>
+              <label className="text-[10px] font-bold text-slate-400 block mb-0.5">নোট (ঐচ্ছিক)</label>
+              <input 
+                type="text" 
+                name="notes" 
+                value={formData.notes || ''} 
+                onChange={handleInputChange} 
+                placeholder="যেকোনো মন্তব্য..."
+                className="w-full bg-slate-950 border border-slate-700 rounded-lg h-8 px-2 text-xs text-white outline-none"
+              />
+            </div>
+
+            {/* Commission breakdown if Apply PC is checked */}
+            {applyPC && (
+              <div className="mt-1 pt-1.5 border-t border-slate-800 text-[10px] text-slate-300 space-y-1 bg-slate-950/60 p-2 rounded-lg">
+                <div className="flex justify-between">
+                  <span>মোট কমিশন:</span>
+                  <span className="font-mono">৳{(totals.tComm100 || 0).toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between font-bold text-sky-400">
+                  <span>প্রদেয় কমিশন:</span>
+                  <span className="font-mono">৳{(totals.payableComm || 0).toFixed(2)}</span>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ------------------------------------------------------------- */}
+        {/* STICKY FLOATING QUICK ACTION BAR (Right Above Bottom Nav) */}
+        {/* ------------------------------------------------------------- */}
+        <div className="sticky bottom-14 z-30 bg-slate-950/95 backdrop-blur-md border border-cyan-800/80 rounded-xl p-2 shadow-2xl flex items-center justify-between gap-1.5">
+          <button
+            type="button"
+            onClick={() => handleSaveInvoice()}
+            disabled={readOnly}
+            className="flex-1 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black rounded-lg text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-950 active:scale-95 disabled:opacity-50 cursor-pointer"
+          >
+            <span>💾 সেভ করুন</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handlePrintInvoice}
+            disabled={!selectedInvoiceId}
+            className="py-2.5 px-3 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white font-bold rounded-lg text-xs flex items-center justify-center gap-1 shadow-md disabled:opacity-40 active:scale-95 cursor-pointer"
+          >
+            <span>🖨️ প্রিন্ট</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleGetNewId}
+            disabled={readOnly}
+            className="py-2.5 px-2 bg-blue-700 hover:bg-blue-600 text-white font-bold rounded-lg text-[11px] flex items-center justify-center active:scale-95 cursor-pointer"
+            title="নতুন আইডি"
+          >
+            <span>+ আইডি</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={resetForm}
+            disabled={readOnly}
+            className="py-2.5 px-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-lg text-[11px] flex items-center justify-center active:scale-95 cursor-pointer"
+            title="ক্লিয়ার"
+          >
+            <span>🔄 ক্লিয়ার</span>
+          </button>
+
+          {selectedInvoiceId && (
+            <button
+              type="button"
+              onClick={handleEditInvoice}
+              disabled={readOnly}
+              className="py-2.5 px-2 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-lg text-[11px] flex items-center justify-center active:scale-95 cursor-pointer"
+              title="এডিট মোড"
+            >
+              <span>✏️ এডিট</span>
+            </button>
+          )}
+        </div>
+
+        {/* ------------------------------------------------------------- */}
+        {/* SECTION 4: RECENT INVOICES SEARCH & HISTORY (Collapsible) */}
+        {/* ------------------------------------------------------------- */}
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-2.5 space-y-2 shadow-sm">
+          <button
+            type="button"
+            onClick={() => setShowMobileHistory(!showMobileHistory)}
+            className="w-full flex items-center justify-between text-left cursor-pointer"
+          >
+            <div className="flex items-center gap-1.5">
+              <span className="text-sm">📋</span>
+              <h4 className="font-bold text-white text-xs">সাম্প্রতিক ইনভয়েস তালিকা</h4>
+              <span className="text-[10px] text-cyan-400 font-mono font-bold">
+                ({(Array.isArray(filteredInvoices) ? filteredInvoices : []).length}টি)
+              </span>
+            </div>
+            <span className="text-[11px] text-slate-400 font-bold">
+              {showMobileHistory ? '▲ লুকান' : '▼ দেখুন'}
+            </span>
+          </button>
+
+          {showMobileHistory && (
+            <div className="space-y-2 pt-1 border-t border-slate-800">
+              {/* Filter Controls */}
+              <div className="grid grid-cols-2 gap-1.5">
+                <input 
+                  type="text" 
+                  placeholder="রোগীর নাম..." 
+                  value={tableFilterPatientName} 
+                  onChange={(e) => setTableFilterPatientName(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 rounded-lg p-1.5 text-xs text-white placeholder-slate-500 outline-none"
+                />
+                <input 
+                  type="date" 
+                  value={tableFilterDate} 
+                  onChange={(e) => setTableFilterDate(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 rounded-lg p-1.5 text-xs text-white outline-none"
+                />
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setTableFilterDueOnly(!tableFilterDueOnly)}
+                  className={`flex-1 py-1 px-2 rounded-lg text-[10px] font-bold border transition-colors cursor-pointer ${
+                    tableFilterDueOnly 
+                      ? 'bg-rose-950 border-rose-500 text-rose-300' 
+                      : 'bg-slate-950 border-slate-800 text-slate-400'
+                  }`}
+                >
+                  {tableFilterDueOnly ? '✓ শুধু বকেয়া' : 'বকেয়া ফিল্টার'}
+                </button>
+                {(tableFilterPatientName || tableFilterDate || tableFilterDueOnly) && (
+                  <button
+                    type="button"
+                    onClick={resetTableFilters}
+                    className="py-1 px-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-[10px] font-bold"
+                  >
+                    রিসেট
+                  </button>
+                )}
+              </div>
+
+              {/* Invoices List Cards */}
+              <div className="space-y-1.5 max-h-[50vh] overflow-y-auto pr-1">
+                {(Array.isArray(filteredInvoices) ? filteredInvoices : []).slice(0, 30).map((inv) => (
+                  <div
+                    key={inv.invoice_id}
+                    onClick={() => {
+                      setFormData(inv);
+                      setSelectedInvoiceId(inv.invoice_id);
+                      setIsEditing(false);
+                      // Scroll to top to see invoice immediately
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }}
+                    className={`p-2 rounded-lg border transition-all cursor-pointer ${
+                      selectedInvoiceId === inv.invoice_id
+                        ? 'bg-cyan-950/80 border-cyan-500 shadow-md'
+                        : 'bg-slate-950/80 border-slate-800 hover:border-slate-700'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-0.5">
+                      <span className="font-mono font-bold text-xs text-cyan-300">#{inv.invoice_id}</span>
+                      <span className="text-[10px] text-slate-400 font-mono">{inv.invoice_date || (inv as any).date}</span>
+                    </div>
+                    <div className="font-bold text-white text-xs truncate">{inv.patient_name}</div>
+                    <div className="flex items-center justify-between text-[10px] mt-1">
+                      <span className="text-slate-300 font-mono">মোট: ৳{Number(inv.total_amount || 0).toFixed(0)}</span>
+                      <span className="text-emerald-400 font-mono">জমা: ৳{Number(inv.paid_amount || 0).toFixed(0)}</span>
+                      <span className={`font-mono font-bold px-1 rounded ${
+                        Number(inv.due_amount || 0) > 0.005 ? 'bg-rose-950/80 text-rose-300' : 'bg-emerald-950/80 text-emerald-300'
+                      }`}>
+                        {Number(inv.due_amount || 0) > 0.005 ? `বকেয়া: ৳${Number(inv.due_amount || 0).toFixed(0)}` : 'পরিশোধিত'}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ========================================================================= */}
+      {/* DESKTOP VIEW (Visible on screens >= 768px, 100% Preserved Desktop Layout) */}
+      {/* ========================================================================= */}
+      <div className="hidden md:block">
     <div className="bg-sky-950 text-sky-200 p-6 rounded-xl mb-8 border border-sky-800">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 border-b border-sky-800 pb-4">
         <h2 className="text-2xl font-bold text-sky-100">Lab Invoice</h2>
@@ -2176,6 +2801,7 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
             )}
           </table>
         </div>
+      </div>
       </div>
     </div>
     {loading && (

@@ -18,7 +18,7 @@ import { DailyConsolidatedEntryPage } from './diagnostic/DailyConsolidatedEntryP
 import { Patient, Doctor, Referrar, Reagent, Test, LabInvoice, Employee, DueCollection, DiagnosticSubPage, ExpenseItem, LabReport, Appointment } from './DiagnosticData';
 import { UserRole } from '../types';
 import { dbService } from '../dbService';
-import { Layers } from 'lucide-react';
+import { Layers, Menu, X, ChevronUp, ChevronDown } from 'lucide-react';
 
 interface DiagnosticPageProps {
   onBack: () => void;
@@ -425,16 +425,31 @@ const DiagnosticPage: React.FC<DiagnosticPageProps> = ({
       {/* Mobile Menu Backdrop */}
       {isSidebarOpen && (
         <div 
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-30 md:hidden"
+          className="fixed inset-0 bg-black/70 backdrop-blur-sm z-40 md:hidden animate-fade-in"
           onClick={() => setIsSidebarOpen(false)}
         />
       )}
       <aside className={`
-        absolute md:relative inset-y-0 left-0 z-40
-        ${isSidebarOpen ? 'translate-x-0 w-64' : '-translate-x-full w-64 md:translate-x-0 md:w-16'} 
-        bg-slate-950 border-r border-slate-800 flex flex-col shadow-2xl transition-all duration-300 ease-in-out overflow-hidden pt-4
+        fixed md:relative inset-y-0 left-0 z-50
+        ${isSidebarOpen ? 'translate-x-0 w-72' : '-translate-x-full w-72 md:translate-x-0 md:w-16'} 
+        bg-slate-950 border-r border-slate-800 flex flex-col shadow-2xl transition-all duration-300 ease-in-out overflow-hidden
       `}>
-        <div className="flex-1 overflow-y-auto py-4">
+        {/* Mobile Sidebar Header with Close Button */}
+        <div className="flex items-center justify-between p-4 border-b border-slate-800 md:hidden bg-slate-900/60">
+          <div className="flex items-center gap-2">
+            <DiagnosticIcon className="w-6 h-6 text-cyan-400" />
+            <span className="font-bold text-sm text-cyan-200">সকল মেনু ও সেটআপ</span>
+          </div>
+          <button 
+            onClick={() => setIsSidebarOpen(false)}
+            className="p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white"
+            title="মেনু বন্ধ করুন"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto py-3">
             <div className={`px-4 mb-2 text-xs font-semibold text-slate-500 uppercase tracking-wider transition-opacity duration-300 ${!isSidebarOpen ? 'md:opacity-0' : 'opacity-100'}`}>
               Data Entry / Setup
             </div>
@@ -445,20 +460,22 @@ const DiagnosticPage: React.FC<DiagnosticPageProps> = ({
               <SidebarItem id="test_info" label="Test Information" isSidebarOpen={isSidebarOpen} icon={<DnaIcon className="w-5 h-5" />} activeTab={activeTab} onClick={handleTabChange} disabled={isLabReporter} />
               <SidebarItem id="reagent_info" label="Reagent Information" isSidebarOpen={isSidebarOpen} icon={<TestTubeIcon className="w-5 h-5" />} activeTab={activeTab} onClick={handleTabChange} disabled={isLabReporter} />
               <SidebarItem id="consolidated_entry" label="Consolidated Lab Entry" isSidebarOpen={isSidebarOpen} icon={<Layers className="w-5 h-5 text-emerald-400" />} activeTab={activeTab} onClick={handleTabChange} disabled={isLabReporter} />
+              <SidebarItem id="lab_reporting" label="Lab Reporting" isSidebarOpen={isSidebarOpen} icon={<FileTextIcon className="w-5 h-5 text-indigo-400" />} activeTab={activeTab} onClick={handleTabChange} disabled={isDiagAdmin} />
+              <SidebarItem id="employee_info" label="Employee & Staff" isSidebarOpen={isSidebarOpen} icon={<ChartIcon className="w-5 h-5 text-amber-400" />} activeTab={activeTab} onClick={handleTabChange} />
             </div>
 
-            <div className={`mt-8 px-4 mb-2 text-xs font-semibold text-slate-500 uppercase tracking-wider transition-opacity duration-300 ${!isSidebarOpen ? 'md:opacity-0' : 'opacity-100'}`}>
+            <div className={`mt-6 px-4 mb-2 text-xs font-semibold text-slate-500 uppercase tracking-wider transition-opacity duration-300 ${!isSidebarOpen ? 'md:opacity-0' : 'opacity-100'}`}>
               System
             </div>
             <div className="space-y-1">
-               <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} title={isSidebarOpen ? "Collapse Menu" : "Expand Menu"} className="w-full flex items-center px-4 py-3 text-sm font-medium text-slate-400 hover:text-white hover:bg-slate-800/50 border-l-4 border-transparent transition-colors">
+               <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} title={isSidebarOpen ? "Collapse Menu" : "Expand Menu"} className="w-full flex items-center px-4 py-3 text-sm font-medium text-slate-400 hover:text-white hover:bg-slate-800/50 border-l-4 border-transparent transition-colors hidden md:flex">
                   <BackIcon className={`w-5 h-5 shrink-0 mr-3 transition-transform ${!isSidebarOpen ? 'rotate-180' : ''}`} />
                   {isSidebarOpen && <span className="whitespace-nowrap">Collapse Menu</span>}
                </button>
             </div>
         </div>
 
-        <div className="p-4 border-t border-slate-800 bg-slate-900/50 mt-auto">
+        <div className="p-3 border-t border-slate-800 bg-slate-900/50 mt-auto">
            <div className="flex items-center">
               <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${isLabReporter ? 'bg-blue-900 text-blue-300' : 'bg-cyan-900 text-cyan-300'}`}>
                 {isLabReporter ? 'LR' : 'AD'}
@@ -478,28 +495,21 @@ const DiagnosticPage: React.FC<DiagnosticPageProps> = ({
            <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-blue-900/10 rounded-full blur-[100px] -translate-y-1/2 translate-x-1/2"></div>
         </div>
 
-        <header className="bg-slate-900/90 backdrop-blur-md border-b border-slate-800 p-3 sm:p-4 shrink-0 shadow-sm z-20 relative">
-          <div className="flex flex-col md:flex-row items-center justify-between relative w-full px-2 sm:px-4">
+        <header className="bg-slate-900/90 backdrop-blur-md border-b border-slate-800 p-1.5 sm:p-3 shrink-0 shadow-sm z-20 relative">
+          <div className="flex items-center justify-between relative w-full px-1 sm:px-4">
              
-             {/* Top Row for Mobile (Hamburger + Diagnostic Title) */}
-             <div className="w-full flex items-center justify-between md:hidden mb-2">
+             {/* Left: Mobile Compact 3-Line Menu & Title */}
+             <div className="flex items-center gap-2 sm:gap-3">
                 <button 
-                  onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                  className="p-2.5 rounded-lg bg-cyan-900/50 text-cyan-400 hover:text-cyan-300 hover:bg-cyan-800 transition-all border border-cyan-800/50 flex items-center gap-2"
-                  title="Menu"
+                  onClick={() => setIsSidebarOpen(true)}
+                  className="md:hidden px-2.5 py-1.5 rounded-lg bg-slate-800 text-cyan-400 hover:text-cyan-300 active:bg-cyan-950 border border-cyan-700/50 flex items-center gap-1.5 shadow-sm transition-all active:scale-95 touch-manipulation cursor-pointer"
+                  title="সাইডবারের সকল মেনু ওপেন করুন"
+                  aria-label="Open sidebar menu"
                 >
-                  <span className="text-xl leading-none">☰</span>
-                  <span className="text-xs font-bold uppercase tracking-wider">Menu</span>
+                  <span className="text-base font-bold leading-none">☰</span>
+                  <span className="text-[11px] font-bold">মেনু</span>
                 </button>
-                <div className="flex items-center">
-                    <DiagnosticIcon className="w-6 h-6 text-cyan-400 mr-1.5 drop-shadow-[0_0_5px_rgba(34,211,238,0.5)]" />
-                    <h2 className="text-lg font-bold text-cyan-400 font-bengali drop-shadow-[0_0_8px_rgba(34,211,238,0.3)] leading-none whitespace-nowrap">
-                        ডায়াগনস্টিক ডিপার্টমেন্ট
-                    </h2>
-                </div>
-             </div>
 
-             <div className="flex items-center gap-4 z-10 w-full md:w-auto justify-center md:justify-start">
                 <button 
                   onClick={() => setIsSidebarOpen(!isSidebarOpen)}
                   className="p-2 rounded-lg bg-slate-800 text-slate-400 hover:text-cyan-400 hover:bg-slate-700 transition-all hidden md:block"
@@ -507,22 +517,34 @@ const DiagnosticPage: React.FC<DiagnosticPageProps> = ({
                 >
                   <SettingsIcon className={`w-5 h-5 transition-transform duration-500 ${isSidebarOpen ? 'rotate-90' : ''}`} />
                 </button>
-                <div className="flex flex-col items-center md:items-start text-center md:text-left w-full md:w-auto">
-                  <h1 className="text-[1.1rem] sm:text-2xl md:text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-white to-cyan-100 leading-tight tracking-tight mb-1 whitespace-nowrap overflow-hidden text-ellipsis">
+
+                {/* Desktop Clinic Branding (Hidden on Mobile to save valuable space) */}
+                <div className="hidden md:flex flex-col">
+                  <h1 className="text-xl lg:text-2xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-white to-cyan-100 leading-tight tracking-tight whitespace-nowrap overflow-hidden text-ellipsis">
                     Niramoy Clinic and Diagnostic
                   </h1>
-                  <p className="text-xs sm:text-sm md:text-base text-slate-400 font-medium">Enayetpur, Sirajgonj | Ph: 01730 923007</p>
+                  <p className="text-xs text-slate-400 font-medium">Enayetpur, Sirajgonj | Ph: 01730 923007</p>
+                </div>
+
+                {/* Mobile Slim Current Page Title */}
+                <div className="md:hidden flex items-center gap-1.5">
+                  <span className="text-xs font-bold text-cyan-300 font-bengali">
+                    {activeTab === 'lab_invoice' ? 'ল্যাব ইনভয়েস' : 
+                     activeTab === 'doctor_appointment' ? 'অ্যাপয়েন্টমেন্ট' : 
+                     activeTab === 'due_collection' ? 'বকেয়া আদায়' : 
+                     activeTab === 'consolidated_entry' ? 'কনসোলিডেটেড' : 'ডায়াগনস্টিক'}
+                  </span>
                 </div>
              </div>
              
-             {/* Desktop Diagnostic Title */}
-             <div className="hidden md:flex items-center mt-3 md:mt-0 z-10">
-                <DiagnosticIcon className="w-8 h-8 text-cyan-400 mr-2 drop-shadow-[0_0_5px_rgba(34,211,238,0.5)]" />
+             {/* Right: Diagnostic Title & Badge (Ultra-slim on Mobile) */}
+             <div className="flex items-center">
+                <DiagnosticIcon className="w-4 h-4 sm:w-7 sm:h-7 text-cyan-400 mr-1 sm:mr-2 drop-shadow-[0_0_5px_rgba(34,211,238,0.5)]" />
                 <div className="flex flex-col items-end">
-                   <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-cyan-400 font-bengali drop-shadow-[0_0_8px_rgba(34,211,238,0.3)] leading-none text-right">
-                     ডায়াগনস্টিক ডিপার্টমেন্ট
+                   <h2 className="text-xs sm:text-2xl font-bold text-cyan-400 font-bengali leading-tight text-right">
+                     ডায়াগনস্টিক
                    </h2>
-                   <p className="text-[10px] md:text-xs font-bold text-slate-500 font-bengali tracking-tight mt-1">
+                   <p className="text-[9px] font-bold text-slate-500 font-bengali tracking-tight hidden sm:block">
                      গভমেন্ট লাইসেন্স: HSM41671
                    </p>
                 </div>
@@ -530,7 +552,8 @@ const DiagnosticPage: React.FC<DiagnosticPageProps> = ({
           </div>
         </header>
 
-        <div className="bg-slate-900/50 backdrop-blur-sm border-b border-slate-800 z-20 p-2">
+        {/* Desktop / Tablet Top Tabs Bar (Hidden on Mobile) */}
+        <div className="hidden md:block bg-slate-900/50 backdrop-blur-sm border-b border-slate-800 z-20 p-2">
            <div className="flex overflow-x-auto md:grid md:grid-cols-4 gap-2 md:gap-4 w-full px-2 pb-2 scrollbar-hide">
               <TopBarButton 
                 label="Doctor Appointment" 
@@ -563,13 +586,77 @@ const DiagnosticPage: React.FC<DiagnosticPageProps> = ({
            </div>
         </div>
 
-        <div className={`flex-1 flex flex-col min-h-0 ${activeTab === 'lab_reporting' || activeTab === 'consolidated_entry' ? 'overflow-hidden p-0' : 'overflow-y-auto p-2 sm:p-3 md:p-4'} bg-slate-900/50 relative`}>
+        {/* Content Container (With bottom padding on mobile for the fixed Bottom Nav) */}
+        <div className={`flex-1 flex flex-col min-h-0 ${activeTab === 'lab_reporting' || activeTab === 'consolidated_entry' ? 'overflow-hidden p-0' : 'overflow-y-auto p-2 sm:p-3 md:p-4'} pb-20 md:pb-2 sm:pb-3 bg-slate-900/50 relative`}>
           <DiagnosticErrorBoundary key={activeTab}>
             <div className="w-full flex-1 flex flex-col min-h-0">
               {renderContent()}
             </div>
           </DiagnosticErrorBoundary>
         </div>
+
+        {/* ========================================================================= */}
+        {/* MOBILE FIXED 4-BUTTON BOTTOM NAVIGATION BAR (Only visible on screens < 768px) */}
+        {/* ========================================================================= */}
+        <nav aria-label="Mobile Navigation" className="fixed bottom-0 inset-x-0 bg-slate-950/95 backdrop-blur-lg border-t border-slate-800 z-40 md:hidden px-1.5 py-1.5 shadow-[0_-8px_25px_rgba(0,0,0,0.7)]">
+          <div className="grid grid-cols-4 gap-1 items-center max-w-lg mx-auto">
+            {/* 1. Doctor Appointment */}
+            <button
+              onClick={() => handleTabChange('doctor_appointment')}
+              disabled={isLabReporter}
+              className={`flex flex-col items-center justify-center py-2 px-1 rounded-xl transition-all cursor-pointer ${
+                activeTab === 'doctor_appointment'
+                  ? 'text-cyan-300 bg-cyan-950/80 font-black border border-cyan-500/50 shadow-md shadow-cyan-950/60'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <CalendarIcon className="w-5 h-5 mb-1" />
+              <span className="text-[10px] tracking-tight leading-none text-center font-bold">অ্যাপয়েন্টমেন্ট</span>
+            </button>
+
+            {/* 2. Lab Invoice */}
+            <button
+              onClick={() => handleTabChange('lab_invoice')}
+              disabled={isLabReporter}
+              className={`flex flex-col items-center justify-center py-2 px-1 rounded-xl transition-all cursor-pointer ${
+                activeTab === 'lab_invoice'
+                  ? 'text-emerald-300 bg-emerald-950/80 font-black border border-emerald-500/50 shadow-md shadow-emerald-950/60'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <MoneyIcon className="w-5 h-5 mb-1" />
+              <span className="text-[10px] tracking-tight leading-none text-center font-bold">ল্যাব ইনভয়েস</span>
+            </button>
+
+            {/* 3. Due Collection */}
+            <button
+              onClick={() => handleTabChange('due_collection')}
+              disabled={isLabReporter}
+              className={`flex flex-col items-center justify-center py-2 px-1 rounded-xl transition-all cursor-pointer ${
+                activeTab === 'due_collection'
+                  ? 'text-amber-300 bg-amber-950/80 font-black border border-amber-500/50 shadow-md shadow-amber-950/60'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Activity className="w-5 h-5 mb-1" />
+              <span className="text-[10px] tracking-tight leading-none text-center font-bold">বকেয়া আদায়</span>
+            </button>
+
+            {/* 4. Consolidated Lab Entry */}
+            <button
+              onClick={() => handleTabChange('consolidated_entry')}
+              disabled={isLabReporter}
+              className={`flex flex-col items-center justify-center py-2 px-1 rounded-xl transition-all cursor-pointer ${
+                activeTab === 'consolidated_entry'
+                  ? 'text-purple-300 bg-purple-950/80 font-black border border-purple-500/50 shadow-md shadow-purple-950/60'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Layers className="w-5 h-5 mb-1" />
+              <span className="text-[10px] tracking-tight leading-none text-center font-bold">কনসোলিডেটেড</span>
+            </button>
+          </div>
+        </nav>
       </main>
     </div>
   );
