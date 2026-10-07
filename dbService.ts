@@ -2956,6 +2956,9 @@ export const dbService = {
       const invId = String((inv as any).id || '').trim();
       const invAdmId = String(inv.admission_id || '').trim();
       const invPtId = String(inv.patient_id || '').trim();
+      const recDate = getRecordDate(inv) || normalizeDate(inv.invoice_date || inv.admission_date) || now.split('T')[0];
+      const isModern = isMultiTableDate(recDate); // August 2026 onwards (>= 2026-08-01)
+      const isHistorical = isLegacyDate(recDate); // January 2026 to July 2026 (< 2026-08-01)
 
       // 0. Immediately persist to localStorage offline cache
       try {
@@ -2973,7 +2976,7 @@ export const dbService = {
 
       if (!supabase) return { success: true };
 
-      // 1. ALWAYS persist to ncd_state master archive (Instant, universal fallback)
+      // 1. Single Table (ncd_state): Save and update all invoices (primary for Jan-Jul 2026, fallback for all)
       try {
         if (!cachedLegacyState) {
           const { data } = await supabase.from('ncd_state').select('*').order('updated_at', { ascending: false }).limit(5);
@@ -3026,16 +3029,29 @@ export const dbService = {
           data: cachedLegacyState,
           updated_at: now
         }, { onConflict: 'id' });
-        console.log("[dbService] Saved indoor invoice to ncd_state master:", invDailyId || invInvoiceId);
+        console.log(`[dbService] Saved indoor invoice to ncd_state (Single Table): ${invDailyId || invInvoiceId}`);
       } catch (sbErr) {
         console.warn("[dbService] ncd_state indoor save notice:", sbErr);
       }
 
-      // 2. ALSO sync to modular table 'indoor_invoices' in background
-      try {
-        await dbService.syncIndoorInvoicesToModularTable([inv]);
-      } catch (modErr) {
-        console.warn("[dbService] Modular indoor save notice:", modErr);
+      // 2. Multi-Table (indoor_invoices table): For August 2026 onwards (>= 2026-08-01), save & update in modular table
+      if (isModern) {
+        try {
+          await dbService.syncIndoorInvoicesToModularTable([inv]);
+          console.log(`[dbService] Synced modern indoor invoice to multi-table (indoor_invoices): ${invDailyId || invInvoiceId}`);
+        } catch (modErr) {
+          console.warn("[dbService] Modular indoor save notice:", modErr);
+        }
+      } else if (isHistorical) {
+        // If dated for January - July 2026, ensure it does not exist as duplicate in multi-table indoor_invoices
+        try {
+          const targetId = invId || invDailyId || invInvoiceId;
+          if (targetId) {
+            await supabase.from('indoor_invoices').delete().or(`id.eq.${targetId},daily_id.eq.${targetId},invoice_id.eq.${targetId}`);
+          }
+        } catch (cleanErr) {
+          console.warn("[dbService] Clean historical from indoor_invoices table notice:", cleanErr);
+        }
       }
 
       return { success: true };

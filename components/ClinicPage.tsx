@@ -13,6 +13,22 @@ import { CheckCircle2, AlertTriangle, Sparkles } from 'lucide-react';
 // Fixed Clinic Config
 const CLINIC_REGISTRATION = 'HSM76710';
 
+// Date normalization helper
+function normalizeDate(d: any): string {
+    if (!d) return '';
+    if (typeof d === 'string') {
+        const trimmed = d.trim();
+        if (/^\d{4}-\d{2}-\d{2}/.test(trimmed)) return trimmed.substring(0, 10);
+        const parsed = new Date(trimmed);
+        if (!isNaN(parsed.getTime())) return parsed.toISOString().split('T')[0];
+        return trimmed;
+    }
+    if (d instanceof Date && !isNaN(d.getTime())) {
+        return d.toISOString().split('T')[0];
+    }
+    return String(d || '');
+}
+
 // Clinic Expense Categories for net balance calculation
 const clinicExpenseCategories = [
     'Stuff salary', 'Generator', 'Motorcycle', 'Marketing', 'Clinic development', 
@@ -2670,9 +2686,13 @@ const IndoorInvoicePage: React.FC<{
     };
 
     const handleGenerateId = () => {
-        if (!selectedAdmission && !formData.patient_id) return alert("প্রথমে পেশেন্ট সিলেক্ট করুন।");
+        const patientIdToFind = selectedAdmission?.patient_id || formData.patient_id;
+        const admIdToFind = selectedAdmission?.admission_id || formData.admission_id;
+        if (!selectedAdmission && !patientIdToFind && !admIdToFind) {
+            return alert("প্রথমে এডমিটেড পেশেন্ট বা আউটডোর পেশেন্ট সিলেক্ট করুন।");
+        }
         
-        const dateToUse = normalizeDate(formData.invoice_date || new Date().toISOString().split('T')[0]) || new Date().toISOString().split('T')[0];
+        const dateToUse = normalizeDate(formData.invoice_date || formData.admission_date || new Date().toISOString().split('T')[0]) || new Date().toISOString().split('T')[0];
         const safeInvoices = Array.isArray(indoorInvoices) ? indoorInvoices : [];
         const existingSeqNumbers = safeInvoices
             .filter(i => i && normalizeDate(i.invoice_date || i.admission_date) === dateToUse)
@@ -2686,39 +2706,46 @@ const IndoorInvoicePage: React.FC<{
         const newId = `CLIN-${dateToUse}-${String(maxSeq + 1).padStart(3, '0')}`;
         
         const safePatients = Array.isArray(patients) ? patients : [];
-        const patientIdToFind = selectedAdmission?.patient_id || formData.patient_id;
         const patient = safePatients.find(p => p && p.pt_id === patientIdToFind);
+        const safeAdmissions = Array.isArray(admissions) ? admissions : [];
+        const adm = selectedAdmission || safeAdmissions.find(a => a && ((admIdToFind && a.admission_id === admIdToFind) || (patientIdToFind && a.patient_id === patientIdToFind)));
 
         const newInvoice: IndoorInvoice = {
             ...emptyIndoorInvoice,
+            ...formData,
             daily_id: newId,
             invoice_date: dateToUse,
-            admission_id: selectedAdmission?.admission_id || '',
-            patient_id: patient?.pt_id || formData.patient_id || '',
-            patient_name: patient?.pt_name || formData.patient_name || '',
-            referrar_id: selectedAdmission?.referrer_id || '',
-            referrar_name: selectedAdmission?.referrer_name || '',
-            doctor_id: selectedAdmission?.doctor_id || '',
-            doctor_name: selectedAdmission?.doctor_name || '',
-            indication: selectedAdmission?.indication || 'Outdoor Service',
-            admission_date: selectedAdmission?.admission_date || '',
-            patient_mobile: patient?.mobile || '',
-            patient_address: patient?.address || '',
-            patient_dob: patient ? `${patient.dobY || ''}-${patient.dobM || ''}-${patient.dobD || ''}` : '',
-            status: 'Posted',
-            items: [],
-            services: [],
-            total_bill: 0,
-            total_discount: 0,
-            paid_amount: 0,
-            due_bill: 0,
-            net_payable: 0,
-            special_discount_amount: 0,
-            bill_created_by: 'System',
-            subCategory: '',
-            edit_history: []
+            admission_id: adm?.admission_id || formData.admission_id || '',
+            patient_id: patient?.pt_id || adm?.patient_id || formData.patient_id || '',
+            patient_name: patient?.pt_name || adm?.patient_name || formData.patient_name || '',
+            referrar_id: adm?.referrer_id || formData.referrar_id || '',
+            referrar_name: adm?.referrer_name || formData.referrar_name || '',
+            doctor_id: adm?.doctor_id || formData.doctor_id || '',
+            doctor_name: adm?.doctor_name || formData.doctor_name || '',
+            indication: adm?.indication || formData.indication || (adm ? 'Indoor Service' : 'Outdoor Service'),
+            admission_date: adm?.admission_date || formData.admission_date || dateToUse,
+            patient_mobile: patient?.mobile || adm?.patient_mobile || formData.patient_mobile || '',
+            patient_address: patient?.address || formData.patient_address || '',
+            patient_dob: patient ? `${patient.dobY || ''}-${patient.dobM || ''}-${patient.dobD || ''}` : (formData.patient_dob || ''),
+            status: formData.status || 'Posted',
+            serviceCategory: formData.serviceCategory || (adm?.service_category) || 'Conservative treatment',
+            subCategory: formData.subCategory || '',
+            items: Array.isArray(formData.items) ? formData.items : [],
+            services: Array.isArray(formData.services) ? formData.services : [],
+            total_bill: formData.total_bill || 0,
+            total_discount: formData.total_discount || 0,
+            paid_amount: formData.paid_amount || 0,
+            due_bill: formData.due_bill || 0,
+            net_payable: formData.net_payable || 0,
+            special_discount_amount: formData.special_discount_amount || 0,
+            bill_created_by: formData.bill_created_by || 'System',
+            edit_history: Array.isArray(formData.edit_history) ? formData.edit_history : []
         };
+        if (adm && !selectedAdmission) {
+            setSelectedAdmission(adm);
+        }
         setFormData(newInvoice);
+        setSuccessMessage(`ইনভয়েস আইডি (${newId}) তৈরি হয়েছে!`);
     };
 
     const handleNewVisit = () => {
@@ -3714,25 +3741,38 @@ const IndoorInvoicePage: React.FC<{
                                 const ptName = a.patient_name || p?.pt_name || 'Unknown Patient';
                                 const mob = a.patient_mobile || p?.mobile || '';
                                 return {
-                                    id: a.admission_id || '', 
+                                    id: a.admission_id || a.patient_id || '', 
                                     name: ptName, 
                                     details: `Adm: ${a.admission_id || 'N/A'} | ID: ${a.patient_id || 'N/A'} | Bed: ${a.bed_no || 'N/A'} | Indication: ${a.indication || 'N/A'} | Mob: ${mob || 'N/A'} | Addr: ${p?.address || ''} | Adm Date: ${a.admission_date || ''}`
                                 };
                             })} 
-                            value={selectedAdmission?.admission_id || ''} 
+                            value={selectedAdmission?.admission_id || formData.admission_id || ''} 
                             onChange={(id) => { 
                                 const safeAdmissions = Array.isArray(admissions) ? admissions : [];
-                                const adm = safeAdmissions.find(a => a && a.admission_id === id); 
+                                const adm = safeAdmissions.find(a => a && (a.admission_id === id || a.patient_id === id || (a as any).id === id)); 
                                 setSelectedAdmission(adm || null); 
                                 if(adm) {
-                                    setFormData({
+                                    const safePatients = Array.isArray(patients) ? patients : [];
+                                    const p = safePatients.find(pt => pt && pt.pt_id === adm.patient_id);
+                                    const todayStr = new Date().toISOString().split('T')[0];
+                                    setFormData(prev => ({
                                         ...emptyIndoorInvoice, 
+                                        invoice_date: prev.invoice_date || todayStr,
                                         admission_id: adm.admission_id || '', 
                                         patient_id: adm.patient_id || '', 
-                                        patient_name: adm.patient_name || '', 
+                                        patient_name: adm.patient_name || p?.pt_name || '', 
+                                        patient_mobile: adm.patient_mobile || p?.mobile || '',
+                                        patient_address: p?.address || '',
+                                        patient_dob: p ? `${p.dobY || ''}-${p.dobM || ''}-${p.dobD || ''}` : '',
                                         admission_date: adm.admission_date || '', 
+                                        doctor_id: adm.doctor_id || '',
+                                        doctor_name: adm.doctor_name || '',
+                                        referrar_id: adm.referrer_id || '',
+                                        referrar_name: adm.referrer_name || '',
+                                        indication: adm.indication || 'Indoor Service',
+                                        serviceCategory: adm.service_category || 'Conservative treatment',
                                         status: 'Posted'
-                                    });
+                                    }));
                                     setApplyPC(false);
                                 }
                             }} 
@@ -3752,16 +3792,22 @@ const IndoorInvoicePage: React.FC<{
                             value={formData.patient_id || ''} 
                             onChange={(id) => { 
                                 const safePatients = Array.isArray(patients) ? patients : [];
-                                const p = safePatients.find(pt => pt && pt.pt_id === id); 
+                                const p = safePatients.find(pt => pt && (pt.pt_id === id || pt.pt_name === id)); 
                                 if(p) {
                                     setSelectedAdmission(null);
-                                    setFormData({
+                                    const todayStr = new Date().toISOString().split('T')[0];
+                                    setFormData(prev => ({
                                         ...emptyIndoorInvoice, 
+                                        invoice_date: prev.invoice_date || todayStr,
                                         patient_id: p.pt_id || '', 
                                         patient_name: p.pt_name || '', 
+                                        patient_mobile: p.mobile || '',
+                                        patient_address: p.address || '',
+                                        patient_dob: `${p.dobY || ''}-${p.dobM || ''}-${p.dobD || ''}`,
                                         status: 'Posted',
-                                        indication: 'Outdoor Service'
-                                    });
+                                        indication: 'Outdoor Service',
+                                        serviceCategory: 'Conservative treatment'
+                                    }));
                                     setApplyPC(false);
                                 }
                             }} 
