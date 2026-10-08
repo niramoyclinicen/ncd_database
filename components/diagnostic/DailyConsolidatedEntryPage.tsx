@@ -123,17 +123,24 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
   // Sync entries if parent prop updates without losing local entries
   useEffect(() => {
     const local = dbService.getConsolidatedEntries();
-    if (Array.isArray(consolidatedLabEntries) && consolidatedLabEntries.length > 0) {
-      const merged = dbService.mergeEntityList(local, consolidatedLabEntries, ['id', '_id']);
+    const propList = Array.isArray(consolidatedLabEntries) ? consolidatedLabEntries : [];
+    const merged = dbService.mergeEntityList(local, propList, ['id', '_id']);
+    if (merged.length > 0) {
       setEntries(merged);
+      dbService.saveConsolidatedEntries(merged);
     } else if (local && local.length > 0) {
       setEntries(local);
     }
   }, [consolidatedLabEntries]);
 
-  // Load existing entries
+  // Load existing entries non-destructively on mount
   useEffect(() => {
-    setEntries(dbService.getConsolidatedEntries());
+    const local = dbService.getConsolidatedEntries();
+    const propList = Array.isArray(consolidatedLabEntries) ? consolidatedLabEntries : [];
+    const merged = dbService.mergeEntityList(local, propList, ['id', '_id']);
+    if (merged.length > 0) {
+      setEntries(merged);
+    }
     setClinicProfile(dbService.getClinicProfile());
   }, []);
 
@@ -948,7 +955,7 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
               <div className="p-3 sm:px-4 bg-slate-950/90 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3">
                 <div className="flex flex-wrap items-center gap-2.5">
                   {/* Mode Switcher */}
-                  <div className="flex bg-slate-900 p-1 rounded-xl border border-slate-800 shadow-inner h-10 sm:h-11 items-center">
+                  <div className="flex bg-slate-900 p-1 rounded-xl border border-slate-800 shadow-inner h-12 sm:h-13 items-center">
                     <button
                       type="button"
                       onClick={() => handleModeChange('daily')}
@@ -958,7 +965,7 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
                           : 'text-slate-400 hover:text-white'
                       }`}
                     >
-                      <Calendar size={14} /> দিনভিত্তিক শিফট এন্ট্রি
+                      <Calendar size={15} /> দিনভিত্তিক শিফট এন্ট্রি
                     </button>
                     <button
                       type="button"
@@ -969,30 +976,30 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
                           : 'text-slate-400 hover:text-white'
                       }`}
                     >
-                      <CalendarRange size={14} /> মাসভিত্তিক এককালীন
+                      <CalendarRange size={15} /> মাসভিত্তিক এককালীন
                     </button>
                   </div>
 
                   {/* Date or Month Picker */}
                   {entryMode === 'daily' ? (
-                    <div className="flex items-center gap-2 bg-slate-900 border border-slate-700/80 rounded-xl px-3 h-10 sm:h-11 shadow-inner">
+                    <div className="flex items-center gap-2 bg-slate-900 border border-slate-700/80 rounded-xl px-3.5 h-12 sm:h-13 shadow-inner">
                       <span className="text-slate-300 text-xs sm:text-sm font-bold whitespace-nowrap">📅 তারিখ:</span>
                       <input
                         type="date"
                         value={selectedDate}
                         onChange={e => setSelectedDate(e.target.value)}
-                        className="bg-transparent text-white font-mono font-bold text-xs sm:text-sm outline-none cursor-pointer"
+                        className="bg-transparent text-white font-mono font-bold text-xs sm:text-sm outline-none cursor-pointer h-full"
                         required
                       />
                     </div>
                   ) : (
                     <div className="flex items-center gap-2">
-                      <div className="flex items-center gap-2 bg-slate-900 border border-slate-700/80 rounded-xl px-3 h-10 sm:h-11 shadow-inner">
+                      <div className="flex items-center gap-2 bg-slate-900 border border-slate-700/80 rounded-xl px-3.5 h-12 sm:h-13 shadow-inner">
                         <span className="text-slate-300 text-xs sm:text-sm font-bold whitespace-nowrap">🗓️ মাস:</span>
                         <select
                           value={selectedMonth}
                           onChange={e => setSelectedMonth(parseInt(e.target.value))}
-                          className="bg-transparent text-white font-bold text-xs sm:text-sm outline-none cursor-pointer"
+                          className="bg-transparent text-white font-bold text-xs sm:text-sm outline-none cursor-pointer h-full"
                         >
                           {BENGALI_MONTHS.map(m => (
                             <option key={m.value} value={m.value} className="bg-slate-900 text-white">{m.bn} ({m.en})</option>
@@ -1000,12 +1007,12 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
                         </select>
                       </div>
 
-                      <div className="flex items-center gap-2 bg-slate-900 border border-slate-700/80 rounded-xl px-3 h-10 sm:h-11 shadow-inner">
+                      <div className="flex items-center gap-2 bg-slate-900 border border-slate-700/80 rounded-xl px-3.5 h-12 sm:h-13 shadow-inner">
                         <span className="text-slate-300 text-xs sm:text-sm font-bold whitespace-nowrap">📅 সন:</span>
                         <select
                           value={selectedYear}
                           onChange={e => setSelectedYear(parseInt(e.target.value))}
-                          className="bg-transparent text-white font-bold text-xs sm:text-sm outline-none cursor-pointer"
+                          className="bg-transparent text-white font-bold text-xs sm:text-sm outline-none cursor-pointer h-full"
                         >
                           {AVAILABLE_YEARS.map(y => (
                             <option key={y} value={y} className="bg-slate-900 text-white">{y} সন</option>
@@ -1016,75 +1023,15 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
                   )}
 
                   {/* Operator Name */}
-                  <div className="flex items-center gap-2 bg-slate-900 border border-slate-700/80 rounded-xl px-3 h-10 sm:h-11 shadow-inner">
+                  <div className="flex items-center gap-2 bg-slate-900 border border-slate-700/80 rounded-xl px-3.5 h-12 sm:h-13 shadow-inner">
                     <span className="text-slate-300 text-xs sm:text-sm font-bold whitespace-nowrap">👤 অপারেটর:</span>
                     <input
                       type="text"
                       value={defaultOperator}
                       onChange={e => setDefaultOperator(e.target.value)}
                       placeholder="Cashier"
-                      className="bg-transparent text-white font-bold text-xs sm:text-sm outline-none w-24 sm:w-32"
+                      className="bg-transparent text-white font-bold text-xs sm:text-sm outline-none w-24 sm:w-32 h-full"
                     />
-                  </div>
-                </div>
-
-                {/* Top Action Buttons */}
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={handleAddShiftRow}
-                    className="h-10 sm:h-11 px-3.5 sm:px-4 bg-sky-600/20 hover:bg-sky-600 text-sky-300 hover:text-white rounded-xl text-xs sm:text-sm font-bold transition-all border border-sky-500/40 flex items-center gap-1.5 cursor-pointer active:scale-95 shadow-sm"
-                    title="নতুন শিফট লাইন যোগ করুন"
-                  >
-                    <PlusIcon size={15} /> + নতুন শিফট লাইন
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handleResetSheet}
-                    className="h-10 sm:h-11 px-3 sm:px-3.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs sm:text-sm font-bold transition-all border border-slate-700 cursor-pointer shadow-sm flex items-center"
-                    title="সম্পূর্ণ শিট ক্লিয়ার করুন"
-                  >
-                    🔄 ক্লিয়ার
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleSaveAllShifts()}
-                    disabled={isSaving}
-                    className="h-10 sm:h-11 px-4 sm:px-5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs sm:text-sm font-black uppercase tracking-wider shadow-lg flex items-center gap-2 transition-all cursor-pointer active:scale-95"
-                  >
-                    <Save size={15} /> {isSaving ? 'সংরক্ষণ...' : 'সব শিফট সেভ ও প্রিন্ট'}
-                  </button>
-                </div>
-              </div>
-
-              {/* TOP LIVE KPI SUMMARY RIBBON (Centered, Compact, Balanced Width) */}
-              <div className="p-2.5 sm:p-3 bg-slate-950/70 border-b border-slate-800 flex justify-center">
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 max-w-4xl w-full">
-                  <div className="bg-slate-900/90 border border-slate-700/80 rounded-xl px-3 py-2 flex flex-col items-center justify-center text-center shadow-sm">
-                    <span className="text-slate-400 text-[11px] font-bold uppercase tracking-wide">👥 মোট রোগী</span>
-                    <span className="text-white font-mono font-black text-sm sm:text-base mt-0.5">{shiftSheetTotals.patients} জন</span>
-                  </div>
-
-                  <div className="bg-slate-900/90 border border-slate-700/80 rounded-xl px-3 py-2 flex flex-col items-center justify-center text-center shadow-sm">
-                    <span className="text-slate-300 text-[11px] font-bold uppercase tracking-wide">📋 মোট গ্রস বিল</span>
-                    <span className="text-slate-100 font-mono font-black text-sm sm:text-base mt-0.5">৳{shiftSheetTotals.gross.toLocaleString()}</span>
-                  </div>
-
-                  <div className="bg-emerald-950/50 border border-emerald-500/50 rounded-xl px-3 py-2 flex flex-col items-center justify-center text-center shadow-sm shadow-emerald-950/40">
-                    <span className="text-emerald-300 text-[11px] font-black uppercase tracking-wide">💵 মোট ক্যাশ আদায়</span>
-                    <span className="text-emerald-300 font-mono font-black text-sm sm:text-base mt-0.5">৳{shiftSheetTotals.cash.toLocaleString()}</span>
-                  </div>
-
-                  <div className="bg-amber-950/30 border border-amber-500/40 rounded-xl px-3 py-2 flex flex-col items-center justify-center text-center shadow-sm">
-                    <span className="text-amber-400 text-[11px] font-bold uppercase tracking-wide">⚠️ মোট বকেয়া</span>
-                    <span className="text-amber-400 font-mono font-black text-sm sm:text-base mt-0.5">৳{shiftSheetTotals.due.toLocaleString()}</span>
-                  </div>
-
-                  <div className="col-span-2 sm:col-span-1 bg-gradient-to-r from-emerald-900/60 via-teal-900/60 to-emerald-900/60 border border-emerald-400/60 rounded-xl px-3 py-2 flex flex-col items-center justify-center text-center shadow-md shadow-emerald-950/40">
-                    <span className="text-emerald-200 text-[11px] font-black uppercase tracking-wide">🏦 ক্লিনিক নিট জমা</span>
-                    <span className="text-emerald-300 font-mono font-black text-sm sm:text-base mt-0.5">৳{shiftSheetTotals.centerNet.toLocaleString()}</span>
                   </div>
                 </div>
               </div>
@@ -1225,13 +1172,13 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
                           </td>
 
                           {/* Gross Amount */}
-                          <td className="p-0 min-w-[90px] bg-slate-200/70 font-black">
+                          <td className="p-0 min-w-[90px] bg-slate-200/80 font-black">
                             <input
                               type="number"
                               min="0"
                               value={row.grossAmount || ''}
                               onChange={e => updateShiftRow(row.id, { grossAmount: parseFloat(e.target.value) || 0 })}
-                              className="w-full h-9 bg-transparent border-0 outline-none focus:outline-none focus:ring-1 focus:ring-sky-600 focus:bg-white px-1.5 text-slate-950 font-mono font-black text-xs text-right select-all"
+                              className="w-full h-9 bg-transparent border-0 outline-none focus:outline-none focus:ring-1 focus:ring-sky-600 focus:bg-white px-1.5 text-slate-950 font-mono font-black text-sm sm:text-[15px] text-right select-all"
                               placeholder="0"
                             />
                           </td>
@@ -1331,54 +1278,54 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
                   </tbody>
 
                   {/* GRAND TOTAL SUMMARY ROW (AUTO-SUMMED) */}
-                  <tfoot className="bg-slate-950 font-black text-xs border-t-2 border-slate-700 select-none">
-                    <tr className="divide-x divide-slate-800 text-[11px]">
-                      <td colSpan={2} className="py-2.5 px-2 text-center text-sky-400 uppercase tracking-wider font-black whitespace-nowrap">
+                  <tfoot className="bg-slate-950 font-black border-t-2 border-slate-700 select-none">
+                    <tr className="divide-x divide-slate-800">
+                      <td colSpan={2} className="py-3.5 px-2 text-center text-sky-400 uppercase tracking-wider font-black whitespace-nowrap text-sm sm:text-base">
                         📊 মোট যোগফল:
                       </td>
-                      <td className="py-2.5 px-1 text-center font-mono text-white whitespace-nowrap">
+                      <td className="py-3.5 px-1 text-center font-mono text-white font-black whitespace-nowrap text-sm sm:text-base">
                         {shiftSheetTotals.patients}
                       </td>
-                      <td className="py-2.5 px-2 text-right font-mono text-indigo-300 whitespace-nowrap">
+                      <td className="py-3.5 px-2 text-right font-mono text-indigo-300 font-black whitespace-nowrap text-sm sm:text-base">
                         ৳{shiftSheetTotals.pathology.toLocaleString()}
                       </td>
-                      <td className="py-2.5 px-2 text-right font-mono text-cyan-300 whitespace-nowrap">
+                      <td className="py-3.5 px-2 text-right font-mono text-cyan-300 font-black whitespace-nowrap text-sm sm:text-base">
                         ৳{shiftSheetTotals.usg.toLocaleString()}
                       </td>
-                      <td className="py-2.5 px-2 text-right font-mono text-amber-300 whitespace-nowrap">
+                      <td className="py-3.5 px-2 text-right font-mono text-amber-300 font-black whitespace-nowrap text-sm sm:text-base">
                         ৳{shiftSheetTotals.xray.toLocaleString()}
                       </td>
-                      <td className="py-2.5 px-2 text-right font-mono text-rose-300 whitespace-nowrap">
+                      <td className="py-3.5 px-2 text-right font-mono text-rose-300 font-black whitespace-nowrap text-sm sm:text-base">
                         ৳{shiftSheetTotals.ecg.toLocaleString()}
                       </td>
-                      <td className="py-2.5 px-2 text-right font-mono text-purple-300 whitespace-nowrap">
+                      <td className="py-3.5 px-2 text-right font-mono text-purple-300 font-black whitespace-nowrap text-sm sm:text-base">
                         ৳{(shiftSheetTotals.hormone + shiftSheetTotals.others).toLocaleString()}
                       </td>
-                      <td className="py-2.5 px-2 text-right font-mono text-white bg-slate-900/90 font-black whitespace-nowrap">
+                      <td className="py-3.5 px-2.5 text-right font-mono text-white bg-slate-900/90 font-black whitespace-nowrap text-base sm:text-lg">
                         ৳{shiftSheetTotals.gross.toLocaleString()}
                       </td>
-                      <td className="py-2.5 px-2 text-right font-mono text-rose-400 whitespace-nowrap">
+                      <td className="py-3.5 px-2 text-right font-mono text-rose-400 font-black whitespace-nowrap text-sm sm:text-base">
                         -৳{shiftSheetTotals.discount.toLocaleString()}
                       </td>
-                      <td className="py-2.5 px-2 text-right font-mono text-sky-300 font-black whitespace-nowrap">
+                      <td className="py-3.5 px-2.5 text-right font-mono text-sky-300 font-black whitespace-nowrap text-base sm:text-lg">
                         ৳{shiftSheetTotals.net.toLocaleString()}
                       </td>
-                      <td className="py-2.5 px-2 text-right font-mono text-emerald-300 bg-emerald-950/70 font-black text-xs sm:text-sm whitespace-nowrap">
+                      <td className="py-3.5 px-2.5 text-right font-mono text-emerald-300 bg-emerald-950/80 font-black text-base sm:text-lg whitespace-nowrap">
                         ৳{shiftSheetTotals.cash.toLocaleString()}
                       </td>
-                      <td className="py-2.5 px-2 text-right font-mono text-amber-400 font-black whitespace-nowrap">
+                      <td className="py-3.5 px-2.5 text-right font-mono text-amber-300 font-black whitespace-nowrap text-base sm:text-lg">
                         ৳{shiftSheetTotals.due.toLocaleString()}
                       </td>
-                      <td className="py-2.5 px-2 text-right font-mono text-rose-300 whitespace-nowrap">
+                      <td className="py-3.5 px-2 text-right font-mono text-rose-300 font-black whitespace-nowrap text-sm sm:text-base">
                         -৳{shiftSheetTotals.doctorPC.toLocaleString()}
                       </td>
-                      <td className="py-2.5 px-2 text-right font-mono text-amber-300 whitespace-nowrap">
+                      <td className="py-3.5 px-2 text-right font-mono text-amber-300 font-black whitespace-nowrap text-sm sm:text-base">
                         -৳{shiftSheetTotals.usgFee.toLocaleString()}
                       </td>
-                      <td className="py-2.5 px-2 text-right font-mono text-emerald-400 bg-slate-900 font-black text-xs sm:text-sm whitespace-nowrap">
+                      <td className="py-3.5 px-2.5 text-right font-mono text-emerald-400 bg-slate-900 font-black text-base sm:text-lg whitespace-nowrap">
                         ৳{shiftSheetTotals.centerNet.toLocaleString()}
                       </td>
-                      <td colSpan={2} className="py-2.5 px-2 text-center text-slate-400 font-bold text-[11px] whitespace-nowrap">
+                      <td colSpan={2} className="py-3.5 px-2 text-center text-slate-400 font-black text-xs sm:text-sm whitespace-nowrap">
                         {shiftRows.length}টি শিফট
                       </td>
                     </tr>
@@ -1423,169 +1370,161 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
               </div>
             </div>
 
-            {/* Embedded Saved Vouchers History List right below the form */}
-            <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 shadow-xl space-y-3.5">
-              <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-3 border-b border-slate-800 pb-3">
-                <div>
-                  <h3 className="text-sm font-black text-white uppercase tracking-wide flex items-center gap-2">
-                    <FileSpreadsheet className="text-sky-400" size={16} /> সংরক্ষিত ভাউচার তালিকা ও হিস্ট্রি ({sortedEntries.length} টি)
+            {/* Embedded Saved Vouchers History List right below the form - Excel Like Light Eye-protective UI */}
+            <div className="bg-slate-100 border-2 border-slate-300 rounded-2xl p-4 shadow-xl space-y-3.5 text-slate-800">
+              <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-3 border-b border-slate-300 pb-3">
+                <div className="shrink-0">
+                  <h3 className="text-sm font-black text-slate-900 uppercase tracking-wide flex items-center gap-2 whitespace-nowrap">
+                    <FileSpreadsheet className="text-emerald-700" size={17} /> সংরক্ষিত ভাউচার তালিকা ও হিস্ট্রি ({sortedEntries.length} টি)
                   </h3>
-                  <p className="text-xs text-slate-400 mt-0.5">
-                    উপরে এন্ট্রি করার পাশাপাশি পূর্বের সকল সংরক্ষিত ভাউচার দেখতে পারবেন এবং এডিট বা প্রিন্ট করতে পারবেন।
+                  <p className="text-xs text-slate-600 mt-0.5 font-medium">
+                    পূর্বের সকল সংরক্ষিত ভাউচার দেখুন, ফিল্টার করুন এবং এডিট বা প্রিন্ট করুন।
                   </p>
                 </div>
-              </div>
 
-              {/* Filter & Search Bar */}
-              <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto">
-                <div>
+                {/* Filter & Search Bar Placed Neatly on the Right Side of Heading */}
+                <div className="flex flex-wrap items-center gap-2 w-full xl:w-auto justify-start xl:justify-end">
                   <select
                     value={liveTypeFilter}
                     onChange={e => setLiveTypeFilter(e.target.value as any)}
-                    className="bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-bold text-xs outline-none focus:border-sky-500"
+                    className="bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 text-slate-800 font-bold text-xs outline-none focus:border-emerald-600 focus:ring-1 focus:ring-emerald-500 shadow-sm cursor-pointer"
                   >
                     <option value="all">সকল ধরন ({sortedEntries.length})</option>
-                    <option value="daily">📅 শুধুমাত্র দৈনিক</option>
-                    <option value="monthly">🗓️ শুধুমাত্র মাসিক</option>
+                    <option value="daily">📅 দৈনিক</option>
+                    <option value="monthly">🗓️ মাসিক</option>
                   </select>
-                </div>
 
-                <div>
                   <select
                     value={liveDueFilter}
                     onChange={e => setLiveDueFilter(e.target.value as any)}
-                    className={`border rounded-xl px-3 py-2 font-black text-xs outline-none transition-all ${
+                    className={`border rounded-xl px-2.5 py-1.5 font-black text-xs outline-none transition-all cursor-pointer shadow-sm ${
                       liveDueFilter === 'due'
-                        ? 'bg-rose-950 border-rose-500 text-rose-200'
-                        : 'bg-slate-950 border-slate-700 text-white focus:border-sky-500'
+                        ? 'bg-rose-100 border-rose-400 text-rose-800 ring-2 ring-rose-300'
+                        : 'bg-white border-slate-300 text-slate-800 focus:border-emerald-600'
                     }`}
                   >
-                    <option value="all">সকল পেমেন্ট স্ট্যাটাস</option>
-                    <option value="due">⚠️ শুধুমাত্র বকেয়া (Due Only)</option>
-                    <option value="paid">✅ সম্পূর্ণ পরিশোধিত (Paid)</option>
+                    <option value="all">সকল পেমেন্ট</option>
+                    <option value="due">⚠️ বকেয়া</option>
+                    <option value="paid">✅ পরিশোধিত</option>
                   </select>
-                </div>
 
-                <div>
                   <select
                     value={liveMonthFilter}
                     onChange={e => setLiveMonthFilter(e.target.value)}
-                    className="bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-bold text-xs outline-none focus:border-sky-500"
+                    className="bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 text-slate-800 font-bold text-xs outline-none focus:border-emerald-600 focus:ring-1 focus:ring-emerald-500 shadow-sm cursor-pointer"
                   >
                     <option value="all">সকল মাস</option>
                     {BENGALI_MONTHS.map(m => (
                       <option key={m.value} value={String(m.value)}>{m.bn}</option>
                     ))}
                   </select>
-                </div>
 
-                <div>
                   <select
                     value={liveYearFilter}
                     onChange={e => setLiveYearFilter(e.target.value)}
-                    className="bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-bold text-xs outline-none focus:border-sky-500"
+                    className="bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 text-slate-800 font-bold text-xs outline-none focus:border-emerald-600 focus:ring-1 focus:ring-emerald-500 shadow-sm cursor-pointer"
                   >
                     <option value="all">সকল সন</option>
                     {AVAILABLE_YEARS.map(y => (
                       <option key={y} value={String(y)}>{y} সন</option>
                     ))}
                   </select>
+
+                  <div className="relative flex-1 sm:w-48 xl:w-52">
+                    <input
+                      type="text"
+                      value={liveSearchQuery}
+                      onChange={e => setLiveSearchQuery(e.target.value)}
+                      placeholder="তারিখ, মাস, সন বা অপারেটর..."
+                      className="w-full bg-white border border-slate-300 rounded-xl pl-7 pr-2.5 py-1.5 text-slate-900 font-bold text-xs outline-none focus:border-emerald-600 focus:ring-1 focus:ring-emerald-500 shadow-sm placeholder:text-slate-400"
+                    />
+                    <SearchIcon className="w-3.5 h-3.5 absolute left-2 top-2.5 text-slate-400" />
+                  </div>
+
+                  {(liveSearchQuery || liveTypeFilter !== 'all' || liveDueFilter !== 'all' || liveMonthFilter !== 'all' || liveYearFilter !== 'all') && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setLiveSearchQuery('');
+                        setLiveTypeFilter('all');
+                        setLiveDueFilter('all');
+                        setLiveMonthFilter('all');
+                        setLiveYearFilter('all');
+                      }}
+                      className="px-2.5 py-1.5 bg-rose-100 hover:bg-rose-200 text-rose-700 border border-rose-300 rounded-xl text-xs font-black transition-all cursor-pointer shadow-sm"
+                      title="ফিল্টার রিসেট"
+                    >
+                      ✕ রিসেট
+                    </button>
+                  )}
                 </div>
+              </div>
 
-                <div className="relative flex-1 sm:w-56">
-                  <input
-                    type="text"
-                    value={liveSearchQuery}
-                    onChange={e => setLiveSearchQuery(e.target.value)}
-                    placeholder="তারিখ, মাস, সন বা অপারেটর..."
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl pl-8 pr-3 py-2 text-white font-bold text-xs outline-none focus:border-sky-500"
-                  />
-                  <SearchIcon className="w-3.5 h-3.5 absolute left-2.5 top-3 text-slate-500" />
-                </div>
-
-                {(liveSearchQuery || liveTypeFilter !== 'all' || liveDueFilter !== 'all' || liveMonthFilter !== 'all' || liveYearFilter !== 'all') && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setLiveSearchQuery('');
-                      setLiveTypeFilter('all');
-                      setLiveDueFilter('all');
-                      setLiveMonthFilter('all');
-                      setLiveYearFilter('all');
-                    }}
-                    className="px-3 py-2 bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white rounded-xl text-xs font-black transition-all"
-                  >
-                    ✕ ফিল্টার রিসেট
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Live Stats Pill */}
-            <div className="flex flex-wrap items-center gap-4 text-xs font-bold bg-slate-950 px-5 py-3 rounded-2xl border border-slate-800 justify-around">
+            {/* Live Stats Summary Ribbon */}
+            <div className="flex flex-wrap items-center gap-4 text-xs font-bold bg-white px-5 py-2.5 rounded-xl border border-slate-300 shadow-sm justify-around">
               <div>
-                <span className="text-slate-400 block text-[10px] uppercase">মোট ভাউচার:</span>
-                <span className="text-white font-mono font-black text-sm">{liveFilteredEntries.length} টি</span>
+                <span className="text-slate-500 block text-[10px] uppercase font-bold">মোট ভাউচার:</span>
+                <span className="text-slate-950 font-mono font-black text-sm">{liveFilteredEntries.length} টি</span>
               </div>
-              <div className="h-5 w-px bg-slate-800"></div>
+              <div className="h-5 w-px bg-slate-300"></div>
               <div>
-                <span className="text-slate-400 block text-[10px] uppercase">মোট রোগী:</span>
-                <span className="text-white font-mono font-black text-sm">{Number(liveStats?.patients || 0).toLocaleString()} জন</span>
+                <span className="text-slate-500 block text-[10px] uppercase font-bold">মোট রোগী:</span>
+                <span className="text-slate-950 font-mono font-black text-sm">{Number(liveStats?.patients || 0).toLocaleString()} জন</span>
               </div>
-              <div className="h-5 w-px bg-slate-800"></div>
+              <div className="h-5 w-px bg-slate-300"></div>
               <div>
-                <span className="text-slate-400 block text-[10px] uppercase">মোট গ্রস বিল:</span>
-                <span className="text-sky-300 font-mono font-black text-sm">৳{(Number(liveStats?.gross) || 0).toLocaleString()}</span>
+                <span className="text-slate-500 block text-[10px] uppercase font-bold">মোট গ্রস বিল:</span>
+                <span className="text-sky-800 font-mono font-black text-sm">৳{(Number(liveStats?.gross) || 0).toLocaleString()}</span>
               </div>
-              <div className="h-5 w-px bg-slate-800"></div>
+              <div className="h-5 w-px bg-slate-300"></div>
               <div>
-                <span className="text-slate-400 block text-[10px] uppercase">মোট ক্যাশ আদায়:</span>
-                <span className="text-emerald-400 font-mono font-black text-base">৳{(Number(liveStats?.cash) || 0).toLocaleString()}</span>
+                <span className="text-slate-500 block text-[10px] uppercase font-bold">মোট ক্যাশ আদায়:</span>
+                <span className="text-emerald-700 font-mono font-black text-base">৳{(Number(liveStats?.cash) || 0).toLocaleString()}</span>
               </div>
-              <div className="h-5 w-px bg-slate-800"></div>
+              <div className="h-5 w-px bg-slate-300"></div>
               <button
                 type="button"
                 onClick={() => setLiveDueFilter(prev => prev === 'due' ? 'all' : 'due')}
                 className={`text-left rounded-xl px-3 py-1 transition-all cursor-pointer ${
                   liveDueFilter === 'due'
-                    ? 'bg-rose-500/30 border border-rose-500 ring-2 ring-rose-500/50'
-                    : 'hover:bg-slate-900 border border-transparent'
+                    ? 'bg-rose-100 border border-rose-400 ring-2 ring-rose-300'
+                    : 'hover:bg-slate-100 border border-transparent'
                 }`}
                 title="ক্লিক করে বকেয়া ভাউচার ফিল্টার করুন"
               >
-                <span className="text-slate-400 block text-[10px] uppercase flex items-center gap-1">
-                  মোট বকেয়া {liveDueFilter === 'due' && <span className="text-rose-400 font-bold">(ফিল্টার সক্রিয়)</span>}:
+                <span className="text-slate-500 block text-[10px] uppercase font-bold flex items-center gap-1">
+                  মোট বকেয়া {liveDueFilter === 'due' && <span className="text-rose-700 font-bold">(ফিল্টার সক্রিয়)</span>}:
                 </span>
-                <span className="text-rose-400 font-mono font-black text-base flex items-center gap-1">
+                <span className="text-rose-700 font-mono font-black text-base flex items-center gap-1">
                   ৳{(Number(liveStats?.due) || 0).toLocaleString()}
                   {(Number(liveStats?.due) || 0) > 0 && <span className="text-[11px]">⚠️</span>}
                 </span>
               </button>
             </div>
 
-            {/* Embedded Table */}
-            <div className="bg-slate-950 border border-slate-800 rounded-2xl overflow-hidden shadow-inner">
+            {/* Embedded Excel-Grid Table */}
+            <div className="bg-white border-2 border-slate-300 rounded-xl overflow-hidden shadow-sm">
               <div className="overflow-x-auto max-h-[500px]">
-                <table className="w-full text-left border-collapse text-xs">
-                  <thead className="bg-slate-900 text-slate-400 uppercase font-black tracking-wider border-b border-slate-800 sticky top-0 z-10">
-                    <tr>
-                      <th className="p-3 text-center">ক্রমিক</th>
-                      <th className="p-3">তারিখ / মাস-বছর</th>
-                      <th className="p-3">এন্ট্রি টাইপ ও শিফট</th>
-                      <th className="p-3">অপারেটর</th>
-                      <th className="p-3 text-center">রোগী</th>
-                      <th className="p-3 text-right">গ্রস বিল</th>
-                      <th className="p-3 text-right text-rose-300">ছাড়</th>
-                      <th className="p-3 text-right text-sky-300">নিট বিল</th>
-                      <th className="p-3 text-right text-emerald-400">ক্যাশ আদায়</th>
-                      <th className="p-3 text-right text-amber-400">বাকি (Due)</th>
-                      <th className="p-3 text-center">অ্যাকশন</th>
+                <table className="w-full text-left border-collapse text-xs border border-slate-300">
+                  <thead className="bg-slate-200 text-slate-800 uppercase font-black tracking-wider border-b-2 border-slate-400 sticky top-0 z-10 select-none text-[11px]">
+                    <tr className="divide-x divide-slate-300">
+                      <th className="border border-slate-300 p-2.5 text-center w-12">ক্রমিক</th>
+                      <th className="border border-slate-300 p-2.5">তারিখ / মাস-বছর</th>
+                      <th className="border border-slate-300 p-2.5">এন্ট্রি টাইপ ও শিফট</th>
+                      <th className="border border-slate-300 p-2.5">অপারেটর</th>
+                      <th className="border border-slate-300 p-2.5 text-center w-16">রোগী</th>
+                      <th className="border border-slate-300 p-2.5 text-right">গ্রস বিল</th>
+                      <th className="border border-slate-300 p-2.5 text-right text-rose-700">ছাড়</th>
+                      <th className="border border-slate-300 p-2.5 text-right text-sky-800">নিট বিল</th>
+                      <th className="border border-slate-300 p-2.5 text-right text-emerald-800">ক্যাশ আদায়</th>
+                      <th className="border border-slate-300 p-2.5 text-right text-amber-800">বাকি (Due)</th>
+                      <th className="border border-slate-300 p-2.5 text-center w-28">অ্যাকশন</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-800 font-bold">
+                  <tbody className="font-semibold text-slate-800 divide-y divide-slate-300">
                     {liveFilteredEntries.length === 0 ? (
                       <tr>
-                        <td colSpan={11} className="p-8 text-center text-slate-500 font-bold">
+                        <td colSpan={11} className="border border-slate-300 p-8 text-center text-slate-500 font-bold bg-white">
                           কোনো সংরক্ষিত রেকর্ড পাওয়া যায়নি।
                         </td>
                       </tr>
@@ -1598,52 +1537,52 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
                         const rowDue = Number(row.dueAmount) || 0;
 
                         return (
-                          <tr key={row.id} className={`transition-colors ${isEditingThis ? 'bg-amber-950/40 border-l-4 border-amber-500' : 'hover:bg-slate-900/60'}`}>
-                            <td className="p-3 text-center font-mono text-slate-400">{index + 1}</td>
-                            <td className="p-3 font-mono text-slate-100">
+                          <tr key={row.id} className={`transition-colors divide-x divide-slate-300 ${isEditingThis ? 'bg-amber-100/90 text-amber-950 font-bold' : 'hover:bg-blue-50/70 bg-white even:bg-slate-50/70'}`}>
+                            <td className="border border-slate-300 p-2 text-center font-mono text-slate-600 bg-slate-100/60 font-bold">{index + 1}</td>
+                            <td className="border border-slate-300 p-2.5 font-mono text-slate-900 font-bold whitespace-nowrap">
                               {isRowMonthly ? (
-                                <span className="font-black text-emerald-300">
+                                <span className="font-black text-emerald-800">
                                   🗓️ {BENGALI_MONTHS[rowMonth]?.bn} {rowYear}
                                 </span>
                               ) : (
                                 <>
-                                  <span className="font-bold">{row.date}</span> <span className="text-[10px] text-slate-400">({row.entryTime || 'N/A'})</span>
+                                  <span className="font-bold">{row.date}</span> <span className="text-[10px] text-slate-500">({row.entryTime || 'N/A'})</span>
                                 </>
                               )}
                             </td>
-                            <td className="p-3">
+                            <td className="border border-slate-300 p-2.5 whitespace-nowrap">
                               {isRowMonthly ? (
-                                <span className="px-2.5 py-0.5 rounded bg-emerald-950/90 border border-emerald-500/40 text-emerald-300 text-[10px] font-black uppercase">
+                                <span className="px-2 py-0.5 rounded bg-emerald-100 border border-emerald-300 text-emerald-800 text-[10px] font-black uppercase">
                                   মাসিক এককালীন
                                 </span>
                               ) : (
-                                <span className="px-2.5 py-0.5 rounded bg-sky-950/90 border border-sky-500/40 text-sky-300 text-[10px] font-black uppercase">
+                                <span className="px-2 py-0.5 rounded bg-sky-100 border border-sky-300 text-sky-800 text-[10px] font-black uppercase">
                                   দৈনিক ({row.shift || 'Full Day'})
                                 </span>
                               )}
                             </td>
-                            <td className="p-3 text-slate-300">{row.operatorName || 'Cashier'}</td>
-                            <td className="p-3 text-center font-mono text-white font-black">{row.totalPatients || 0}</td>
-                            <td className="p-3 text-right font-mono text-slate-200">৳{(Number(row.grossAmount) || 0).toLocaleString()}</td>
-                            <td className="p-3 text-right font-mono text-rose-300">-৳{(Number(row.discountAmount) || 0).toLocaleString()}</td>
-                            <td className="p-3 text-right font-mono text-sky-300 font-bold">৳{(Number(row.netPayable) || 0).toLocaleString()}</td>
-                            <td className="p-3 text-right font-mono text-emerald-400 font-black bg-emerald-950/20">৳{(Number(row.cashCollected) || 0).toLocaleString()}</td>
-                            <td className="p-3 text-right font-mono">
+                            <td className="border border-slate-300 p-2.5 text-slate-700 font-bold whitespace-nowrap">{row.operatorName || 'Cashier'}</td>
+                            <td className="border border-slate-300 p-2 text-center font-mono text-slate-950 font-black">{row.totalPatients || 0}</td>
+                            <td className="border border-slate-300 p-2.5 text-right font-mono text-slate-950 font-bold bg-slate-50/60">৳{(Number(row.grossAmount) || 0).toLocaleString()}</td>
+                            <td className="border border-slate-300 p-2.5 text-right font-mono text-rose-600 font-bold">-৳{(Number(row.discountAmount) || 0).toLocaleString()}</td>
+                            <td className="border border-slate-300 p-2.5 text-right font-mono text-sky-900 font-black bg-sky-50/40">৳{(Number(row.netPayable) || 0).toLocaleString()}</td>
+                            <td className="border border-slate-300 p-2.5 text-right font-mono text-emerald-800 font-black bg-emerald-50/60">৳{(Number(row.cashCollected) || 0).toLocaleString()}</td>
+                            <td className="border border-slate-300 p-2.5 text-right font-mono whitespace-nowrap">
                               {rowDue > 0 ? (
-                                <span className="px-2 py-0.5 rounded bg-rose-950 border border-rose-500/60 text-rose-300 font-black inline-flex items-center gap-1 shadow-sm">
+                                <span className="px-2 py-0.5 rounded bg-rose-100 border border-rose-300 text-rose-800 font-black inline-flex items-center gap-1 shadow-sm text-xs">
                                   ৳{rowDue.toLocaleString()} <span className="text-[10px]">⚠️</span>
                                 </span>
                               ) : (
-                                <span className="text-slate-500">৳0</span>
+                                <span className="text-slate-400 font-bold">৳0</span>
                               )}
                             </td>
-                            <td className="p-3 text-center">
+                            <td className="border border-slate-300 p-1.5 text-center bg-slate-50/40">
                               <div className="flex items-center justify-center gap-1.5">
                                 <button
                                   type="button"
                                   onClick={() => handleStartEdit(row)}
-                                  className={`p-2 rounded-lg transition-all shadow active:scale-95 cursor-pointer ${
-                                    isEditingThis ? 'bg-amber-500 text-slate-950 font-black' : 'bg-amber-600/20 hover:bg-amber-600 text-amber-300 hover:text-white'
+                                  className={`p-1.5 rounded-lg transition-all shadow-sm active:scale-95 cursor-pointer ${
+                                    isEditingThis ? 'bg-amber-500 text-slate-950 font-black' : 'bg-amber-100 hover:bg-amber-200 text-amber-800 border border-amber-300'
                                   }`}
                                   title="সম্পাদনা করুন (Edit)"
                                 >
@@ -1652,7 +1591,7 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
                                 <button
                                   type="button"
                                   onClick={() => handlePrintVoucher(row)}
-                                  className="p-2 bg-sky-600/20 hover:bg-sky-600 text-sky-300 hover:text-white rounded-lg transition-all shadow active:scale-95 cursor-pointer"
+                                  className="p-1.5 bg-sky-100 hover:bg-sky-200 text-sky-800 border border-sky-300 rounded-lg transition-all shadow-sm active:scale-95 cursor-pointer"
                                   title="প্রিন্ট ভাউচার"
                                 >
                                   <PrinterIcon size={14} />
@@ -1660,7 +1599,7 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
                                 <button
                                   type="button"
                                   onClick={() => setEntryToDelete(row)}
-                                  className="p-2 bg-rose-600/20 hover:bg-rose-600 text-rose-400 hover:text-white rounded-lg transition-all shadow active:scale-95 cursor-pointer"
+                                  className="p-1.5 bg-rose-100 hover:bg-rose-200 text-rose-700 border border-rose-300 rounded-lg transition-all shadow-sm active:scale-95 cursor-pointer"
                                   title="মুছে ফেলুন"
                                 >
                                   <TrashIcon size={14} />
@@ -1676,7 +1615,8 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
               </div>
             </div>
           </div>
-        )}
+        </div>
+      )}
 
         {/* History Tab */}
         {activeSubTab === 'history' && (
@@ -1837,30 +1777,30 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
               </div>
             )}
 
-            {/* Records Table */}
-            <div className="bg-slate-900 border border-slate-800 rounded-3xl shadow-xl overflow-hidden">
+            {/* Records Table - Eye-Protective Excel Grid */}
+            <div className="bg-white border-2 border-slate-300 rounded-2xl shadow-xl overflow-hidden">
               <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse text-sm">
-                  <thead className="bg-slate-950 text-slate-400 uppercase font-black tracking-wider border-b border-slate-800 text-xs">
-                    <tr>
-                      <th className="p-3.5 text-center">ক্রমিক (SL)</th>
-                      <th className="p-3.5">এন্ট্রি তৈরির তারিখ ও সময়</th>
-                      <th className="p-3.5">তারিখ / মাস-বছর</th>
-                      <th className="p-3.5">এন্ট্রি টাইপ ও শিফট</th>
-                      <th className="p-3.5">অপারেটর</th>
-                      <th className="p-3.5 text-center">রোগী</th>
-                      <th className="p-3.5 text-right">গ্রস বিল</th>
-                      <th className="p-3.5 text-right text-rose-300">ছাড়</th>
-                      <th className="p-3.5 text-right text-sky-300">নিট বিল</th>
-                      <th className="p-3.5 text-right text-emerald-400">ক্যাশ আদায়</th>
-                      <th className="p-3.5 text-right text-amber-400">বাকি (Due)</th>
-                      <th className="p-3.5 text-center">অ্যাকশন</th>
+                <table className="w-full text-left border-collapse text-xs border border-slate-300">
+                  <thead className="bg-slate-200 text-slate-800 uppercase font-black tracking-wider border-b-2 border-slate-400 sticky top-0 z-10 select-none text-[11px]">
+                    <tr className="divide-x divide-slate-300">
+                      <th className="border border-slate-300 p-2.5 text-center w-12">ক্রমিক</th>
+                      <th className="border border-slate-300 p-2.5">তারিখ ও সময়</th>
+                      <th className="border border-slate-300 p-2.5">তারিখ / মাস-বছর</th>
+                      <th className="border border-slate-300 p-2.5">এন্ট্রি টাইপ ও শিফট</th>
+                      <th className="border border-slate-300 p-2.5">অপারেটর</th>
+                      <th className="border border-slate-300 p-2.5 text-center w-16">রোগী</th>
+                      <th className="border border-slate-300 p-2.5 text-right">গ্রস বিল</th>
+                      <th className="border border-slate-300 p-2.5 text-right text-rose-700">ছাড়</th>
+                      <th className="border border-slate-300 p-2.5 text-right text-sky-800">নিট বিল</th>
+                      <th className="border border-slate-300 p-2.5 text-right text-emerald-800">ক্যাশ আদায়</th>
+                      <th className="border border-slate-300 p-2.5 text-right text-amber-800">বাকি (Due)</th>
+                      <th className="border border-slate-300 p-2.5 text-center w-28">অ্যাকশন</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-800 font-bold">
+                  <tbody className="font-semibold text-slate-800 divide-y divide-slate-300">
                     {filteredEntries.length === 0 ? (
                       <tr>
-                        <td colSpan={12} className="p-8 text-center text-slate-500 font-bold">
+                        <td colSpan={12} className="border border-slate-300 p-8 text-center text-slate-500 font-bold bg-white">
                           কোনো কনসোলিডেটেড রেকর্ড পাওয়া যায়নি।
                         </td>
                       </tr>
@@ -1871,70 +1811,70 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
                         const rowYear = row.year !== undefined ? row.year : (row.date ? row.date.split('-')[0] : '');
 
                         return (
-                          <tr key={row.id} className="hover:bg-slate-800/60 transition-colors">
-                            <td className="p-3.5 text-center font-mono text-slate-400 text-xs">{index + 1}</td>
-                            <td className="p-3.5 font-mono text-slate-300 text-xs">
+                          <tr key={row.id} className="hover:bg-blue-50/70 transition-colors bg-white even:bg-slate-50/70 divide-x divide-slate-300">
+                            <td className="border border-slate-300 p-2 text-center font-mono text-slate-600 bg-slate-100/60 font-bold">{index + 1}</td>
+                            <td className="border border-slate-300 p-2.5 font-mono text-slate-600 text-xs">
                               {row.createdAt ? new Date(row.createdAt).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' }) : (row.date || 'N/A')}
                             </td>
-                            <td className="p-3.5 font-mono text-slate-100">
+                            <td className="border border-slate-300 p-2.5 font-mono text-slate-900 font-bold whitespace-nowrap">
                               {isRowMonthly ? (
-                                <span className="font-black text-emerald-300 text-sm">
+                                <span className="font-black text-emerald-800">
                                   {BENGALI_MONTHS[rowMonth]?.bn} {rowYear}
                                 </span>
                               ) : (
                                 <>
-                                  <span className="font-bold">{row.date}</span> <span className="text-xs text-slate-400">({row.entryTime})</span>
+                                  <span className="font-bold">{row.date}</span> <span className="text-[10px] text-slate-500">({row.entryTime})</span>
                                 </>
                               )}
                             </td>
-                            <td className="p-3.5">
+                            <td className="border border-slate-300 p-2.5 whitespace-nowrap">
                               {isRowMonthly ? (
-                                <span className="px-3 py-1 rounded-lg bg-emerald-950/90 border border-emerald-500/40 text-emerald-300 text-xs font-black uppercase shadow-sm">
+                                <span className="px-2 py-0.5 rounded bg-emerald-100 border border-emerald-300 text-emerald-800 text-[10px] font-black uppercase">
                                   🗓️ মাসিক এককালীন
                                 </span>
                               ) : (
-                                <span className="px-3 py-1 rounded-lg bg-sky-950/90 border border-sky-500/40 text-sky-300 text-xs font-black uppercase shadow-sm">
+                                <span className="px-2 py-0.5 rounded bg-sky-100 border border-sky-300 text-sky-800 text-[10px] font-black uppercase">
                                   📅 দৈনিক ({row.shift})
                                 </span>
                               )}
                             </td>
-                            <td className="p-3.5 text-slate-200 text-xs">{row.operatorName}</td>
-                            <td className="p-3.5 text-center font-mono text-white text-sm font-black">{row.totalPatients}</td>
-                            <td className="p-3.5 text-right font-mono text-slate-200 text-sm">৳{(Number(row.grossAmount) || 0).toLocaleString()}</td>
-                            <td className="p-3.5 text-right font-mono text-rose-300 text-sm">-৳{(Number(row.discountAmount) || 0).toLocaleString()}</td>
-                            <td className="p-3.5 text-right font-mono text-sky-300 font-bold text-sm">৳{(Number(row.netPayable) || 0).toLocaleString()}</td>
-                            <td className="p-3.5 text-right font-mono text-emerald-400 font-black text-base bg-emerald-950/20">৳{(Number(row.cashCollected) || 0).toLocaleString()}</td>
-                            <td className="p-3.5 text-right font-mono">
+                            <td className="border border-slate-300 p-2.5 text-slate-700 font-bold whitespace-nowrap">{row.operatorName}</td>
+                            <td className="border border-slate-300 p-2 text-center font-mono text-slate-950 font-black">{row.totalPatients}</td>
+                            <td className="border border-slate-300 p-2.5 text-right font-mono text-slate-950 font-bold bg-slate-50/60">৳{(Number(row.grossAmount) || 0).toLocaleString()}</td>
+                            <td className="border border-slate-300 p-2.5 text-right font-mono text-rose-600 font-bold">-৳{(Number(row.discountAmount) || 0).toLocaleString()}</td>
+                            <td className="border border-slate-300 p-2.5 text-right font-mono text-sky-900 font-black bg-sky-50/40">৳{(Number(row.netPayable) || 0).toLocaleString()}</td>
+                            <td className="border border-slate-300 p-2.5 text-right font-mono text-emerald-800 font-black bg-emerald-50/60">৳{(Number(row.cashCollected) || 0).toLocaleString()}</td>
+                            <td className="border border-slate-300 p-2.5 text-right font-mono whitespace-nowrap">
                               {(Number(row.dueAmount) || 0) > 0 ? (
-                                <span className="px-2.5 py-1 rounded-lg bg-rose-950 border border-rose-500/60 text-rose-300 font-black inline-flex items-center gap-1 shadow-sm text-sm">
-                                  ৳{(Number(row.dueAmount) || 0).toLocaleString()} <span className="text-xs">⚠️</span>
+                                <span className="px-2 py-0.5 rounded bg-rose-100 border border-rose-300 text-rose-800 font-black inline-flex items-center gap-1 shadow-sm text-xs">
+                                  ৳{(Number(row.dueAmount) || 0).toLocaleString()} <span className="text-[10px]">⚠️</span>
                                 </span>
                               ) : (
-                                <span className="text-slate-500 font-bold text-sm">৳0</span>
+                                <span className="text-slate-400 font-bold">৳0</span>
                               )}
                             </td>
-                            <td className="p-3.5 text-center">
-                              <div className="flex items-center justify-center gap-2">
+                            <td className="border border-slate-300 p-1.5 text-center bg-slate-50/40">
+                              <div className="flex items-center justify-center gap-1.5">
                                 <button
                                   onClick={() => handleStartEdit(row)}
-                                  className="p-2.5 bg-amber-600/20 hover:bg-amber-600 text-amber-300 hover:text-white rounded-xl transition-all shadow active:scale-95"
+                                  className="p-1.5 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-800 border border-amber-300 transition-all shadow-sm active:scale-95 cursor-pointer"
                                   title="সম্পাদনা করুন"
                                 >
                                   ✏️
                                 </button>
                                 <button
                                   onClick={() => handlePrintVoucher(row)}
-                                  className="p-2.5 bg-sky-600/20 hover:bg-sky-600 text-sky-300 hover:text-white rounded-xl transition-all shadow active:scale-95"
+                                  className="p-1.5 bg-sky-100 hover:bg-sky-200 text-sky-800 border border-sky-300 rounded-lg transition-all shadow-sm active:scale-95 cursor-pointer"
                                   title="প্রিন্ট ভাউচার"
                                 >
-                                  <PrinterIcon size={16} />
+                                  <PrinterIcon size={14} />
                                 </button>
                                 <button
                                   onClick={() => setEntryToDelete(row)}
-                                  className="p-2.5 bg-rose-600/20 hover:bg-rose-600 text-rose-400 hover:text-white rounded-xl transition-all shadow active:scale-95"
+                                  className="p-1.5 bg-rose-100 hover:bg-rose-200 text-rose-700 border border-rose-300 rounded-lg transition-all shadow-sm active:scale-95 cursor-pointer"
                                   title="মুছে ফেলুন"
                                 >
-                                  <TrashIcon size={16} />
+                                  <TrashIcon size={14} />
                                 </button>
                               </div>
                             </td>

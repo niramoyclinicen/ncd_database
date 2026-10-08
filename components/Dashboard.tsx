@@ -551,12 +551,9 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onNavigate }) => {
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-30 animate-fade-in-up" style={{ animationDelay: '250ms' }}>
               <button 
                 onClick={() => onNavigate(ViewState.MARKETING)}
-                className="pointer-events-auto group relative flex items-center justify-center gap-2 sm:gap-2.5 px-4 py-2 xs:px-5 xs:py-2.5 rounded-full border-2 border-purple-400/90 hover:border-purple-300 active:border-purple-300 bg-gradient-to-r from-slate-950/95 via-purple-950/95 to-slate-950/95 backdrop-blur-2xl shadow-[0_0_35px_rgba(168,85,247,0.8),0_10px_25px_rgba(0,0,0,0.6)] hover:shadow-[0_0_50px_rgba(168,85,247,1)] active:shadow-[0_0_45px_rgba(168,85,247,0.95)] active:scale-95 transition-all duration-300 cursor-pointer"
+                className="pointer-events-auto group relative flex items-center justify-center gap-2 sm:gap-2.5 px-4 py-2 xs:px-5 xs:py-2.5 rounded-full border-2 border-purple-400/90 hover:border-purple-300 active:border-purple-300 bg-gradient-to-r from-slate-950/95 via-purple-950/95 to-slate-950/95 backdrop-blur-2xl shadow-[0_0_35px_rgba(168,85,247,0.8),0_10px_30px_rgba(0,0,0,0.6)] hover:shadow-[0_0_55px_rgba(168,85,247,1),0_15px_40px_rgba(0,0,0,0.8)] active:shadow-[0_0_55px_rgba(168,85,247,1),0_15px_40px_rgba(0,0,0,0.8)] hover:scale-105 active:scale-95 transition-all duration-300 cursor-pointer"
                 title="মার্কেটিং ম্যানেজমেন্ট (Marketing Management)"
               >
-                {/* Perimeter Glow Aura */}
-                <div className="absolute -inset-1 rounded-full bg-gradient-to-r from-purple-600 via-fuchsia-500 to-pink-600 opacity-70 group-hover:opacity-100 group-active:opacity-100 blur-md transition-all duration-300 -z-10 pointer-events-none" />
-
                 <div className="p-1.5 xs:p-2 rounded-full bg-purple-500/30 text-purple-300 border border-purple-400/60 group-hover:scale-110 group-active:scale-110 group-hover:bg-purple-500 group-hover:text-white group-active:bg-purple-500 group-active:text-white transition-all duration-300 shadow-inner">
                   <TrendingUpIcon className="w-4 h-4 xs:w-4.5 xs:h-4.5" />
                 </div>

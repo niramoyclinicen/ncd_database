@@ -528,23 +528,23 @@ const DiagnosticPage: React.FC<DiagnosticPageProps> = ({
 
                 {/* Mobile Slim Current Page Title */}
                 <div className="md:hidden flex items-center gap-1.5">
-                  <span className="text-xs font-bold text-cyan-300 font-bengali">
+                  <span className="text-xs sm:text-sm font-bold text-cyan-300 font-bengali">
                     {activeTab === 'lab_invoice' ? 'ল্যাব ইনভয়েস' : 
                      activeTab === 'doctor_appointment' ? 'অ্যাপয়েন্টমেন্ট' : 
                      activeTab === 'due_collection' ? 'বকেয়া আদায়' : 
-                     activeTab === 'consolidated_entry' ? 'কনসোলিডেটেড' : 'ডায়াগনস্টিক'}
+                     activeTab === 'consolidated_entry' ? 'কনসোলিডেটেড ল্যাব' : 'ডায়াগনস্টিক ডিপার্টমেন্ট'}
                   </span>
                 </div>
              </div>
              
              {/* Right: Diagnostic Title & Badge (Ultra-slim on Mobile) */}
              <div className="flex items-center">
-                <DiagnosticIcon className="w-4 h-4 sm:w-7 sm:h-7 text-cyan-400 mr-1 sm:mr-2 drop-shadow-[0_0_5px_rgba(34,211,238,0.5)]" />
+                <DiagnosticIcon className="w-5 h-5 sm:w-7 sm:h-7 text-cyan-400 mr-1.5 sm:mr-2 drop-shadow-[0_0_5px_rgba(34,211,238,0.5)]" />
                 <div className="flex flex-col items-end">
-                   <h2 className="text-xs sm:text-2xl font-bold text-cyan-400 font-bengali leading-tight text-right">
+                   <h2 className="text-sm sm:text-2xl font-bold text-cyan-400 font-bengali leading-tight text-right whitespace-nowrap">
                      ডায়াগনস্টিক ডিপার্টমেন্ট
                    </h2>
-                   <p className="text-[9px] font-bold text-slate-500 font-bengali tracking-tight hidden sm:block">
+                   <p className="text-[9px] sm:text-[10px] font-bold text-slate-500 font-bengali tracking-tight hidden sm:block">
                      গভমেন্ট লাইসেন্স: HSM41671
                    </p>
                 </div>

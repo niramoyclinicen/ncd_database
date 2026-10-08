@@ -1797,12 +1797,12 @@ export const dbService = {
         }, 1500);
       }
 
-      // Synchronize consolidated lab entries
-      if (Array.isArray(state.consolidatedLabEntries)) {
-        dbService.saveConsolidatedEntries(state.consolidatedLabEntries);
-      } else {
-        state.consolidatedLabEntries = dbService.getConsolidatedEntries();
-      }
+      // Synchronize consolidated lab entries non-destructively (never wipe out local entries on cloud refresh)
+      const localConsolidated = dbService.getConsolidatedEntries();
+      const cloudConsolidated = Array.isArray(state.consolidatedLabEntries) ? state.consolidatedLabEntries : [];
+      const mergedConsolidated = mergeEntityList(localConsolidated || [], cloudConsolidated, ['id', '_id']);
+      state.consolidatedLabEntries = mergedConsolidated;
+      dbService.saveConsolidatedEntries(mergedConsolidated);
 
       // Update offline cache with the fresh state loaded from cloud
       try {
@@ -3696,31 +3696,48 @@ export const dbService = {
 
   getConsolidatedEntries: (): DailyConsolidatedEntry[] => {
     try {
-      const saved = localStorage.getItem('ncd_consolidated_lab_entries');
-      if (saved) {
+      const candidates: any[] = [];
+      const keys = [
+        'ncd_consolidated_lab_entries',
+        'ncd_consolidated_backup_vault',
+        'ncd_consolidated_lab_entries_v1',
+        LOCAL_STORAGE_KEY,
+        'ncd_offline_cache_v1'
+      ];
+      keys.forEach(k => {
         try {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            return parsed.map((e: any, idx: number) => ({
-              ...e,
-              id: String(e.id || e._id || `DCE-${e.date || 'entry'}-${idx}-${Date.now()}`).trim()
-            }));
+          const raw = localStorage.getItem(k);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              candidates.push(...parsed);
+            } else if (parsed && typeof parsed === 'object') {
+              const rawCons = parsed.consolidatedLabEntries || parsed.consolidated_lab_entries || parsed.consolidatedEntries;
+              if (Array.isArray(rawCons) && rawCons.length > 0) {
+                candidates.push(...rawCons);
+              }
+            }
           }
-        } catch (e) {}
+        } catch {}
+      });
+
+      if (candidates.length > 0) {
+        const seen = new Set<string>();
+        const uniqueList: DailyConsolidatedEntry[] = [];
+        candidates.forEach((e: any, idx: number) => {
+          if (!e) return;
+          const cleanId = String(e.id || e._id || `DCE-${e.date || 'entry'}-${e.shift || idx}-${idx}`).trim();
+          const sig = `${cleanId}_${e.date || ''}_${e.shift || ''}`;
+          if (!seen.has(sig)) {
+            seen.add(sig);
+            uniqueList.push({
+              ...e,
+              id: cleanId
+            });
+          }
+        });
+        return uniqueList;
       }
-      try {
-        const cachedRaw = localStorage.getItem(LOCAL_STORAGE_KEY) || localStorage.getItem('ncd_offline_cache_v1');
-        if (cachedRaw) {
-          const cached = JSON.parse(cachedRaw);
-          const rawCons = cached.consolidatedLabEntries || cached.consolidated_lab_entries || cached.consolidatedEntries;
-          if (Array.isArray(rawCons) && rawCons.length > 0) {
-            return rawCons.map((e: any, idx: number) => ({
-              ...e,
-              id: String(e.id || e._id || `DCE-${e.date || 'entry'}-${idx}-${Date.now()}`).trim()
-            }));
-          }
-        }
-      } catch (e) {}
     } catch (e) {}
     return [];
   },
@@ -3732,6 +3749,7 @@ export const dbService = {
         id: String(e.id || e._id || `DCE-${e.date || 'entry'}-${idx}-${Date.now()}`).trim()
       }));
       localStorage.setItem('ncd_consolidated_lab_entries', JSON.stringify(sanitized));
+      localStorage.setItem('ncd_consolidated_backup_vault', JSON.stringify(sanitized));
       try {
         const cachedRaw = localStorage.getItem(LOCAL_STORAGE_KEY) || localStorage.getItem('ncd_offline_cache_v1');
         if (cachedRaw) {

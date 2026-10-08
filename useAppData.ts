@@ -266,12 +266,16 @@ export function useAppData() {
       }
       if (data.diagnosticSettings !== undefined) setDiagnosticSettings(data.diagnosticSettings || {});
       if (data.employeeReferrerMap !== undefined) setEmployeeReferrerMap(data.employeeReferrerMap || {});
-      if (data.consolidatedLabEntries !== undefined && Array.isArray(data.consolidatedLabEntries)) {
-        setConsolidatedLabEntries(data.consolidatedLabEntries);
-        dbService.saveConsolidatedEntries(data.consolidatedLabEntries);
-      } else if (data.consolidated_lab_entries !== undefined && Array.isArray(data.consolidated_lab_entries)) {
-        setConsolidatedLabEntries(data.consolidated_lab_entries);
-        dbService.saveConsolidatedEntries(data.consolidated_lab_entries);
+      const incomingCons = Array.isArray(data.consolidatedLabEntries) 
+        ? data.consolidatedLabEntries 
+        : (Array.isArray(data.consolidated_lab_entries) ? data.consolidated_lab_entries : null);
+      if (incomingCons !== null) {
+        setConsolidatedLabEntries(prev => {
+          const localCurrent = Array.isArray(prev) && prev.length > 0 ? prev : dbService.getConsolidatedEntries();
+          const merged = dbService.mergeEntityList(localCurrent || [], incomingCons, ['id', '_id']);
+          dbService.saveConsolidatedEntries(merged);
+          return merged;
+        });
       }
       if (data.passwords !== undefined && typeof data.passwords === 'object' && data.passwords !== null) {
         const defaultPasswords = {
