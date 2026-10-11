@@ -575,40 +575,59 @@ const upsertTableSafe = async (client: SupabaseClient, tableName: string, rows: 
     const chunkSize = 50;
     for (let i = 0; i < rows.length; i += chunkSize) {
       let chunk = rows.slice(i, i + chunkSize);
-      let { error } = await client.from(tableName).upsert(chunk, { onConflict: 'id' });
-      if (error) {
-        console.warn(`Upsert notice for table ${tableName}:`, error.message);
-        // Fallback for tables where primary conflict target is not 'id' (e.g. invoice_id or daily_id)
-        if (error.message && (error.message.includes('unique') || error.message.includes('conflict') || error.message.includes('constraint') || error.message.includes('ON CONFLICT'))) {
-          const altConflict = (tableName === 'purchase_invoices' || tableName === 'sales_invoices' || tableName === 'lab_invoices') ? 'invoice_id' : (tableName === 'indoor_invoices' ? 'daily_id' : undefined);
-          if (altConflict) {
-            const retryConflict = await client.from(tableName).upsert(chunk, { onConflict: altConflict });
-            if (!retryConflict.error) {
+      let conflictTarget = (tableName === 'purchase_invoices' || tableName === 'sales_invoices' || tableName === 'lab_invoices')
+        ? 'invoice_id'
+        : (tableName === 'indoor_invoices' ? 'daily_id' : 'id');
+
+      let { error } = await client.from(tableName).upsert(chunk, { onConflict: conflictTarget });
+
+      if (error && conflictTarget !== 'id') {
+        const retryId = await client.from(tableName).upsert(chunk, { onConflict: 'id' });
+        if (!retryId.error) {
+          error = null;
+        } else {
+          error = retryId.error;
+        }
+      }
+
+      // If missing column error in schema cache, iteratively remove bad columns and retry up to 5 times
+      let colRetry = 0;
+      let sanitizedChunk = chunk;
+      while (error && colRetry < 5) {
+        const colMatch = error.message ? error.message.match(/Could not find the '([^']+)' column/i) : null;
+        if (colMatch && colMatch[1]) {
+          const badCol = colMatch[1];
+          sanitizedChunk = sanitizedChunk.map(r => {
+            const copy = { ...r };
+            delete copy[badCol];
+            return copy;
+          });
+          const retryRes = await client.from(tableName).upsert(sanitizedChunk, { onConflict: conflictTarget });
+          if (!retryRes.error) {
+            error = null;
+            break;
+          } else {
+            const retryIdRes = await client.from(tableName).upsert(sanitizedChunk, { onConflict: 'id' });
+            if (!retryIdRes.error) {
               error = null;
+              break;
             }
+            error = retryRes.error;
           }
+          colRetry++;
+        } else {
+          break;
         }
-        // If error indicates a missing column in the schema cache, remove that key and retry
-        if (error) {
-          const colMatch = error.message.match(/Could not find the '([^']+)' column/);
-          if (colMatch && colMatch[1]) {
-            const badCol = colMatch[1];
-            const sanitizedChunk = chunk.map(r => {
-              const copy = { ...r };
-              delete copy[badCol];
-              return copy;
-            });
-            const retryRes = await client.from(tableName).upsert(sanitizedChunk, { onConflict: 'id' });
-            if (retryRes.error) {
-              console.warn(`Retry upsert for ${tableName} without '${badCol}':`, retryRes.error.message);
-            }
-          }
-        }
+      }
+
+      if (error) {
+        console.error(`[dbService] Upsert error for table ${tableName}:`, error.message);
+        return false;
       }
     }
     return true;
   } catch (err) {
-    console.warn(`Upsert error for table ${tableName}:`, err);
+    console.error(`[dbService] Upsert exception for table ${tableName}:`, err);
     return false;
   }
 };
@@ -2202,10 +2221,10 @@ export const dbService = {
         return { success: true };
       }
 
-      return { success: true, warning: 'Saved locally, check connectivity' };
+      return { success: false, error: 'অনলাইন ডাটাবেজে সংরক্ষণ সম্ভব হয়নি। ইন্টারনেট ও ডাটাবেজ সংযোগ চেক করুন।' };
     } catch (error: any) {
       console.error("Cloud save critical error:", error);
-      return { success: true, warning: error?.message, isOffline: true };
+      return { success: false, error: error?.message || 'অনলাইন ক্লাউড ডাটাবেজ সংরক্ষণ ব্যর্থ হয়েছে।' };
     }
   },
 
@@ -2687,52 +2706,67 @@ export const dbService = {
     try {
       const normDate = normalizeDate(date);
       const now = new Date().toISOString();
+      const isLegacy = isLegacyDate(normDate); // Jan - Jul 2026
+      const isModern = isMultiTableDate(normDate); // August 2026 onwards
 
-      if (supabase) {
-        // 1. ALWAYS save to ncd_state master archive (all months preserved)
-        try {
-          if (!cachedLegacyState) {
-            const { data } = await supabase.from('ncd_state').select('*').order('updated_at', { ascending: false }).limit(5);
-            if (data && data.length > 0) {
-              const masterRow = data.find((r: any) => r.id === MASTER_RECORD_ID) || data[0];
-              cachedLegacyRecordId = masterRow.id || MASTER_RECORD_ID;
-              cachedLegacyState = typeof masterRow.data === 'string' ? JSON.parse(masterRow.data) : masterRow.data;
+      if (!supabase) {
+        return { success: false, error: 'Supabase not connected' };
+      }
+
+      let masterSuccess = false;
+      let modularSuccess = false;
+
+      // 1. ALWAYS save to ncd_state master archive (all months preserved)
+      try {
+        if (!cachedLegacyState) {
+          const { data } = await supabase.from('ncd_state').select('*').order('updated_at', { ascending: false }).limit(5);
+          if (data && data.length > 0) {
+            const masterRow = data.find((r: any) => r.id === MASTER_RECORD_ID) || data[0];
+            cachedLegacyRecordId = masterRow.id || MASTER_RECORD_ID;
+            cachedLegacyState = typeof masterRow.data === 'string' ? JSON.parse(masterRow.data) : masterRow.data;
+          }
+        }
+        if (!cachedLegacyState) cachedLegacyState = {};
+        if (!cachedLegacyState.detailedExpenses) cachedLegacyState.detailedExpenses = {};
+
+        const validItems = (items || []).filter(it => it && !it.isDeleted).map((it, idx) => ({
+          ...it,
+          id: String(it.id || `exp_${normDate.replace(/-/g, '')}_${idx}_${Date.now()}`),
+          date: normDate,
+          dept: it.dept || 'Diagnostic'
+        }));
+
+        cachedLegacyState.detailedExpenses[normDate] = validItems;
+
+        if (fullDetailedExpenses && typeof fullDetailedExpenses === 'object') {
+          Object.entries(fullDetailedExpenses).forEach(([k, v]) => {
+            const kNorm = normalizeDate(k);
+            if (kNorm && kNorm !== normDate && Array.isArray(v)) {
+              cachedLegacyState.detailedExpenses[kNorm] = v;
             }
-          }
-          if (!cachedLegacyState) cachedLegacyState = {};
-          if (!cachedLegacyState.detailedExpenses) cachedLegacyState.detailedExpenses = {};
-
-          const validItems = (items || []).filter(it => it && !it.isDeleted).map((it, idx) => ({
-            ...it,
-            id: String(it.id || `exp_${normDate.replace(/-/g, '')}_${idx}_${Date.now()}`),
-            date: normDate,
-            dept: it.dept || 'Diagnostic'
-          }));
-
-          cachedLegacyState.detailedExpenses[normDate] = validItems;
-
-          if (fullDetailedExpenses && typeof fullDetailedExpenses === 'object') {
-            Object.entries(fullDetailedExpenses).forEach(([k, v]) => {
-              const kNorm = normalizeDate(k);
-              if (kNorm && kNorm !== normDate && Array.isArray(v)) {
-                cachedLegacyState.detailedExpenses[kNorm] = v;
-              }
-            });
-          }
-
-          cachedLegacyState.last_updated_at = now;
-
-          await supabase.from('ncd_state').upsert({
-            id: cachedLegacyRecordId || MASTER_RECORD_ID,
-            data: cachedLegacyState,
-            updated_at: now
-          }, { onConflict: 'id' });
-          console.log(`[dbService] Saved ${validItems.length} expenses to ncd_state for ${normDate}`);
-        } catch (sbErr) {
-          console.warn("ncd_state direct save notice for expenses:", sbErr);
+          });
         }
 
-        // 2. ALSO save to modular table 'detailed_expenses' with robust column compatibility
+        cachedLegacyState.last_updated_at = now;
+
+        const { error: ncdErr } = await supabase.from('ncd_state').upsert({
+          id: cachedLegacyRecordId || MASTER_RECORD_ID,
+          data: cachedLegacyState,
+          updated_at: now
+        }, { onConflict: 'id' });
+
+        if (!ncdErr) {
+          masterSuccess = true;
+          console.log(`[dbService] Saved ${validItems.length} expenses to ncd_state for ${normDate}`);
+        } else {
+          console.warn("ncd_state direct save error for expenses:", ncdErr.message);
+        }
+      } catch (sbErr) {
+        console.warn("ncd_state direct save notice for expenses:", sbErr);
+      }
+
+      // 2. If modern date (August 2026 onwards), ALSO save to modular table 'detailed_expenses'
+      if (isModern) {
         try {
           const rows = (items || []).filter(it => it && !it.isDeleted).map((it, idx) => {
             const expPaid = Number(it.paidAmount ?? it.paid_amount ?? it.amount ?? it.billAmount ?? 0);
@@ -2753,18 +2787,31 @@ export const dbService = {
           });
 
           if (rows.length > 0) {
-            await upsertTableSafe(supabase, 'detailed_expenses', rows);
-            console.log(`[dbService] Successfully synced ${rows.length} items to detailed_expenses in Supabase`);
+            const upRes = await upsertTableSafe(supabase, 'detailed_expenses', rows);
+            if (upRes) {
+              modularSuccess = true;
+              console.log(`[dbService] Successfully synced ${rows.length} items to detailed_expenses in Supabase`);
+            } else {
+              console.warn("[dbService] detailed_expenses modular upsert returned false");
+            }
+          } else {
+            modularSuccess = true;
           }
         } catch (sbErr) {
           console.warn("Supabase detailed_expenses direct save error:", sbErr);
         }
+      } else {
+        modularSuccess = true;
       }
 
-      return { success: true };
+      if (masterSuccess || modularSuccess) {
+        return { success: true };
+      }
+
+      return { success: false, error: 'অনলাইন ডাটাবেজে খরচের ডাটা সেভ হয়নি। সংযোগ চেক করুন।' };
     } catch (err: any) {
       console.warn("saveExpensesDirectly warning:", err);
-      return { success: true, warning: err?.message };
+      return { success: false, error: err?.message };
     }
   },
 

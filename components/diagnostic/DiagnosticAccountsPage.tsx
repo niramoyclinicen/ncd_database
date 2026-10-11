@@ -1039,25 +1039,39 @@ const DailyExpenseForm: React.FC<any> = ({
             [batchDate]: updatedDateExpenses
         };
 
-        // 1. Optimistic local React update immediately
+        // 1. Direct modular database save FIRST (Online check)
+        let saveResult: any = { success: false, error: 'Connection error' };
+        try {
+            saveResult = await dbService.saveExpensesDirectly(batchDate, updatedDateExpenses, newDetailedExpenses);
+        } catch (e: any) {
+            console.warn("Batch purchase direct save notice:", e);
+            saveResult = { success: false, error: e?.message };
+        }
+
+        if (!saveResult.success) {
+            alert("অনলাইনে ব্যাচ পারচেজ সেভ হয়নি! " + (saveResult.error || "দয়া করে ইন্টারনেট ও ডাটাবেজ কানেকশন চেক করুন।"));
+            setIsSaving(false);
+            return;
+        }
+
+        // 2. Sync full state
+        if (performBlockingSync) {
+            try {
+                await performBlockingSync({ 
+                    detailedExpenses: newDetailedExpenses,
+                    reagents: updatedReagents
+                });
+            } catch (e) {
+                console.warn("Batch purchase blocking sync notice:", e);
+            }
+        }
+
+        // 3. Update local React state and show success message ONLY after confirmed online save
         if (setDetailedExpenses) setDetailedExpenses(newDetailedExpenses);
         if (setReagents) setReagents(updatedReagents);
         setShowBatchModal(false);
-        setSuccessMessage('Batch purchase saved & stock updated!');
+        setSuccessMessage('Batch purchase saved & stock updated online!');
         setTimeout(() => setSuccessMessage(''), 3000);
-
-        // 2. Direct modular database save
-        dbService.saveExpensesDirectly(batchDate, updatedDateExpenses, newDetailedExpenses).catch(e => {
-            console.warn("Batch purchase direct save notice:", e);
-        });
-
-        // 3. Sync full state
-        if (performBlockingSync) {
-            await performBlockingSync({ 
-                detailedExpenses: newDetailedExpenses,
-                reagents: updatedReagents
-            });
-        }
         setIsSaving(false);
     };
 
@@ -2089,23 +2103,22 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                 setSelectedYear(dateObj.getFullYear());
             }
 
-            // 1. Optimistically update local React state immediately (0ms UI latency)
-            setDetailedExpenses(newState);
-            if (reagentsModified && setReagents) {
-                setReagents(updatedReagents);
-            }
-            setEditingItem(null);
-            setSuccessMessage("খরচের ডাটা সফলভাবে সেভ হয়েছে।");
-            setTimeout(() => setSuccessMessage(''), 4000);
-
-            // 2. Direct save to Supabase modular table & ncd_state dual persistence
+            // 1. Direct save to Supabase modular table & ncd_state dual persistence FIRST (Online check)
+            let saveResult: any = { success: false, error: 'Connection error' };
             try {
-                await dbService.saveExpensesDirectly(date, finalDiagItems, newState);
-            } catch (e) {
+                saveResult = await dbService.saveExpensesDirectly(date, finalDiagItems, newState);
+            } catch (e: any) {
                 console.warn("[DiagnosticAccounts] Direct expense save notice:", e);
+                saveResult = { success: false, error: e?.message };
             }
 
-            // 3. Sync full state
+            if (!saveResult.success) {
+                alert("অনলাইনে ডাটা সেভ হয়নি! " + (saveResult.error || "দয়া করে ইন্টারনেট ও ডাটাবেজ কানেকশন চেক করুন।"));
+                setIsSaving(false);
+                return;
+            }
+
+            // 2. Sync full state in background
             const syncPayload: any = { detailedExpenses: newState };
             if (reagentsModified) {
                 syncPayload.reagents = updatedReagents;
@@ -2117,6 +2130,16 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                     console.warn("[DiagnosticAccounts] Background blocking sync notice:", e);
                 }
             }
+
+            // 3. Optimistically update local React state and show success message ONLY after confirmed online save
+            setDetailedExpenses(newState);
+            if (reagentsModified && setReagents) {
+                setReagents(updatedReagents);
+            }
+            setEditingItem(null);
+            setSuccessMessage("খরচের ডাটা সফলভাবে সেভ হয়েছে।");
+            setTimeout(() => setSuccessMessage(''), 4000);
+            setIsSaving(false);
         } catch (err) {
             console.error("[DiagnosticAccounts] Critical error saving expense:", err);
             alert("সিস্টেম এরর হয়েছে। দয়া করে পেজটি রিফ্রেশ দিন।");
