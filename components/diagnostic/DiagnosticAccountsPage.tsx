@@ -1469,7 +1469,7 @@ const DailyExpenseForm: React.FC<any> = ({
                 {isSaving && (
                     <div className="absolute inset-0 z-[200] bg-slate-900/60 backdrop-blur-[2px] rounded-[2rem] flex flex-col items-center justify-center text-white">
                         <div className="w-12 h-12 border-4 border-sky-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-                        <p className="font-black uppercase tracking-widest text-[10px] animate-pulse">সংরক্ষণ করা হচ্ছে...</p>
+                        <p className="font-black uppercase tracking-widest text-[12px] animate-pulse">ডাটা সেভ হচ্ছে...</p>
                     </div>
                 )}
 
@@ -1955,6 +1955,7 @@ const DiagnosticAccountsPage: React.FC<any> = ({
     };
 
     const executeSaveExpense = async (date: string, items: ExpenseItem[]) => {
+        setIsSaving(true);
         try {
             setConfirmModal(prev => ({ ...prev, isOpen: false }));
             
@@ -2142,6 +2143,7 @@ const DiagnosticAccountsPage: React.FC<any> = ({
             setIsSaving(false);
         } catch (err) {
             console.error("[DiagnosticAccounts] Critical error saving expense:", err);
+            setIsSaving(false);
             alert("সিস্টেম এরর হয়েছে। দয়া করে পেজটি রিফ্রেশ দিন।");
         }
     };
