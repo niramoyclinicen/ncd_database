@@ -1492,7 +1492,17 @@ export const dbService = {
                 };
                 const existingIdx = state.detailedExpenses[rowDate].findIndex((x: any) => String(x.id || '') === expItem.id && expItem.id !== '');
                 if (existingIdx >= 0) {
-                  state.detailedExpenses[rowDate][existingIdx] = { ...state.detailedExpenses[rowDate][existingIdx], ...expItem };
+                  const cur = state.detailedExpenses[rowDate][existingIdx];
+                  const finalPaid = expPaid > 0 ? expPaid : (Number(cur.paidAmount || cur.paid_amount || 0) > 0 ? Number(cur.paidAmount || cur.paid_amount || 0) : expPaid);
+                  const finalBill = expBill > 0 ? expBill : (Number(cur.billAmount || cur.bill_amount || 0) > 0 ? Number(cur.billAmount || cur.bill_amount || 0) : expBill);
+                  state.detailedExpenses[rowDate][existingIdx] = {
+                    ...cur,
+                    ...expItem,
+                    paidAmount: finalPaid,
+                    paid_amount: finalPaid,
+                    billAmount: finalBill,
+                    bill_amount: finalBill
+                  };
                 } else {
                   state.detailedExpenses[rowDate].push(expItem);
                 }
@@ -1531,11 +1541,61 @@ export const dbService = {
 
             const existingIdx = state.detailedExpenses[rowDate].findIndex((x: any) => String(x.id || '') === expItem.id && expItem.id !== '');
             if (existingIdx >= 0) {
-              state.detailedExpenses[rowDate][existingIdx] = { ...state.detailedExpenses[rowDate][existingIdx], ...expItem };
+              const cur = state.detailedExpenses[rowDate][existingIdx];
+              const finalPaid = expPaid > 0 ? expPaid : (Number(cur.paidAmount || cur.paid_amount || 0) > 0 ? Number(cur.paidAmount || cur.paid_amount || 0) : expPaid);
+              const finalBill = expBill > 0 ? expBill : (Number(cur.billAmount || cur.bill_amount || 0) > 0 ? Number(cur.billAmount || cur.bill_amount || 0) : expBill);
+              state.detailedExpenses[rowDate][existingIdx] = {
+                ...cur,
+                ...expItem,
+                paidAmount: finalPaid,
+                paid_amount: finalPaid,
+                billAmount: finalBill,
+                bill_amount: finalBill
+              };
             } else {
               state.detailedExpenses[rowDate].push(expItem);
             }
           });
+
+          // Automatic recovery for 0-amount expenses from local cache / offline cache
+          try {
+            const rawCache = localStorage.getItem('ncd_offline_cache_v1') || localStorage.getItem(LOCAL_STORAGE_KEY) || localStorage.getItem('ncd_migration_rollback_snapshot');
+            if (rawCache) {
+              const cachedObj = JSON.parse(rawCache);
+              const cachedExp = cachedObj.detailedExpenses || cachedObj.detailed_expenses;
+              if (cachedExp && typeof cachedExp === 'object') {
+                Object.entries(cachedExp).forEach(([dateKey, items]: [string, any]) => {
+                  const normDate = normalizeDate(dateKey);
+                  if (!normDate || !Array.isArray(items)) return;
+                  if (!state.detailedExpenses[normDate]) state.detailedExpenses[normDate] = [];
+                  items.forEach((cItem: any) => {
+                    if (!cItem || cItem.isDeleted) return;
+                    const cPaid = Number(cItem.paidAmount ?? cItem.paid_amount ?? cItem.amount ?? 0);
+                    if (cPaid > 0) {
+                      const exIdx = state.detailedExpenses[normDate].findIndex((x: any) => String(x.id || '') === String(cItem.id || '') || ((x.description || '').trim().toLowerCase() === (cItem.description || '').trim().toLowerCase()));
+                      if (exIdx >= 0) {
+                        const cur = state.detailedExpenses[normDate][exIdx];
+                        if (Number(cur.paidAmount || cur.paid_amount || 0) <= 0) {
+                          state.detailedExpenses[normDate][exIdx] = {
+                            ...cur,
+                            ...cItem,
+                            paidAmount: cPaid,
+                            paid_amount: cPaid,
+                            billAmount: Number(cItem.billAmount ?? cItem.bill_amount ?? cPaid),
+                            bill_amount: Number(cItem.billAmount ?? cItem.bill_amount ?? cPaid)
+                          };
+                        }
+                      } else {
+                        state.detailedExpenses[normDate].push(cItem);
+                      }
+                    }
+                  });
+                });
+              }
+            }
+          } catch (recErr) {
+            console.warn("Auto expense recovery notice:", recErr);
+          }
         }
       } catch (modularErr) {
         console.warn("Modular table load notice:", modularErr);
