@@ -2460,21 +2460,19 @@ const IndoorInvoicePage: React.FC<{
     // Helper to determine if a service item belongs to Clinic Fund (Hospital Revenue) vs External Doctor/Expense Fees
     const isItemClinicFund = (it: any): boolean => {
         if (!it) return false;
-        // Explicit user checkbox has absolute priority
-        if (it.isClinicFund === true) return true;
-        if (it.isClinicFund === false) return false;
-        
         const typeLower = (it.service_type || '').trim().toLowerCase();
         const providerLower = (it.service_provider || '').trim().toLowerCase();
         
         // Doctor services (surgeon, anesthetist, doctor fees, staff cost, medicine, etc.) are external expenses / non-clinic funds
         const isNonClinic = (doctorServiceTypes || []).some(d => typeLower.includes(d.toLowerCase())) ||
                             typeLower.includes('surgeon') || typeLower.includes('anaesthetist') ||
-                            typeLower.includes('doctor') || typeLower.includes('staff') ||
-                            typeLower.includes('medicine') ||
+                            typeLower.includes('doctor') || typeLower.includes('staff') || typeLower.includes('staff cost') || typeLower.includes('স্টাফ') || typeLower.includes('cost') || typeLower.includes('salary') ||
+                            typeLower.includes('medicine') || typeLower.includes('discharge') ||
                             providerLower.startsWith('dr') || providerLower.includes('doctor');
         
         if (isNonClinic) return false;
+        if (it.isClinicFund === true) return true;
+        if (it.isClinicFund === false) return false;
         return true;
     };
 
@@ -3946,11 +3944,12 @@ const IndoorInvoicePage: React.FC<{
                                     theme="dark" 
                                     label="" 
                                     options={(Array.isArray(referrars) ? referrars : []).filter(r => r).map(r => ({ id: r.ref_id, name: r.ref_name, details: r.ref_degrees }))} 
-                                    value={formData.referrar_id || ''} 
+                                    value={formData.referrar_id || formData.referrar_name || ''} 
                                     onChange={(id, name) => setFormData(prev => ({...prev, referrar_id: id, referrar_name: name}))} 
                                     onAddNew={() => setShowNewReferrarForm(true)}
                                     placeholder="Search or select referrer..." 
                                     inputHeightClass="h-[46px] bg-slate-900 border-slate-800"
+                                    allowCustom={true}
                                 />
                             </div>
                             
@@ -4118,43 +4117,43 @@ const IndoorInvoicePage: React.FC<{
                                     </button>
                                 </div>
                             </div>
-                            <div className="bg-slate-900/90 p-4 rounded-2xl border border-slate-700 shadow-xl space-y-2.5 relative overflow-hidden text-xs">
+                            <div className="bg-slate-900/90 p-3 rounded-2xl border border-slate-700 shadow-xl space-y-1.5 relative overflow-hidden text-xs">
                                 <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 blur-[50px] -mr-16 -mt-16"></div>
                                 
-                                <div className="flex justify-between items-center text-slate-400 border-b border-slate-800/50 pb-2">
+                                <div className="flex justify-between items-center text-slate-400 border-b border-slate-800/50 pb-1.5">
                                     <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Gross Amount</span> 
-                                    <span className="font-black text-slate-300 text-base">{Number(formData.total_bill || 0).toLocaleString()}</span>
+                                    <span className="font-black text-slate-300 text-sm">{Number(formData.total_bill || 0).toLocaleString()}</span>
                                 </div>
                                 
-                                <div className="flex justify-between items-center text-slate-400 border-b border-slate-800/50 pb-2">
+                                <div className="flex justify-between items-center text-slate-400 border-b border-slate-800/50 pb-1.5">
                                     <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Service Discount</span> 
-                                    <span className="font-black text-rose-400/60 text-sm">{Number(formData.total_discount || 0).toLocaleString()}</span>
+                                    <span className="font-black text-rose-400/60 text-xs">{Number(formData.total_discount || 0).toLocaleString()}</span>
                                 </div>
 
-                                <div className="flex justify-between items-center text-amber-400 bg-amber-900/5 p-2.5 rounded-xl border border-amber-500/10">
+                                <div className="flex justify-between items-center text-amber-400 bg-amber-900/5 p-2 rounded-xl border border-amber-500/10">
                                     <span className="text-[10px] font-black uppercase tracking-widest">Special Discount</span> 
                                     <div className="relative">
-                                        <input type="number" name="special_discount_amount" value={formData.special_discount_amount} onChange={handleInputChange} onFocus={e=>e.target.select()} className="bg-slate-950 text-amber-400 w-32 px-2.5 py-1.5 text-right font-black border border-slate-800 rounded-lg focus:ring-2 focus:ring-amber-500 outline-none text-base shadow-inner"/>
+                                        <input type="number" name="special_discount_amount" value={formData.special_discount_amount} onChange={handleInputChange} onFocus={e=>e.target.select()} className="bg-slate-950 text-amber-400 w-28 px-2 py-1 text-right font-black border border-slate-800 rounded-lg focus:ring-2 focus:ring-amber-500 outline-none text-sm shadow-inner"/>
                                     </div>
                                 </div>
 
-                                <div className="bg-gradient-to-r from-blue-600/10 to-indigo-600/10 p-3 rounded-xl border border-blue-500/20 my-2">
+                                <div className="bg-gradient-to-r from-blue-600/10 to-indigo-600/10 p-2.5 rounded-xl border border-blue-500/20 my-1">
                                     <div className="flex justify-between items-center">
                                         <span className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-300">Net Payable Amount</span> 
-                                        <span className="text-2xl font-black drop-shadow-lg text-white">{Number(formData.net_payable || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                        <span className="text-xl font-black drop-shadow-lg text-white">{Number(formData.net_payable || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                                     </div>
                                 </div>
 
-                                <div className="flex justify-between items-center text-emerald-400 bg-emerald-900/5 p-2.5 rounded-xl border border-emerald-500/10">
+                                <div className="flex justify-between items-center text-emerald-400 bg-emerald-900/5 p-2 rounded-xl border border-emerald-500/10">
                                     <span className="text-[10px] font-black uppercase tracking-widest">Cash Received</span> 
                                     <div className="relative">
-                                        <input type="number" name="paid_amount" value={formData.paid_amount} onChange={handleInputChange} onFocus={e=>e.target.select()} className="bg-slate-950 text-emerald-400 w-32 px-2.5 py-1.5 text-right font-black border border-slate-800 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none text-base shadow-inner"/>
+                                        <input type="number" name="paid_amount" value={formData.paid_amount} onChange={handleInputChange} onFocus={e=>e.target.select()} className="bg-slate-950 text-emerald-400 w-28 px-2 py-1 text-right font-black border border-slate-800 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none text-sm shadow-inner"/>
                                     </div>
                                 </div>
 
-                                <div className="flex justify-between items-center pt-2 px-2">
+                                <div className="flex justify-between items-center pt-1 px-1">
                                     <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Balance Due</span> 
-                                    <span className={`text-2xl font-black ${(formData.due_bill || 0) > 0 ? 'text-rose-500 animate-pulse' : 'text-emerald-500'}`}>
+                                    <span className={`text-xl font-black ${(formData.due_bill || 0) > 0 ? 'text-rose-500 animate-pulse' : 'text-emerald-500'}`}>
                                         {Number(formData.due_bill || 0).toLocaleString()}
                                     </span>
                                 </div>
