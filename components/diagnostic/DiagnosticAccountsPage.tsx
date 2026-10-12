@@ -813,10 +813,9 @@ const StaffSalaryHelperCard: React.FC<{
 const DailyExpenseForm: React.FC<any> = ({ 
     selectedDate, onDateChange, allDetailedExpenses, setDetailedExpenses, onSave, onDelete, onEdit, 
     employees, monthlyRoster, editingItem, diagnosticSettings, setDiagnosticSettings, performBlockingSync, reagents, setReagents,
-    setSuccessMessage, availableTests, attendanceLog = {}, leaveLog = {}
+    setSuccessMessage, availableTests, attendanceLog = {}, leaveLog = {}, isSaving
 }) => {
     const [items, setItems] = useState<ExpenseItem[]>([]);
-    const [isSaving, setIsSaving] = useState(false);
     const [localDate, setLocalDate] = useState(selectedDate);
 
     // Sync local date with prop if prop changes from outside
@@ -1916,6 +1915,7 @@ const DiagnosticAccountsPage: React.FC<any> = ({
     });
 
     const [editingItem, setEditingItem] = useState<any>(null);
+    const [isSaving, setIsSaving] = useState(false);
     const [trackedTests, setTrackedTests] = useState<string[]>(() => {
         const defaultTests = [
             'CBC', 'Lipid Profile', 'Blood Sugar', 'HBsAg', 'Urine R/E', 
@@ -3103,6 +3103,7 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                             availableTests={availableTests}
                             attendanceLog={attendanceLog}
                             leaveLog={leaveLog}
+                            isSaving={isSaving}
                         />
                     </div>
                 )}

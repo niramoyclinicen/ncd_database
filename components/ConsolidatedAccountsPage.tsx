@@ -1765,6 +1765,14 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                             <td className="border border-black p-1 text-right font-black bg-slate-100">{row.total > 0 ? safeNum(row.total).toLocaleString() : ''}</td>
                                         </tr>
                                     ))}
+                                    <tr className="h-6 print:h-[5.5mm] bg-gray-100 font-black uppercase text-[8pt] border-t-[3px] border-black">
+                                        <td className="border border-black p-1 text-center font-bold">Total</td>
+                                        <td className="border border-black p-1 text-right">{dailyExpenseReportData.reduce((s, r) => s + r.diag.today, 0).toLocaleString()}</td>
+                                        <td className="border border-black p-1 text-right bg-blue-50 font-black">{dailyExpenseReportData.reduce((s, r) => s + r.diag.today, 0).toLocaleString()}</td>
+                                        <td className="border border-black p-1 text-right">{dailyExpenseReportData.reduce((s, r) => s + r.clinic.today, 0).toLocaleString()}</td>
+                                        <td className="border border-black p-1 text-right bg-emerald-50 font-black">{dailyExpenseReportData.reduce((s, r) => s + r.clinic.today, 0).toLocaleString()}</td>
+                                        <td className="border border-black p-1 text-right bg-slate-200">{dailyExpenseReportData.reduce((s, r) => s + r.total, 0).toLocaleString()}</td>
+                                    </tr>
                                 </tbody>
                             </table>
                         </main>

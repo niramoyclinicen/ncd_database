@@ -3023,6 +3023,9 @@ export const dbService = {
 
       if (!supabase) return { success: true };
 
+      let masterSuccess = false;
+      let modularSuccess = false;
+
       // 1. Single Table (ncd_state): Save and update all invoices (primary for Jan-Jul 2026, fallback for all)
       try {
         if (!cachedLegacyState) {
@@ -3071,12 +3074,17 @@ export const dbService = {
         cachedLegacyState.clinicInvoices = newArr;
         cachedLegacyState.last_updated_at = now;
 
-        await supabase.from('ncd_state').upsert({
+        const { error: ncdErr } = await supabase.from('ncd_state').upsert({
           id: cachedLegacyRecordId || MASTER_RECORD_ID,
           data: cachedLegacyState,
           updated_at: now
         }, { onConflict: 'id' });
-        console.log(`[dbService] Saved indoor invoice to ncd_state (Single Table): ${invDailyId || invInvoiceId}`);
+        if (!ncdErr) {
+          masterSuccess = true;
+          console.log(`[dbService] Saved indoor invoice to ncd_state (Single Table): ${invDailyId || invInvoiceId}`);
+        } else {
+          console.warn("[dbService] ncd_state indoor save error:", ncdErr.message);
+        }
       } catch (sbErr) {
         console.warn("[dbService] ncd_state indoor save notice:", sbErr);
       }
@@ -3084,27 +3092,27 @@ export const dbService = {
       // 2. Multi-Table (indoor_invoices table): For August 2026 onwards (>= 2026-08-01), save & update in modular table
       if (isModern) {
         try {
-          await dbService.syncIndoorInvoicesToModularTable([inv]);
-          console.log(`[dbService] Synced modern indoor invoice to multi-table (indoor_invoices): ${invDailyId || invInvoiceId}`);
+          const modRes = await dbService.syncIndoorInvoicesToModularTable([inv]);
+          if (modRes) {
+            modularSuccess = true;
+            console.log(`[dbService] Synced modern indoor invoice to multi-table (indoor_invoices): ${invDailyId || invInvoiceId}`);
+          } else {
+            console.warn("[dbService] Modular indoor save returned false");
+          }
         } catch (modErr) {
           console.warn("[dbService] Modular indoor save notice:", modErr);
         }
-      } else if (isHistorical) {
-        // If dated for January - July 2026, ensure it does not exist as duplicate in multi-table indoor_invoices
-        try {
-          const targetId = invId || invDailyId || invInvoiceId;
-          if (targetId) {
-            await supabase.from('indoor_invoices').delete().or(`id.eq.${targetId},daily_id.eq.${targetId},invoice_id.eq.${targetId}`);
-          }
-        } catch (cleanErr) {
-          console.warn("[dbService] Clean historical from indoor_invoices table notice:", cleanErr);
-        }
+      } else {
+        modularSuccess = true;
       }
 
-      return { success: true };
+      if (masterSuccess || modularSuccess) {
+        return { success: true };
+      }
+      return { success: false, error: 'অনলাইন ডাটাবেজে ইনভয়েস সেভ হয়নি। সংযোগ চেক করুন।' };
     } catch (e: any) {
       console.warn("[dbService] saveIndoorInvoiceDirectly notice:", e);
-      return { success: true, warning: e?.message };
+      return { success: false, error: e?.message };
     }
   },
 
