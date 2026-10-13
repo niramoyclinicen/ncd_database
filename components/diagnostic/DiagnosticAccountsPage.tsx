@@ -287,13 +287,13 @@ const InvoiceViewModal: React.FC<{ inv: any, patients: any[], doctors: any[], on
                                 <p>This is an electronically generated document. No signature required for validation.</p>
                             </div>
                             <div className="w-48 space-y-2">
-                                <div className="flex justify-between text-sm py-1"><span>Sub Total:</span> <span className="font-bold">৳{inv.total_amount.toLocaleString()}</span></div>
-                                <div className="flex justify-between text-sm py-1 border-b border-gray-100"><span>Discount:</span> <span className="text-rose-600 font-bold">-৳{inv.discount_amount.toLocaleString()}</span></div>
-                                <div className="flex justify-between text-base font-black py-2 border-b-2 border-slate-900"><span>Net Payable:</span> <span className="text-slate-900 uppercase">৳{inv.net_payable.toLocaleString()}</span></div>
-                                <div className="flex justify-between text-sm py-1"><span>Paid:</span> <span className="text-emerald-600 font-bold">৳{inv.paid_amount.toLocaleString()}</span></div>
+                                <div className="flex justify-between text-sm py-1"><span>Sub Total:</span> <span className="font-bold">{inv.total_amount.toLocaleString()}</span></div>
+                                <div className="flex justify-between text-sm py-1 border-b border-gray-100"><span>Discount:</span> <span className="text-rose-600 font-bold">-{inv.discount_amount.toLocaleString()}</span></div>
+                                <div className="flex justify-between text-base font-black py-2 border-b-2 border-slate-900"><span>Net Payable:</span> <span className="text-slate-900 uppercase">{inv.net_payable.toLocaleString()}</span></div>
+                                <div className="flex justify-between text-sm py-1"><span>Paid:</span> <span className="text-emerald-600 font-bold">{inv.paid_amount.toLocaleString()}</span></div>
                                 <div className="flex justify-between text-lg font-black py-2 bg-slate-50 border-double border-b-4 border-slate-900 px-1 mt-2">
                                     <span className={inv.due_amount > 0 ? "text-rose-600" : "text-emerald-700"}>{inv.due_amount > 0 ? 'Due:' : 'Paid:'}</span>
-                                    <span className={inv.due_amount > 0 ? "text-rose-600" : "text-emerald-700"}>৳{inv.due_amount.toLocaleString()}</span>
+                                    <span className={inv.due_amount > 0 ? "text-rose-600" : "text-emerald-700"}>{inv.due_amount.toLocaleString()}</span>
                                 </div>
                             </div>
                         </div>
@@ -730,9 +730,9 @@ const StaffSalaryHelperCard: React.FC<{
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="bg-slate-900/90 border border-slate-800 p-3 rounded-xl">
                     <div className="text-[10px] font-black uppercase text-slate-400 tracking-wider">চলতি মাসের নিট বেতন</div>
-                    <div className="text-base font-black text-indigo-300 mt-0.5">৳{Math.round(netPayable).toLocaleString()}</div>
+                    <div className="text-base font-black text-indigo-300 mt-0.5">{Math.round(netPayable).toLocaleString()}</div>
                     <div className="text-[9.5px] text-slate-400 mt-1">
-                        মূল বেতন: ৳{agreedSalary.toLocaleString()}
+                        মূল বেতন: {agreedSalary.toLocaleString()}
                         {(bonus + overtime) > 0 && ` | বোনাস/OT: +৳${(bonus + overtime).toLocaleString()}`}
                         {totalDeduction > 0 && ` | কর্তন: -৳${Math.round(totalDeduction).toLocaleString()}`}
                     </div>
@@ -740,7 +740,7 @@ const StaffSalaryHelperCard: React.FC<{
 
                 <div className="bg-slate-900/90 border border-slate-800 p-3 rounded-xl">
                     <div className="text-[10px] font-black uppercase text-slate-400 tracking-wider">পূর্বে মোট পরিশোধিত</div>
-                    <div className="text-base font-black text-emerald-400 mt-0.5">৳{previousPaidTotal.toLocaleString()}</div>
+                    <div className="text-base font-black text-emerald-400 mt-0.5">{previousPaidTotal.toLocaleString()}</div>
                     <div className="text-[9.5px] text-slate-400 mt-1">
                         {paymentsHistory.length > 0 ? `${paymentsHistory.length} টি ভাউচারে পরিশোধ করা হয়েছে` : 'এখনও কোনো পেমেন্ট নেওয়া হয়নি'}
                     </div>
@@ -749,7 +749,7 @@ const StaffSalaryHelperCard: React.FC<{
                 <div className="bg-slate-900/90 border border-slate-800 p-3 rounded-xl">
                     <div className="text-[10px] font-black uppercase text-slate-400 tracking-wider">বর্তমান অবশিষ্ট পাওনা</div>
                     <div className={`text-base font-black mt-0.5 ${dueBeforeThisEntry > 0 ? 'text-amber-400' : dueBeforeThisEntry === 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                        ৳{Math.round(dueBeforeThisEntry).toLocaleString()}
+                        {Math.round(dueBeforeThisEntry).toLocaleString()}
                     </div>
                     <div className="text-[9.5px] text-slate-400 mt-1">
                         {dueBeforeThisEntry > 0 ? 'বকেয়া পাওনা রয়েছে' : dueBeforeThisEntry === 0 ? 'সম্পূর্ণ পরিশোধিত' : 'অতিরিক্ত পরিশোধিত'}
@@ -761,7 +761,7 @@ const StaffSalaryHelperCard: React.FC<{
             <div className="bg-slate-900/70 border border-slate-800/80 p-3 rounded-xl">
                 <div className="text-[10px] font-black uppercase text-slate-400 mb-1.5 flex items-center justify-between">
                     <span>চলতি মাসের পেমেন্ট ইতিহাস (Payment History):</span>
-                    <span className="font-mono text-emerald-400 text-xs font-black">মোট: ৳{previousPaidTotal.toLocaleString()}</span>
+                    <span className="font-mono text-emerald-400 text-xs font-black">মোট: {previousPaidTotal.toLocaleString()}</span>
                 </div>
                 {paymentsHistory.length === 0 ? (
                     <div className="text-xs text-slate-500 italic py-1">
@@ -772,7 +772,7 @@ const StaffSalaryHelperCard: React.FC<{
                         {paymentsHistory.map((p, pIdx) => (
                             <span key={pIdx} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-800 border border-slate-700 text-xs text-slate-200 font-mono shadow-sm">
                                 <span className="text-amber-400 font-bold">📅 {p.date}</span>: 
-                                <span className="text-emerald-400 font-black">৳{p.amount.toLocaleString()}</span>
+                                <span className="text-emerald-400 font-black">{p.amount.toLocaleString()}</span>
                                 <span className="text-[10px] text-slate-400 font-sans">({p.dept || 'Accounts'}{p.description ? ` - ${p.description}` : ''})</span>
                             </span>
                         ))}
@@ -789,9 +789,9 @@ const StaffSalaryHelperCard: React.FC<{
                             সতর্কবার্তা: নির্ধারিত পাওনা বেতনের চেয়ে অতিরিক্ত টাকা প্রদান করা হচ্ছে!
                         </div>
                         <div className="text-xs text-rose-100 leading-relaxed">
-                            চলতি মাসে কর্মচারীর নির্ধারিত মোট পাওনা বেতন <span className="font-mono font-black text-white">৳{Math.round(netPayable).toLocaleString()}</span> টাকা। 
-                            পূর্বে পরিশোধিত ৳{previousPaidTotal.toLocaleString()} + বর্তমান এন্ট্রি ৳{numInputPaid.toLocaleString()} = মোট ৳{totalPaidWithCurrent.toLocaleString()} টাকা প্রদান করা হচ্ছে। 
-                            ফলস্বরূপ, কর্মচারীকে <span className="underline font-black text-white bg-rose-900/60 px-1.5 py-0.5 rounded">৳{overpaidAmount.toLocaleString()} টাকা অতিরিক্ত (Overpayment)</span> দেওয়া হচ্ছে, যা আগামী মাসের বেতন থেকে অগ্রিম (Advance) হিসেবে সমন্বয় করা হবে।
+                            চলতি মাসে কর্মচারীর নির্ধারিত মোট পাওনা বেতন <span className="font-mono font-black text-white">{Math.round(netPayable).toLocaleString()}</span> টাকা। 
+                            পূর্বে পরিশোধিত {previousPaidTotal.toLocaleString()} + বর্তমান এন্ট্রি {numInputPaid.toLocaleString()} = মোট {totalPaidWithCurrent.toLocaleString()} টাকা প্রদান করা হচ্ছে। 
+                            ফলস্বরূপ, কর্মচারীকে <span className="underline font-black text-white bg-rose-900/60 px-1.5 py-0.5 rounded">{overpaidAmount.toLocaleString()} টাকা অতিরিক্ত (Overpayment)</span> দেওয়া হচ্ছে, যা আগামী মাসের বেতন থেকে অগ্রিম (Advance) হিসেবে সমন্বয় করা হবে।
                         </div>
                     </div>
                 </div>
@@ -799,10 +799,10 @@ const StaffSalaryHelperCard: React.FC<{
                 <div className="bg-emerald-950/70 border border-emerald-500/50 text-emerald-300 p-3 rounded-xl text-xs font-bold flex flex-wrap items-center justify-between gap-2 shadow-md">
                     <span className="flex items-center gap-2">
                         <span className="text-base text-emerald-400">✓</span> 
-                        <span>এই ভাউচারে ৳{numInputPaid.toLocaleString()} টাকা পরিশোধের পর অবশিষ্ট পাওনা থাকবে:</span>
+                        <span>এই ভাউচারে {numInputPaid.toLocaleString()} টাকা পরিশোধের পর অবশিষ্ট পাওনা থাকবে:</span>
                     </span>
                     <span className="font-black text-sm text-emerald-400 font-mono bg-emerald-900/40 px-2.5 py-1 rounded-lg border border-emerald-500/30">
-                        ৳{Math.round(remainingDueAfterCurrent).toLocaleString()}
+                        {Math.round(remainingDueAfterCurrent).toLocaleString()}
                     </span>
                 </div>
             ) : null}
@@ -1685,7 +1685,7 @@ const DailyExpenseForm: React.FC<any> = ({
                 <div className="mt-8 flex justify-between items-center border-t border-sky-900/50 pt-6">
                     <button onClick={addItem} className="bg-slate-700 hover:bg-slate-600 text-white px-6 py-2.5 rounded-xl font-black text-[11px] uppercase tracking-wider transition-all">+ Add Item Row</button>
                     <div className="flex items-center gap-8">
-                        <div className="text-slate-400 font-black uppercase text-xs tracking-widest">Total Paid: <span className="text-emerald-400 text-3xl font-black ml-2">৳{totalPaid.toLocaleString()}</span></div>
+                        <div className="text-slate-400 font-black uppercase text-xs tracking-widest">Total Paid: <span className="text-emerald-400 text-3xl font-black ml-2">{totalPaid.toLocaleString()}</span></div>
                         <button onClick={handleSave} className="bg-green-600 hover:bg-green-500 text-white px-12 py-3 rounded-2xl font-black shadow-2xl uppercase text-[11px] tracking-widest transition-all">Save Daily Ledger</button>
                     </div>
                 </div>
@@ -1806,7 +1806,7 @@ const DailyExpenseForm: React.FC<any> = ({
                                     </td>
                                     <td className="py-3.5 px-3 text-slate-200 font-medium">{it.subCategory}</td>
                                     <td className="py-3.5 px-3 text-slate-300">{it.description}</td>
-                                    <td className="py-3.5 px-3 text-right font-black text-white text-sm">৳{Number(it.paidAmount || it.paid_amount || it.amount || 0).toLocaleString()}</td>
+                                    <td className="py-3.5 px-3 text-right font-black text-white text-sm">{Number(it.paidAmount || it.paid_amount || it.amount || 0).toLocaleString()}</td>
                                     <td className="py-3.5 px-3 text-center">
                                         {it.isEdited ? (
                                             <span className="bg-amber-900/30 text-amber-300 px-2 py-1 rounded text-[10px] font-bold uppercase border border-amber-500/40" title={`Edited at ${it.lastEditedAt}`}>Edited</span>
@@ -1845,7 +1845,7 @@ const DailyExpenseForm: React.FC<any> = ({
                             <tfoot className="bg-slate-950 border-t-2 border-slate-800 text-white font-black">
                                 <tr>
                                     <td colSpan={5} className="py-4 text-right uppercase tracking-widest text-slate-500 pr-4">Total Filtered Amount:</td>
-                                    <td className="py-4 text-right text-emerald-400 text-lg pr-2">৳{totalFilteredSavedAmount.toLocaleString()}</td>
+                                    <td className="py-4 text-right text-emerald-400 text-lg pr-2">{totalFilteredSavedAmount.toLocaleString()}</td>
                                     <td colSpan={2}></td>
                                 </tr>
                             </tfoot>
@@ -2364,10 +2364,11 @@ const DiagnosticAccountsPage: React.FC<any> = ({
             const invItems = Array.isArray(inv.items) ? inv.items : [];
             
             const usgFee = isReturned ? 0 : invItems.reduce((s: number, i: any) => s + ((i.usg_exam_charge || 0) * (i.quantity || 1)), 0);
-            const labFee = isReturned ? 0 : invItems.reduce((s: number, i: any) => s + ((i.extra_lab_fee || 0) * (i.quantity || 1)), 0);
             const paid = isReturned ? 0 : (inv.paid_amount || 0);
             const bill = isReturned ? 0 : (inv.total_amount || 0);
             const disc = isReturned ? 0 : (inv.discount_amount || 0);
+            const due = isReturned ? 0 : Math.max(0, bill - disc - paid);
+            const lastModified = inv.updated_at || inv.created_at || inv.invoice_date || '-';
             
             return { 
                 ...inv, 
@@ -2375,11 +2376,12 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                 specialPC: totalPC, 
                 totalPC, 
                 usgFee, 
-                labFee,
                 paidVal: paid, 
                 billVal: bill,
                 discVal: disc,
-                netProfit: paid - (totalPC + usgFee + labFee) 
+                dueVal: due,
+                lastModified,
+                netProfit: paid - (totalPC + usgFee) 
             };
         });
     }, [invoices, detailSearch, selectedMonth, selectedYear, detailViewMode, selectedDate, detailFilterCategory, todayStr, doctors, getTestCategoryGroup]);
@@ -2390,16 +2392,16 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                 acc.totalBill += curr.billVal;
                 acc.totalDiscount += curr.discVal;
                 acc.paidAmount += curr.paidVal;
+                acc.totalDue += curr.dueVal;
                 acc.fixedPC += curr.fixedPC;
                 acc.specialPC += curr.specialPC;
                 acc.totalPC += curr.totalPC;
                 acc.usgFee += curr.usgFee;
-                acc.labFee += curr.labFee;
                 acc.netInstProfit += curr.netProfit;
                 acc.count++;
             }
             return acc;
-        }, { totalBill: 0, totalDiscount: 0, paidAmount: 0, fixedPC: 0, specialPC: 0, totalPC: 0, usgFee: 0, labFee: 0, netInstProfit: 0, count: 0 });
+        }, { totalBill: 0, totalDiscount: 0, paidAmount: 0, totalDue: 0, fixedPC: 0, specialPC: 0, totalPC: 0, usgFee: 0, netInstProfit: 0, count: 0 });
     }, [detailTableData]);
 
     const searchSuggestions = useMemo(() => {
@@ -3360,7 +3362,7 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                                                                                 }}
                                                                             >
                                                                                 <span className="truncate max-w-[130px]">{t.test_name}</span>
-                                                                                <span className="text-[8px] text-slate-500 font-normal ml-1">৳{t.price}</span>
+                                                                                <span className="text-[8px] text-slate-500 font-normal ml-1">{t.price}</span>
                                                                             </div>
                                                                         ))
                                                                     ) : (
@@ -3394,13 +3396,15 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                                     <thead className="bg-slate-800 text-sky-200 font-bold uppercase tracking-wider border-b border-slate-700">
                                         <tr className="bg-slate-900 text-white font-black border-b border-slate-700 shadow-lg">
                                             <td colSpan={5} className="px-4 py-3 text-right text-xs text-slate-300 uppercase tracking-wider bg-slate-900 font-bold">Grand Summary Totals:</td>
-                                            <td className="px-4 py-3 text-right text-base text-sky-300 bg-slate-850 font-bold font-mono">৳{reportSummary.totalBill.toLocaleString()}</td>
-                                            <td className="px-4 py-3 text-right text-base text-rose-300 bg-slate-900 font-bold font-mono">৳{reportSummary.totalDiscount.toLocaleString()}</td>
-                                            <td className="px-4 py-3 text-right text-lg text-emerald-300 font-black bg-slate-850 border-x border-slate-700 font-mono">৳{reportSummary.paidAmount.toLocaleString()}</td>
-                                            <td className="px-4 py-3 text-right text-base text-amber-300 bg-slate-900 font-bold font-mono">৳{reportSummary.totalPC.toLocaleString()}</td>
-                                            <td className="px-4 py-3 text-right text-base text-sky-300 bg-slate-850 font-bold font-mono">৳{reportSummary.usgFee.toLocaleString()}</td>
-                                            <td className="px-4 py-3 text-right text-base text-emerald-300 bg-slate-900 font-bold font-mono">৳{reportSummary.labFee.toLocaleString()}</td>
-                                            <td className="px-4 py-3 text-right bg-blue-600 text-white text-xl shadow-inner font-black font-mono">৳{reportSummary.netInstProfit.toLocaleString()}</td>
+                                            <td className="px-4 py-3 text-right text-base text-sky-300 bg-slate-850 font-bold font-mono">{reportSummary.totalBill.toLocaleString()}</td>
+                                             <td className="px-4 py-3 text-right text-base text-purple-300 bg-slate-900 font-bold font-mono">{reportSummary.totalDiscount.toLocaleString()}</td>
+                                            <td className="px-4 py-3 text-right text-base text-emerald-300 bg-slate-900 font-bold font-mono">{reportSummary.paidAmount.toLocaleString()}</td>
+                                            <td className="px-4 py-3 text-right text-base text-rose-300 bg-slate-850 font-bold font-mono">{reportSummary.totalDue.toLocaleString()}</td>
+                                            <td className="px-4 py-3 text-right text-base text-sky-300 bg-slate-900 font-bold font-mono">{reportSummary.usgFee.toLocaleString()}</td>
+                                            <td className="px-4 py-3 text-right text-base text-amber-300 bg-slate-850 font-bold font-mono">{reportSummary.totalPC.toLocaleString()}</td>
+                                            <td className="px-4 py-3 text-right bg-blue-600 text-white text-xl shadow-inner font-black font-mono">{reportSummary.netInstProfit.toLocaleString()}</td>
+                                            <td className="px-4 py-3 bg-slate-900"></td>
+                                            <td className="px-4 py-3 bg-slate-900"></td>
                                         </tr>
                                         <tr className="bg-slate-800 text-sky-200 text-xs">
                                             <th className="px-4 py-3">SL</th>
@@ -3408,13 +3412,15 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                                             <th className="px-4 py-3">Date</th>
                                             <th className="px-4 py-3">Patient Name</th>
                                             <th className="px-4 py-3">Referrer</th>
-                                            <th className="px-4 py-3 text-right">Bill</th>
-                                            <th className="px-4 py-3 text-right text-rose-300">Disc</th>
+                                            <th className="px-4 py-3 text-right">Total</th>
+                                             <th className="px-4 py-3 text-right text-purple-300">Discount</th>
                                             <th className="px-4 py-3 text-right text-emerald-300">Paid</th>
-                                            <th className="px-4 py-3 text-right text-amber-300">Paid PC</th>
-                                            <th className="px-4 py-3 text-right text-sky-300">USG Fee</th>
-                                            <th className="px-4 py-3 text-right text-emerald-300">Lab Fee</th>
-                                            <th className="px-4 py-3 text-right bg-blue-900/50 text-white font-black">Net Profit</th>
+                                            <th className="px-4 py-3 text-right text-rose-300">Due</th>
+                                            <th className="px-4 py-3 text-right text-sky-300">Usg_Fee</th>
+                                            <th className="px-4 py-3 text-right text-amber-300">PC</th>
+                                            <th className="px-4 py-3 text-right bg-blue-900/50 text-white font-black">Net_Income</th>
+                                            <th className="px-4 py-3 text-center">Status</th>
+                                            <th className="px-4 py-3 text-center">Last Modified</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-800">
@@ -3441,26 +3447,34 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                                                     </div>
                                                 </td>
                                                 <td className="p-3.5 text-slate-200 font-medium text-xs truncate max-w-[150px]">{inv.referrar_name || 'Self'}</td>
-                                                <td className="p-3.5 text-right font-medium text-slate-100 font-mono text-sm">৳{inv.billVal.toLocaleString()}</td>
-                                                <td className="p-3.5 text-right text-rose-300 font-mono text-sm">৳{inv.discVal.toLocaleString()}</td>
-                                                <td className="p-3.5 text-right font-black text-emerald-300 font-mono text-sm">৳{inv.paidVal.toLocaleString()}</td>
-                                                <td className="p-3.5 text-right text-amber-300 font-bold font-mono text-sm">৳{inv.totalPC.toLocaleString()}</td>
-                                                <td className="p-3.5 text-right text-sky-300 font-bold font-mono text-sm">৳{inv.usgFee.toLocaleString()}</td>
-                                                <td className="p-3.5 text-right text-emerald-300 font-bold font-mono text-sm">৳{(inv.labFee || 0).toLocaleString()}</td>
-                                                <td className="p-3.5 text-right font-black text-emerald-400 bg-blue-950/40 text-base font-mono border-l border-slate-800">৳{inv.netProfit.toLocaleString()}</td>
+                                                <td className="p-3.5 text-right font-medium text-slate-100 font-mono text-sm">{inv.billVal.toLocaleString()}</td>
+                                                 <td className="p-3.5 text-right font-medium text-purple-300 font-mono text-sm">{inv.discVal.toLocaleString()}</td>
+                                                <td className="p-3.5 text-right font-black text-emerald-300 font-mono text-sm">{inv.paidVal.toLocaleString()}</td>
+                                                <td className="p-3.5 text-right font-bold text-rose-300 font-mono text-sm">{inv.dueVal.toLocaleString()}</td>
+                                                <td className="p-3.5 text-right text-sky-300 font-bold font-mono text-sm">{inv.usgFee.toLocaleString()}</td>
+                                                <td className="p-3.5 text-right text-amber-300 font-bold font-mono text-sm">{inv.totalPC.toLocaleString()}</td>
+                                                <td className="p-3.5 text-right font-black text-emerald-400 bg-blue-950/40 text-base font-mono border-l border-slate-800">{inv.netProfit.toLocaleString()}</td>
+                                                <td className="p-3.5 text-center">
+                                                    <span className={`px-2 py-1 rounded text-[10px] font-bold ${inv.status === 'Returned' ? 'bg-rose-900 text-rose-200' : inv.status === 'Cancelled' ? 'bg-amber-900 text-amber-200' : 'bg-emerald-900 text-emerald-200'}`}>
+                                                        {inv.status || 'Active'}
+                                                    </span>
+                                                </td>
+                                                <td className="p-3.5 text-center text-xs text-slate-400 font-mono">{inv.lastModified}</td>
                                             </tr>
                                         ))}
                                     </tbody>
                                     <tfoot className="bg-slate-950 border-t-4 border-slate-700 text-xs font-black text-white">
                                         <tr className="h-16">
                                             <td colSpan={5} className="p-4 text-right uppercase tracking-widest text-slate-400 text-xs">Grand Summary Totals:</td>
-                                            <td className="p-4 text-right text-sky-300 font-mono text-base">৳{reportSummary.totalBill.toLocaleString()}</td>
-                                            <td className="p-4 text-right text-rose-400 font-mono text-base">৳{reportSummary.totalDiscount.toLocaleString()}</td>
-                                            <td className="p-4 text-right text-emerald-400 font-mono text-lg">৳{reportSummary.paidAmount.toLocaleString()}</td>
-                                            <td className="p-4 text-right text-amber-400 font-mono text-base">৳{reportSummary.totalPC.toLocaleString()}</td>
-                                            <td className="p-4 text-right text-sky-400 font-mono text-base">৳{reportSummary.usgFee.toLocaleString()}</td>
-                                            <td className="p-4 text-right text-emerald-300 font-mono text-base">৳{reportSummary.labFee.toLocaleString()}</td>
-                                            <td className="p-4 text-right text-white bg-blue-600 rounded-br-2xl text-xl font-mono">৳{reportSummary.netInstProfit.toLocaleString()}</td>
+                                            <td className="p-4 text-right text-sky-300 font-mono text-base">{reportSummary.totalBill.toLocaleString()}</td>
+                                             <td className="p-4 text-right text-purple-300 font-mono text-base">{reportSummary.totalDiscount.toLocaleString()}</td>
+                                            <td className="p-4 text-right text-emerald-400 font-mono text-base">{reportSummary.paidAmount.toLocaleString()}</td>
+                                            <td className="p-4 text-right text-rose-400 font-mono text-base">{reportSummary.totalDue.toLocaleString()}</td>
+                                            <td className="p-4 text-right text-sky-400 font-mono text-base">{reportSummary.usgFee.toLocaleString()}</td>
+                                            <td className="p-4 text-right text-amber-400 font-mono text-base">{reportSummary.totalPC.toLocaleString()}</td>
+                                            <td className="p-4 text-right text-white bg-blue-600 rounded-br-2xl text-xl font-mono">{reportSummary.netInstProfit.toLocaleString()}</td>
+                                            <td className="p-4 bg-slate-950"></td>
+                                            <td className="p-4 bg-slate-950 rounded-br-2xl"></td>
                                         </tr>
                                     </tfoot>
                                 </table>
@@ -3515,8 +3529,8 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                                     <thead className="bg-slate-800 text-sky-200 font-bold uppercase tracking-wider border-b border-slate-700">
                                         <tr className="bg-slate-900/90 text-white font-bold border-b border-slate-700 no-print">
                                             <td colSpan={3} className="p-4 text-right text-xs text-slate-300 uppercase tracking-wider">Summary Totals:</td>
-                                            <td className="p-4 text-right text-sky-300 font-bold">৳{dueList.reduce((s,i)=>s+i.total_amount, 0).toLocaleString()}</td>
-                                            <td className="p-4 text-right text-rose-400 font-black text-sm">৳{dueList.reduce((s,i)=>s+i.due_amount, 0).toLocaleString()}</td>
+                                            <td className="p-4 text-right text-sky-300 font-bold">{dueList.reduce((s,i)=>s+i.total_amount, 0).toLocaleString()}</td>
+                                            <td className="p-4 text-right text-rose-400 font-black text-sm">{dueList.reduce((s,i)=>s+i.due_amount, 0).toLocaleString()}</td>
                                         </tr>
                                         <tr className="bg-slate-800 text-sky-200">
                                             <th className="p-4 w-16">SL</th>
@@ -3533,7 +3547,7 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                                                 <td className="p-4 text-slate-200 font-bold">{inv.invoice_date}</td>
                                                 <td className="p-4 font-bold text-white uppercase text-sm">{inv.patient_name}</td>
                                                 <td className="p-4 text-right text-white font-bold">{inv.total_amount.toLocaleString()}</td>
-                                                <td className="p-4 text-right font-black text-rose-400 text-lg">৳{inv.due_amount.toLocaleString()}</td>
+                                                <td className="p-4 text-right font-black text-rose-400 text-lg">{inv.due_amount.toLocaleString()}</td>
                                             </tr>
                                         ))}
                                     </tbody>

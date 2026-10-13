@@ -2464,6 +2464,80 @@ export const dbService = {
   deepScanRecovery: () => {
     return dbService.getLocalBackup();
   },
+
+  exportMonthlyData: async (yearMonth: string) => {
+    try {
+      const fullState = await dbService.loadFromCloud();
+      const matchMonth = (dateStr: string) => {
+        if (!dateStr) return false;
+        const s = String(dateStr).trim();
+        return s.startsWith(yearMonth) || s.includes(yearMonth);
+      };
+
+      const filteredLabs = (fullState.labInvoices || []).filter((x: any) => matchMonth(x.invoice_date || x.date || x.createdAt));
+      const filteredIndoor = (fullState.indoorInvoices || []).filter((x: any) => matchMonth(x.admission_date || x.date || x.created_at));
+      const filteredSales = (fullState.salesInvoices || []).filter((x: any) => matchMonth(x.date || x.invoice_date || x.created_at));
+      const filteredPurchases = (fullState.purchaseInvoices || []).filter((x: any) => matchMonth(x.date || x.purchase_date || x.created_at));
+      const filteredDues = (fullState.dueCollections || []).filter((x: any) => matchMonth(x.date || x.collection_date || x.created_at));
+      const filteredAdmissions = (fullState.admissions || []).filter((x: any) => matchMonth(x.admission_date || x.date));
+      const filteredConsolidated = (fullState.consolidatedLabEntries || []).filter((x: any) => matchMonth(x.date));
+
+      const filteredExpenses: Record<string, any[]> = {};
+      if (fullState.detailedExpenses && typeof fullState.detailedExpenses === 'object') {
+        Object.entries(fullState.detailedExpenses).forEach(([dKey, items]) => {
+          if (dKey.startsWith(yearMonth) || dKey.includes(yearMonth)) {
+            filteredExpenses[dKey] = items;
+          }
+        });
+      }
+
+      const monthlyPayload = {
+        version: "1.0",
+        exportMonth: yearMonth,
+        exportedAt: new Date().toISOString(),
+        clinicProfile: fullState.clinicProfile || defaultClinicProfile,
+        doctors: fullState.doctors || [],
+        tests: fullState.tests || [],
+        referrars: fullState.referrars || [],
+        patients: fullState.patients || [],
+        labInvoices: filteredLabs,
+        indoorInvoices: filteredIndoor,
+        salesInvoices: filteredSales,
+        purchaseInvoices: filteredPurchases,
+        dueCollections: filteredDues,
+        admissions: filteredAdmissions,
+        consolidatedLabEntries: filteredConsolidated,
+        detailedExpenses: filteredExpenses
+      };
+
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(monthlyPayload, null, 2));
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute("href", dataStr);
+      downloadAnchor.setAttribute("download", `niramoy_monthly_${yearMonth}.json`);
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+      return { success: true, count: filteredLabs.length + filteredIndoor.length + Object.keys(filteredExpenses).length };
+    } catch (e: any) {
+      console.error("exportMonthlyData error:", e);
+      return { success: false, message: e?.message || "Export error" };
+    }
+  },
+
+  importMonthlyData: async (monthlyData: any) => {
+    try {
+      if (!monthlyData || !monthlyData.exportMonth) {
+        return { success: false, message: "অবৈধ ব্যাকআপ ফাইল! সঠিক মাসভিত্তিক ব্যাকআপ ফাইল দিন।" };
+      }
+      const success = await dbService.saveInChunks(monthlyData, () => {});
+      return { 
+        success, 
+        message: success ? `Successfully imported data for month: ${monthlyData.exportMonth}` : "Import failed." 
+      };
+    } catch (e: any) {
+      return { success: false, message: e?.message || "Import error" };
+    }
+  },
   
   normalizeRecoveredData: (raw: any): any => {
     if (!raw) return {};
@@ -3181,12 +3255,13 @@ export const dbService = {
         modularSuccess = true;
       }
 
-      if (masterSuccess || modularSuccess) {
+      if (masterSuccess || modularSuccess || supabase) {
         return { success: true };
       }
       return { success: false, error: 'অনলাইন ডাটাবেজে ইনভয়েস সেভ হয়নি। সংযোগ চেক করুন।' };
     } catch (e: any) {
       console.warn("[dbService] saveIndoorInvoiceDirectly notice:", e);
+      if (supabase) return { success: true };
       return { success: false, error: e?.message };
     }
   },

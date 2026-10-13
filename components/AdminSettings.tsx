@@ -139,6 +139,55 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({
   const [isReloadingFromCloud, setIsReloadingFromCloud] = useState(false);
   const [showConfigInputs, setShowConfigInputs] = useState(!supConfig.isConnected);
 
+  // Monthly Export & Import State
+  const [exportYear, setExportYear] = useState('2026');
+  const [exportMonth, setExportMonth] = useState('09');
+  const [isExportingMonthly, setIsExportingMonthly] = useState(false);
+  const [isImportingMonthly, setIsImportingMonthly] = useState(false);
+  const [monthlyImportMsg, setMonthlyImportMsg] = useState<string | null>(null);
+
+  const handleExportMonthly = async () => {
+    const ym = `${exportYear}-${exportMonth}`;
+    setIsExportingMonthly(true);
+    try {
+      const res = await dbService.exportMonthlyData(ym);
+      if (res.success) {
+        setSuccessMsg(`মাসিক ডাটা (${ym}) সফলভাবে ডাউনলোড হয়েছে! (${res.count} রেকর্ড)`);
+        setTimeout(() => setSuccessMsg(''), 4000);
+      } else {
+        alert('মাসিক ডাটা এক্সপোর্ট ব্যর্থ হয়েছে: ' + (res.message || 'Unknown'));
+      }
+    } catch (e: any) {
+      alert('এক্সপোর্ট ত্রুটি: ' + e?.message);
+    } finally {
+      setIsExportingMonthly(false);
+    }
+  };
+
+  const handleImportMonthlyFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsImportingMonthly(true);
+    setMonthlyImportMsg('ফাইল পড়া হচ্ছে...');
+    try {
+      const text = await file.text();
+      const json = JSON.parse(text);
+      const res = await dbService.importMonthlyData(json);
+      setMonthlyImportMsg(res.message);
+      if (res.success) {
+        alert(`সফল! মাসের ডাটা (${json.exportMonth || 'Unknown'}) রিস্টোর/ইমপোর্ট সম্পন্ন হয়েছে।`);
+        window.location.reload();
+      } else {
+        alert('ইমপোর্ট ব্যর্থ: ' + res.message);
+      }
+    } catch (err: any) {
+      alert('ইনভ্যালিড বা করাপ্টেড JSON ফাইল: ' + err?.message);
+    } finally {
+      setIsImportingMonthly(false);
+      e.target.value = '';
+    }
+  };
+
   // Medicine Multi-Table Migration State
   const [isMigratingMedicine, setIsMigratingMedicine] = useState(false);
   const [migrationStatus, setMigrationStatus] = useState<{ success?: boolean; message?: string } | null>(null);
@@ -2594,7 +2643,7 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                 {/* BACKUP EXPORT CARD */}
                 <div className="bg-slate-950 p-6 rounded-2xl border border-slate-800 space-y-6">
                   <div className="flex items-center gap-3">
@@ -2643,6 +2692,89 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({
                           {isRestoring ? `Restoring (${restoreProgress}%)` : 'ভেরিফাই ও রিস্টোর করুন'}
                         </button>
                       </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* MONTHLY BACKUP EXPORT & IMPORT CARD */}
+                <div className="bg-slate-950 p-6 rounded-2xl border border-teal-900/40 space-y-6">
+                  <div className="flex items-center gap-3">
+                    <div className="p-3 bg-teal-600/20 text-teal-400 rounded-xl">
+                      <DatabaseIcon size={24} />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-black text-teal-300 uppercase">মাসভিত্তিক ব্যাকআপ এক্সপোর্ট ও ইমপোর্ট</h3>
+                      <p className="text-xs text-slate-400">নির্দিষ্ট মাসের ডাটা ডাউনলোড বা নতুন সফটওয়্যারে আপলোড</p>
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-slate-300 leading-relaxed">
+                    যেকোনো নির্দিষ্ট মাসের (যেমন সেপ্টেম্বর ২০২৬) ডাটা আলাদা ডাউনলোড করে নতুন সফটওয়্যারে আপলোড করতে পারেন।
+                  </p>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[10px] font-black text-slate-400 uppercase mb-1">বছর (Year)</label>
+                      <select 
+                        value={exportYear} 
+                        onChange={e => setExportYear(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl p-2.5 text-xs text-white font-bold outline-none"
+                      >
+                        <option value="2026">2026</option>
+                        <option value="2025">2025</option>
+                        <option value="2024">2024</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-black text-slate-400 uppercase mb-1">মাস (Month)</label>
+                      <select 
+                        value={exportMonth} 
+                        onChange={e => setExportMonth(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl p-2.5 text-xs text-white font-bold outline-none"
+                      >
+                        <option value="01">জানুয়ারি (01)</option>
+                        <option value="02">ফেব্রুয়ারি (02)</option>
+                        <option value="03">মার্চ (03)</option>
+                        <option value="04">এপ্রিল (04)</option>
+                        <option value="05">মে (05)</option>
+                        <option value="06">জুন (06)</option>
+                        <option value="07">জুলাই (07)</option>
+                        <option value="08">আগস্ট (08)</option>
+                        <option value="09">সেপ্টেম্বর (09)</option>
+                        <option value="10">অক্টোবর (10)</option>
+                        <option value="11">নভেম্বর (11)</option>
+                        <option value="12">ডিসেম্বর (12)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={handleExportMonthly}
+                    disabled={isExportingMonthly}
+                    className="w-full bg-teal-600 hover:bg-teal-500 active:scale-95 text-white p-3.5 rounded-xl font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-xl disabled:opacity-50"
+                  >
+                    <DownloadIcon size={16} /> {isExportingMonthly ? 'এক্সপোর্ট হচ্ছে...' : `${exportYear}-${exportMonth} মাসের ডাটা ডাউনলোড`}
+                  </button>
+
+                  <div className="pt-4 border-t border-slate-800 space-y-3">
+                    <label className="block text-[11px] font-black text-teal-400 uppercase tracking-wider">
+                      📥 মাসিক ফাইল ইমপোর্ট (নতুন সফটওয়্যারে)
+                    </label>
+                    <label className="w-full border-2 border-dashed border-teal-800/60 hover:border-teal-500 bg-slate-900/60 hover:bg-slate-900 p-3.5 rounded-xl flex flex-col items-center justify-center gap-1 cursor-pointer transition-all">
+                      <Upload size={16} className="text-teal-400" />
+                      <span className="text-xs font-bold text-slate-300">
+                        {isImportingMonthly ? 'ইমপোর্ট হচ্ছে...' : 'মাসিক JSON ফাইল সিলেক্ট করুন'}
+                      </span>
+                      <input 
+                        type="file" 
+                        accept=".json" 
+                        onChange={handleImportMonthlyFile} 
+                        disabled={isImportingMonthly}
+                        className="hidden" 
+                      />
+                    </label>
+                    {monthlyImportMsg && (
+                      <p className="text-[11px] text-teal-300 font-bold text-center animate-pulse">{monthlyImportMsg}</p>
                     )}
                   </div>
                 </div>

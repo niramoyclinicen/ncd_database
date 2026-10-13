@@ -1195,24 +1195,29 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
   }, [invoices, today]);
 
   const tableTotals = useMemo(() => {
-    if (!Array.isArray(filteredInvoices)) return { total: 0, paid: 0, due: 0, income: 0 };
+    if (!Array.isArray(filteredInvoices)) return { total: 0, discount: 0, paid: 0, due: 0, usgFee: 0, pc: 0, income: 0 };
     return filteredInvoices.reduce((acc, inv) => {
       if (inv.status === 'Cancelled' || inv.status === 'Deleted' || (inv as any).isDeleted || (inv as any).is_deleted) return acc;
-      acc.total += (inv.total_amount || 0);
-      acc.paid += (inv.paid_amount || 0);
-      acc.due += (inv.due_amount || 0);
+      acc.total += (Number(inv.total_amount) || 0);
+      acc.discount += (Number(inv.discount_amount) || 0);
+      acc.paid += (Number(inv.paid_amount) || 0);
+      acc.due += (Number(inv.due_amount) || 0);
       
+      const items = Array.isArray(inv.items) ? inv.items : [];
+      const usgFee = items.reduce((s, it) => s + ((Number(it?.usg_exam_charge) || 0) * (Number(it?.quantity) || 1)), 0);
+      const labFee = items.reduce((s, it) => s + ((Number(it?.extra_lab_fee) || 0) * (Number(it?.quantity) || 1)), 0);
+      const commPaid = Number(inv.commission_paid ?? (inv as any).commissionPaid) || 0;
+      
+      acc.usgFee += usgFee;
+      acc.pc += commPaid;
+
       if (inv.status !== 'Returned') {
-        const items = Array.isArray(inv.items) ? inv.items : [];
-        const usgFee = items.reduce((s, it) => s + ((Number(it?.usg_exam_charge) || 0) * (Number(it?.quantity) || 1)), 0);
-        const labFee = items.reduce((s, it) => s + ((Number(it?.extra_lab_fee) || 0) * (Number(it?.quantity) || 1)), 0);
-        const commPaid = Number(inv.commission_paid ?? (inv as any).commissionPaid) || 0;
         const paidAmt = Number(inv.paid_amount) || 0;
         const netIncome = Math.max(0, paidAmt - usgFee - labFee - commPaid);
         acc.income += netIncome;
       }
       return acc;
-    }, { total: 0, paid: 0, due: 0, income: 0 });
+    }, { total: 0, discount: 0, paid: 0, due: 0, usgFee: 0, pc: 0, income: 0 });
   }, [filteredInvoices]);
 
   const resetTableFilters = () => {
@@ -2632,18 +2637,27 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
                 <th className="px-3 py-2.5 text-right text-xs font-mono font-black text-slate-100 bg-[#0a1329] border-l border-slate-800">
                     {Number(tableTotals.total || 0).toFixed(2)}
                 </th>
+                <th className="px-3 py-2.5 text-right text-xs font-mono font-black text-amber-300 bg-amber-950/30 border-l border-slate-800">
+                    {Number(tableTotals.discount || 0).toFixed(2)}
+                </th>
                 <th className="px-3 py-2.5 text-right text-xs font-mono font-black text-emerald-400 bg-emerald-950/30 border-l border-slate-800">
                     {Number(tableTotals.paid || 0).toFixed(2)}
                 </th>
                 <th className="px-3 py-2.5 text-right text-xs font-mono font-black text-rose-400 bg-rose-900/30 border-l border-slate-800">
                     {Number(tableTotals.due || 0).toFixed(2)}
                 </th>
+                <th className="px-3 py-2.5 text-right text-xs font-mono font-black text-sky-300 bg-sky-950/40 border-l border-slate-800">
+                    {Number(tableTotals.usgFee || 0).toFixed(2)}
+                </th>
+                <th className="px-3 py-2.5 text-right text-xs font-mono font-black text-purple-300 bg-purple-950/40 border-l border-slate-800">
+                    {Number(tableTotals.pc || 0).toFixed(2)}
+                </th>
                 <th className="px-3 py-2.5 text-right text-xs font-mono font-black text-cyan-300 bg-cyan-950/50 border-l border-slate-800">
                     {Number(tableTotals.income || 0).toFixed(2)}
                 </th>
                 <th colSpan={3} className="px-3 py-2.5 text-left text-xs font-black text-cyan-300 border-l border-slate-800 bg-[#0a1329]">
                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mr-1.5">Net Realized Income:</span>
-                    <span className="font-mono text-emerald-400 font-bold">৳{Number(tableTotals.income || 0).toFixed(2)}</span>
+                    <span className="font-mono text-emerald-400 font-bold">{Number(tableTotals.income || 0).toFixed(2)}</span>
                 </th>
               </tr>
               {/* MAIN COLUMN HEADERS */}
@@ -2654,10 +2668,13 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
                 <th scope="col" className="px-3 py-3 text-left text-[11px] font-black text-cyan-400 uppercase tracking-wider">Patient Name</th>
                 <th scope="col" className="px-3 py-3 text-left text-[11px] font-black text-cyan-400 uppercase tracking-wider">Doctor</th>
                 <th scope="col" className="px-3 py-3 text-left text-[11px] font-black text-cyan-400 uppercase tracking-wider">Referrar</th>
-                <th scope="col" className="px-3 py-3 text-right text-[11px] font-black text-cyan-400 uppercase tracking-wider">Total (৳)</th>
-                <th scope="col" className="px-3 py-3 text-right text-[11px] font-black text-emerald-400 uppercase tracking-wider">Paid (৳)</th>
-                <th scope="col" className="px-3 py-3 text-right text-[11px] font-black text-rose-400 uppercase tracking-wider">Due (৳)</th>
-                <th scope="col" className="px-3 py-3 text-right text-[11px] font-black text-cyan-300 uppercase tracking-wider bg-cyan-950/40" title="হসপিটাল ডায়াগনস্টিক নিট ইনকাম (Paid - PC - USG Fee)">নিট ইনকাম (৳)</th>
+                <th scope="col" className="px-3 py-3 text-right text-[11px] font-black text-cyan-400 uppercase tracking-wider">Total</th>
+                <th scope="col" className="px-3 py-3 text-right text-[11px] font-black text-amber-400 uppercase tracking-wider">Discount</th>
+                <th scope="col" className="px-3 py-3 text-right text-[11px] font-black text-emerald-400 uppercase tracking-wider">Paid</th>
+                <th scope="col" className="px-3 py-3 text-right text-[11px] font-black text-rose-400 uppercase tracking-wider">Due</th>
+                <th scope="col" className="px-3 py-3 text-right text-[11px] font-black text-sky-300 uppercase tracking-wider">Usg_Fee</th>
+                <th scope="col" className="px-3 py-3 text-right text-[11px] font-black text-purple-300 uppercase tracking-wider">PC</th>
+                <th scope="col" className="px-3 py-3 text-right text-[11px] font-black text-cyan-300 uppercase tracking-wider bg-cyan-950/40">Net_Income</th>
                 <th scope="col" className="px-3 py-3 text-center text-[11px] font-black text-cyan-400 uppercase tracking-wider">Status</th>
                 <th scope="col" className="px-3 py-3 text-left text-[11px] font-black text-slate-400 uppercase tracking-wider">Last Modified</th>
                 <th scope="col" className="px-3 py-3 text-center text-[11px] font-black text-rose-400 uppercase tracking-wider w-16">অ্যাকশন</th>
@@ -2672,6 +2689,7 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
                 const invUsgFee = invItems.reduce((s, it) => s + ((Number(it?.usg_exam_charge) || 0) * (Number(it?.quantity) || 1)), 0);
                 const invLabFee = invItems.reduce((s, it) => s + ((Number(it?.extra_lab_fee) || 0) * (Number(it?.quantity) || 1)), 0);
                 const invCommPaid = Number(invoice.commission_paid ?? (invoice as any).commissionPaid) || 0;
+                const invDiscount = Number(invoice.discount_amount) || 0;
                 const invPaidAmt = Number(invoice.paid_amount) || 0;
                 const rowNetIncome = (invoice.status === 'Cancelled' || invoice.status === 'Returned') ? 0 : Math.max(0, invPaidAmt - invUsgFee - invLabFee - invCommPaid);
 
@@ -2724,16 +2742,25 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
                       {invoice.referrar_name || '-'}
                     </td>
                     <td className="px-3 py-2.5 whitespace-nowrap text-xs text-slate-100 text-right font-mono font-bold">
-                      ৳{Number(invoice.total_amount || 0).toFixed(2)}
+                      {Number(invoice.total_amount || 0).toFixed(2)}
+                    </td>
+                    <td className="px-3 py-2.5 whitespace-nowrap text-xs text-right font-mono font-bold text-amber-300">
+                      {invDiscount.toFixed(2)}
                     </td>
                     <td className="px-3 py-2.5 whitespace-nowrap text-xs text-right font-mono font-black text-emerald-400">
-                      ৳{Number(invoice.paid_amount || 0).toFixed(2)}
+                      {Number(invoice.paid_amount || 0).toFixed(2)}
                     </td>
                     <td className={`px-3 py-2.5 whitespace-nowrap text-xs text-right font-mono font-black ${Number(invoice.due_amount) > 0.01 ? 'text-rose-400' : 'text-slate-500'}`}>
-                      ৳{Number(invoice.due_amount || 0).toFixed(2)}
+                      {Number(invoice.due_amount || 0).toFixed(2)}
+                    </td>
+                    <td className="px-3 py-2.5 whitespace-nowrap text-xs text-right font-mono font-bold text-sky-300">
+                      {invUsgFee.toFixed(2)}
+                    </td>
+                    <td className="px-3 py-2.5 whitespace-nowrap text-xs text-right font-mono font-bold text-purple-300">
+                      {invCommPaid.toFixed(2)}
                     </td>
                     <td className="px-3 py-2.5 whitespace-nowrap text-xs text-right font-mono font-black text-cyan-300 bg-cyan-950/30">
-                      ৳{rowNetIncome.toFixed(2)}
+                      {rowNetIncome.toFixed(2)}
                     </td>
                     <td className="px-3 py-2.5 whitespace-nowrap text-xs text-center">
                       <span className={`
@@ -2771,7 +2798,7 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
               })}
               {filteredInvoices.length === 0 && (
                 <tr>
-                    <td colSpan={13} className="px-6 py-16 text-center text-slate-500 italic uppercase font-black tracking-widest opacity-40 text-sm">
+                    <td colSpan={16} className="px-6 py-16 text-center text-slate-500 italic uppercase font-black tracking-widest opacity-40 text-sm">
                         কোন ইনভয়েস রেকর্ড পাওয়া যায়নি (No Invoices Found)
                     </td>
                 </tr>
@@ -2784,16 +2811,25 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
                     Total Summary:
                   </td>
                   <td className="px-3 py-3 whitespace-nowrap text-xs text-slate-100 text-right font-mono font-black border-l border-slate-800">
-                    ৳{Number(tableTotals.total || 0).toFixed(2)}
+                    {Number(tableTotals.total || 0).toFixed(2)}
+                  </td>
+                  <td className="px-3 py-3 whitespace-nowrap text-xs text-amber-300 text-right font-mono font-black border-l border-slate-800">
+                    {Number(tableTotals.discount || 0).toFixed(2)}
                   </td>
                   <td className="px-3 py-3 whitespace-nowrap text-xs text-emerald-400 text-right font-mono font-black border-l border-slate-800">
-                    ৳{Number(tableTotals.paid || 0).toFixed(2)}
+                    {Number(tableTotals.paid || 0).toFixed(2)}
                   </td>
                   <td className="px-3 py-3 whitespace-nowrap text-xs text-rose-400 text-right font-mono font-black border-l border-slate-800">
-                    ৳{Number(tableTotals.due || 0).toFixed(2)}
+                    {Number(tableTotals.due || 0).toFixed(2)}
+                  </td>
+                  <td className="px-3 py-3 whitespace-nowrap text-xs text-sky-300 text-right font-mono font-black border-l border-slate-800">
+                    {Number(tableTotals.usgFee || 0).toFixed(2)}
+                  </td>
+                  <td className="px-3 py-3 whitespace-nowrap text-xs text-purple-300 text-right font-mono font-black border-l border-slate-800">
+                    {Number(tableTotals.pc || 0).toFixed(2)}
                   </td>
                   <td className="px-3 py-3 whitespace-nowrap text-xs text-cyan-300 text-right font-mono font-black border-l border-slate-800 bg-cyan-950/40">
-                    ৳{Number(tableTotals.income || 0).toFixed(2)}
+                    {Number(tableTotals.income || 0).toFixed(2)}
                   </td>
                   <td colSpan={3} className="px-3 py-3 border-l border-slate-800"></td>
                 </tr>
