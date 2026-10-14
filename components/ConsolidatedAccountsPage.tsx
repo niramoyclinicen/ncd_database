@@ -1095,13 +1095,13 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                     if (e.month !== undefined && e.year !== undefined && !isNaN(Number(e.month)) && !isNaN(Number(e.year))) {
                         const em = Number(e.month);
                         const ey = Number(e.year);
-                        return ey === selectedYear && (em === selectedMonth || em === selectedMonth + 1);
+                        return ey === selectedYear && (em === selectedMonth || em === (selectedMonth + 1) || (em - 1) === selectedMonth);
                     }
                     if (normE) {
                         const parts = normE.split('-');
                         const ey = Number(parts[0]);
                         const em = Number(parts[1]);
-                        return ey === selectedYear && (em === selectedMonth + 1 || em === selectedMonth);
+                        return ey === selectedYear && (em === selectedMonth || em === (selectedMonth + 1) || (em - 1) === selectedMonth);
                     }
                     return isSelectedMonth(rawDate);
                 }
@@ -1121,8 +1121,19 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                 if (!inv || inv.isDeleted) return false;
                 const st = String(inv.status || '').toLowerCase().trim();
                 if (st === 'cancelled' || st === 'returned' || st === 'deleted') return false;
-                const dateToUse = inv.admission_date || inv.invoice_date;
-                return isSameDay(dateToUse, dateStr);
+                const dateToUse = inv.admission_date || inv.invoice_date || (inv as any).date || '';
+                if (isSameDay(dateToUse, dateStr)) return true;
+                if (d === 1) {
+                    const norm = normalizeDateStr(dateToUse);
+                    if (norm) {
+                        const parts = norm.split('-');
+                        const y = Number(parts[0]);
+                        const m = Number(parts[1]);
+                        if (y === selectedYear && (m === selectedMonth || m === (selectedMonth + 1) || (m - 1) === selectedMonth)) return true;
+                    }
+                    if (isSelectedMonth(dateToUse)) return true;
+                }
+                return false;
             }).reduce((s, inv) => {
                 const items = Array.isArray(inv.items) ? inv.items : [];
                 const fundedRevenue = items.filter(it => it && it.isClinicFund).reduce((ss, ii) => ss + (Number(ii.payable_amount) || 0), 0);
