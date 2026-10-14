@@ -1952,30 +1952,30 @@ export const dbService = {
           // When appState provides active collections, respect deletions instead of blindly resurrecting old ghosts
           const sanitizeList = (list: any[]) => Array.isArray(list) ? list.filter(x => x && !x.isDeleted && x.status !== 'Cancelled' && x.status !== 'Deleted') : [];
 
-          const masterPurchases = appState.purchaseInvoices !== undefined 
-            ? sanitizeList(appState.purchaseInvoices)
-            : sanitizeList(legacyBase.purchaseInvoices || []);
+          const legacyPur = sanitizeList(legacyBase.purchaseInvoices || []);
+          const appPur = appState.purchaseInvoices !== undefined ? sanitizeList(appState.purchaseInvoices) : [];
+          const masterPurchases = mergeEntityList(legacyPur, appPur, ['invoice_id', 'invoiceId', 'id']);
 
-          const masterSales = appState.salesInvoices !== undefined 
-            ? sanitizeList(appState.salesInvoices)
-            : sanitizeList(legacyBase.salesInvoices || []);
+          const legacySal = sanitizeList(legacyBase.salesInvoices || []);
+          const appSal = appState.salesInvoices !== undefined ? sanitizeList(appState.salesInvoices) : [];
+          const masterSales = mergeEntityList(legacySal, appSal, ['invoice_id', 'invoiceId', 'id']);
 
           const deletedLabIds = getDeletedLabInvoiceIds();
-          const masterLabs = (appState.labInvoices !== undefined 
-            ? sanitizeList(appState.labInvoices)
-            : sanitizeList(legacyBase.labInvoices || [])).filter(inv => !isInvoiceMarkedDeleted(inv, deletedLabIds));
+          const legacyLabs = sanitizeList(legacyBase.labInvoices || []);
+          const appLabs = appState.labInvoices !== undefined ? sanitizeList(appState.labInvoices) : [];
+          const masterLabs = mergeEntityList(legacyLabs, appLabs, ['invoice_id', 'invoiceId', 'id']).filter(inv => !isInvoiceMarkedDeleted(inv, deletedLabIds));
 
-          const masterDues = appState.dueCollections !== undefined 
-            ? sanitizeList(appState.dueCollections)
-            : sanitizeList(legacyBase.dueCollections || []);
+          const legacyDues = sanitizeList(legacyBase.dueCollections || []);
+          const appDues = appState.dueCollections !== undefined ? sanitizeList(appState.dueCollections) : [];
+          const masterDues = mergeEntityList(legacyDues, appDues, ['collection_id', 'collectionId', 'id']);
 
-          const masterIndoor = appState.indoorInvoices !== undefined 
-            ? sanitizeList(appState.indoorInvoices)
-            : sanitizeList(legacyBase.indoorInvoices || []);
+          const legacyIndoor = sanitizeList(legacyBase.indoorInvoices || []);
+          const appIndoor = appState.indoorInvoices !== undefined ? sanitizeList(appState.indoorInvoices) : [];
+          const masterIndoor = mergeEntityList(legacyIndoor, appIndoor, ['daily_id', 'invoice_id', 'invoiceId', 'id']);
 
-          const masterConsolidated = appState.consolidatedLabEntries !== undefined 
-            ? sanitizeList(appState.consolidatedLabEntries)
-            : sanitizeList(legacyBase.consolidatedLabEntries || []);
+          const legacyCons = sanitizeList(legacyBase.consolidatedLabEntries || []);
+          const appCons = appState.consolidatedLabEntries !== undefined ? sanitizeList(appState.consolidatedLabEntries) : [];
+          const masterConsolidated = mergeEntityList(legacyCons, appCons, ['id', '_id']);
 
           const masterReports = appState.reports !== undefined ? (appState.reports || []) : (legacyBase.reports || []);
           const masterPrescriptions = appState.prescriptions !== undefined ? (appState.prescriptions || []) : (legacyBase.prescriptions || []);
