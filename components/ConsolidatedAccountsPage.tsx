@@ -1090,21 +1090,20 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                     const m = String(e.id).match(/(\d{4})[-_]?(\d{2})[-_]?(\d{2})/);
                     if (m && `${m[1]}-${m[2]}-${m[3]}` === dateStr) return true;
                 }
+                
+                // Allow consolidated/monthly entries for the selected month to show up on their entered date 
+                // OR on the first day of the month if they are general monthly entries.
                 const isMonthlyEntry = (e.entryType === 'monthly' || e.shift === 'Monthly' || !normE || normE.split('-').length < 3);
-                if (d === 1 && isMonthlyEntry) {
-                    if (e.month !== undefined && e.year !== undefined && !isNaN(Number(e.month)) && !isNaN(Number(e.year))) {
-                        const em = Number(e.month);
-                        const ey = Number(e.year);
-                        return ey === selectedYear && (em === selectedMonth || em === (selectedMonth + 1) || (em - 1) === selectedMonth);
-                    }
-                    if (normE) {
-                        const parts = normE.split('-');
-                        const ey = Number(parts[0]);
-                        const em = Number(parts[1]);
-                        return ey === selectedYear && (em === selectedMonth || em === (selectedMonth + 1) || (em - 1) === selectedMonth);
-                    }
-                    return isSelectedMonth(rawDate);
+                
+                // Check if entry matches selected month/year
+                const em = e.month !== undefined ? Number(e.month) : (normE ? Number(normE.split('-')[1]) - 1 : -1);
+                const ey = e.year !== undefined ? Number(e.year) : (normE ? Number(normE.split('-')[0]) : -1);
+                
+                if (ey === selectedYear && em === selectedMonth) {
+                    if (isSameDay(rawDate, dateStr)) return true;
+                    if (d === 1 && isMonthlyEntry) return true;
                 }
+
                 return false;
             };
             const diagConsolidatedToday = (consolidatedEntries || []).filter(isEntryForDay).reduce((s, e) => s + getConsolidatedNet(e), 0);

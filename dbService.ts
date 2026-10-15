@@ -1037,8 +1037,10 @@ export const dbService = {
             }
 
             const rawCons = rowData.consolidatedLabEntries || rowData.consolidated_lab_entries || rowData.consolidatedEntries || rowData.consolidated_entries || (row as any).consolidated_lab_entries || (row as any).consolidatedLabEntries;
-            if (Array.isArray(rawCons) && rawCons.length > 0) {
-              state.consolidatedLabEntries = mergeEntityList(state.consolidatedLabEntries || [], rawCons, ['id', '_id']);
+            const consList = Array.isArray(rawCons) ? rawCons : (rawCons && typeof rawCons === 'object' ? Object.values(rawCons) : []);
+            if (consList.length > 0) {
+              state.consolidatedLabEntries = mergeEntityList(state.consolidatedLabEntries || [], consList, ['id', '_id']);
+              state.consolidatedEntries = state.consolidatedLabEntries;
             }
           });
         }
@@ -1089,6 +1091,7 @@ export const dbService = {
             };
           }).filter((e: any) => e.id);
           state.consolidatedLabEntries = mergeEntityList(state.consolidatedLabEntries || [], parsedCons, ['id', '_id']);
+          state.consolidatedEntries = state.consolidatedLabEntries;
         }
 
         // Merge Monthly Adjustments from modular table(s) if available
