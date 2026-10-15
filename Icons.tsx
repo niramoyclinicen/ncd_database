@@ -1,61 +1,90 @@
 
 import React from 'react';
+import { 
+  Activity, 
+  Building2, 
+  Pill, 
+  Calculator, 
+  MapPin, 
+  Stethoscope, 
+  Syringe, 
+  Armchair,
+  ArrowLeft,
+  Users,
+  ClipboardList,
+  FlaskConical,
+  UserPlus,
+  Plus,
+  Calendar,
+  Banknote,
+  FileText,
+  BarChart3,
+  Settings,
+  TestTube,
+  Dna,
+  TrendingUp,
+  TrendingDown,
+  Wallet,
+  PieChart,
+  UserCheck,
+  Phone,
+  Eye,
+  Search,
+  Share2,
+  Save,
+  Printer,
+  Download,
+  Trash2,
+  Database,
+  RefreshCw,
+  Loader2,
+  AlertCircle,
+  X,
+  Pencil
+} from 'lucide-react';
 
-interface DashboardButtonProps {
-  label: React.ReactNode;
-  icon: React.ReactNode;
-  onClick: () => void;
-  colorFrom: string;
-  colorTo: string;
-  borderColor: string;
-  delay: string;
-}
+export const DiagnosticIcon = (props: any) => <Activity {...props} />;
+export const ClinicIcon = (props: any) => <Building2 {...props} />;
+export const MedicineIcon = (props: any) => <Pill {...props} />;
+export const AccountingIcon = (props: any) => <Calculator {...props} />;
+export const MapPinIcon = (props: any) => <MapPin {...props} />;
+export const StethoscopeIcon = (props: any) => <Stethoscope {...props} />;
+export const SyringeIcon = (props: any) => <Syringe {...props} />;
+export const WheelchairIcon = (props: any) => <Armchair {...props} />;
 
-const DashboardButton: React.FC<DashboardButtonProps> = ({
-  label,
-  icon,
-  onClick,
-  colorFrom,
-  colorTo,
-  borderColor,
-  delay,
-}) => {
-  return (
-    <button
-      onClick={onClick}
-      className={`
-        relative group flex flex-col items-center justify-center
-        p-6 h-60 w-full rounded-2xl border bg-white dark:bg-slate-800/50 backdrop-blur-sm
-        transition-all duration-300 ease-out
-        hover:!scale-110 hover:!-translate-y-3 hover:!shadow-[0_20px_50px_rgba(0,120,255,0.2)] dark:hover:!shadow-[0_20px_50px_rgba(8,_112,_184,_0.7)] hover:!z-50
-        animate-fade-in-up border-slate-200 dark:border-slate-700 ${borderColor}
-      `}
-      style={{ animationDelay: delay }}
-    >
-      <div className={`
-        absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-10 dark:group-hover:opacity-20
-        bg-gradient-to-br ${colorFrom} ${colorTo} transition-opacity duration-300
-      `} />
-      
-      <div className={`
-        mb-6 p-4 rounded-full bg-slate-100 dark:bg-slate-700/50 text-slate-500 dark:text-slate-300
-        group-hover:scale-110 group-hover:text-blue-600 dark:group-hover:text-white transition-all duration-300
-        shadow-inner
-      `}>
-        {React.isValidElement(icon) ? React.cloneElement(icon as React.ReactElement<any>, { size: 40 }) : icon}
-      </div>
-      
-      <div className="text-center z-10 w-full">
-        {typeof label === 'string' ? (
-           <span className="text-xl font-bold text-slate-700 dark:text-slate-200 group-hover:text-slate-900 dark:group-hover:text-white tracking-wide transition-colors">
-             {label}
-           </span>
-        ) : (
-           label
-        )}
-      </div>
-    </button>
-  );
-};
-
-export default DashboardButton;
+export const BackIcon = (props: any) => <ArrowLeft {...props} />;
+export const UsersIcon = (props: any) => <Users {...props} />;
+export const ClipboardIcon = (props: any) => <ClipboardList {...props} />;
+export const BeakerIcon = (props: any) => <FlaskConical {...props} />;
+export const UserPlusIcon = (props: any) => <UserPlus {...props} />;
+export const PlusIcon = (props: any) => <Plus {...props} />;
+export const CalendarIcon = (props: any) => <Calendar {...props} />;
+export const MoneyIcon = (props: any) => <Banknote {...props} />;
+export const FileTextIcon = (props: any) => <FileText {...props} />;
+export const ChartIcon = (props: any) => <BarChart3 {...props} />;
+export const SettingsIcon = (props: any) => <Settings {...props} />;
+export { Activity, Database, Plus, Save, Trash2, Loader2 };
+export { Armchair };
+export const TestTubeIcon = (props: any) => <TestTube {...props} />;
+export const DnaIcon = (props: any) => <Dna {...props} />;
+export const TrendingUpIcon = (props: any) => <TrendingUp {...props} />;
+export const TrendingDownIcon = (props: any) => <TrendingDown {...props} />;
+export const WalletIcon = (props: any) => <Wallet {...props} />;
+export const PieChartIcon = (props: any) => <PieChart {...props} />;
+export const EmployeeInfoIcon = (props: any) => <UserCheck {...props} />;
+export const PhoneIcon = (props: any) => <Phone {...props} />;
+export const EyeIcon = (props: any) => <Eye {...props} />;
+export const SearchIcon = (props: any) => <Search {...props} />;
+export const ShareIcon = (props: any) => <Share2 {...props} />;
+export const SaveIcon = (props: any) => <Save {...props} />;
+export const EditIcon = (props: any) => <Pencil {...props} />;
+export const PrinterIcon = (props: any) => <Printer {...props} />;
+export const DownloadIcon = (props: any) => <Download {...props} />;
+export const TrashIcon = (props: any) => <Trash2 {...props} />;
+export const Trash2Icon = (props: any) => <Trash2 {...props} />;
+export const DatabaseIcon = (props: any) => <Database {...props} />;
+export const RefreshIcon = (props: any) => <RefreshCw {...props} />;
+export const XIcon = (props: any) => <X {...props} />;
+export const AlertCircleIcon = (props: any) => <AlertCircle {...props} />;
+export const LayoutIcon = (props: any) => <ClipboardList {...props} />;
+export { Pill, Search, AlertCircle, ClipboardList };

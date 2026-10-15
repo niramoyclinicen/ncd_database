@@ -1,497 +1,750 @@
 
-import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { LabInvoice as Invoice, Patient, Employee, Doctor, Test, LabReport } from './DiagnosticData'; 
-import UltrasonographyReportEditor from './UltrasonographyReportEditor';
-import UrineRMEInputPage from './UrineRMEInputPage';
-import CBCInputPage from './CBCInputPage';
-import SemenAnalysisInputPage from './SemenAnalysisInputPage';
-import LipidProfileInputPage from './LipidProfileInputPage';
-import TemplateManagementPage from './TemplateManagementPage';
-import { SettingsIcon, Activity, SaveIcon, PrinterIcon } from './Icons';
+import React, { useState, useMemo, useEffect } from 'react';
+import { Employee, Referrar, LabInvoice as Invoice, MarketingTarget } from './DiagnosticData';
+import { UsersIcon, TrendingUpIcon, SettingsIcon, BarChart3, MapPinIcon, Target, Calendar, Filter, Search, ChevronRight, DollarSign, CheckCircle2, Clock, AlertCircle } from 'lucide-react';
 
-// Use fixed license constant
-const DIAGNOSTIC_LICENSE = 'HSM41671';
+interface ContributionReportPageProps {
+  employees: Employee[];
+  referrars: Referrar[];
+  invoices: Invoice[];
+  employeeReferrerMap: Record<string, string[]>;
+  setEmployeeReferrerMap: React.Dispatch<React.SetStateAction<Record<string, string[]>>>;
+}
 
-// --- STABLE SUB-COMPONENTS ---
+type TimeFilter = 'today' | 'week' | 'month' | 'custom';
 
-const MasterPadHeader = () => (
-    <div className="header p-8 border-b-2 border-slate-950 flex justify-between items-start shrink-0 mb-6">
-        <div className="flex gap-4">
-            <div className="w-14 h-14 bg-slate-100 rounded-xl flex items-center justify-center border border-slate-200">
-                <svg xmlns="http://www.w3.org/2000/svg" className="w-8 h-8 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-            </div>
-            <div>
-                <h1 className="text-2xl font-black text-blue-900 leading-tight uppercase tracking-tighter">Niramoy Clinic & Diagnostic</h1>
-                <p className="text-[10px] font-bold text-slate-700">Enayetpur, Sirajgonj | Mobile: 01730 923007</p>
-                <p className="text-[8px] text-slate-500 mt-0.5 uppercase tracking-widest font-sans font-bold">Govt. Reg No: {DIAGNOSTIC_LICENSE} | Open 24/7</p>
-            </div>
-        </div>
-        <div className="text-right">
-            <h2 className="text-sm font-black text-white bg-slate-900 px-4 py-1.5 rounded-lg inline-block uppercase tracking-tighter shadow-md">Lab Report</h2>
-        </div>
-    </div>
-);
+const timeFilters: { id: TimeFilter; label: string }[] = [
+  { id: 'today', label: 'Today' },
+  { id: 'week', label: 'This Week' },
+  { id: 'month', label: 'This Month' },
+  { id: 'custom', label: 'Custom Range' },
+];
 
-const ReportHeader = ({ patient, currentInvoice, doctors }: { patient: any, currentInvoice: any, doctors: any[] }) => {
-    const regNo = currentInvoice?.invoice_id?.split('-').pop() + '/' + (currentInvoice?.invoice_date.substring(2,4) || '25');
-    const docObj = doctors.find((d: Doctor) => d.doctor_id === currentInvoice?.doctor_id);
-    const doctorFullInfo = (currentInvoice?.doctor_name || 'Self') + (docObj?.degree ? ', ' + docObj.degree : '');
-    
-    return (
-        <div className="mb-6 shrink-0 text-black">
-            <table className="w-full border-collapse border border-black text-[10px]">
-                <tbody>
-                    <tr className="h-7">
-                        <td className="border border-black px-2 py-0.5 font-bold whitespace-nowrap" style={{ width: '80px' }}>Pt. Name :</td>
-                        <td className="border border-black px-2 py-0.5 font-bold uppercase" style={{ width: 'auto' }}>
-                            {patient?.pt_name} / {patient?.ageY}Y
-                        </td>
-                        <td className="border border-black px-2 py-0.5 font-bold whitespace-nowrap" style={{ width: '40px' }}>Sex :</td>
-                        <td className="border border-black px-2 py-0.5 font-normal" style={{ width: '50px' }}>{patient?.gender || 'N/A'}</td>
-                        <td className="border border-black px-2 py-0.5 font-bold whitespace-nowrap" style={{ width: '60px' }}>Reg.No :</td>
-                        <td className="border border-black px-2 py-0.5 font-bold text-blue-800" style={{ width: '80px' }}>{regNo}</td>
-                        <td className="border border-black px-2 py-0.5 font-bold whitespace-nowrap" style={{ width: '40px' }}>Date :</td>
-                        <td className="border border-black px-2 py-0.5 font-normal" style={{ width: '80px' }}>{currentInvoice?.invoice_date}</td>
-                    </tr>
-                    <tr className="h-8">
-                        <td className="border border-black px-2 py-0.5 font-bold whitespace-nowrap" style={{ width: '80px' }}>Refd By Dr. :</td>
-                        <td colSpan={3} className="border border-black px-2 py-0.5 font-bold text-[9px]" style={{ width: 'auto' }}>{doctorFullInfo}</td>
-                        <td className="border border-black px-2 py-0.5 font-bold whitespace-nowrap" style={{ width: '60px' }}>B_Code :</td>
-                        <td colSpan={3} className="border border-black p-0.5 bg-white">
-                            <div className="flex items-center justify-center w-full">
-                                <img src={`https://bwipjs-api.metafloor.com/?bcid=code128&text=${encodeURIComponent(patient?.pt_id || '')}&scale=1&height=5&incltext=false`} alt="BC" className="h-4" />
-                            </div>
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-    );
-};
-
-const Signatures = ({ customTechName, customTechDegree, customDocName, customDocDegree }: any) => (
-    <div className="footer-sign-container">
-        <div className="signature-box flex flex-col items-center">
-            <p className="text-[9px] font-black uppercase text-black mb-1" style={{ color: '#000000 !important' }}>Lab Technologist</p>
-            <div className="h-10 w-full"></div>
-            <div className="w-64 border-t-2 border-black"></div>
-            <p className="text-[13px] font-black uppercase pt-0.5 leading-none" style={{ color: '#000000 !important' }}>{customTechName || '...........................................'}</p>
-            <p className="text-[8px] font-bold uppercase tracking-widest mt-1 whitespace-pre-wrap text-center" style={{ color: '#000000 !important' }}>{customTechDegree || 'Medical Technologist'}</p>
-        </div>
-        <div className="signature-box flex flex-col items-center">
-            <p className="text-[9px] font-black uppercase text-black mb-1" style={{ color: '#000000 !important' }}>Reported By</p>
-            <div className="h-10 w-full"></div>
-            <div className="w-64 border-t-2 border-black"></div>
-            <p className="text-[15px] font-black uppercase pt-0.5 leading-none" style={{ color: '#000000 !important' }}>{customDocName || '...........................................'}</p>
-            <p className="text-[9px] font-bold italic whitespace-pre-wrap leading-tight mt-1 text-center" style={{ color: '#000000 !important' }}>{customDocDegree || ''}</p>
-        </div>
-    </div>
-);
-
-const isOutOfRange = (valStr: string, rangeStr: string): boolean => {
-    if (!valStr || !rangeStr) return false;
-    const val = parseFloat(valStr);
-    if (isNaN(val)) {
-        if (rangeStr.toLowerCase().includes('non-reactive') && valStr.toLowerCase().includes('reactive')) return true;
-        if (rangeStr.toLowerCase().includes('nil') && !['nil', 'negative', 'normal'].includes(valStr.toLowerCase())) return true;
-        return false;
-    }
-    const dashMatch = rangeStr.match(/(\d+\.?\d*)\s*-\s*(\d+\.?\d*)/);
-    if (dashMatch) {
-        const min = parseFloat(dashMatch[1]); const max = parseFloat(dashMatch[2]);
-        return val < min || val > max;
-    }
-    return false;
-};
-
-// --- MAIN COMPONENT ---
-
-const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setReports, patients, employees, tests, doctors }) => {
-    const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
-    const [activeTestName, setActiveTestName] = useState<string | null>(null);
+// --- Sub-Component: Marketing Setup (Linking Manager to Referrers) ---
+const MarketingSetup: React.FC<{
+    employees: Employee[];
+    referrars: Referrar[];
+    mapping: Record<string, string[]>;
+    setMapping: React.Dispatch<React.SetStateAction<Record<string, string[]>>>;
+    targets: MarketingTarget[];
+    setTargets: React.Dispatch<React.SetStateAction<MarketingTarget[]>>;
+}> = ({ employees, referrars, mapping, setMapping, targets, setTargets }) => {
+    const [selectedManagerId, setSelectedManagerId] = useState<string>('');
     const [searchTerm, setSearchTerm] = useState('');
-    const [successMessage, setSuccessMessage] = useState('');
-    const [viewMode, setViewMode] = useState<'reporting' | 'template_mgmt'>('reporting');
-    const [selectedTechnologistId, setSelectedTechnologistId] = useState<string>('');
-    const [selectedConsultantId, setSelectedConsultantId] = useState<string>('');
-    const [currentReportData, setCurrentReportData] = useState<any>(null);
-    
-    const [customTechName, setCustomTechName] = useState('');
-    const [customTechDegree, setCustomTechDegree] = useState('');
-    const [customDocName, setCustomDocName] = useState('');
-    const [customDocDegree, setCustomDocDegree] = useState('');
+    const [areaFilter, setAreaFilter] = useState('');
+    const [empSearchTerm, setEmpSearchTerm] = useState('');
+    const [empAreaFilter, setEmpAreaFilter] = useState('');
+    const [showAllEmployees, setShowAllEmployees] = useState(false);
+    const [setupView, setSetupView] = useState<'mapping' | 'targets'>('mapping');
 
-    const [printFullPad, setPrintFullPad] = useState<boolean>(true); 
-
-    const currentInvoice = useMemo(() => invoices.find((inv: Invoice) => inv.invoice_id === selectedInvoiceId), [selectedInvoiceId, invoices]);
-    const patient = useMemo(() => patients.find((p: Patient) => p.pt_id === currentInvoice?.patient_id), [currentInvoice, patients]);
-
-    // Clear success message quickly (1s)
-    useEffect(() => {
-        if (successMessage) {
-            const timer = setTimeout(() => setSuccessMessage(''), 1000);
-            return () => clearTimeout(timer);
+    // Filter active employees. 
+    const activeEmployees = useMemo(() => {
+        if (!Array.isArray(employees)) return [];
+        let list = employees.filter(e => e && e.status === 'Active');
+        if (!showAllEmployees) {
+            list = list.filter(e => 
+                (e.job_position && e.job_position.toLowerCase().includes('marketing')) || 
+                (e.department && e.department.toLowerCase().includes('marketing'))
+            );
         }
-    }, [successMessage]);
+        return list;
+    }, [employees, showAllEmployees]);
 
-    useEffect(() => {
-        const tech = employees.find((e: any) => e.emp_id === selectedTechnologistId);
-        if (tech) {
-            setCustomTechName(tech.emp_name);
-            setCustomTechDegree(tech.degree || 'Medical Technologist');
-        }
-    }, [selectedTechnologistId, employees]);
-
-    useEffect(() => {
-        const doc = doctors.find((d: any) => d.doctor_id === selectedConsultantId);
-        if (doc) {
-            setCustomDocName(doc.doctor_name);
-            setCustomDocDegree(doc.degree);
-        }
-    }, [selectedConsultantId, doctors]);
-
-    // FOCUS LOGIC: Only show/print the active selected test
-    const activeTestGroup = useMemo(() => {
-        if (!currentInvoice || !activeTestName) return [];
-        return [activeTestName];
-    }, [currentInvoice, activeTestName]);
-
-    const groupedPathologyTests = useMemo(() => {
-        const groups: Record<string, string[]> = {};
-        activeTestGroup.forEach(tName => {
-            const testDef = tests.find(t => t.test_name === tName);
-            const cat = testDef?.category || 'Others';
-            if (!groups[cat]) groups[cat] = [];
-            groups[cat].push(tName);
+    const filteredEmployees = useMemo(() => {
+        return activeEmployees.filter(emp => {
+            const matchesSearch = emp.emp_name.toLowerCase().includes(empSearchTerm.toLowerCase()) || 
+                                 emp.emp_id.toLowerCase().includes(empSearchTerm.toLowerCase());
+            const matchesArea = !empAreaFilter || (emp.address && emp.address.toLowerCase().includes(empAreaFilter.toLowerCase()));
+            return matchesSearch && matchesArea;
         });
-        return groups;
-    }, [activeTestGroup, tests]);
+    }, [activeEmployees, empSearchTerm, empAreaFilter]);
 
-    useEffect(() => {
-        if (!selectedInvoiceId || !activeTestName) return;
-        const saved = reports.find((r: LabReport) => r.invoice_id === selectedInvoiceId && r.test_name === activeTestName);
-        if (saved) {
-            setCurrentReportData(saved.data);
-            setSelectedTechnologistId(saved.technologistId || '');
-            setSelectedConsultantId(saved.consultantId || '');
-        } else {
-            setCurrentReportData(null);
-        }
-    }, [selectedInvoiceId, activeTestName, reports]);
+    const areas = useMemo(() => {
+        const uniqueAreas = Array.from(new Set(referrars.map(r => r.area).filter(Boolean)));
+        return uniqueAreas.sort();
+    }, [referrars]);
 
-    const handleSaveReport = (reportData: any, isAutoSave: boolean = false) => {
-        if (!selectedInvoiceId || !activeTestName) return;
+    const handleToggleReferrer = (refId: string) => {
+        if (!selectedManagerId) return;
         
-        let updatedReports: LabReport[] = [];
-        setReports((prev: LabReport[]) => {
-            let newList = [...prev];
-            const existing = prev.find(r => r.invoice_id === selectedInvoiceId && r.test_name === activeTestName);
-            const newReport: LabReport = {
-                report_id: existing?.report_id || `REP-${selectedInvoiceId}-${activeTestName.replace(/\s+/g, '')}`,
-                invoice_id: selectedInvoiceId, test_name: activeTestName, patient_id: patient?.pt_id || '',
-                report_date: new Date().toISOString().split('T')[0], status: 'Completed', data: reportData,
-                technologistId: selectedTechnologistId, consultantId: selectedConsultantId,
-                isDelivered: existing?.isDelivered || false
-            };
-            newList = newList.filter(r => !(r.invoice_id === selectedInvoiceId && r.test_name === activeTestName));
-            newList.push(newReport);
-            updatedReports = newList;
-            return newList;
-        });
-
-        if (currentInvoice) {
-            const completedTestsForInvoice = updatedReports.filter(r => r.invoice_id === selectedInvoiceId).map(r => r.test_name);
-            const allTestsDone = currentInvoice.items.every((item: any) => completedTestsForInvoice.includes(item.test_name));
-            if (allTestsDone && currentInvoice.status !== 'Cancelled') {
-                setInvoices((prev: Invoice[]) => prev.map(inv => inv.invoice_id === selectedInvoiceId ? { ...inv, status: 'Report Ready' } : inv));
+        setMapping(prev => {
+            const currentList = prev[selectedManagerId] || [];
+            const isAssigned = currentList.includes(refId);
+            
+            let newList;
+            if (isAssigned) {
+                newList = currentList.filter(id => id !== refId);
+            } else {
+                newList = [...currentList, refId];
             }
-        }
-        if (!isAutoSave) setSuccessMessage(`রিপোর্ট সফলভাবে সেভ হয়েছে!`);
+            
+            return { ...prev, [selectedManagerId]: newList };
+        });
     };
 
-    const handlePrintReport = () => {
-        const content = document.getElementById('printable-report-content');
-        if (!content) return;
-        const win = window.open('', '_blank');
-        if (!win) return;
+    const assignedReferrerIds = selectedManagerId ? (mapping[selectedManagerId] || []) : [];
+
+    const filteredReferrars = referrars.filter(r => {
+        const matchesSearch = r.ref_name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                             r.ref_id.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesArea = !areaFilter || r.area === areaFilter;
+        return matchesSearch && matchesArea;
+    });
+
+    const currentTarget = targets.find(t => t.staff_id === selectedManagerId && t.month === new Date().getMonth() && t.year === new Date().getFullYear());
+
+    const handleUpdateTarget = (field: 'pt_count_target' | 'revenue_target', value: number) => {
+        if (!selectedManagerId) return;
+        const month = new Date().getMonth();
+        const year = new Date().getFullYear();
         
-        win.document.write(`
-            <html>
-                <head>
-                    <title>Report_${patient?.pt_name}</title>
-                    <script src="https://cdn.tailwindcss.com"></script>
-                    <style>
-                        @page { size: A4; margin: 0; }
-                        * { box-sizing: border-box; }
-                        html, body { 
-                            background: white; 
-                            margin: 0 !important; 
-                            padding: 0 !important; 
-                            font-family: 'Times New Roman', serif; 
-                            color: black; 
-                            width: 100%; 
-                            height: 100%;
-                            overflow: hidden !important; 
-                            -webkit-print-color-adjust: exact;
-                        }
-                        .paper-page { 
-                            width: 210mm; 
-                            height: 294mm; 
-                            max-height: 294mm; 
-                            margin: 0 auto; 
-                            position: relative; 
-                            display: flex; 
-                            flex-direction: column; 
-                            background: white; 
-                            overflow: hidden !important;
-                            page-break-after: avoid !important;
-                            page-break-inside: avoid !important;
-                        }
-                        .paper-inner { padding: 0 15mm; flex: 1; display: flex; flex-direction: column; position: relative; width: 100%; height: 100%; }
-                        .report-content-body { ${printFullPad ? 'margin-top: 0;' : 'margin-top: 2.3in;'} flex: 1; width: 100%; }
-                        .footer-sign-container { 
-                            position: absolute; 
-                            bottom: 12mm; 
-                            left: 15mm; 
-                            right: 15mm; 
-                            display: flex; 
-                            justify-content: space-between; 
-                            align-items: flex-end; 
-                            background: white; 
-                            width: calc(100% - 30mm); 
-                        }
-                        .signature-box { text-align: center; width: 45%; }
-                        .category-title { 
-                            font-weight: 950 !important; 
-                            text-transform: uppercase; 
-                            text-decoration: underline; 
-                            font-size: 14pt; 
-                            margin-bottom: 15px; 
-                            text-align: center; 
-                            display: block; 
-                            color: #000000 !important; 
-                        }
-                        .no-print { display: none !important; }
-                        input, textarea { border: none !important; outline: none !important; background: transparent !important; }
-                    </style>
-                </head>
-                <body>
-                    <div id="print-mount" style="width: 100%; height: 100%; overflow: hidden;">${content.innerHTML}</div>
-                    <script>window.onload = () => { setTimeout(() => { window.print(); window.close(); }, 850); };</script>
-                </body>
-            </html>
-        `);
-        win.document.close();
+        setTargets(prev => {
+            const existingIdx = prev.findIndex(t => t.staff_id === selectedManagerId && t.month === month && t.year === year);
+            if (existingIdx >= 0) {
+                const updated = [...prev];
+                updated[existingIdx] = { ...updated[existingIdx], [field]: value };
+                return updated;
+            } else {
+                return [...prev, {
+                    id: `TG-${Date.now()}`,
+                    staff_id: selectedManagerId,
+                    month,
+                    year,
+                    pt_count_target: field === 'pt_count_target' ? value : 0,
+                    revenue_target: field === 'revenue_target' ? value : 0
+                }];
+            }
+        });
     };
-
-    if (viewMode === 'template_mgmt') return <TemplateManagementPage onBack={() => setViewMode('reporting')} />;
 
     return (
-        <div className="bg-slate-200 h-screen flex flex-col font-sans overflow-hidden text-black">
-            <style>{`
-                .paper-page { width: 210mm; height: 294mm; min-height: 294mm; margin: 0 auto; position: relative; background: white; display: flex; flex-direction: column; box-shadow: 0 0 50px rgba(0,0,0,0.1); box-sizing: border-box; overflow: hidden; }
-                .paper-inner { padding: 0 15mm; flex: 1; display: flex; flex-direction: column; position: relative; }
-                .footer-sign-container { position: absolute; bottom: 12mm; left: 15mm; right: 15mm; display: flex; justify-content: space-between; align-items: flex-end; }
-                .signature-box { text-align: center; width: 45%; }
-                .category-title { font-weight: 950 !important; text-transform: uppercase; text-decoration: underline; font-size: 14pt; margin-bottom: 15px; text-align: center; display: block; color: #000000 !important; }
-                
-                /* In-workspace Side Controls */
-                .side-controls-container { position: sticky; top: 20px; z-index: 50; width: 0; height: 0; }
-                .side-controls-left { position: absolute; right: 15px; top: 20px; display: flex; flex-direction: column; gap: 10px; width: 120px; }
-                .side-controls-right { position: absolute; left: calc(210mm + 15px); top: 20px; display: flex; flex-direction: column; gap: 12px; width: 50px; }
-            `}</style>
-
-            {successMessage && <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-slate-900 border-2 border-emerald-500 text-white px-12 py-8 rounded-[3rem] shadow-2xl z-[500] animate-fade-in-up flex flex-col items-center gap-4"><div className="w-12 h-12 bg-emerald-500 rounded-full flex items-center justify-center text-white text-2xl font-black">✓</div><div className="text-xl font-black uppercase tracking-widest">{successMessage}</div></div>}
-            
-            <div className="grid grid-cols-12 flex-1 overflow-hidden">
-                <div className="col-span-2 bg-white border-r flex flex-col shadow-sm no-print">
-                    <div className="p-4 bg-slate-900 text-white flex justify-between items-center">
-                        <h3 className="font-black text-[10px] uppercase tracking-widest">Reporting Queue</h3>
-                        <button onClick={() => setViewMode('template_mgmt')} className="p-2 bg-slate-800 rounded-xl hover:bg-blue-600 transition-all shadow-md"><SettingsIcon size={14}/></button>
-                    </div>
-                    <div className="p-3 bg-slate-50 border-b">
-                        <input placeholder="Search Patient..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full px-4 py-2 border rounded-2xl text-[11px] bg-white outline-none focus:ring-2 focus:ring-blue-500 font-bold shadow-sm" />
-                    </div>
-                    <div className="flex-1 overflow-y-auto px-2 py-4 space-y-3 custom-scrollbar">
-                        {invoices.filter((i: any) => i.patient_name.toLowerCase().includes(searchTerm.toLowerCase()) || i.invoice_id.includes(searchTerm)).map((r: any) => {
-                            const isActive = selectedInvoiceId === r.invoice_id;
-                            return (
-                                <div key={r.invoice_id} onClick={() => { setSelectedInvoiceId(r.invoice_id); setActiveTestName(null); }} className={`p-3 border-2 rounded-2xl cursor-pointer transition-all ${isActive ? 'bg-blue-600 border-blue-400 text-white shadow-xl scale-105' : 'bg-white hover:border-blue-200'}`}>
-                                    <div className={`font-black text-[11px] uppercase tracking-tight ${isActive ? 'text-white' : 'text-slate-900'}`}>{r.patient_name}</div>
-                                    <div className="flex justify-between items-center mt-2">
-                                        <span className={`text-[9px] font-mono ${isActive ? 'text-white/70' : 'text-slate-500'}`}>{r.invoice_id}</span>
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-                </div>
-
-                <div className="col-span-2 bg-slate-100 border-r flex flex-col shadow-inner no-print">
-                    <div className="p-5 border-b bg-white text-[11px] font-black text-slate-800 uppercase tracking-widest">Investigations</div>
-                    <div className="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar">
-                        {currentInvoice?.items.map((it: any) => {
-                            const isTestDone = reports.some((rep: any) => rep.invoice_id === selectedInvoiceId && rep.test_name === it.test_name);
-                            return (
-                                <button key={it.test_id} onClick={() => setActiveTestName(it.test_name)} className={`w-full text-left p-4 rounded-2xl text-[11px] font-black transition-all border flex justify-between items-center ${activeTestName === it.test_name ? 'bg-indigo-600 text-white border-indigo-500 shadow-lg' : isTestDone ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-white text-slate-600 border-slate-200'}`}>
-                                    <span className="truncate pr-1 uppercase">{it.test_name}</span>
-                                    {isTestDone && <span>✓</span>}
-                                </button>
-                            );
-                        })}
-                    </div>
-                    <div className="p-4 bg-slate-900 border-t border-slate-700 space-y-3">
-                         <select value={selectedTechnologistId} onChange={e=>setSelectedTechnologistId(e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2 text-[10px] text-white font-bold outline-none"><option value="">-- Select Tech --</option>{employees.filter((e:any)=>e.department==='Diagnostic').map((e: any) => <option key={e.emp_id} value={e.emp_id}>{e.emp_name}</option>)}</select>
-                         <select value={selectedConsultantId} onChange={e=>setSelectedConsultantId(e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2 text-[10px] text-white font-bold outline-none"><option value="">-- Select Doctor --</option>{doctors.map((d: any) => <option key={d.doctor_id} value={d.doctor_id}>{d.doctor_name}</option>)}</select>
-                    </div>
-                </div>
-
-                <div className="col-span-8 bg-slate-200 flex flex-col relative overflow-hidden">
-                    {activeTestName ? (
-                        <div className="flex-1 overflow-y-auto bg-slate-200 custom-scrollbar relative">
-                            {/* CENTERED WRAPPER FOR PAPER AND IMMEDIATE CONTROLS */}
-                            <div className="relative mx-auto w-fit py-10">
-                                
-                                {/* STICKY SIDE CONTROLS WITHIN THE WORKSPACE BACKGROUND */}
-                                <div className="side-controls-container no-print">
-                                    <div className="side-controls-left">
-                                        <div className="bg-indigo-600 text-white px-2 py-1.5 rounded-lg font-black text-[9px] uppercase shadow-lg text-center truncate border border-indigo-400">{activeTestName}</div>
-                                        <label className="flex items-center justify-center gap-2 cursor-pointer bg-white px-3 py-2 rounded-lg border-2 border-slate-300 shadow-xl group hover:border-blue-500 transition-all">
-                                            <input type="checkbox" checked={printFullPad} onChange={e => setPrintFullPad(e.target.checked)} className="w-4 h-4 text-blue-600" />
-                                            <span className="text-[12px] font-black uppercase text-slate-700 group-hover:text-blue-600 leading-none">Pad Mode</span>
-                                        </label>
-                                    </div>
-                                    <div className="side-controls-right">
-                                        <button onClick={() => handleSaveReport(currentReportData)} className="bg-emerald-600 hover:bg-emerald-500 text-white w-9 h-9 rounded-full shadow-xl transition-all flex items-center justify-center border-2 border-white active:scale-90" title="Save Report"><SaveIcon size={16}/></button>
-                                        <button onClick={handlePrintReport} className="bg-blue-600 hover:bg-blue-500 text-white w-9 h-9 rounded-full shadow-xl transition-all flex items-center justify-center border-2 border-white active:scale-90" title="Print Report"><PrinterIcon size={16}/></button>
-                                    </div>
-                                </div>
-
-                                <div id="printable-report-content">
-                                    {(activeTestName.toLowerCase().includes('usg') || activeTestName.toLowerCase().includes('ultra')) ? (
-                                        <div className="paper-page">
-                                            <div className="paper-inner">
-                                                {printFullPad && <MasterPadHeader />}
-                                                <div className="report-content-body">
-                                                    <ReportHeader patient={patient} currentInvoice={currentInvoice} doctors={doctors} />
-                                                    <div className="category-title">Ultrasonography Report</div>
-                                                    <UltrasonographyReportEditor template={null} patient={patient} invoice={currentInvoice} onSave={handleSaveReport} reportData={currentReportData} setReportData={setCurrentReportData} doctors={doctors} employees={employees} technologistId={selectedTechnologistId} consultantId={selectedConsultantId} isEmbedded={true} />
-                                                </div>
-                                                <Signatures customTechName={customTechName} customTechDegree={customTechDegree} customDocName={customDocName} customDocDegree={customDocDegree} />
-                                            </div>
-                                        </div>
-                                    ) : (
-                                        <div className="space-y-10">
-                                            {(Object.entries(groupedPathologyTests) as [string, string[]][]).map(([category, testsInCat]) => {
-                                                const cbcTest = testsInCat.find(t => t.toLowerCase().includes('cbc'));
-                                                const otherTests = testsInCat.filter(t => !t.toLowerCase().includes('cbc'));
-                                                const specialTests = otherTests.filter(t => t.toLowerCase().includes('urine') || t.toLowerCase().includes('semen'));
-                                                const regularTests = otherTests.filter(t => !specialTests.includes(t));
-
-                                                return (
-                                                    <React.Fragment key={category}>
-                                                        {regularTests.length > 0 && (
-                                                            <div className="paper-page">
-                                                                <div className="paper-inner">
-                                                                    {printFullPad && <MasterPadHeader />}
-                                                                    <div className="report-content-body">
-                                                                        <ReportHeader patient={patient} currentInvoice={currentInvoice} doctors={doctors} />
-                                                                        <div className="category-title">{category} Report</div>
-                                                                        <table className="w-full border-collapse border border-black">
-                                                                            <thead className="bg-slate-50">
-                                                                                <tr>
-                                                                                    <th className="border border-black p-2 text-left text-[10px] uppercase font-black w-[45%]">Investigation</th>
-                                                                                    <th className="border border-black p-2 text-center text-[10px] uppercase font-black w-[20%]">Result</th>
-                                                                                    <th className="border border-black p-2 text-center text-[10px] uppercase font-black w-[15%]">Unit</th>
-                                                                                    <th className="border border-black p-2 text-left text-[10px] uppercase font-black w-[20%]">Normal Range</th>
-                                                                                </tr>
-                                                                            </thead>
-                                                                            <tbody>
-                                                                                {regularTests.map((tName: string) => {
-                                                                                    const testDef = tests.find((t: any) => t.test_name === tName);
-                                                                                    const val = currentReportData?.[tName] || '';
-                                                                                    const isAlert = isOutOfRange(val, testDef?.normal_range || '');
-                                                                                    return (
-                                                                                        <tr key={tName} className="h-8">
-                                                                                            <td className="border border-black px-2 py-0.5 font-bold uppercase text-[10px]">{tName}</td>
-                                                                                            <td className="border border-black p-0 text-center">
-                                                                                                <input className={`w-full h-full p-1 border-none font-black text-center text-sm outline-none no-print ${isAlert ? 'bg-red-50 text-red-600' : 'bg-blue-50'}`} onChange={(e) => setCurrentReportData({ ...currentReportData, [tName]: e.target.value })} value={val} />
-                                                                                                <span className={`hidden print:block font-black text-sm ${isAlert ? 'text-red-600' : ''}`}>{val || '---'}</span>
-                                                                                            </td>
-                                                                                            <td className="border border-black text-center text-[9px]">{testDef?.unit || '-'}</td>
-                                                                                            <td className="border border-black px-2 text-[9px] italic font-bold">{testDef?.normal_range || '-'}</td>
-                                                                                        </tr>
-                                                                                    );
-                                                                                })}
-                                                                            </tbody>
-                                                                        </table>
-                                                                    </div>
-                                                                    <Signatures customTechName={customTechName} customTechDegree={customTechDegree} customDocName={customDocName} customDocDegree={customDocDegree} />
-                                                                </div>
-                                                            </div>
-                                                        )}
-                                                        {cbcTest && (
-                                                            <div className="paper-page">
-                                                                <div className="paper-inner">
-                                                                    {printFullPad && <MasterPadHeader />}
-                                                                    <div className="report-content-body">
-                                                                        <ReportHeader patient={patient} currentInvoice={currentInvoice} doctors={doctors} />
-                                                                        <div className="category-title">Hematology Report</div>
-                                                                        <CBCInputPage results={currentReportData} onSaveOverride={handleSaveReport} patient={patient} invoice={currentInvoice} doctors={doctors} employees={employees} technologistId={selectedTechnologistId} consultantId={selectedConsultantId} isEmbedded={true} checkRange={isOutOfRange} />
-                                                                    </div>
-                                                                    <Signatures customTechName={customTechName} customTechDegree={customTechDegree} customDocName={customDocName} customDocDegree={customDocDegree} />
-                                                                </div>
-                                                            </div>
-                                                        )}
-                                                        {specialTests.map(tName => (
-                                                            <div key={tName} className="paper-page">
-                                                                <div className="paper-inner">
-                                                                    {printFullPad && <MasterPadHeader />}
-                                                                    <div className="report-content-body">
-                                                                        <ReportHeader patient={patient} currentInvoice={currentInvoice} doctors={doctors} />
-                                                                        <div className="category-title">Clinical Pathology Report</div>
-                                                                        {tName.toLowerCase().includes('urine') ? (
-                                                                            <UrineRMEInputPage results={currentReportData} onSaveOverride={handleSaveReport} patient={patient} invoice={currentInvoice} doctors={doctors} employees={employees} technologistId={selectedTechnologistId} consultantId={selectedConsultantId} isEmbedded={true} />
-                                                                        ) : (
-                                                                            <SemenAnalysisInputPage results={currentReportData} onSaveOverride={handleSaveReport} patient={patient} invoice={currentInvoice} doctors={doctors} employees={employees} technologistId={selectedTechnologistId} consultantId={selectedConsultantId} isEmbedded={true} />
-                                                                        )}
-                                                                    </div>
-                                                                    <Signatures customTechName={customTechName} customTechDegree={customTechDegree} customDocName={customDocName} customDocDegree={customDocDegree} />
-                                                                </div>
-                                                            </div>
-                                                        ))}
-                                                    </React.Fragment>
-                                                );
-                                            })}
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-                    ) : (
-                        <div className="flex flex-col items-center justify-center h-full text-slate-300 space-y-4 bg-white p-20 text-center">
-                            <div className="p-16 bg-slate-50 rounded-full border-4 border-dashed border-slate-100 shadow-inner opacity-20"><Activity size={100} /></div>
-                            <h2 className="text-2xl font-black uppercase tracking-widest text-slate-400">Select Patient & Test to Begin</h2>
-                        </div>
-                    )}
+        <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 h-full flex flex-col">
+            <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-bold text-slate-100 flex items-center gap-2">
+                    <SettingsIcon className="w-5 h-5 text-blue-400" />
+                    Marketing Team Configuration
+                </h3>
+                <div className="flex bg-slate-900 rounded-lg p-1">
+                    <button 
+                        onClick={() => setSetupView('mapping')}
+                        className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${setupView === 'mapping' ? 'bg-blue-600 text-white' : 'text-slate-400'}`}
+                    >
+                        Referrer Mapping
+                    </button>
+                    <button 
+                        onClick={() => setSetupView('targets')}
+                        className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${setupView === 'targets' ? 'bg-blue-600 text-white' : 'text-slate-400'}`}
+                    >
+                        Set Targets
+                    </button>
                 </div>
             </div>
-            {activeTestName && (
-                <div className="no-print bg-slate-900 border-t border-slate-700 p-4 shrink-0 flex justify-center gap-10">
-                    <div className="flex items-center gap-3">
-                        <span className="text-[10px] font-black text-slate-500 uppercase">Technologist:</span>
-                        <input value={customTechName} onChange={e=>setCustomTechName(e.target.value)} className="bg-slate-800 border border-slate-700 rounded p-1.5 text-xs text-white outline-none w-48" placeholder="Name"/>
-                        <textarea value={customTechDegree} onChange={e=>setCustomTechDegree(e.target.value)} className="bg-slate-800 border border-slate-700 rounded p-1 text-[10px] text-white outline-none w-48 h-8 resize-none" placeholder="Degree"/>
+            
+            <div className="mb-6 space-y-4">
+                <div className="flex justify-between items-end gap-4">
+                    <div className="flex-1">
+                        <label className="block text-sm font-medium text-slate-400 mb-2">Select Marketing Manager</label>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                            <div className="relative sm:col-span-1">
+                                <Search className="absolute left-2 top-2.5 w-4 h-4 text-slate-500" />
+                                <input 
+                                    type="text" 
+                                    placeholder="Search Employee..." 
+                                    value={empSearchTerm}
+                                    onChange={e => setEmpSearchTerm(e.target.value)}
+                                    className="w-full bg-slate-700 border border-slate-600 rounded-md pl-8 pr-2 py-2 text-sm text-white outline-none focus:ring-1 focus:ring-blue-500"
+                                />
+                            </div>
+                            <div className="relative sm:col-span-1">
+                                <MapPinIcon className="absolute left-2 top-2.5 w-4 h-4 text-slate-500" />
+                                <select 
+                                    value={empAreaFilter}
+                                    onChange={e => setEmpAreaFilter(e.target.value)}
+                                    className="w-full bg-slate-700 border border-slate-600 rounded-md pl-8 pr-2 py-2 text-sm text-white outline-none focus:ring-1 focus:ring-blue-500"
+                                >
+                                    <option value="">All Areas (Emp)</option>
+                                    {areas.map(area => <option key={area} value={area}>{area}</option>)}
+                                </select>
+                            </div>
+                            <div className="sm:col-span-1 flex items-center gap-2">
+                                <input 
+                                    type="checkbox" 
+                                    id="showAllEmp"
+                                    checked={showAllEmployees}
+                                    onChange={e => setShowAllEmployees(e.target.checked)}
+                                    className="h-4 w-4 rounded border-gray-500 text-blue-600 bg-slate-800 focus:ring-blue-500"
+                                />
+                                <label htmlFor="showAllEmp" className="text-xs text-slate-400 cursor-pointer">Show All Staff</label>
+                            </div>
+                        </div>
                     </div>
-                    <div className="flex items-center gap-3">
-                        <span className="text-[10px] font-black text-slate-500 uppercase">Consultant:</span>
-                        <input value={customDocName} onChange={e=>setCustomDocName(e.target.value)} className="bg-slate-800 border border-slate-700 rounded p-1.5 text-xs text-white outline-none w-48" placeholder="Name"/>
-                        <textarea value={customDocDegree} onChange={e=>setCustomDocDegree(e.target.value)} className="bg-slate-800 border border-slate-700 rounded p-1 text-[10px] text-white outline-none w-64 h-8 resize-none" placeholder="Degrees"/>
+                </div>
+
+                <select 
+                    value={selectedManagerId} 
+                    onChange={(e) => setSelectedManagerId(e.target.value)}
+                    className="w-full bg-slate-700 border border-slate-600 rounded-md p-3 text-white focus:ring-2 focus:ring-blue-500 outline-none font-bold"
+                >
+                    <option value="">-- Select Manager ({filteredEmployees.length} found) --</option>
+                    {filteredEmployees.map(emp => (
+                        <option key={emp.emp_id} value={emp.emp_id}>{emp.emp_name} ({emp.job_position || emp.department})</option>
+                    ))}
+                </select>
+            </div>
+
+            {selectedManagerId ? (
+                setupView === 'mapping' ? (
+                    <div className="flex-1 flex flex-col overflow-hidden">
+                        <div className="flex justify-between items-center mb-2">
+                            <span className="text-sm font-semibold text-slate-300">Assign Referrers</span>
+                            <span className="text-xs text-blue-400 bg-blue-900/30 px-2 py-1 rounded">
+                                {assignedReferrerIds.length} Assigned
+                            </span>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-2 mb-3">
+                            <div className="relative">
+                                <Search className="absolute left-2 top-2.5 w-4 h-4 text-slate-500" />
+                                <input 
+                                    type="text" 
+                                    placeholder="Search Name/ID..." 
+                                    value={searchTerm}
+                                    onChange={e => setSearchTerm(e.target.value)}
+                                    className="w-full bg-slate-900 border border-slate-600 rounded pl-8 pr-2 py-2 text-sm text-white"
+                                />
+                            </div>
+                            <div className="relative">
+                                <MapPinIcon className="absolute left-2 top-2.5 w-4 h-4 text-slate-500" />
+                                <select 
+                                    value={areaFilter}
+                                    onChange={e => setAreaFilter(e.target.value)}
+                                    className="w-full bg-slate-900 border border-slate-600 rounded pl-8 pr-2 py-2 text-sm text-white outline-none"
+                                >
+                                    <option value="">All Areas</option>
+                                    {areas.map(area => <option key={area} value={area}>{area}</option>)}
+                                </select>
+                            </div>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto bg-slate-900/50 rounded-lg border border-slate-700 p-2 space-y-1">
+                            {filteredReferrars.length > 0 ? filteredReferrars.map(ref => {
+                                const isChecked = assignedReferrerIds.includes(ref.ref_id);
+                                const assignedToOther = Object.entries(mapping).find(([mgrId, refs]) => mgrId !== selectedManagerId && (refs as string[]).includes(ref.ref_id));
+                                const otherManagerName = assignedToOther ? employees.find(e => e.emp_id === assignedToOther[0])?.emp_name : null;
+
+                                return (
+                                    <div 
+                                        key={ref.ref_id} 
+                                        onClick={() => !otherManagerName && handleToggleReferrer(ref.ref_id)}
+                                        className={`flex items-center p-2 rounded cursor-pointer transition-colors ${
+                                            otherManagerName ? 'opacity-50 cursor-not-allowed' : 'hover:bg-slate-700'
+                                        } ${isChecked ? 'bg-blue-900/30 border border-blue-500/30' : ''}`}
+                                    >
+                                        <input 
+                                            type="checkbox" 
+                                            checked={isChecked} 
+                                            readOnly
+                                            disabled={!!otherManagerName}
+                                            className="h-4 w-4 rounded border-gray-500 text-blue-600 bg-slate-800 focus:ring-blue-500"
+                                        />
+                                        <div className="ml-3 flex-1">
+                                            <div className="flex justify-between items-start">
+                                                <p className={`text-sm font-medium ${isChecked ? 'text-blue-300' : 'text-slate-300'}`}>
+                                                    {ref.ref_name}
+                                                </p>
+                                                <span className="text-[10px] text-slate-500 bg-slate-800 px-1.5 py-0.5 rounded">{ref.area || 'No Area'}</span>
+                                            </div>
+                                            <p className="text-xs text-slate-500">{ref.ref_degrees}</p>
+                                            {otherManagerName && (
+                                                <p className="text-[10px] text-amber-500">Assigned to: {otherManagerName}</p>
+                                            )}
+                                        </div>
+                                    </div>
+                                );
+                            }) : (
+                                <div className="p-8 text-center text-slate-600 italic text-sm">No referrers found matching your criteria.</div>
+                            )}
+                        </div>
                     </div>
+                ) : (
+                    <div className="space-y-6">
+                        <div className="bg-slate-900/50 p-4 rounded-lg border border-slate-700">
+                            <h4 className="text-sm font-bold text-blue-400 mb-4 flex items-center gap-2">
+                                <Target className="w-4 h-4" />
+                                Monthly Targets (Current Month)
+                            </h4>
+                            <div className="grid grid-cols-1 gap-4">
+                                <div>
+                                    <label className="block text-xs text-slate-500 uppercase font-bold mb-1">Patient Count Target</label>
+                                    <input 
+                                        type="number" 
+                                        value={currentTarget?.pt_count_target || 0}
+                                        onChange={e => handleUpdateTarget('pt_count_target', parseInt(e.target.value) || 0)}
+                                        className="w-full bg-slate-800 border border-slate-700 rounded p-3 text-white font-bold"
+                                        placeholder="e.g. 100"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs text-slate-500 uppercase font-bold mb-1">Revenue Target (BDT)</label>
+                                    <input 
+                                        type="number" 
+                                        value={currentTarget?.revenue_target || 0}
+                                        onChange={e => handleUpdateTarget('revenue_target', parseFloat(e.target.value) || 0)}
+                                        className="w-full bg-slate-800 border border-slate-700 rounded p-3 text-white font-bold"
+                                        placeholder="e.g. 50000"
+                                    />
+                                </div>
+                            </div>
+                            <p className="text-[10px] text-slate-500 mt-4 italic">Targets are used to track performance in the Analytics Dashboard.</p>
+                        </div>
+                    </div>
+                )
+            ) : (
+                <div className="flex-1 flex items-center justify-center text-slate-500 text-sm italic">
+                    Select a manager to configure team and targets.
                 </div>
             )}
         </div>
     );
 };
 
-export default LabReportingPage;
+// --- Sub-Component: Bar Chart (Reused) ---
+const BarChart: React.FC<{ title: string; data: { name: string; value: number }[]; color: string; unit?: string }> = ({ title, data, color, unit = '' }) => {
+    const maxValue = useMemo(() => Math.max(...data.map(d => d.value), 1), [data]);
+  
+    return (
+      <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 shadow-md flex flex-col h-full">
+        <h4 className="text-lg font-semibold text-slate-200 mb-4 pb-2 border-b border-slate-700">{title}</h4>
+        {data.length === 0 ? (
+          <div className="flex-1 flex items-center justify-center text-slate-500">
+             <p>No data available for this period.</p>
+          </div>
+        ) : (
+          <div className="flex-1 overflow-y-auto pr-2 space-y-4">
+            {data.map((item, index) => (
+              <div key={index} className="space-y-1">
+                <div className="flex justify-between text-xs sm:text-sm text-slate-300 font-medium">
+                    <span className="truncate pr-2" title={item.name}>{item.name}</span>
+                    <span className="font-bold text-slate-100">
+                        {unit === 'BDT' ? item.value.toLocaleString('en-IN') : item.value} {unit === 'BDT' ? '৳' : ''}
+                    </span>
+                </div>
+                <div className="w-full bg-slate-700 rounded-full h-2.5 overflow-hidden">
+                    <div
+                        className={`h-full rounded-full transition-all duration-700 ease-out ${color}`}
+                        style={{ width: `${(item.value / maxValue) * 100}%` }}
+                    ></div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+};
+
+// --- Sub-Component: Marketing Dashboard ---
+const MarketingDashboard: React.FC<{
+    employees: Employee[];
+    referrars: Referrar[];
+    invoices: Invoice[];
+    mapping: Record<string, string[]>;
+    targets: MarketingTarget[];
+}> = ({ employees, referrars, invoices, mapping, targets }) => {
+    const [selectedManagerId, setSelectedManagerId] = useState<string>('');
+    const [selectedFilter, setSelectedFilter] = useState<TimeFilter>('month');
+    const [customRange, setCustomRange] = useState({ start: '', end: '' });
+
+    // Filter Active Managers who have referrers assigned
+    const managersWithTeam = employees.filter(e => mapping[e.emp_id] && mapping[e.emp_id].length > 0);
+
+    const getFilteredInvoices = () => {
+        const now = new Date();
+        let startDate = new Date();
+        let endDate = new Date();
+
+        switch (selectedFilter) {
+            case 'today':
+                startDate.setHours(0,0,0,0);
+                break;
+            case 'week':
+                startDate.setDate(now.getDate() - 7);
+                break;
+            case 'month':
+                startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+                break;
+            case 'custom':
+                if (customRange.start) startDate = new Date(customRange.start);
+                if (customRange.end) endDate = new Date(customRange.end);
+                break;
+        }
+
+        startDate.setHours(0,0,0,0);
+        endDate.setHours(23,59,59,999);
+
+        return invoices.filter(inv => {
+            const invDate = new Date(inv.invoice_date);
+            return invDate >= startDate && invDate <= endDate && inv.status !== 'Cancelled';
+        });
+    };
+
+    const filteredInvoices = getFilteredInvoices();
+    const assignedRefs = useMemo(() => selectedManagerId ? (mapping[selectedManagerId] || []) : [], [selectedManagerId, mapping]);
+    const currentTarget = useMemo(() => targets.find(t => t.staff_id === selectedManagerId && t.month === new Date().getMonth() && t.year === new Date().getFullYear()), [selectedManagerId, targets]);
+
+    // Calculate Stats
+    const stats = useMemo(() => {
+        let totalPatients = 0;
+        let totalBill = 0;
+        let totalPaid = 0;
+        let totalDue = 0;
+        let totalCommission = 0;
+        
+        const referrerBreakdown: Record<string, { id: string, patients: number, bill: number, paid: number, due: number, commission: number, area: string }> = {};
+        const areaBreakdown: Record<string, { patients: number, bill: number }> = {};
+
+        // Initialize assigned referrers
+        assignedRefs.forEach(refId => {
+            const ref = referrars.find(r => r.ref_id === refId);
+            const refName = ref?.ref_name || refId;
+            referrerBreakdown[refName] = { id: refId, patients: 0, bill: 0, paid: 0, due: 0, commission: 0, area: ref?.area || 'Unknown' };
+        });
+
+        filteredInvoices.forEach(inv => {
+            if (inv.referrar_id && assignedRefs.includes(inv.referrar_id)) {
+                totalPatients++;
+                totalBill += inv.total_amount;
+                totalPaid += inv.paid_amount;
+                totalDue += inv.due_amount;
+                totalCommission += (inv.special_commission || 0);
+
+                const ref = referrars.find(r => r.ref_id === inv.referrar_id);
+                const refName = inv.referrar_name || ref?.ref_name || 'Unknown';
+                const area = ref?.area || 'Unknown';
+
+                if (!referrerBreakdown[refName]) {
+                    referrerBreakdown[refName] = { id: inv.referrar_id, patients: 0, bill: 0, paid: 0, due: 0, commission: 0, area };
+                }
+                
+                referrerBreakdown[refName].patients += 1;
+                referrerBreakdown[refName].bill += inv.total_amount;
+                referrerBreakdown[refName].paid += inv.paid_amount;
+                referrerBreakdown[refName].due += inv.due_amount;
+                referrerBreakdown[refName].commission += (inv.special_commission || 0);
+
+                if (!areaBreakdown[area]) areaBreakdown[area] = { patients: 0, bill: 0 };
+                areaBreakdown[area].patients += 1;
+                areaBreakdown[area].bill += inv.total_amount;
+            }
+        });
+
+        const sortedByBill = Object.entries(referrerBreakdown)
+            .map(([name, data]) => ({ 
+                name, 
+                value: data.bill, 
+                avgBill: data.patients > 0 ? data.bill / data.patients : 0,
+                commPercent: data.bill > 0 ? (data.commission / data.bill) * 100 : 0,
+                ...data 
+            }))
+            .sort((a, b) => b.value - a.value);
+
+        const areaStats = Object.entries(areaBreakdown)
+            .map(([name, data]) => ({ name, value: data.bill, patients: data.patients }))
+            .sort((a, b) => b.value - a.value);
+
+        return { totalPatients, totalBill, totalPaid, totalDue, totalCommission, sortedByBill, areaStats };
+    }, [filteredInvoices, assignedRefs, referrars]);
+
+    return (
+        <div className="flex flex-col h-full space-y-6">
+            {/* Control Bar */}
+            <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 shadow-sm flex flex-col lg:flex-row justify-between items-end lg:items-center gap-4">
+                <div className="w-full lg:w-1/4">
+                    <label className="block text-xs text-slate-400 mb-1 uppercase font-bold tracking-wider">Marketing Manager</label>
+                    <select 
+                        value={selectedManagerId} 
+                        onChange={(e) => setSelectedManagerId(e.target.value)}
+                        className="w-full bg-slate-700 border border-slate-600 rounded-md p-2 text-white font-bold focus:ring-2 focus:ring-blue-500 outline-none"
+                    >
+                        <option value="">-- Select Manager --</option>
+                        {managersWithTeam.map(emp => (
+                            <option key={emp.emp_id} value={emp.emp_id}>{emp.emp_name}</option>
+                        ))}
+                    </select>
+                </div>
+                
+                <div className="flex flex-col sm:flex-row items-center gap-2 w-full lg:w-auto">
+                    {selectedFilter === 'custom' && (
+                        <div className="flex items-center gap-2 bg-slate-900 p-1 rounded-lg border border-slate-700">
+                            <input 
+                                type="date" 
+                                value={customRange.start} 
+                                onChange={e => setCustomRange(prev => ({ ...prev, start: e.target.value }))}
+                                className="bg-transparent text-xs text-white p-1 outline-none"
+                            />
+                            <span className="text-slate-600">-</span>
+                            <input 
+                                type="date" 
+                                value={customRange.end} 
+                                onChange={e => setCustomRange(prev => ({ ...prev, end: e.target.value }))}
+                                className="bg-transparent text-xs text-white p-1 outline-none"
+                            />
+                        </div>
+                    )}
+                    <div className="flex bg-slate-900 rounded-lg p-1 overflow-x-auto max-w-full">
+                        {timeFilters.map((filter) => (
+                            <button
+                                key={filter.id}
+                                onClick={() => setSelectedFilter(filter.id)}
+                                className={`px-3 py-1.5 text-xs font-medium rounded-md whitespace-nowrap transition-all ${
+                                    selectedFilter === filter.id
+                                    ? 'bg-blue-600 text-white shadow'
+                                    : 'text-slate-400 hover:text-white hover:bg-slate-700'
+                                }`}
+                            >
+                                {filter.label}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            </div>
+
+            {selectedManagerId ? (
+                <div className="flex-1 overflow-y-auto pr-1 space-y-6">
+                    {/* Manager Performance Summary */}
+                    <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-lg relative overflow-hidden">
+                        <div className="absolute top-0 right-0 p-4 opacity-10">
+                            <UsersIcon className="w-24 h-24" />
+                        </div>
+                        <div className="relative z-10 flex flex-col md:flex-row justify-between gap-6">
+                            <div className="flex-1">
+                                <h3 className="text-xl font-black text-white uppercase tracking-tight mb-1">
+                                    {employees.find(e => e.emp_id === selectedManagerId)?.emp_name}
+                                </h3>
+                                <p className="text-xs text-slate-500 font-bold uppercase tracking-widest flex items-center gap-2">
+                                    <MapPinIcon className="w-3 h-3" />
+                                    {employees.find(e => e.emp_id === selectedManagerId)?.address || 'No Area Assigned'}
+                                </p>
+                                <div className="mt-4 flex flex-wrap gap-3">
+                                    <div className="bg-slate-900/50 px-3 py-2 rounded-lg border border-slate-700">
+                                        <p className="text-[9px] text-slate-500 uppercase font-bold">Assigned Referrers</p>
+                                        <p className="text-lg font-black text-blue-400">{assignedRefs.length}</p>
+                                    </div>
+                                    <div className="bg-slate-900/50 px-3 py-2 rounded-lg border border-slate-700">
+                                        <p className="text-[9px] text-slate-500 uppercase font-bold">Avg. Revenue/Pt</p>
+                                        <p className="text-lg font-black text-emerald-400">
+                                            ৳{stats.totalPatients > 0 ? Math.round(stats.totalBill / stats.totalPatients).toLocaleString() : 0}
+                                        </p>
+                                    </div>
+                                    <div className="bg-slate-900/50 px-3 py-2 rounded-lg border border-slate-700">
+                                        <p className="text-[9px] text-slate-500 uppercase font-bold">Overall Comm. %</p>
+                                        <p className="text-lg font-black text-amber-400">
+                                            {stats.totalBill > 0 ? ((stats.totalCommission / stats.totalBill) * 100).toFixed(1) : 0}%
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            {currentTarget && (
+                                <div className="w-full md:w-1/3 space-y-3">
+                                    <div>
+                                        <div className="flex justify-between text-[10px] font-bold uppercase mb-1">
+                                            <span className="text-slate-400">Patient Target</span>
+                                            <span className="text-blue-400">{stats.totalPatients} / {currentTarget.pt_count_target}</span>
+                                        </div>
+                                        <div className="w-full bg-slate-900 h-2 rounded-full overflow-hidden">
+                                            <div 
+                                                className="h-full bg-blue-500 rounded-full" 
+                                                style={{ width: `${Math.min((stats.totalPatients / currentTarget.pt_count_target) * 100, 100)}%` }}
+                                            ></div>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div className="flex justify-between text-[10px] font-bold uppercase mb-1">
+                                            <span className="text-slate-400">Revenue Target</span>
+                                            <span className="text-emerald-400">৳{stats.totalBill.toLocaleString()} / ৳{currentTarget.revenue_target.toLocaleString()}</span>
+                                        </div>
+                                        <div className="w-full bg-slate-900 h-2 rounded-full overflow-hidden">
+                                            <div 
+                                                className="h-full bg-emerald-500 rounded-full" 
+                                                style={{ width: `${Math.min((stats.totalBill / currentTarget.revenue_target) * 100, 100)}%` }}
+                                            ></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Summary Stats */}
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div className="bg-slate-800 p-4 rounded-xl border border-slate-700">
+                            <p className="text-[10px] text-slate-500 font-bold uppercase mb-1">Total Patients</p>
+                            <div className="flex items-end justify-between">
+                                <h4 className="text-2xl font-black text-white">{stats.totalPatients}</h4>
+                                {currentTarget && (
+                                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${stats.totalPatients >= currentTarget.pt_count_target ? 'bg-emerald-900/30 text-emerald-400' : 'bg-amber-900/30 text-amber-400'}`}>
+                                        {Math.round((stats.totalPatients / currentTarget.pt_count_target) * 100)}% of Target
+                                    </span>
+                                )}
+                            </div>
+                        </div>
+                        <div className="bg-slate-800 p-4 rounded-xl border border-slate-700">
+                            <p className="text-[10px] text-slate-500 font-bold uppercase mb-1">Total Bill</p>
+                            <h4 className="text-2xl font-black text-blue-400">৳{stats.totalBill.toLocaleString()}</h4>
+                        </div>
+                        <div className="bg-slate-800 p-4 rounded-xl border border-slate-700">
+                            <p className="text-[10px] text-slate-500 font-bold uppercase mb-1">Total Paid</p>
+                            <h4 className="text-2xl font-black text-emerald-400">৳{stats.totalPaid.toLocaleString()}</h4>
+                        </div>
+                        <div className="bg-slate-800 p-4 rounded-xl border border-slate-700">
+                            <p className="text-[10px] text-slate-500 font-bold uppercase mb-1">Total Commission</p>
+                            <h4 className="text-2xl font-black text-amber-400">৳{stats.totalCommission.toLocaleString()}</h4>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        {/* Area Performance */}
+                        <div className="lg:col-span-1">
+                            <BarChart 
+                                title="Area-wise Distribution" 
+                                data={stats.areaStats.map(a => ({ name: a.name, value: a.value }))} 
+                                color="bg-cyan-500" 
+                                unit="BDT" 
+                            />
+                        </div>
+                        {/* Referrer Performance */}
+                        <div className="lg:col-span-2">
+                            <BarChart 
+                                title="Top Referrers by Revenue" 
+                                data={stats.sortedByBill.slice(0, 10).map(r => ({ name: r.name, value: r.value }))} 
+                                color="bg-blue-500" 
+                                unit="BDT" 
+                            />
+                        </div>
+                    </div>
+
+                    {/* Detailed Table */}
+                    <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+                        <div className="p-4 border-b border-slate-700 flex justify-between items-center">
+                            <h4 className="text-sm font-bold text-slate-200 uppercase tracking-wider">Detailed Referrer Output</h4>
+                            <span className="text-[10px] text-slate-500 font-bold">{stats.sortedByBill.length} Referrers Active</span>
+                        </div>
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left text-[11px]">
+                                <thead className="bg-slate-900/50 text-slate-500 uppercase font-bold border-b border-slate-700">
+                                    <tr>
+                                        <th className="p-3">Referrer</th>
+                                        <th className="p-3">Area</th>
+                                        <th className="p-3 text-center">Patients</th>
+                                        <th className="p-3 text-right">Bill</th>
+                                        <th className="p-3 text-right">Avg/Pt</th>
+                                        <th className="p-3 text-right">Paid</th>
+                                        <th className="p-3 text-right">Due</th>
+                                        <th className="p-3 text-right text-amber-400">Comm.</th>
+                                        <th className="p-3 text-right text-slate-400">%</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-700/50">
+                                    {stats.sortedByBill.map((r, i) => (
+                                        <tr key={i} className="hover:bg-slate-700/30 transition-colors">
+                                            <td className="p-3">
+                                                <p className="font-bold text-slate-200">{r.name}</p>
+                                                <p className="text-[9px] text-slate-500">{r.id}</p>
+                                            </td>
+                                            <td className="p-3 text-slate-400">{r.area}</td>
+                                            <td className="p-3 text-center font-bold">{r.patients}</td>
+                                            <td className="p-3 text-right font-medium">৳{r.bill.toLocaleString()}</td>
+                                            <td className="p-3 text-right text-slate-400">৳{Math.round(r.avgBill).toLocaleString()}</td>
+                                            <td className="p-3 text-right text-emerald-400 font-medium">৳{r.paid.toLocaleString()}</td>
+                                            <td className="p-3 text-right text-rose-400 font-medium">৳{r.due.toLocaleString()}</td>
+                                            <td className="p-3 text-right text-amber-400 font-bold">৳{r.commission.toLocaleString()}</td>
+                                            <td className="p-3 text-right text-slate-500 font-bold">{r.commPercent.toFixed(1)}%</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            ) : (
+                <div className="flex-1 flex flex-col items-center justify-center text-slate-500 bg-slate-800/30 rounded-xl border border-dashed border-slate-700">
+                    <BarChart3 className="w-16 h-16 mb-4 opacity-20" />
+                    <p className="text-lg">Select a Marketing Manager to view detailed analytics.</p>
+                    <p className="text-sm">Assign referrers in the "Team Setup" tab to see their performance here.</p>
+                </div>
+            )}
+        </div>
+    );
+};
+
+// --- Main Page ---
+const ContributionReportPage: React.FC<ContributionReportPageProps> = ({
+  employees,
+  referrars,
+  invoices,
+  employeeReferrerMap,
+  setEmployeeReferrerMap,
+}) => {
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'setup'>('dashboard');
+  const [targets, setTargets] = useState<MarketingTarget[]>(() => {
+      const saved = localStorage.getItem('ncd_mkt_targets_v2');
+      return saved ? JSON.parse(saved) : [];
+  });
+
+  useEffect(() => {
+      localStorage.setItem('ncd_mkt_targets_v2', JSON.stringify(targets));
+  }, [targets]);
+
+  return (
+    <div className="bg-slate-900 text-slate-200 rounded-xl p-4 sm:p-6 h-full flex flex-col">
+      <div className="flex justify-between items-center mb-6 border-b border-slate-700 pb-4 shrink-0">
+        <h2 className="text-2xl font-bold text-slate-100 flex items-center gap-2">
+            <BarChart3 className="w-7 h-7 text-cyan-400" />
+            Marketing Management
+        </h2>
+        <div className="flex bg-slate-800 rounded-lg p-1">
+            <button
+                onClick={() => setActiveTab('dashboard')}
+                className={`px-4 py-2 text-sm font-bold rounded-md transition-all ${
+                    activeTab === 'dashboard' ? 'bg-cyan-600 text-white shadow' : 'text-slate-400 hover:text-white'
+                }`}
+            >
+                Analytics Dashboard
+            </button>
+            <button
+                onClick={() => setActiveTab('setup')}
+                className={`px-4 py-2 text-sm font-bold rounded-md transition-all ${
+                    activeTab === 'setup' ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-white'
+                }`}
+            >
+                Team Setup
+            </button>
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-hidden">
+          {activeTab === 'setup' ? (
+              <MarketingSetup 
+                  employees={employees} 
+                  referrars={referrars} 
+                  mapping={employeeReferrerMap} 
+                  setMapping={setEmployeeReferrerMap} 
+                  targets={targets}
+                  setTargets={setTargets}
+              />
+          ) : (
+              <MarketingDashboard 
+                  employees={employees} 
+                  referrars={referrars} 
+                  invoices={invoices} 
+                  mapping={employeeReferrerMap} 
+                  targets={targets}
+              />
+          )}
+      </div>
+    </div>
+  );
+};
+
+export default ContributionReportPage;

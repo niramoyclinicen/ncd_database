@@ -1,260 +1,665 @@
-
-import React from 'react';
-import DashboardButton from './DashboardButton';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { 
-  DiagnosticIcon, ClinicIcon, MedicineIcon, AccountingIcon, MapPinIcon,
-  StethoscopeIcon, SyringeIcon, WheelchairIcon, PhoneIcon, UsersIcon, FileTextIcon, SettingsIcon
+  BackIcon, UsersIcon, ClipboardIcon, BeakerIcon, StethoscopeIcon, UserPlusIcon,
+  CalendarIcon, MoneyIcon, FileTextIcon, ChartIcon, SettingsIcon, Activity, DiagnosticIcon,
+  TestTubeIcon, DnaIcon
 } from './Icons';
-import { ViewState } from '../types';
+import PatientInfoPage from './PatientInfoPage';
+import DoctorInfoPage from './DoctorInfoPage';
+import ReferrerInfoPage from './ReferrerInfoPage';
+import ReagentInfoPage from './ReagentInfoPage';
+import TestInfoPage from './TestInfoPage';
+import DoctorAppointmentPage from './DoctorAppointmentPage';
+import LabInvoicingPage from './LabInvoicingPage';
+import PrevDueCollectionPage from './PrevDueCollectionPage';
+import LabReportingPage from './LabReportingPage';
+import EmployeeInfoPage from './EmployeeInfoPage';
+import { DailyConsolidatedEntryPage } from './diagnostic/DailyConsolidatedEntryPage';
+import { Patient, Doctor, Referrar, Reagent, Test, LabInvoice, Employee, DueCollection, DiagnosticSubPage, ExpenseItem, LabReport, Appointment } from './DiagnosticData';
+import { UserRole } from '../types';
+import { dbService } from '../dbService';
+import { Layers, Menu, X, ChevronUp, ChevronDown } from 'lucide-react';
 
-interface DashboardProps {
-  onLogout: () => void;
-  onNavigate: (view: ViewState) => void;
+interface DiagnosticPageProps {
+  onBack: () => void;
+  userRole?: UserRole;
+  doctors?: Doctor[];
+  setDoctors?: React.Dispatch<React.SetStateAction<Doctor[]>>;
+  referrars?: Referrar[];
+  setReferrars?: React.Dispatch<React.SetStateAction<Referrar[]>>;
+  reagents?: Reagent[];
+  setReagents?: React.Dispatch<React.SetStateAction<Reagent[]>>;
+  tests?: Test[];
+  setTests?: React.Dispatch<React.SetStateAction<Test[]>>;
+  labInvoices?: LabInvoice[];
+  invoices?: LabInvoice[];
+  setLabInvoices?: React.Dispatch<React.SetStateAction<LabInvoice[]>>;
+  dueCollections?: DueCollection[];
+  setDueCollections?: React.Dispatch<React.SetStateAction<DueCollection[]>>;
+  reports?: LabReport[];
+  setReports?: React.Dispatch<React.SetStateAction<LabReport[]>>;
+  rtTemplates?: any[];
+  setRtTemplates?: React.Dispatch<React.SetStateAction<any[]>>;
+  diagnosticSettings?: any;
+  setDiagnosticSettings?: React.Dispatch<React.SetStateAction<any>>;
+  employees?: Employee[];
+  setEmployees?: React.Dispatch<React.SetStateAction<Employee[]>>;
+  patients?: Patient[];
+  setPatients?: React.Dispatch<React.SetStateAction<Patient[]>>;
+  detailedExpenses?: Record<string, ExpenseItem[]>;
+  setDetailedExpenses?: React.Dispatch<React.SetStateAction<Record<string, ExpenseItem[]>>>;
+  attendanceLog?: Record<string, any>;
+  setAttendanceLog?: React.Dispatch<React.SetStateAction<Record<string, any>>>;
+  leaveLog?: Record<string, any>;
+  setLeaveLog?: React.Dispatch<React.SetStateAction<Record<string, any>>>;
+  appointments?: Appointment[];
+  setAppointments?: React.Dispatch<React.SetStateAction<Appointment[]>>;
+  monthlyRoster?: Record<string, string[]>;
+  setMonthlyRoster?: React.Dispatch<React.SetStateAction<Record<string, string[]>>>;
+  employeeReferrerMap?: Record<string, string[]>;
+  setEmployeeReferrerMap?: React.Dispatch<React.SetStateAction<Record<string, string[]>>>;
+  consolidatedLabEntries?: DailyConsolidatedEntry[];
+  setConsolidatedLabEntries?: React.Dispatch<React.SetStateAction<DailyConsolidatedEntry[]>>;
+  performBlockingSync?: (stateOverride?: any) => Promise<boolean>;
+  currentUserEmail?: string;
 }
 
-const MedicalHexLogo = () => {
-  const hexStyle: React.CSSProperties = {
-    width: '60px',
-    height: '60px',
-    clipPath: 'polygon(25% 5%, 75% 5%, 100% 50%, 75% 95%, 25% 95%, 0% 50%)',
-    display: 'flex',
-    justifyContent: 'center',
-    alignItems: 'center',
-    transition: '0.3s',
-  };
+// Standard Error Boundary to catch render crashes in sub-pages
+class DiagnosticErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean; error: any }> {
+  constructor(props: any) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error: any) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error: any, errorInfo: any) {
+    console.error("Diagnostic Page Error:", error, errorInfo);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="p-10 bg-red-950/20 border border-red-500/30 rounded-[2rem] text-red-200">
+          <h2 className="text-2xl font-black mb-4">Module Error</h2>
+          <p className="mb-6 opacity-80">This module encountered a technical error: {this.state.error?.message}</p>
+          <button 
+            onClick={() => window.location.reload()} 
+            className="px-6 py-3 bg-red-600 rounded-xl font-bold hover:bg-red-500 transition-colors shadow-lg shadow-red-900/40"
+          >
+            Reload Application
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
-  const HexCell = ({ content, isCenter = false }: { content: React.ReactNode, isCenter?: boolean }) => (
-    <div 
-      className={`
-        relative flex justify-center items-center
-        ${isCenter 
-          ? 'bg-gradient-to-br from-blue-600 to-cyan-600 shadow-[0_0_25px_rgba(34,211,238,0.6)] z-20 border border-white/20' 
-          : 'bg-cyan-900/30 border border-cyan-400/50 backdrop-blur-md hover:bg-cyan-500/20 hover:scale-110 hover:shadow-[0_0_15px_rgba(0,200,255,0.4)] hover:z-20'
-        }
-      `}
-      style={{
-        ...hexStyle,
-        width: isCenter ? '70px' : '60px',
-        height: isCenter ? '70px' : '60px',
-      }}
-    >
-      <div className={isCenter ? 'text-white drop-shadow-md animate-pulse' : 'text-cyan-400 drop-shadow'}>
-        {content}
+const TopBarButton: React.FC<{ label: string; icon?: React.ReactNode; isActive: boolean; onClick: () => void; disabled?: boolean }> = ({ label, icon, isActive, onClick, disabled = false }) => (
+  <button
+    onClick={onClick}
+    disabled={disabled}
+    className={`
+      relative group overflow-hidden
+      flex flex-col md:flex-row items-center justify-center w-full px-3 py-2 shrink-0 min-w-[120px] md:min-w-0 md:shrink 
+      rounded-xl font-bold text-xs md:text-sm tracking-wide
+      transition-all duration-300 ease-out
+      border
+      ${isActive 
+        ? 'bg-gradient-to-br from-cyan-600 to-blue-700 border-cyan-400 text-white shadow-lg shadow-cyan-500/40 translate-y-0.5' 
+        : disabled 
+          ? 'bg-slate-900 border-slate-800 text-slate-700 cursor-not-allowed opacity-50'
+          : 'bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700 text-slate-400 hover:border-cyan-500/50 hover:text-cyan-400 hover:shadow-md hover:shadow-cyan-900/20 hover:-translate-y-0.5'}
+    `}
+  >
+    <div className={`absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full ${(!isActive && !disabled) ? 'group-hover:animate-shimmer' : ''}`} />
+    {icon && <span className={`mb-1 md:mb-0 md:mr-2 ${isActive ? 'text-white' : disabled ? 'text-slate-800' : 'text-slate-500 group-hover:text-cyan-400'}`}>{icon}</span>}
+    <span className="text-center z-10">{label}</span>
+    {disabled && (
+      <div className="absolute top-1 right-1">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="text-slate-700">
+          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+          <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+        </svg>
       </div>
-    </div>
-  );
-
-  return (
-    <div className="relative w-56 h-64 flex flex-col items-center justify-center -ml-12">
-      <div className="absolute bottom-0 w-48 h-24 bg-[radial-gradient(circle,rgba(0,150,255,0.5),transparent)] rounded-[100%_100%_40%_40%] blur-xl animate-pulse" />
-       <svg viewBox="0 0 100 60" className="absolute bottom-4 w-48 h-28 opacity-80 pointer-events-none z-0">
-          <defs>
-            <linearGradient id="wirehand" x1="0" y1="1" x2="0" y2="0">
-               <stop offset="0%" stopColor="#0ea5e9" stopOpacity="0" />
-               <stop offset="50%" stopColor="#0ea5e9" stopOpacity="0.5" />
-               <stop offset="100%" stopColor="#22d3ee" stopOpacity="0.8" />
-            </linearGradient>
-          </defs>
-          <path d="M10,60 Q30,50 50,45 Q70,50 90,60" fill="url(#wirehand)" />
-          <path d="M10,60 Q20,30 30,20 Q40,30 50,45" fill="none" stroke="#22d3ee" strokeWidth="0.5" strokeDasharray="2 2" opacity="0.5" />
-          <path d="M90,60 Q80,30 70,20 Q60,30 50,45" fill="none" stroke="#22d3ee" strokeWidth="0.5" strokeDasharray="2 2" opacity="0.5" />
-       </svg>
-      <div className="relative w-48 h-48 z-10">
-        <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }}>
-           <HexCell content={<span className="text-2xl font-bold font-sans tracking-tight">NcD</span>} isCenter />
-        </div>
-        <div style={{ position: 'absolute', top: '12%', left: '50%', transform: 'translate(-50%, -50%)' }}>
-           <HexCell content={<StethoscopeIcon className="w-7 h-7" />} />
-        </div>
-        <div style={{ position: 'absolute', top: '31%', left: '83%', transform: 'translate(-50%, -50%)' }}>
-           <HexCell content={<MedicineIcon className="w-7 h-7" />} />
-        </div>
-        <div style={{ position: 'absolute', top: '69%', left: '83%', transform: 'translate(-50%, -50%)' }}>
-           <HexCell content={<WheelchairIcon className="w-7 h-7" />} />
-        </div>
-        <div style={{ position: 'absolute', top: '88%', left: '50%', transform: 'translate(-50%, -50%)' }}>
-           <HexCell content={<ClinicIcon className="w-7 h-7" />} />
-        </div>
-        <div style={{ position: 'absolute', top: '69%', left: '17%', transform: 'translate(-50%, -50%)' }}>
-           <HexCell content={<SyringeIcon className="w-7 h-7" />} />
-        </div>
-        <div style={{ position: 'absolute', top: '31%', left: '17%', transform: 'translate(-50%, -50%)' }}>
-           <HexCell content={<DiagnosticIcon className="w-7 h-7" />} />
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const BackgroundRose = () => (
-  <div className="absolute inset-0 pointer-events-none overflow-hidden flex items-center justify-center opacity-10">
-    <svg viewBox="0 0 500 500" className="w-[150%] h-[150%] text-rose-500 animate-spin-slow-reverse" style={{ animationDuration: '60s' }}>
-      <g transform="translate(250,250)">
-        <path d="M0,0 C50,-50 100,-50 150,0 C100,50 50,50 0,0" fill="currentColor" transform="rotate(0) translate(20,0)" />
-        <path d="M0,0 C50,-50 100,-50 150,0 C100,50 50,50 0,0" fill="currentColor" transform="rotate(60) translate(20,0)" />
-        <path d="M0,0 C50,-50 100,-50 150,0 C100,50 50,50 0,0" fill="currentColor" transform="rotate(120) translate(20,0)" />
-        <path d="M0,0 C50,-50 100,-50 150,0 C100,50 50,50 0,0" fill="currentColor" transform="rotate(180) translate(20,0)" />
-        <path d="M0,0 C50,-50 100,-50 150,0 C100,50 50,50 0,0" fill="currentColor" transform="rotate(240) translate(20,0)" />
-        <path d="M0,0 C50,-50 100,-50 150,0 C100,50 50,50 0,0" fill="currentColor" transform="rotate(300) translate(20,0)" />
-        <circle cx="0" cy="0" r="30" fill="currentColor" opacity="0.5" />
-      </g>
-    </svg>
-  </div>
+    )}
+  </button>
 );
 
-const Dashboard: React.FC<DashboardProps> = ({ onLogout, onNavigate }) => {
-  return (
-    <div className="min-h-screen w-full flex flex-col items-center justify-center p-4 sm:p-6 relative overflow-hidden bg-slate-950">
-      <div className="absolute inset-0 w-full h-full">
-          <div className="absolute inset-0 bg-slate-950" />
-          <div className="absolute top-[-20%] left-[-20%] w-[80%] h-[80%] bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-rose-900/40 via-transparent to-transparent blur-3xl" />
-          <div className="absolute bottom-[-20%] right-[-20%] w-[80%] h-[80%] bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-teal-900/40 via-transparent to-transparent blur-3xl" />
-          <div className="absolute top-[40%] left-[50%] -translate-x-1/2 w-[60%] h-[60%] bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-violet-900/30 via-transparent to-transparent blur-3xl" />
-          <BackgroundRose />
-      </div>
+const SidebarItem: React.FC<{ label: string; icon: React.ReactNode; id: DiagnosticSubPage; activeTab: string; onClick: (id: DiagnosticSubPage) => void; disabled?: boolean; isSidebarOpen?: boolean }> = ({ label, icon, id, activeTab, onClick, disabled = false, isSidebarOpen = true }) => (
+  <button
+    title={label}
+    onClick={() => !disabled && onClick(id)}
+    disabled={disabled}
+    className={`
+      w-full flex items-center px-4 py-3 text-sm font-medium transition-all duration-200 border-l-4
+      ${activeTab === id 
+        ? 'bg-slate-800 text-cyan-400 border-cyan-500 shadow-[inset_0_2px_10_rgba(0,0,0,0.3)]' 
+        : disabled 
+          ? 'opacity-30 cursor-not-allowed border-transparent grayscale'
+          : 'text-slate-400 border-transparent hover:bg-slate-800/50 hover:text-slate-200 hover:border-slate-600'}
+    `}
+  >
+    <span className={`mr-3 shrink-0 ${activeTab === id ? 'text-cyan-400' : 'text-slate-500'}`}>{icon}</span>
+    {isSidebarOpen && <span className="whitespace-nowrap">{label}</span>}
+  </button>
+);
 
-      <div className="z-10 w-full max-w-7xl relative">
-        <header className="flex flex-col md:flex-row items-center justify-between gap-6 mb-10 animate-fade-in-down mx-auto w-full max-w-5xl transition-transform duration-500">
-            <div className="flex-shrink-0 hover:scale-105 transition-transform duration-500">
-               <MedicalHexLogo />
-            </div>
-            <div className="flex flex-col items-center md:items-end justify-center text-center md:text-right">
-                <h1 className="text-4xl md:text-6xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-sky-400 via-cyan-200 to-blue-500 mb-2 drop-shadow-[0_0_15px_rgba(56,189,248,0.6)] font-sans tracking-tight whitespace-nowrap">
-                    Niramoy Clinic & Diagnostic
-                </h1>
-                <div className="flex items-center justify-center md:justify-end gap-2 text-teal-100 text-lg md:text-xl font-medium tracking-wider whitespace-nowrap mb-1">
-                    <MapPinIcon className="w-5 h-5 text-teal-400" />
-                    <span>এনায়েতপুর মন্ডলপাড়া, এনায়েতপুর, সিরাজগঞ্জ</span>
+const DiagnosticPage: React.FC<DiagnosticPageProps> = ({ 
+  onBack, userRole = 'ADMIN', 
+  doctors = [], setDoctors = () => {}, 
+  referrars = [], setReferrars = () => {},
+  reagents = [], setReagents = () => {},
+  tests = [], setTests = () => {},
+  labInvoices, invoices, setLabInvoices = () => {},
+  dueCollections = [], setDueCollections = () => {},
+  reports = [], setReports = () => {}, 
+  rtTemplates = [], setRtTemplates = () => {}, 
+  diagnosticSettings = {}, setDiagnosticSettings = () => {},
+  employees = [],
+  setEmployees = () => {},
+  patients = [], 
+  setPatients = () => {},
+  detailedExpenses = {}, setDetailedExpenses = () => {},
+  attendanceLog = {}, setAttendanceLog = () => {}, 
+  leaveLog = {}, setLeaveLog = () => {},
+  appointments = [], setAppointments = () => {},
+  monthlyRoster = {}, setMonthlyRoster = () => {},
+  employeeReferrerMap = {}, setEmployeeReferrerMap = () => {},
+  consolidatedLabEntries, setConsolidatedLabEntries,
+  performBlockingSync,
+  currentUserEmail = 'Anonymous'
+}) => {
+  const currentInvoices = useMemo(() => {
+    return Array.isArray(labInvoices) ? labInvoices : (Array.isArray(invoices) ? invoices : []);
+  }, [labInvoices, invoices]);
+
+  const isLabReporter = userRole === 'LAB_REPORTER';
+  const isDiagAdmin = userRole === 'DIAGNOSTIC_ADMIN';
+  
+  const [activeTab, setActiveTab] = useState<DiagnosticSubPage>(() => {
+    if (isLabReporter) return 'lab_reporting';
+    const saved = sessionStorage.getItem('ncd_diag_active_tab') as DiagnosticSubPage;
+    if (saved && ['doctor_appointment', 'lab_invoice', 'due_collection', 'lab_reporting', 'report_delivery', 'test_info', 'reagent_info', 'diagnostic_accounts', 'marketing_overview'].includes(saved)) {
+      return saved;
+    }
+    return 'doctor_appointment';
+  });
+  const activeTabRef = useRef(activeTab);
+
+  useEffect(() => {
+    activeTabRef.current = activeTab;
+    try {
+      sessionStorage.setItem('ncd_diag_active_tab', activeTab);
+    } catch {}
+  }, [activeTab]);
+
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [preSelectedInvoiceId, setPreSelectedInvoiceId] = useState<string | null>(null);
+  const [moduleLock, setModuleLock] = useState<{isLocked: boolean, owner: string | null}>({isLocked: false, owner: null});
+
+  // Handle Tab Switching with Concurrency Lock
+  const handleTabChange = useCallback((tab: DiagnosticSubPage) => {
+    const previousTab = activeTabRef.current;
+    setActiveTab(tab);
+    if (window.innerWidth < 768) {
+        setIsSidebarOpen(false);
+    }
+    
+    const syncLocks = async () => {
+      try {
+        if (previousTab === 'lab_invoice' && tab !== 'lab_invoice') {
+          await dbService.releaseLock('lab_invoice', currentUserEmail);
+        }
+        if (tab === 'lab_invoice') {
+          const lockResult = await dbService.acquireLock('lab_invoice', currentUserEmail);
+          setModuleLock({ 
+            isLocked: !lockResult.success, 
+            owner: lockResult.success ? null : (lockResult.owner || 'Another user') 
+          });
+        } else {
+          setModuleLock({ isLocked: false, owner: null });
+        }
+      } catch (err) {
+        console.error("Lock sync error:", err);
+      }
+    };
+    syncLocks();
+  }, [currentUserEmail]);
+
+  // Release lock on unmount
+  useEffect(() => {
+    return () => {
+      if (activeTabRef.current === 'lab_invoice') {
+        dbService.releaseLock('lab_invoice', currentUserEmail);
+      }
+    };
+  }, [currentUserEmail]); // Dependencies adjusted to run mainly on true unmount or email change
+  
+  const renderContent = () => {
+    try {
+      if (!activeTab) return <div className="p-8 text-slate-500 font-bold">Initializing...</div>;
+
+      switch (activeTab) {
+        case 'doctor_appointment':
+        return (
+          <div className="animate-fade-in relative h-full flex flex-col">
+            {isLabReporter && (
+              <div className="absolute inset-0 bg-slate-900/40 z-50 backdrop-blur-[1px] flex items-center justify-center">
+                <div className="bg-slate-800 p-6 rounded-3xl border border-blue-500/30 text-blue-400 font-bold shadow-2xl">
+                  Access Restriction: View Only Mode
                 </div>
-                <div className="flex items-center justify-center md:justify-end gap-2 text-cyan-300 font-bold text-lg md:text-xl tracking-[0.25em]">
-                    <PhoneIcon className="w-5 h-5 text-cyan-400" />
-                    <span>Mobile: 01730 923007</span>
-                </div>
-                <div className="w-full max-w-3xl h-[2px] bg-gradient-to-r from-transparent via-cyan-500 to-transparent mt-4 opacity-70 md:ml-auto"></div>
+              </div>
+            )}
+            <DoctorAppointmentPage 
+                patients={patients}
+                setPatients={setPatients}
+                doctors={doctors}
+                setDoctors={setDoctors}
+                referrars={referrars}
+                setReferrars={setReferrars}
+                invoices={currentInvoices}
+                appointments={appointments}
+                setAppointments={setAppointments}
+                performBlockingSync={performBlockingSync}
+            />
+          </div>
+        );
+      case 'lab_invoice':
+        return (
+          <div className="animate-fade-in relative h-full flex flex-col">
+             {isLabReporter && (
+               <div className="absolute inset-0 bg-slate-900/40 z-50 backdrop-blur-[1px] flex items-center justify-center">
+                 <div className="bg-slate-800 p-6 rounded-3xl border border-blue-500/30 text-blue-400 font-bold shadow-2xl">
+                   Access Restriction: View Only Mode
+                 </div>
+               </div>
+             )}
+             
+             {moduleLock.isLocked && (
+               <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[60] bg-amber-500 text-black px-6 py-3 rounded-full font-black shadow-2xl flex items-center gap-3 border-2 border-amber-300 animate-bounce">
+                 <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" /></svg>
+                 <span>সতর্কতা: "{moduleLock.owner}" বর্তমানে ল্যাব ইনভয়েস এ ডাটা এন্ট্রি করছেন। আপনি একই সাথে এন্ট্রি করতে পারবেন না।</span>
+               </div>
+             )}
+
+            <LabInvoicingPage 
+                patients={patients}
+                setPatients={setPatients}
+                doctors={doctors}
+                setDoctors={setDoctors}
+                referrars={referrars}
+                setReferrars={setReferrars}
+                tests={tests}
+                setTests={setTests}
+                reagents={reagents}
+                setReagents={setReagents}
+                employees={employees}
+                onNavigateSubPage={handleTabChange}
+                invoices={currentInvoices}
+                setInvoices={setLabInvoices}
+                monthlyRoster={monthlyRoster}
+                initialInvoiceId={preSelectedInvoiceId}
+                onClearInitialInvoice={() => setPreSelectedInvoiceId(null)}
+                performBlockingSync={performBlockingSync}
+                readOnly={moduleLock.isLocked}
+            />
+          </div>
+        );
+      case 'due_collection':
+        return (
+          <div className="animate-fade-in relative h-full flex flex-col">
+             {isLabReporter && (
+               <div className="absolute inset-0 bg-slate-900/40 z-50 backdrop-blur-[1px] flex items-center justify-center">
+                 <div className="bg-slate-800 p-6 rounded-3xl border border-blue-500/30 text-blue-400 font-bold shadow-2xl">
+                   Access Restriction: View Only Mode
+                 </div>
+               </div>
+             )}
+            <PrevDueCollectionPage 
+                patients={patients}
+                invoices={currentInvoices}
+                setInvoices={setLabInvoices}
+                dueCollections={dueCollections}
+                setDueCollections={setDueCollections}
+                employees={employees}
+                onViewInvoice={(id) => {
+                  setPreSelectedInvoiceId(id);
+                  handleTabChange('lab_invoice');
+                }}
+                performBlockingSync={performBlockingSync}
+            />
+          </div>
+        );
+      case 'lab_reporting':
+        return (
+          <div className="animate-fade-in h-full relative flex flex-col">
+             {isDiagAdmin && (
+               <div className="absolute inset-0 bg-slate-900/40 z-50 backdrop-blur-[2px] flex items-center justify-center text-center p-6">
+                 <div className="bg-slate-800 p-8 rounded-[2.5rem] border-2 border-rose-500/50 text-rose-400 shadow-[0_0_50px_rgba(244,63,94,0.3)] max-w-md">
+                   <Activity className="w-12 h-12 mx-auto mb-4" />
+                   <h3 className="text-xl font-black uppercase mb-2">প্রবেশাধিকার সংরক্ষিত</h3>
+                   <p className="text-sm font-bold text-slate-400">রিপোর্ট তৈরি করতে চাইলে দয়া করে ল্যাব রিপোর্টিং পোর্টাল (Lab Reporting Portal) ব্যবহার করে প্রবেশ করুন।</p>
+                 </div>
+               </div>
+             )}
+             <LabReportingPage 
+                invoices={currentInvoices}
+                setInvoices={setLabInvoices}
+                reports={reports}
+                setReports={setReports}
+                rtTemplates={rtTemplates}
+                setRtTemplates={setRtTemplates}
+                diagnosticSettings={diagnosticSettings}
+                setDiagnosticSettings={setDiagnosticSettings}
+                patients={patients}
+                employees={employees}
+                tests={tests}
+                doctors={doctors}
+                referrars={referrars}
+                performBlockingSync={performBlockingSync}
+             />
+          </div>
+        );
+      case 'patient_info':
+        return <div className="animate-fade-in h-full flex flex-col"><PatientInfoPage patients={patients} setPatients={setPatients} performBlockingSync={performBlockingSync} /></div>;
+      case 'doctor_info':
+        return <div className="animate-fade-in h-full flex flex-col"><DoctorInfoPage doctors={doctors} setDoctors={setDoctors} performBlockingSync={performBlockingSync} /></div>;
+      case 'referrer_info':
+        return <div className="animate-fade-in h-full flex flex-col"><ReferrerInfoPage referrars={referrars} setReferrars={setReferrars} performBlockingSync={performBlockingSync} /></div>;
+      case 'test_info':
+        return <div className="animate-fade-in h-full flex flex-col"><TestInfoPage tests={tests} setTests={setTests} reagents={reagents} performBlockingSync={performBlockingSync} /></div>;
+      case 'reagent_info':
+        return <div className="animate-fade-in h-full flex flex-col"><ReagentInfoPage reagents={reagents} setReagents={setReagents} detailedExpenses={detailedExpenses} setDetailedExpenses={setDetailedExpenses} labInvoices={currentInvoices} tests={tests} performBlockingSync={performBlockingSync} /></div>;
+      case 'consolidated_entry':
+        return (
+          <div className="animate-fade-in h-full flex flex-col">
+            <DailyConsolidatedEntryPage 
+              consolidatedLabEntries={consolidatedLabEntries}
+              setConsolidatedLabEntries={setConsolidatedLabEntries}
+              performBlockingSync={performBlockingSync}
+              currentUserEmail={currentUserEmail}
+            />
+          </div>
+        );
+      case 'employee_info':
+        return (
+            <div className="animate-fade-in h-full flex flex-col">
+                {setEmployees ? (
+                    <EmployeeInfoPage 
+                      employees={employees} 
+                      setEmployees={setEmployees} 
+                      detailedExpenses={detailedExpenses} 
+                      attendanceLog={attendanceLog}
+                      setAttendanceLog={setAttendanceLog}
+                      leaveLog={leaveLog}
+                      setLeaveLog={setLeaveLog}
+                      monthlyRoster={monthlyRoster}
+                      setMonthlyRoster={setMonthlyRoster}
+                      performBlockingSync={performBlockingSync}
+                    />
+                ) : (
+                    <div className="text-center p-8 text-slate-500">Employee management is currently unavailable in this view.</div>
+                )}
             </div>
+        );
+      default:
+        return <div className="p-8 text-slate-500">Select a module from the sidebar.</div>;
+      }
+    } catch (error) {
+      console.error("Diagnostic Shell Error:", error);
+      return (
+        <div className="p-10 bg-red-950/20 border border-red-500/30 rounded-[2rem] text-red-200">
+          <h2 className="text-2xl font-black mb-4">Navigation Error</h2>
+          <p className="mb-6 opacity-80">An unexpected error occurred while switching modules.</p>
+          <button onClick={() => window.location.reload()} className="px-6 py-3 bg-red-600 rounded-xl font-bold">Reload Application</button>
+        </div>
+      );
+    }
+  };
+
+  return (
+    <div className="w-full h-full flex-1 flex bg-slate-900 text-slate-100 overflow-hidden">
+
+
+      {/* Mobile Menu Backdrop */}
+      {isSidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black/70 backdrop-blur-sm z-40 md:hidden animate-fade-in"
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
+      <aside className={`
+        fixed md:relative inset-y-0 left-0 z-50
+        ${isSidebarOpen ? 'translate-x-0 w-72' : '-translate-x-full w-72 md:translate-x-0 md:w-16'} 
+        bg-slate-950 border-r border-slate-800 flex flex-col shadow-2xl transition-all duration-300 ease-in-out overflow-hidden
+      `}>
+        {/* Mobile Sidebar Header with Close Button */}
+        <div className="flex items-center justify-between p-4 border-b border-slate-800 md:hidden bg-slate-900/60">
+          <div className="flex items-center gap-2">
+            <DiagnosticIcon className="w-6 h-6 text-cyan-400" />
+            <span className="font-bold text-sm text-cyan-200">সকল মেনু ও সেটআপ</span>
+          </div>
+          <button 
+            onClick={() => setIsSidebarOpen(false)}
+            className="p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white"
+            title="মেনু বন্ধ করুন"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto py-3">
+            <div className={`px-4 mb-2 text-xs font-semibold text-slate-500 uppercase tracking-wider transition-opacity duration-300 ${!isSidebarOpen ? 'md:opacity-0' : 'opacity-100'}`}>
+              Data Entry / Setup
+            </div>
+            <div className="space-y-1">
+              <SidebarItem id="patient_info" label="Patient Information" isSidebarOpen={isSidebarOpen} icon={<UsersIcon className="w-5 h-5" />} activeTab={activeTab} onClick={handleTabChange} disabled={isLabReporter} />
+              <SidebarItem id="doctor_info" label="Doctor Information" isSidebarOpen={isSidebarOpen} icon={<StethoscopeIcon className="w-5 h-5" />} activeTab={activeTab} onClick={handleTabChange} disabled={isLabReporter} />
+              <SidebarItem id="referrer_info" label="Referrer Information" isSidebarOpen={isSidebarOpen} icon={<UserPlusIcon className="w-5 h-5" />} activeTab={activeTab} onClick={handleTabChange} disabled={isLabReporter} />
+              <SidebarItem id="test_info" label="Test Information" isSidebarOpen={isSidebarOpen} icon={<DnaIcon className="w-5 h-5" />} activeTab={activeTab} onClick={handleTabChange} disabled={isLabReporter} />
+              <SidebarItem id="reagent_info" label="Reagent Information" isSidebarOpen={isSidebarOpen} icon={<TestTubeIcon className="w-5 h-5" />} activeTab={activeTab} onClick={handleTabChange} disabled={isLabReporter} />
+              <SidebarItem id="consolidated_entry" label="Consolidated Lab Entry" isSidebarOpen={isSidebarOpen} icon={<Layers className="w-5 h-5 text-emerald-400" />} activeTab={activeTab} onClick={handleTabChange} disabled={isLabReporter} />
+              <SidebarItem id="lab_reporting" label="Lab Reporting" isSidebarOpen={isSidebarOpen} icon={<FileTextIcon className="w-5 h-5 text-indigo-400" />} activeTab={activeTab} onClick={handleTabChange} disabled={isDiagAdmin} />
+              <SidebarItem id="employee_info" label="Employee & Staff" isSidebarOpen={isSidebarOpen} icon={<ChartIcon className="w-5 h-5 text-amber-400" />} activeTab={activeTab} onClick={handleTabChange} />
+            </div>
+
+            <div className={`mt-6 px-4 mb-2 text-xs font-semibold text-slate-500 uppercase tracking-wider transition-opacity duration-300 ${!isSidebarOpen ? 'md:opacity-0' : 'opacity-100'}`}>
+              System
+            </div>
+            <div className="space-y-1">
+               <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} title={isSidebarOpen ? "Collapse Menu" : "Expand Menu"} className="w-full flex items-center px-4 py-3 text-sm font-medium text-slate-400 hover:text-white hover:bg-slate-800/50 border-l-4 border-transparent transition-colors hidden md:flex">
+                  <BackIcon className={`w-5 h-5 shrink-0 mr-3 transition-transform ${!isSidebarOpen ? 'rotate-180' : ''}`} />
+                  {isSidebarOpen && <span className="whitespace-nowrap">Collapse Menu</span>}
+               </button>
+            </div>
+        </div>
+
+        <div className="p-3 border-t border-slate-800 bg-slate-900/50 mt-auto">
+           <div className="flex items-center">
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${isLabReporter ? 'bg-blue-900 text-blue-300' : 'bg-cyan-900 text-cyan-300'}`}>
+                {isLabReporter ? 'LR' : 'AD'}
+              </div>
+              {isSidebarOpen && (
+                <div className="ml-3 overflow-hidden">
+                   <p className="text-sm font-medium text-slate-200 truncate">{isLabReporter ? 'Lab Reporter' : 'Admin'}</p>
+                   <p className="text-xs text-slate-500 truncate">Diagnostic Dept</p>
+                </div>
+              )}
+           </div>
+        </div>
+      </aside>
+
+      <main className="flex-1 flex flex-col overflow-hidden relative">
+        <div className="absolute inset-0 pointer-events-none">
+           <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-blue-900/10 rounded-full blur-[100px] -translate-y-1/2 translate-x-1/2"></div>
+        </div>
+
+        <header className="bg-slate-900/90 backdrop-blur-md border-b border-slate-800 p-1.5 sm:p-3 shrink-0 shadow-sm z-20 relative">
+          <div className="flex items-center justify-between relative w-full px-1 sm:px-4">
+             
+             {/* Left: Mobile Compact 3-Line Menu & Title */}
+             <div className="flex items-center gap-2 sm:gap-3">
+                <button 
+                  onClick={() => setIsSidebarOpen(true)}
+                  className="md:hidden px-2.5 py-1.5 rounded-lg bg-slate-800 text-cyan-400 hover:text-cyan-300 active:bg-cyan-950 border border-cyan-700/50 flex items-center gap-1.5 shadow-sm transition-all active:scale-95 touch-manipulation cursor-pointer"
+                  title="সাইডবারের সকল মেনু ওপেন করুন"
+                  aria-label="Open sidebar menu"
+                >
+                  <span className="text-base font-bold leading-none">☰</span>
+                  <span className="text-[11px] font-bold">মেনু</span>
+                </button>
+
+                <button 
+                  onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                  className="p-2 rounded-lg bg-slate-800 text-slate-400 hover:text-cyan-400 hover:bg-slate-700 transition-all hidden md:block"
+                  title={isSidebarOpen ? "Collapse Sidebar" : "Expand Sidebar"}
+                >
+                  <SettingsIcon className={`w-5 h-5 transition-transform duration-500 ${isSidebarOpen ? 'rotate-90' : ''}`} />
+                </button>
+
+                {/* Desktop Clinic Branding (Hidden on Mobile to save valuable space) */}
+                <div className="hidden md:flex flex-col">
+                  <h1 className="text-xl lg:text-2xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-white to-cyan-100 leading-tight tracking-tight whitespace-nowrap overflow-hidden text-ellipsis">
+                    Niramoy Clinic and Diagnostic
+                  </h1>
+                  <p className="text-xs text-slate-400 font-medium">Enayetpur, Sirajgonj | Ph: 01730 923007</p>
+                </div>
+
+                {/* Mobile Slim Current Page Title */}
+                <div className="md:hidden flex items-center gap-1.5">
+                  <span className="text-xs sm:text-sm font-bold text-cyan-300 font-bengali">
+                    {activeTab === 'lab_invoice' ? 'ল্যাব ইনভয়েস' : 
+                     activeTab === 'doctor_appointment' ? 'অ্যাপয়েন্টমেন্ট' : 
+                     activeTab === 'due_collection' ? 'বকেয়া আদায়' : 
+                     activeTab === 'consolidated_entry' ? 'কনসোলিডেটেড ল্যাব' : 'ডায়াগনস্টিক ডিপার্টমেন্ট'}
+                  </span>
+                </div>
+             </div>
+             
+             {/* Right: Diagnostic Title & Badge (Ultra-slim on Mobile) */}
+             <div className="flex items-center">
+                <DiagnosticIcon className="w-5 h-5 sm:w-7 sm:h-7 text-cyan-400 mr-1.5 sm:mr-2 drop-shadow-[0_0_5px_rgba(34,211,238,0.5)]" />
+                <div className="flex flex-col items-end">
+                   <h2 className="text-sm sm:text-2xl font-bold text-cyan-400 font-bengali leading-tight text-right whitespace-nowrap">
+                     ডায়াগনস্টিক ডিপার্টমেন্ট
+                   </h2>
+                   <p className="text-[9px] sm:text-[10px] font-bold text-slate-500 font-bengali tracking-tight hidden sm:block">
+                     গভমেন্ট লাইসেন্স: HSM41671
+                   </p>
+                </div>
+             </div>
+          </div>
         </header>
 
-        <div className="relative w-full max-w-5xl mx-auto">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 md:gap-10">
-              <DashboardButton 
-                label={
-                    <>
-                        <span className="block text-3xl font-extrabold text-white mb-1 drop-shadow-sm">ডায়াগনস্টিক ডিপার্টমেন্ট</span>
-                        <span className="block text-sm font-semibold text-cyan-200 mt-2 tracking-wider">Diagnostic Department</span>
-                    </>
-                } 
-                icon={<DiagnosticIcon />} 
-                onClick={() => onNavigate(ViewState.DIAGNOSTIC)} 
-                colorFrom="from-cyan-500/40"
-                colorTo="to-blue-600/40"
-                borderColor="border-slate-700 hover:border-cyan-400"
-                delay="100ms"
+        {/* Desktop / Tablet Top Tabs Bar (Hidden on Mobile) */}
+        <div className="hidden md:block bg-slate-900/50 backdrop-blur-sm border-b border-slate-800 z-20 p-2">
+           <div className="flex overflow-x-auto md:grid md:grid-cols-4 gap-2 md:gap-4 w-full px-2 pb-2 scrollbar-hide">
+              <TopBarButton 
+                label="Doctor Appointment" 
+                icon={<CalendarIcon className="w-5 h-5" />} 
+                isActive={activeTab === 'doctor_appointment'} 
+                onClick={() => handleTabChange('doctor_appointment')} 
+                disabled={isLabReporter}
               />
-              <DashboardButton 
-                label={
-                    <>
-                        <span className="block text-3xl font-extrabold text-white mb-1 drop-shadow-sm">ক্লিনিক ডিপার্টমেন্ট</span>
-                        <span className="block text-sm font-semibold text-emerald-200 mt-2 tracking-wider">Clinic Department</span>
-                    </>
-                } 
-                icon={<ClinicIcon />} 
-                onClick={() => onNavigate(ViewState.CLINIC)} 
-                colorFrom="from-emerald-500/40"
-                colorTo="to-teal-600/40"
-                borderColor="border-slate-700 hover:border-emerald-400"
-                delay="200ms"
+              <TopBarButton 
+                label="Lab Invoice" 
+                icon={<MoneyIcon className="w-5 h-5" />} 
+                isActive={activeTab === 'lab_invoice'} 
+                onClick={() => handleTabChange('lab_invoice')} 
+                disabled={isLabReporter}
               />
-              <DashboardButton 
-                label={
-                    <>
-                        <span className="block text-3xl font-extrabold text-white mb-1 drop-shadow-sm">মেডিসিন ডিপার্টমেন্ট</span>
-                        <span className="block text-sm font-semibold text-rose-200 mt-2 tracking-wider">Medicine Department</span>
-                    </>
-                }
-                icon={<MedicineIcon />} 
-                onClick={() => onNavigate(ViewState.MEDICINE)} 
-                colorFrom="from-rose-500/40"
-                colorTo="to-pink-600/40"
-                borderColor="border-slate-700 hover:border-rose-400"
-                delay="300ms"
+              <TopBarButton 
+                label="Previous Due Collection" 
+                icon={<Activity className="w-5 h-5" />} 
+                isActive={activeTab === 'due_collection'} 
+                onClick={() => handleTabChange('due_collection')} 
+                disabled={isLabReporter}
               />
-              <DashboardButton 
-                label={
-                    <>
-                        <span className="block text-3xl font-extrabold text-white mb-1 drop-shadow-sm">একাউন্টিং</span>
-                        <span className="block text-sm font-semibold text-amber-200 mt-2 tracking-wider">Accounting</span>
-                    </>
-                }
-                icon={<AccountingIcon />} 
-                onClick={() => onNavigate(ViewState.ACCOUNTING)} 
-                colorFrom="from-amber-500/30"
-                colorTo="to-orange-600/30"
-                borderColor="border-slate-700 hover:border-amber-400"
-                delay="400ms"
+              <TopBarButton 
+                label="Lab Reporting" 
+                icon={<FileTextIcon className="w-5 h-5" />} 
+                isActive={activeTab === 'lab_reporting'} 
+                onClick={() => handleTabChange('lab_reporting')} 
+                disabled={isDiagAdmin}
               />
+           </div>
+        </div>
+
+        {/* Content Container (With bottom padding on mobile for the fixed Bottom Nav) */}
+        <div className={`flex-1 flex flex-col min-h-0 ${activeTab === 'lab_reporting' || activeTab === 'consolidated_entry' ? 'overflow-hidden p-0' : 'overflow-y-auto p-2 sm:p-3 md:p-4'} pb-20 md:pb-2 sm:pb-3 bg-slate-900/50 relative`}>
+          <DiagnosticErrorBoundary key={activeTab}>
+            <div className="w-full flex-1 flex flex-col min-h-0">
+              {renderContent()}
             </div>
-
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-[100] hidden md:flex">
-                <div className="pointer-events-auto animate-fade-in-up" style={{ animationDelay: '450ms' }}>
-                    <button
-                        onClick={() => onNavigate(ViewState.MARKETING)}
-                        className="group relative w-80 h-36 rounded-[50%] bg-[#0f172a] border-2 border-cyan-500/60 flex flex-col items-center justify-center shadow-[0_0_60px_rgba(0,0,0,0.9)] transition-all duration-300 hover:scale-110 hover:shadow-[0_0_60px_rgba(34,211,238,0.5)] hover:border-cyan-500 backdrop-blur-2xl"
-                    >
-                        <div className="absolute inset-0 bg-gradient-to-r from-cyan-600/10 via-blue-600/10 to-cyan-600/10 opacity-0 group-hover:opacity-100 transition-opacity rounded-[50%]" />
-                        <div className="p-2 rounded-full text-cyan-400 group-hover:scale-110 transition-transform">
-                            <UsersIcon size={28} />
-                        </div>
-                        <div className="text-center">
-                            <span className="block text-2xl font-black text-white font-bengali tracking-wider drop-shadow-sm">মার্কেটিং ম্যানেজমেন্ট</span>
-                            <span className="block text-[10px] font-bold text-cyan-400 uppercase tracking-[0.2em] opacity-80">Marketing Management</span>
-                        </div>
-                        <div className="absolute -inset-1 bg-cyan-500/10 blur-3xl opacity-0 group-hover:opacity-100 transition-opacity -z-10" />
-                    </button>
-                </div>
-            </div>
+          </DiagnosticErrorBoundary>
         </div>
 
-        <div className="md:hidden mt-6 animate-fade-in-up">
-             <button
-                onClick={() => onNavigate(ViewState.MARKETING)}
-                className="w-full bg-slate-800 p-6 rounded-2xl border border-cyan-500/50 flex items-center justify-center gap-4 shadow-md"
+        {/* ========================================================================= */}
+        {/* MOBILE FIXED 4-BUTTON BOTTOM NAVIGATION BAR (Only visible on screens < 768px) */}
+        {/* ========================================================================= */}
+        <nav aria-label="Mobile Navigation" className="fixed bottom-0 inset-x-0 bg-slate-950/95 backdrop-blur-lg border-t border-slate-800 z-40 md:hidden px-1.5 py-1.5 shadow-[0_-8px_25px_rgba(0,0,0,0.7)]">
+          <div className="grid grid-cols-4 gap-1 items-center max-w-lg mx-auto">
+            {/* 1. Doctor Appointment */}
+            <button
+              onClick={() => handleTabChange('doctor_appointment')}
+              disabled={isLabReporter}
+              className={`flex flex-col items-center justify-center py-2 px-1 rounded-xl transition-all cursor-pointer ${
+                activeTab === 'doctor_appointment'
+                  ? 'text-cyan-300 bg-cyan-950/80 font-black border border-cyan-500/50 shadow-md shadow-cyan-950/60'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
             >
-                <UsersIcon className="text-cyan-400" size={24} />
-                <span className="text-xl font-black text-white font-bengali">মার্কেটিং ম্যানেজমেন্ট</span>
+              <CalendarIcon className="w-5 h-5 mb-1" />
+              <span className="text-[10px] tracking-tight leading-none text-center font-bold">অ্যাপয়েন্টমেন্ট</span>
             </button>
-        </div>
 
-        <div className="flex flex-wrap justify-center gap-6 mt-16 animate-fade-in-up" style={{ animationDelay: '550ms' }}>
-          <button onClick={() => onNavigate(ViewState.DOCTOR_LOGIN)} className="group relative px-8 py-3 rounded-full bg-slate-900/60 border border-blue-500/50 text-blue-300 font-bold transition-all duration-300 hover:border-blue-500 hover:bg-blue-500/10 hover:text-white shadow-md active:scale-95 backdrop-blur-sm">
-            <span className="relative z-10 flex items-center gap-2 text-lg"><StethoscopeIcon className="h-5 w-5" />Doctor Portal</span>
-          </button>
-          
-          <button onClick={() => onNavigate(ViewState.LAB_LOGIN)} className="group relative px-8 py-3 rounded-full bg-slate-900/60 border border-cyan-500/50 text-cyan-300 font-bold transition-all duration-300 hover:border-cyan-500 hover:bg-cyan-500/10 hover:text-white shadow-md active:scale-95 backdrop-blur-sm">
-            <span className="relative z-10 flex items-center gap-2 text-lg"><FileTextIcon className="h-5 w-5" />Lab Reporting</span>
-          </button>
-
-          <button onClick={onLogout} className="group relative px-8 py-3 rounded-full bg-slate-900/60 border border-slate-700 text-slate-300 font-bold transition-all duration-300 hover:border-rose-500/50 hover:bg-rose-500/10 hover:text-rose-400 shadow-md active:scale-95 backdrop-blur-sm">
-            <span className="relative z-10 flex items-center gap-2 text-lg">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 transition-transform group-hover:-translate-x-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
-              Admin Logout
-            </span>
-          </button>
-        </div>
-
-        <div className="fixed bottom-6 right-6 z-[100] animate-fade-in-up" style={{ animationDelay: '700ms' }}>
-            <button 
-                onClick={() => onNavigate(ViewState.ADMIN_SETTINGS)}
-                className="w-14 h-14 bg-slate-800/80 rounded-full border border-slate-700 flex items-center justify-center text-slate-400 hover:text-blue-400 hover:border-blue-500 hover:scale-110 hover:rotate-90 transition-all duration-500 shadow-2xl backdrop-blur-xl"
-                title="System Password Control"
+            {/* 2. Lab Invoice */}
+            <button
+              onClick={() => handleTabChange('lab_invoice')}
+              disabled={isLabReporter}
+              className={`flex flex-col items-center justify-center py-2 px-1 rounded-xl transition-all cursor-pointer ${
+                activeTab === 'lab_invoice'
+                  ? 'text-emerald-300 bg-emerald-950/80 font-black border border-emerald-500/50 shadow-md shadow-emerald-950/60'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
             >
-                <SettingsIcon size={28} />
+              <MoneyIcon className="w-5 h-5 mb-1" />
+              <span className="text-[10px] tracking-tight leading-none text-center font-bold">ল্যাব ইনভয়েস</span>
             </button>
-        </div>
 
-        <div className="text-center mt-12 text-slate-500/60 text-sm font-medium tracking-wide">&copy; 2024 NiramoyClinic. All rights reserved.</div>
-      </div>
+            {/* 3. Due Collection */}
+            <button
+              onClick={() => handleTabChange('due_collection')}
+              disabled={isLabReporter}
+              className={`flex flex-col items-center justify-center py-2 px-1 rounded-xl transition-all cursor-pointer ${
+                activeTab === 'due_collection'
+                  ? 'text-amber-300 bg-amber-950/80 font-black border border-amber-500/50 shadow-md shadow-amber-950/60'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Activity className="w-5 h-5 mb-1" />
+              <span className="text-[10px] tracking-tight leading-none text-center font-bold">বকেয়া আদায়</span>
+            </button>
+
+            {/* 4. Consolidated Lab Entry */}
+            <button
+              onClick={() => handleTabChange('consolidated_entry')}
+              disabled={isLabReporter}
+              className={`flex flex-col items-center justify-center py-2 px-1 rounded-xl transition-all cursor-pointer ${
+                activeTab === 'consolidated_entry'
+                  ? 'text-purple-300 bg-purple-950/80 font-black border border-purple-500/50 shadow-md shadow-purple-950/60'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Layers className="w-5 h-5 mb-1" />
+              <span className="text-[10px] tracking-tight leading-none text-center font-bold">কনসোলিডেটেড</span>
+            </button>
+          </div>
+        </nav>
+      </main>
     </div>
   );
 };
 
-export default Dashboard;
+export default DiagnosticPage;

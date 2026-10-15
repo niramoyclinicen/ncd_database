@@ -1,219 +1,187 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
-import { Reagent, emptyReagent } from './DiagnosticData';
-import { Activity, PrinterIcon, SearchIcon, BeakerIcon, DatabaseIcon, PlusIcon, FileTextIcon } from './Icons';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { Doctor, emptyDoctor } from './DiagnosticData';
 
-interface ReagentInfoPageProps {
-    reagents: Reagent[];
-    setReagents: React.Dispatch<React.SetStateAction<Reagent[]>>;
+interface DoctorInfoPageProps {
+  doctors: Doctor[];
+  setDoctors: React.Dispatch<React.SetStateAction<Doctor[]>>;
+  isEmbedded?: boolean;
+  onClose?: () => void;
+  onSaveAndSelect?: (id: string, name: string) => void;
+  performBlockingSync?: (overrides?: any) => Promise<boolean>;
 }
 
-const ReagentInfoPage: React.FC<ReagentInfoPageProps> = ({ reagents, setReagents }) => {
-    const [viewMode, setViewMode] = useState<'inventory' | 'requisition'>('inventory');
-    const [searchTerm, setSearchTerm] = useState('');
-    const [selectedReagentId, setSelectedReagentId] = useState<string | null>(null);
-    const [formData, setFormData] = useState<Reagent>(emptyReagent);
-    const [isEditing, setIsEditing] = useState(false);
-    const [successMessage, setSuccessMessage] = useState('');
+const DoctorInfoPage: React.FC<DoctorInfoPageProps> = ({ 
+  doctors, setDoctors, isEmbedded = false, onClose, onSaveAndSelect, performBlockingSync 
+}) => {
+  const [formData, setFormData] = useState<Doctor>(emptyDoctor);
+  const [selectedDoctorId, setSelectedDoctorId] = useState<string | null>(null);
+  const [isEditing, setIsEditing] = useState<boolean>(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [mobileError, setMobileError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-    // Requisition Logic
-    const [requisitionItems, setRequisitionItems] = useState<string[]>([]); // Array of reagent IDs
+  useEffect(() => {
+    if (successMessage) {
+      const timer = setTimeout(() => setSuccessMessage(''), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [successMessage]);
 
-    const filteredReagents = useMemo(() => {
-        return reagents.filter(r =>
-            r.reagent_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            r.reagent_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            (r.company && r.company.toLowerCase().includes(searchTerm.toLowerCase()))
-        );
-    }, [searchTerm, reagents]);
-
-    const stats = useMemo(() => {
-        const today = new Date();
-        const threeMonthsFromNow = new Date();
-        threeMonthsFromNow.setMonth(today.getMonth() + 3);
-
-        const expiringSoon = reagents.filter(r => r.expiry_date && new Date(r.expiry_date) <= threeMonthsFromNow && new Date(r.expiry_date) >= today);
-        const expired = reagents.filter(r => r.expiry_date && new Date(r.expiry_date) < today);
-        const lowStock = reagents.filter(r => r.quantity < 5);
-
-        return { expiringSoon, expired, lowStock };
-    }, [reagents]);
-
-    const handlePrintRequisition = () => {
-        const itemsToPrint = reagents.filter(r => requisitionItems.includes(r.reagent_id));
-        if (itemsToPrint.length === 0) return alert("চাহিদা পত্রের জন্য আইটেম সিলেক্ট করুন।");
-
-        const win = window.open('', '_blank');
-        if (!win) return;
-        const html = `
-            <html>
-                <head>
-                    <title>Reagent Requisition</title>
-                    <script src="https://cdn.tailwindcss.com"></script>
-                    <style>@page { size: A4; margin: 20mm; } body { font-family: serif; color: black; }</style>
-                </head>
-                <body class="p-10">
-                    <div class="text-center mb-10 border-b-2 border-black pb-4">
-                        <h1 class="text-3xl font-black uppercase">Niramoy Clinic & Diagnostic</h1>
-                        <p class="text-sm font-bold mt-1">Enayetpur, Sirajgonj | Mobile: 01730 923007</p>
-                        <h2 class="mt-6 text-xl font-bold underline uppercase tracking-widest">রিএজেন্ট চাহিদা পত্র (Reagent Requisition)</h2>
-                    </div>
-                    <div class="mb-6 flex justify-between">
-                        <span><b>তারিখ:</b> ${new Date().toLocaleDateString()}</span>
-                        <span><b>বিভাগ:</b> ডায়াগনস্টিক বিভাগ</span>
-                    </div>
-                    <table class="w-full border-collapse border border-black mb-10">
-                        <thead><tr class="bg-gray-100">
-                            <th class="border border-black p-2 text-left">SL</th>
-                            <th class="border border-black p-2 text-left">Reagent Name</th>
-                            <th class="border border-black p-2 text-left">Company</th>
-                            <th class="border border-black p-2 text-center">Current Qty</th>
-                            <th class="border border-black p-2 text-center">Required Qty</th>
-                        </tr></thead>
-                        <tbody>
-                            ${itemsToPrint.map((r, i) => `
-                                <tr>
-                                    <td class="border border-black p-2">${i + 1}</td>
-                                    <td class="border border-black p-2 font-bold">${r.reagent_name}</td>
-                                    <td class="border border-black p-2">${r.company || '---'}</td>
-                                    <td class="border border-black p-2 text-center">${r.quantity} ${r.unit || ''}</td>
-                                    <td class="border border-black p-2 text-center">.................</td>
-                                </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
-                    <div class="mt-20 flex justify-between px-10">
-                        <div class="text-center w-48 border-t border-black pt-1">প্রস্তুতকারক</div>
-                        <div class="text-center w-48 border-t border-black pt-1">অনুমোদনকারী</div>
-                    </div>
-                </body>
-            </html>
-        `;
-        win.document.write(html); win.document.close();
-        setTimeout(() => { win.print(); win.close(); }, 500);
-    };
-
-    const toggleRequisition = (id: string) => {
-        setRequisitionItems(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
-    };
-
-    const getExpiryClass = (dateStr?: string) => {
-        if (!dateStr) return "text-slate-500";
-        const d = new Date(dateStr);
-        const today = new Date();
-        const diff = d.getTime() - today.getTime();
-        const months = diff / (1000 * 60 * 60 * 24 * 30);
-        if (months < 0) return "text-rose-500 font-black";
-        if (months < 3) return "text-rose-400 font-bold";
-        if (months < 6) return "text-amber-400";
-        return "text-emerald-400";
-    };
-
-    return (
-        <div className="bg-slate-950 text-slate-200 min-h-screen flex flex-col font-sans">
-            <header className="bg-slate-900 p-6 border-b border-slate-800 flex justify-between items-center shadow-2xl sticky top-0 z-50">
-                <div className="flex items-center gap-4">
-                    <div className="p-3 bg-blue-600/20 rounded-2xl border border-blue-500/30 text-blue-400"><BeakerIcon size={24}/></div>
-                    <div>
-                        <h2 className="text-2xl font-black text-white uppercase tracking-tighter">Reagent Inventory</h2>
-                        <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest">Stock Control & Expiry Tracking</p>
-                    </div>
-                </div>
-                <div className="flex bg-slate-800 p-1 rounded-2xl border border-slate-700">
-                    <button onClick={() => setViewMode('inventory')} className={`px-8 py-2.5 rounded-xl font-black text-xs uppercase transition-all ${viewMode === 'inventory' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500'}`}>Inventory View</button>
-                    <button onClick={() => setViewMode('requisition')} className={`px-8 py-2.5 rounded-xl font-black text-xs uppercase transition-all ${viewMode === 'requisition' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-500'}`}>Requisition Mode</button>
-                </div>
-            </header>
-
-            <main className="flex-1 p-6 space-y-8 container mx-auto">
-                {/* --- STATS DASHBOARD --- */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-6 no-print">
-                    <div className="bg-slate-900 p-6 rounded-[2rem] border border-slate-800 shadow-xl flex items-center gap-5 relative overflow-hidden group">
-                        <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:scale-110 transition-transform"><Activity size={100}/></div>
-                        <div className="w-12 h-12 bg-blue-600/20 rounded-2xl flex items-center justify-center text-blue-400 font-black text-xl">{reagents.length}</div>
-                        <div><p className="text-slate-500 text-[10px] font-black uppercase tracking-widest">Total Items</p><h4 className="text-2xl font-black text-white">Reagents</h4></div>
-                    </div>
-                    <div className="bg-slate-900 p-6 rounded-[2rem] border border-rose-900/30 shadow-xl flex items-center gap-5 relative overflow-hidden group">
-                        <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:scale-110 transition-transform"><FileTextIcon size={100}/></div>
-                        <div className="w-12 h-12 bg-rose-600/20 rounded-2xl flex items-center justify-center text-rose-500 font-black text-xl">{stats.expiringSoon.length}</div>
-                        <div><p className="text-slate-500 text-[10px] font-black uppercase tracking-widest">Expiring Soon</p><h4 className="text-2xl font-black text-rose-400">Within 3M</h4></div>
-                    </div>
-                    <div className="bg-slate-900 p-6 rounded-[2rem] border border-amber-900/30 shadow-xl flex items-center gap-5 relative overflow-hidden group">
-                        <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:scale-110 transition-transform"><DatabaseIcon size={100}/></div>
-                        <div className="w-12 h-12 bg-amber-600/20 rounded-2xl flex items-center justify-center text-amber-500 font-black text-xl">{stats.lowStock.length}</div>
-                        <div><p className="text-slate-500 text-[10px] font-black uppercase tracking-widest">Low Stock</p><h4 className="text-2xl font-black text-amber-400">Below 5</h4></div>
-                    </div>
-                    <div className="bg-slate-900 p-6 rounded-[2rem] border border-emerald-900/30 shadow-xl flex items-center gap-5 relative overflow-hidden group">
-                        <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:scale-110 transition-transform"><Activity size={100}/></div>
-                        <div className="w-12 h-12 bg-emerald-600/20 rounded-2xl flex items-center justify-center text-emerald-500 font-black text-xl">{reagents.filter(r => r.availability).length}</div>
-                        <div><p className="text-slate-500 text-[10px] font-black uppercase tracking-widest">Active Stock</p><h4 className="text-2xl font-black text-emerald-400">Available</h4></div>
-                    </div>
-                </div>
-
-                <div className="bg-slate-900 rounded-[2.5rem] border border-slate-800 shadow-2xl overflow-hidden flex flex-col">
-                    <div className="p-6 border-b border-slate-800 bg-slate-900/50 flex flex-wrap justify-between items-center gap-4 no-print">
-                        <div className="relative w-full md:w-96">
-                            <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={16}/>
-                            <input value={searchTerm} onChange={e=>setSearchTerm(e.target.value)} placeholder="Search Brand, ID or Company..." className="w-full bg-slate-950 border border-slate-800 rounded-full py-3 pl-12 pr-6 text-sm text-white focus:border-blue-500 outline-none shadow-inner"/>
-                        </div>
-                        {viewMode === 'requisition' && (
-                            <button onClick={handlePrintRequisition} className="bg-emerald-600 hover:bg-emerald-500 text-white px-10 py-3 rounded-2xl font-black uppercase text-xs shadow-xl active:scale-95 transition-all flex items-center gap-2"><PrinterIcon size={16}/> Print Requisition (চাহিদা পত্র)</button>
-                        )}
-                    </div>
-
-                    <div className="overflow-x-auto min-h-[400px]">
-                        <table className="w-full text-left border-collapse text-xs">
-                            <thead className="bg-slate-950 text-[10px] uppercase font-black text-slate-500 tracking-widest border-b border-slate-800">
-                                <tr>
-                                    {viewMode === 'requisition' && <th className="p-5 text-center w-16">Sel</th>}
-                                    <th className="p-5">Reagent Description</th>
-                                    <th className="p-5">Company / Brand</th>
-                                    <th className="p-5 text-center">Quantity</th>
-                                    <th className="p-5">Expiry Date</th>
-                                    <th className="p-5 text-center">Status</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-800">
-                                {filteredReagents.map((r) => (
-                                    <tr key={r.reagent_id} className={`hover:bg-slate-800/40 transition-colors group ${requisitionItems.includes(r.reagent_id) ? 'bg-emerald-900/10' : ''}`}>
-                                        {viewMode === 'requisition' && (
-                                            <td className="p-5 text-center">
-                                                <input type="checkbox" checked={requisitionItems.includes(r.reagent_id)} onChange={()=>toggleRequisition(r.reagent_id)} className="w-5 h-5 rounded border-slate-700 bg-slate-950 text-emerald-600" />
-                                            </td>
-                                        )}
-                                        <td className="p-5">
-                                            <div className="font-black text-white text-base uppercase tracking-tighter">{r.reagent_name}</div>
-                                            <div className="text-[10px] text-slate-500 font-bold uppercase mt-1">ID: {r.reagent_id} | Unit: {r.unit}</div>
-                                        </td>
-                                        <td className="p-5 font-black text-sky-400 uppercase italic">{r.company || 'Generic'}</td>
-                                        <td className="p-5 text-center">
-                                            <div className={`text-xl font-black ${r.quantity < 5 ? 'text-red-500' : 'text-emerald-400'}`}>{r.quantity}</div>
-                                            <div className="text-[9px] text-slate-500 font-bold uppercase">Stored Units</div>
-                                        </td>
-                                        <td className={`p-5 text-sm font-mono ${getExpiryClass(r.expiry_date)}`}>
-                                            {r.expiry_date || 'N/A'}
-                                        </td>
-                                        <td className="p-5 text-center">
-                                            <span className={`px-4 py-1.5 rounded-xl text-[9px] font-black uppercase border ${r.quantity < 5 ? 'bg-rose-900/20 text-rose-500 border-rose-800' : 'bg-emerald-900/20 text-emerald-500 border-emerald-800'}`}>
-                                                {r.quantity < 5 ? 'Low Stock' : 'Good'}
-                                            </span>
-                                        </td>
-                                    </tr>
-                                ))}
-                                {filteredReagents.length === 0 && (
-                                    <tr><td colSpan={6} className="p-40 text-center text-slate-700 italic font-black uppercase opacity-20 text-2xl tracking-[0.4em]">Inventory Empty</td></tr>
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </main>
-
-            <footer className="p-12 text-center text-slate-700 border-t border-slate-900">
-                <p className="text-[10px] font-black uppercase tracking-[0.5em]">NcD Intelligent Reagent Manager • System v3.1</p>
-            </footer>
-        </div>
+  const filteredDoctors = useMemo(() => {
+    if (!Array.isArray(doctors)) return [];
+    if (isEmbedded) return doctors;
+    return doctors.filter(doctor =>
+      doctor && (
+        (doctor.doctor_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (doctor.doctor_id || '').toLowerCase().includes(searchTerm.toLowerCase())
+      )
     );
+  }, [searchTerm, doctors, isEmbedded]);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    if (name === 'mobile') {
+      setMobileError('');
+      const digits = value.replace(/\D/g, '').slice(0, 11);
+      let formatted = digits;
+      if (digits.length >= 5) formatted = `${digits.slice(0, 5)}-${digits.slice(5)}`;
+      setFormData(prev => ({ ...prev, mobile: formatted }));
+    } else {
+      setFormData(prev => ({ ...prev, [name]: value }));
+    }
+  };
+
+  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => setFormData(prev => ({ ...prev, photo: reader.result as string }));
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleGetNewId = useCallback(() => {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    const safeDoctors = Array.isArray(doctors) ? doctors : [];
+    const prefix = `DR-${year}-${month}-${day}`;
+    const todayDoctors = safeDoctors.filter(d => d && d.doctor_id && typeof d.doctor_id === 'string' && d.doctor_id.startsWith(prefix)).length;
+    const newId = `${prefix}-${String(todayDoctors + 1).padStart(3, '0')}`;
+    setFormData({ ...emptyDoctor, doctor_id: newId });
+    setSelectedDoctorId(null);
+    setIsEditing(false);
+  }, [doctors]);
+
+  useEffect(() => {
+    if (isEmbedded && !isEditing && !formData.doctor_id) {
+      const timer = setTimeout(() => handleGetNewId(), 0);
+      return () => clearTimeout(timer);
+    }
+  }, [isEmbedded, isEditing, formData.doctor_id, handleGetNewId]);
+
+  const handleSaveDoctor = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.doctor_id || !formData.doctor_name) return alert('ID and Name required.');
+    
+    let newDoctors;
+    if (isEditing) {
+      newDoctors = doctors.map(d => d.doctor_id === formData.doctor_id ? formData : d);
+    } else {
+      newDoctors = [formData, ...doctors];
+    }
+
+    if (performBlockingSync) {
+      const success = await performBlockingSync({ doctors: newDoctors });
+      if (!success) return;
+    }
+
+    setDoctors(newDoctors);
+    setSuccessMessage('ডাটা সেভ হয়েছে');
+    if (isEmbedded && onSaveAndSelect) onSaveAndSelect(formData.doctor_id, formData.doctor_name);
+    setFormData(emptyDoctor);
+    setSelectedDoctorId(null);
+    setIsEditing(false);
+    if (onClose && isEmbedded) onClose();
+  };
+
+  const inputBaseClasses = "py-2 px-3 mt-1 block w-full border border-sky-700/80 rounded-md shadow-sm text-base font-semibold bg-slate-850/90 text-white placeholder-slate-400 focus:bg-slate-800 focus:ring-2 focus:ring-blue-400 focus:border-blue-400";
+  const labelBaseClasses = "block text-sm font-bold text-sky-200";
+  const actionButtonClasses = "px-4 py-2 text-sm font-bold rounded-md flex justify-center focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-sky-950 transition-colors min-w-[100px]";
+
+  return (
+    <div className={`bg-slate-900 text-slate-100 rounded-xl px-4 sm:px-6 pb-6 pt-2 space-y-6 ${isEmbedded ? '!p-0 !space-y-0 !bg-transparent' : ''}`}>
+        {successMessage && <div className="fixed bottom-5 right-5 z-[9999] bg-green-900/95 border border-green-500 text-green-100 px-6 py-3 rounded-lg shadow-2xl font-bold">{successMessage}</div>}
+      
+      <div className={`bg-sky-950/70 rounded-xl p-4 sm:p-6 ${isEmbedded ? 'border-2 border-blue-700 mt-4' : 'border border-sky-700/80'}`}>
+        {!isEmbedded && <h2 className="text-2xl font-bold text-white mb-6 border-b border-sky-700/80 pb-4">Doctor Information</h2>}
+        {!isEmbedded && (
+          <div className="flex flex-wrap items-center gap-2 border-b border-sky-700/80 pb-4 mb-4">
+              <label className="font-bold text-sky-200 whitespace-nowrap">Dr. Id:</label>
+              <input type="text" disabled value={formData.doctor_id} className="w-48 border border-sky-700 rounded-md shadow-sm text-base font-mono font-bold px-3 py-2 bg-slate-900 text-sky-300 cursor-not-allowed" />
+              <button type="button" onClick={handleGetNewId} className={`${actionButtonClasses} text-white bg-blue-600 hover:bg-blue-700`}>Add New</button>
+              <button type="submit" form="doctor-form" className={`${actionButtonClasses} text-white bg-emerald-600 hover:bg-emerald-700`}>Save</button>
+              <button type="button" onClick={() => { if(selectedDoctorId) { const d = doctors.find(x => x.doctor_id === selectedDoctorId); if(d) { setFormData(d); setIsEditing(true); } } }} disabled={!selectedDoctorId} className={`${actionButtonClasses} text-white bg-amber-500 hover:bg-amber-600 disabled:opacity-50`}>Edit</button>
+              <button type="button" onClick={() => { if(selectedDoctorId && confirm('Delete?')) setDoctors(prev => prev.filter(x => x.doctor_id !== selectedDoctorId)); }} disabled={!selectedDoctorId} className={`${actionButtonClasses} text-white bg-red-600 hover:bg-red-700 disabled:opacity-50`}>Delete</button>
+          </div>
+        )}
+        {!isEmbedded && (
+          <div className="mb-6 flex items-center gap-2">
+            <label className="font-bold text-sky-200 whitespace-nowrap">Search:</label>
+            <input type="text" placeholder="Name or ID" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="flex-1 py-2 px-3 border border-sky-700 bg-slate-900 text-white rounded-md text-base font-medium placeholder-slate-400" />
+          </div>
+        )}
+        <form id="doctor-form" onSubmit={handleSaveDoctor}>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-5">
+            <div><label className={labelBaseClasses}>Doctor Name</label><input type="text" name="doctor_name" value={formData.doctor_name} onChange={handleInputChange} required className={inputBaseClasses} /></div>
+            <div><label className={labelBaseClasses}>Gender</label><select name="gender" value={formData.gender} onChange={handleInputChange} className={inputBaseClasses}><option value="">Select</option><option value="Male">Male</option><option value="Female">Female</option></select></div>
+            <div><label className={labelBaseClasses}>Degree (multi-line allowed)</label><textarea name="degree" value={formData.degree} onChange={handleInputChange} className={inputBaseClasses} placeholder="e.g. MBBS, FCPS\nMD (Medicine)" rows={2} /></div>
+            <div><label className={labelBaseClasses}>Mobile</label><input type="tel" name="mobile" value={formData.mobile} onChange={handleInputChange} placeholder="01XXX-XXXXXX" className={inputBaseClasses} /></div>
+            <div className="md:col-span-2 flex items-center gap-4 mt-2 bg-sky-900/30 p-4 rounded-lg border border-sky-800">
+                <div className="flex-shrink-0">{formData.photo ? <img src={formData.photo} alt="Doc" className="w-24 h-24 rounded-full object-cover border-2 border-sky-500 shadow-md" /> : <div className="w-24 h-24 rounded-full bg-sky-800 flex items-center justify-center text-sky-400 border-2 border-dashed border-sky-600"><span className="text-xs">No Photo</span></div>}</div>
+                <div className="flex-1"><label className={labelBaseClasses}>Upload Photo</label><input type="file" accept="image/*" onChange={handlePhotoUpload} ref={fileInputRef} className="mt-1 block w-full text-sm text-slate-300 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:bg-blue-600 file:text-white hover:file:bg-blue-700 cursor-pointer" /></div>
+            </div>
+          </div>
+          {isEmbedded && (
+            <div className="flex justify-end gap-2 pt-4 mt-4 border-t border-sky-800">
+              <button type="submit" className="px-4 py-2 bg-green-600 text-white rounded font-bold">Save</button>
+              <button type="button" onClick={onClose} className="px-4 py-2 bg-slate-600 text-white rounded font-bold">Cancel</button>
+            </div>
+          )}
+        </form>
+      </div>
+
+      {!isEmbedded && (
+        <div className="overflow-x-auto border border-slate-700 rounded-xl shadow-xl bg-slate-900">
+            <table className="min-w-full divide-y divide-slate-700">
+              <thead className="bg-slate-800 border-b border-slate-700">
+                <tr>
+                  <th className="px-6 py-3.5 text-left text-xs font-bold text-sky-200 uppercase tracking-wider">ID</th>
+                  <th className="px-6 py-3.5 text-left text-xs font-bold text-sky-200 uppercase tracking-wider">Doctor Name</th>
+                  <th className="px-6 py-3.5 text-left text-xs font-bold text-sky-200 uppercase tracking-wider">Doctor Degree</th>
+                  <th className="px-6 py-3.5 text-left text-xs font-bold text-sky-200 uppercase tracking-wider">Gender</th>
+                  <th className="px-6 py-3.5 text-left text-xs font-bold text-sky-200 uppercase tracking-wider">Mobile</th>
+                </tr>
+              </thead>
+              <tbody className="bg-slate-900 divide-y divide-slate-800">
+                {filteredDoctors.map((doctor) => (
+                  <tr key={doctor.doctor_id} onClick={() => { setFormData(doctor); setSelectedDoctorId(doctor.doctor_id); setIsEditing(false); }} className={`cursor-pointer transition-colors ${selectedDoctorId === doctor.doctor_id ? 'bg-blue-900/40 border-l-2 border-l-blue-400' : 'hover:bg-slate-800/80 even:bg-slate-900/70 odd:bg-slate-850/40 border-l-2 border-l-transparent'}`}>
+                    <td className="px-6 py-4 whitespace-nowrap text-xs text-sky-300 font-mono font-bold">{doctor.doctor_id}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-white font-bold">{doctor.doctor_name}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-xs text-slate-200 font-medium">{doctor.degree}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-xs text-slate-300">{doctor.gender}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-xs text-emerald-300 font-mono font-bold">{doctor.mobile}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+        </div>
+      )}
+    </div>
+  );
 };
 
-export default ReagentInfoPage;
+export default DoctorInfoPage;

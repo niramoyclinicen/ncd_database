@@ -1,590 +1,679 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Patient, Doctor, Referrar, LabInvoice, Appointment } from './DiagnosticData'; 
-import { formatDateTime } from '../utils/dateUtils'; 
+import React, { useState, useEffect, useMemo } from 'react';
+import { LabInvoice, Employee, DueCollection, Patient } from './DiagnosticData';
 import SearchableSelect from './SearchableSelect';
-import PatientInfoPage from './PatientInfoPage';
-import DoctorInfoPage from './DoctorInfoPage';
-import ReferrerInfoPage from './ReferrerInfoPage';
-// Added imports for missing icons
-import { Activity, MoneyIcon, UsersIcon, ChartIcon, SearchIcon, CalendarIcon, TrashIcon, RefreshIcon } from './Icons';
+import { formatDateTime } from '../utils/dateUtils';
 
-const emptyAppointment: Appointment = {
-  appointment_id: '',
-  patient_id: '',
-  patient_name: '',
-  doctor_id: '',
-  doctor_name: '',
-  referrar_id: '',
-  referrar_name: '',
-  appointment_date: '',
-  appointment_time: '',
-  reason: '',
-  doctor_fee: 0,
-  status: 'Scheduled',
-  notes: '',
-};
-
-const appointmentReasons = [
-  "General Checkup / সাধারণ চেকআপ",
-  "Fever / জ্বর",
-  "Cold & Cough / সর্দি ও কাশি",
-  "Headache / মাথাব্যথা",
-  "Abdominal Pain / পেটে ব্যথা",
-  "Chest Pain / বুকে ব্যথা",
-  "Breathing Trouble / শ্বাসকষ্ট",
-  "Vomiting / বমি",
-  "Loose Motion / পাতলা পায়খানা",
-  "Weakness / দুর্বলতা",
-  "Dizziness / মাথা ঘোরা",
-  "Body Ache / শরীরে ব্যথা",
-  "Joint Pain / গিরায় ব্যথা",
-  "Back Pain / কোমরে ব্যথা",
-  "Skin Rash / এলার্জি বা চর্মরোগ",
-  "Injury/Cut / আঘাত বা কেটে যাওয়া",
-  "Burn / পুড়ে যাওয়া",
-  "High Blood Pressure / উচ্চ রক্তচাপ",
-  "Diabetes Checkup / ডায়াবেটিস চেকআপ",
-  "Pregnancy Checkup / গর্বকালীন সেবা",
-  "Gynecology Problem / গাইনি সমস্যা",
-  "Eye Problem / চোখের সমস্যা",
-  "Ear Pain / কানে ব্যথা",
-  "Throat Pain / গলায় ব্যথা",
-  "Toothache / দাঁতে ব্যথা",
-  "Urinary Problem / প্রস্রাবে সমস্যা",
-  "Follow-up / ফলো-আপ",
-  "Report Show / রিপোর্ট দেখানো",
-  "Vaccination / টিকা",
-  "Dressing / ড্রেসিং"
-];
-
-interface DoctorAppointmentPageProps {
-  patients: Patient[];
-  setPatients: React.Dispatch<React.SetStateAction<Patient[]>>;
-  doctors: Doctor[];
-  setDoctors: React.Dispatch<React.SetStateAction<Doctor[]>>;
-  referrars: Referrar[];
-  setReferrars: React.Dispatch<React.SetStateAction<Referrar[]>>;
-  invoices?: LabInvoice[];
-  appointments: Appointment[];
-  setAppointments: React.Dispatch<React.SetStateAction<Appointment[]>>;
+interface Props {
+    patients?: Patient[];
+    invoices?: LabInvoice[];
+    setInvoices?: React.Dispatch<React.SetStateAction<LabInvoice[]>>;
+    dueCollections?: DueCollection[];
+    setDueCollections?: React.Dispatch<React.SetStateAction<DueCollection[]>>;
+    employees?: Employee[];
+    onViewInvoice?: (invoiceId: string) => void;
+    performBlockingSync?: (overrides?: any) => Promise<boolean>;
 }
 
-const DoctorAppointmentPage: React.FC<DoctorAppointmentPageProps> = ({ 
-  patients, setPatients, doctors, setDoctors, referrars, setReferrars, invoices = [], appointments, setAppointments 
+const monthOptions = [
+    { value: "01", name: 'January' }, { value: "02", name: 'February' }, { value: "03", name: 'March' },
+    { value: "04", name: 'April' }, { value: "05", name: 'May' }, { value: "06", name: 'June' },
+    { value: "07", name: 'July' }, { value: "08", name: 'August' }, { value: "09", name: 'September' },
+    { value: "10", name: 'October' }, { value: "11", name: 'November' }, { value: "12", name: 'December' }
+];
+
+const PrevDueCollectionPage: React.FC<Props> = ({ 
+    patients = [], 
+    invoices = [], 
+    setInvoices = () => {}, 
+    dueCollections = [], 
+    setDueCollections = () => {}, 
+    employees = [], 
+    onViewInvoice, 
+    performBlockingSync 
 }) => {
-  const [filteredAppointments, setFilteredAppointments] = useState<Appointment[]>(appointments);
-  const [formData, setFormData] = useState<Appointment>(emptyAppointment);
-  const [selectedAppointmentId, setSelectedAppointmentId] = useState<string | null>(null);
-  const [isEditing, setIsEditing] = useState<boolean>(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  
-  // New list filters
-  const [listSearchDoctor, setListSearchDoctor] = useState('');
-  const [listFilterDate, setListFilterDate] = useState('');
-  const [listFilterMonth, setListFilterMonth] = useState('');
+    const [searchTerm, setSearchTerm] = useState('');
+    const [filterDay, setFilterDay] = useState('');
+    const [filterMonth, setFilterMonth] = useState('');
+    const [filterYear, setFilterYear] = useState('');
+    const [filterPatientName, setFilterPatientName] = useState('');
 
-  const [barcodeInput, setBarcodeInput] = useState('');
-  const [showNewPatientForm, setShowNewPatientForm] = useState(false);
-  const [showNewDoctorForm, setShowNewDoctorForm] = useState(false);
-  const [showNewReferrarForm, setShowNewReferrarForm] = useState(false);
-  const [successMessage, setSuccessMessage] = useState('');
-  
-  const today = new Date();
-  const todayDateString = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-  const [selectedDateForDailyReport, setSelectedDateForDailyReport] = useState<string>(todayDateString);
+    const [selectedInvoice, setSelectedInvoice] = useState<LabInvoice | null>(null);
+    const [collectionAmount, setCollectionAmount] = useState<number>(0);
+    const [discountAmount, setDiscountAmount] = useState<number>(0);
+    const [collectedBy, setCollectedBy] = useState<string>('');
+    const [showModal, setShowModal] = useState(false);
+    const [successMessage, setSuccessMessage] = useState('');
 
-  const [selectedDoctorDailyFeeTotal, setSelectedDoctorDailyFeeTotal] = useState<number>(0);
-  const [selectedDoctorMonthlyFeeTotal, setSelectedDoctorMonthlyFeeTotal] = useState<number>(0);
-  const [allDoctorsDailyFeeTotal, setAllDoctorsDailyFeeTotal] = useState<number>(0);
-  const [allDoctorsMonthlyFeeTotal, setAllDoctorsMonthlyFeeTotal] = useState<number>(0);
-
-  const commonInputClasses = "py-2 px-3 mt-1 block w-full border border-sky-800 rounded-md shadow-sm sm:text-sm bg-sky-900/50 text-sky-200 placeholder-sky-400 transition-colors duration-200 ease-in-out focus:bg-sky-800 focus:ring-2 focus:ring-blue-500 focus:border-blue-500";
-  const commonLabelClasses = "block text-sm font-semibold text-sky-300";
-
-  useEffect(() => {
-    if (successMessage) {
-        const timer = setTimeout(() => setSuccessMessage(''), 4000);
-        return () => clearTimeout(timer);
-    }
-  }, [successMessage]);
-
-  // Updated List Filtering Logic
-  useEffect(() => {
-    const results = appointments.filter(appt => {
-      // 1. General Search Term (matches Pt Name, Doc Name, Ref Name, ID)
-      const matchesSearch = searchTerm === '' || 
-        appt.patient_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        appt.doctor_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (appt.referrar_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-        appt.appointment_id.toLowerCase().includes(searchTerm.toLowerCase());
-
-      // 2. Specific Doctor Search
-      const matchesDoctor = listSearchDoctor === '' || 
-        appt.doctor_name.toLowerCase().includes(listSearchDoctor.toLowerCase());
-
-      // 3. Specific Date Filter
-      const matchesDate = listFilterDate === '' || appt.appointment_date === listFilterDate;
-
-      // 4. Specific Month Filter
-      const matchesMonth = listFilterMonth === '' || appt.appointment_date.startsWith(listFilterMonth);
-
-      return matchesSearch && matchesDoctor && matchesDate && matchesMonth;
+    const [activeTab, setActiveTab] = useState<'pending' | 'history'>('pending');
+    const [collectionDateInput, setCollectionDateInput] = useState(() => {
+        const d = new Date();
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
     });
-    setFilteredAppointments(results);
-  }, [searchTerm, listSearchDoctor, listFilterDate, listFilterMonth, appointments]);
 
-  useEffect(() => {
-    const calculateTotals = () => {
-      let currentDoctorDailySum = 0;
-      let currentDoctorMonthlySum = 0;
-      let allDoctorsDailySum = 0;
-      let allDoctorsMonthlySum = 0;
-
-      const selDateObj = new Date(selectedDateForDailyReport);
-      const selectedMonth = selDateObj.getMonth();
-      const selectedYear = selDateObj.getFullYear();
-      
-      const selectedDoctorId = formData.doctor_id;
-
-      appointments.forEach(appt => {
-        const apptDateStr = appt.appointment_date;
-        const apptDateObj = new Date(apptDateStr);
-
-        if (apptDateStr === selectedDateForDailyReport && (appt.status === 'Completed' || appt.status === 'Scheduled')) {
-            allDoctorsDailySum += appt.doctor_fee;
-        }
-        if (appt.return_date === selectedDateForDailyReport && appt.status === 'Returned') {
-            allDoctorsDailySum -= appt.doctor_fee;
-        }
-
-        if (apptDateObj.getMonth() === selectedMonth && apptDateObj.getFullYear() === selectedYear && (appt.status === 'Completed' || appt.status === 'Scheduled')) {
-            allDoctorsMonthlySum += appt.doctor_fee;
-        }
-        if (appt.return_date) {
-            const retDate = new Date(appt.return_date);
-            if (retDate.getMonth() === selectedMonth && retDate.getFullYear() === selectedYear && appt.status === 'Returned') {
-                allDoctorsMonthlySum -= appt.doctor_fee;
+    
+    const handlePrintList = () => {
+        const win = window.open('', '_blank');
+        if (!win) return;
+        
+        let contentHtml = '';
+        let theadHtml = '';
+        let tfootHtml = '';
+        let pageStyle = '@page{size:A4 landscape; margin:10mm}';
+        let reportTitle = '';
+        
+        if (activeTab === 'pending') {
+            reportTitle = 'DUE LIST (PENDING)';
+            pageStyle = '@page{size:A4 landscape; margin:10mm}';
+            
+            let totalBillSum = 0;
+            let totalDueSum = 0;
+            const paymentsSum = new Array(detailedPendingData.maxPayments).fill(0);
+            
+            let paymentHeaders = '';
+            for(let i=0; i<detailedPendingData.maxPayments; i++) {
+                paymentHeaders += `<th style="text-align:right">Paid_${String(i+1).padStart(2, '0')}</th>`;
             }
+            
+            theadHtml = `
+                <tr>
+                    <th style="text-align:center; width: 40px;">SL</th>
+                    <th>Invoice ID</th>
+                    <th>Patient Name & Address</th>
+                    <th style="text-align:right">Total (After Discount)</th>
+                    ${paymentHeaders}
+                    <th style="text-align:right">Due</th>
+                </tr>
+            `;
+            
+            contentHtml = detailedPendingData.items.map((inv, index) => {
+                const netPayable = Number(inv.total_amount || 0) - Number(inv.discount_amount || 0);
+                totalBillSum += netPayable;
+                totalDueSum += Number(inv.due_amount || 0);
+                
+                let paymentCols = '';
+                for(let i=0; i<detailedPendingData.maxPayments; i++) {
+                    const p = inv.payments[i];
+                    if (p) {
+                        paymentsSum[i] += Number(p.amount || 0);
+                        paymentCols += `<td style="text-align:right; white-space:nowrap;">${p.date}<br/><b>৳${Number(p.amount || 0).toFixed(2)}</b></td>`;
+                    } else {
+                        paymentCols += `<td></td>`;
+                    }
+                }
+                
+                const discountText = Number(inv.discount_amount || 0) > 0 ? `<br/><span style="font-size:10px; color:#555;">(Disc: ৳${Number(inv.discount_amount || 0).toFixed(2)})</span>` : '';
+                const patientInfo = inv.addressStr ? `<b>${inv.patient_name}</b><br/><span style="font-size:11px; color:#444;">${inv.addressStr}</span>` : `<b>${inv.patient_name}</b>`;
+                
+                return `
+                    <tr>
+                        <td style="text-align:center">${index + 1}</td>
+                        <td style="white-space:nowrap">${inv.invoice_id}</td>
+                        <td>${patientInfo}</td>
+                        <td style="text-align:right; font-weight:bold;">৳${Number(netPayable).toFixed(2)}${discountText}</td>
+                        ${paymentCols}
+                        <td style="text-align:right; font-weight:bold; color:red;">৳${Number(inv.due_amount || 0).toFixed(2)}</td>
+                    </tr>
+                `;
+            }).join('');
+            
+            let paymentFooters = '';
+            for(let i=0; i<detailedPendingData.maxPayments; i++) {
+                paymentFooters += `<td style="text-align:right; font-weight:bold;">৳${Number(paymentsSum[i] || 0).toFixed(2)}</td>`;
+            }
+            
+            tfootHtml = `
+                <tr>
+                    <td colspan="3" style="text-align:right; font-weight:bold;">Total:</td>
+                    <td style="text-align:right; font-weight:bold;">৳${Number(totalBillSum || 0).toFixed(2)}</td>
+                    ${paymentFooters}
+                    <td style="text-align:right; font-weight:bold; font-size:16px; color:red;">৳${Number(totalDueSum || 0).toFixed(2)}</td>
+                </tr>
+            `;
+        } else if (activeTab === 'history') {
+            reportTitle = 'DUE COLLECTION HISTORY';
+            pageStyle = '@page{size:A4 landscape; margin:10mm}';
+            let sumBill = 0;
+            let sumCollected = 0;
+            let sumRemainingDue = 0;
+            theadHtml = `
+                <tr>
+                    <th style="text-align:center; width: 40px;">SL</th>
+                    <th>Invoice Date</th>
+                    <th>Invoice ID</th>
+                    <th>Patient Name</th>
+                    <th style="text-align:right">Total Bill</th>
+                    <th>Collection Date</th>
+                    <th style="text-align:right">Collected Amount</th>
+                    <th style="text-align:right">Remaining Due</th>
+                </tr>
+            `;
+            contentHtml = filteredHistory.map((dc, index) => {
+                const inv = invoices.find(i => i && i.invoice_id === dc.invoice_id);
+                const invDate = inv?.invoice_date || '';
+                const totalBill = Number(inv?.total_amount || 0);
+                const remainingDue = Number(inv?.due_amount || 0);
+                
+                sumBill += totalBill;
+                sumCollected += Number(dc.amount_collected || 0);
+                sumRemainingDue += remainingDue;
+                
+                return `
+                    <tr>
+                        <td style="text-align:center">${index + 1}</td>
+                        <td style="white-space:nowrap">${invDate}</td>
+                        <td style="white-space:nowrap">${dc.invoice_id}</td>
+                        <td>${inv ? inv.patient_name : 'Unknown'}</td>
+                        <td style="text-align:right">৳${Number(totalBill).toFixed(2)}</td>
+                        <td style="white-space:nowrap">${dc.collection_date}</td>
+                        <td style="text-align:right; font-weight:bold; color:green;">৳${Number(dc.amount_collected || 0).toFixed(2)}</td>
+                        <td style="text-align:right; font-weight:bold; color:red;">৳${Number(remainingDue).toFixed(2)}</td>
+                    </tr>
+                `;
+            }).join('');
+            tfootHtml = `
+                <tr>
+                    <td colspan="4" style="text-align:right; font-weight:bold;">Total:</td>
+                    <td style="text-align:right; font-weight:bold;">৳${Number(sumBill).toFixed(2)}</td>
+                    <td></td>
+                    <td style="text-align:right; font-weight:bold; color:green; font-size:16px;">৳${Number(sumCollected).toFixed(2)}</td>
+                    <td style="text-align:right; font-weight:bold; color:red; font-size:16px;">৳${Number(sumRemainingDue).toFixed(2)}</td>
+                </tr>
+            `;
         }
         
-        if (selectedDoctorId && appt.doctor_id === selectedDoctorId) {
-            if (apptDateStr === selectedDateForDailyReport && (appt.status === 'Completed' || appt.status === 'Scheduled')) {
-                currentDoctorDailySum += appt.doctor_fee;
-            }
-            if (appt.return_date === selectedDateForDailyReport && appt.status === 'Returned') {
-                currentDoctorDailySum -= appt.doctor_fee;
-            }
-
-            if (apptDateObj.getMonth() === selectedMonth && apptDateObj.getFullYear() === selectedYear && (appt.status === 'Completed' || appt.status === 'Scheduled')) {
-                currentDoctorMonthlySum += appt.doctor_fee;
-            }
-            if (appt.return_date) {
-                const retDate = new Date(appt.return_date);
-                if (retDate.getMonth() === selectedMonth && retDate.getFullYear() === selectedYear && appt.status === 'Returned') {
-                    currentDoctorMonthlySum -= appt.doctor_fee;
-                }
-            }
-        }
-      });
-      
-      setSelectedDoctorDailyFeeTotal(currentDoctorDailySum);
-      setSelectedDoctorMonthlyFeeTotal(currentDoctorMonthlySum);
-      setAllDoctorsDailyFeeTotal(allDoctorsDailySum);
-      setAllDoctorsMonthlyFeeTotal(allDoctorsMonthlySum);
-    };
-
-    calculateTotals();
-  }, [appointments, formData.doctor_id, selectedDateForDailyReport]);
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    const { name, value, type } = e.target;
-    if (type === 'number') {
-        setFormData(prev => ({ ...prev, [name]: parseFloat(value) || 0 }));
-    } else {
-        setFormData(prev => ({ ...prev, [name]: value }));
-    }
-  };
-
-  const handleFocusSelect = (event: React.FocusEvent<HTMLInputElement>) => {
-    event.target.select();
-  };
-
-  const handleDoctorFeeBlur = (e: React.FocusEvent<HTMLInputElement>) => {
-    if (e.target.value === '') {
-      setFormData(prev => ({ ...prev, doctor_fee: 0 }));
-    }
-  };
-
-  const resetForm = () => {
-    setFormData(emptyAppointment);
-    setSelectedAppointmentId(null);
-    setIsEditing(false);
-    setShowNewPatientForm(false);
-    setShowNewDoctorForm(false);
-    setShowNewReferrarForm(false);
-    setBarcodeInput('');
-  };
-
-  const handleGetNewId = () => {
-    const today = new Date();
-    const year = today.getFullYear();
-    const month = String(today.getMonth() + 1).padStart(2, '0');
-    const day = String(today.getDate()).padStart(2, '0');
-    const apptsTodayCount = appointments.filter(a => a.appointment_id.startsWith(`APP-${year}-${month}-${day}`)).length;
-    const newSerial = String(apptsTodayCount + 1).padStart(3, '0');
-    const newId = `APP-${year}-${month}-${day}-${newSerial}`;
-    setFormData({ ...emptyAppointment, appointment_id: newId, appointment_date: `${year}-${month}-${day}`, status: 'Scheduled' });
-    setSelectedAppointmentId(null);
-    setIsEditing(false);
-  };
-
-  const handlePatientSelect = (id: string, name: string) => {
-    setFormData(prev => ({ ...prev, patient_id: id, patient_name: name }));
-    setShowNewPatientForm(false); 
-  };
-
-  const handleBarcodeScan = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      const code = barcodeInput.trim();
-      if (!code) return;
-      let targetPatient = patients.find(p => p.pt_id === code);
-      if (!targetPatient && invoices) {
-        const matchingInvoice = invoices.find(inv => inv.invoice_id === code);
-        if (matchingInvoice) {
-          targetPatient = patients.find(p => p.pt_id === matchingInvoice.patient_id);
-        }
-      }
-      if (targetPatient) {
-        handlePatientSelect(targetPatient.pt_id, targetPatient.pt_name);
-        setSuccessMessage(`পেশেন্ট "${targetPatient.pt_name}" সফলভাবে বারকোড দ্বারা সিলেক্ট করা হয়েছে।`);
-        setBarcodeInput('');
-      } else {
-        alert("এই বারকোড দিয়ে কোনো রোগী বা ইনভয়েস পাওয়া যায়নি।");
-      }
-    }
-  };
-
-  const handleDoctorSelect = (id: string, name: string) => {
-    setFormData(prev => ({ ...prev, doctor_id: id, doctor_name: name }));
-    setShowNewDoctorForm(false);
-  };
-
-  const handleReferrarSelect = (id: string, name: string) => {
-    setFormData(prev => ({ ...prev, referrar_id: id, referrar_name: name }));
-    setShowNewReferrarForm(false);
-  };
-
-  const handleSaveAppointment = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formData.appointment_id || !formData.patient_id || !formData.doctor_id || !formData.appointment_date || !formData.appointment_time || !formData.reason || !formData.status) {
-      alert('Error: Please fill in all required fields.');
-      return;
-    }
-    if (isEditing) {
-      setAppointments(prev => prev.map(a => a.appointment_id === formData.appointment_id ? formData : a));
-      setSuccessMessage('অ্যাপয়েন্টমেন্ট ডাটা সফলভাবে আপডেট করা হয়েছে!');
-    } else {
-      if (appointments.some(a => a.appointment_id === formData.appointment_id)) {
-        alert('Error: Appointment ID already exists. Please get a new ID.');
-        return;
-      }
-      setAppointments(prev => [formData, ...prev]);
-      setSuccessMessage('নতুন অ্যাপয়েন্টমেন্ট সফলভাবে সেভ করা হয়েছে!');
-    }
-    resetForm();
-  };
-
-  const handleEditAppointment = () => {
-    if (!selectedAppointmentId) return alert("Please select an appointment.");
-    const appointmentToEdit = appointments.find(a => a.appointment_id === selectedAppointmentId);
-    if (appointmentToEdit) {
-      setFormData(appointmentToEdit);
-      setIsEditing(true);
-    }
-  };
-
-  const handleCancelAppointment = () => {
-    if (!selectedAppointmentId) return alert("Please select an appointment.");
-    const appointmentToCancel = appointments.find(a => a.appointment_id === selectedAppointmentId);
-    if (appointmentToCancel && (appointmentToCancel.status === 'Scheduled' || appointmentToCancel.status === 'Completed')) {
-      if (window.confirm(`Are you sure you want to cancel appointment ${appointmentToCancel.appointment_id}?`)) {
-        setAppointments(prev => prev.map(a => a.appointment_id === selectedAppointmentId ? { ...a, status: 'Cancelled' } : a));
-        resetForm();
-        setSuccessMessage('অ্যাপয়েন্টমেন্টটি বাতিল করা হয়েছে।');
-      }
-    }
-  };
-
-  const handleReturnAppointment = () => {
-    if (!selectedAppointmentId) return alert("Please select an appointment.");
-    const appointmentToReturn = appointments.find(a => a.appointment_id === selectedAppointmentId);
-    if (appointmentToReturn && appointmentToReturn.status !== 'Returned' && appointmentToReturn.status !== 'Cancelled') {
-      if (window.confirm(`আপনি কি এই অ্যাপয়েন্টমেন্টের (${appointmentToReturn.appointment_id}) ফি রিফান্ড করতে চান? এটি আজকের হিসাব থেকে মাইনাস হবে।`)) {
-        setAppointments(prev => prev.map(a => a.appointment_id === selectedAppointmentId ? { ...a, status: 'Returned', return_date: todayDateString } : a));
-        resetForm();
-        setSuccessMessage('পেশেন্ট ফি সফলভাবে রিটার্ন করা হয়েছে।');
-      }
-    }
-  };
-
-  const handleRowClick = (appointment: Appointment) => {
-    setFormData(appointment);
-    setSelectedAppointmentId(appointment.appointment_id);
-    setIsEditing(false);
-  };
-
-  const handlePrintAppointment = () => {
-    if (!selectedAppointmentId) return;
-    const apptToPrint = appointments.find(a => a.appointment_id === selectedAppointmentId);
-    if (!apptToPrint) return;
-    const patient = patients.find(p => p.pt_id === apptToPrint.patient_id);
-    const doctor = doctors.find(d => d.doctor_id === apptToPrint.doctor_id);
-
-    const getSlipHtml = (type: string) => `
-        <div class="content-box">
-            <div class="header"><h1>Niramoy Clinic & Diagnostic</h1><p>Enayetpur, Sirajgonj | Mobile: 01730 923007</p><div class="header-line"></div><p style="font-weight: 900; font-size: 11px; text-decoration: underline; margin: 15px 0 0 0;">APPOINTMENT SLIP (${type})</p></div>
-            <div class="content-row"><div class="token-box">TOKEN ID: ${apptToPrint.appointment_id.split('-').pop()}</div><div class="date-time"><b>Date:</b> ${apptToPrint.appointment_date} | <b>Time:</b> ${apptToPrint.appointment_time}</div></div>
-            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;">
-                <table class="info-table" style="flex: 1;">
-                    <tr><td class="label">Patient:</td><td class="val name-val">${apptToPrint.patient_name} ${apptToPrint.status === 'Returned' ? '(REFUNDED)' : ''}</td></tr>
-                    <tr><td class="label">Age/Sex:</td><td class="val">${patient?.ageY}Y / ${patient?.gender}</td></tr>
-                    <tr><td class="label">Reason:</td><td class="val">${apptToPrint.reason}</td></tr>
-                    <tr><td class="label">Fee:</td><td class="val">${apptToPrint.status === 'Returned' ? '৳ 0.00 (Refunded)' : `BDT ${apptToPrint.doctor_fee.toFixed(2)}`}</td></tr>
-                </table>
-                <div style="margin-left: 10px; text-align: right; min-width: 90px; padding-top: 5px;"><img src="https://bwipjs-api.metafloor.com/?bcid=code128&text=${encodeURIComponent(apptToPrint.patient_id)}&scale=1&height=10&incltext=false" alt="BC" style="height: 35px; width: auto; max-width: 100%;"/><div style="font-size: 8px; font-family: monospace; margin-top: 2px; font-weight: bold;">${apptToPrint.patient_id}</div></div>
-            </div>
-            <div class="doc-box"><div class="doc-name">Consultant: ${doctor?.doctor_name}</div><div class="doc-deg">${doctor?.degree}</div></div>
-            <div class="footer">Printed on ${formatDateTime(new Date())}</div>
-        </div>
-    `;
-
-    const printContent = `
-        <!DOCTYPE html><html><head><meta charset="UTF-8"><style>@page { size: 8.4in 5.8in; margin: 0; }body { margin: 0; padding: 0; background: white; font-family: sans-serif; }.page-container { width: 8.4in; height: 5.8in; display: flex; flex-direction: row; box-sizing: border-box; overflow: hidden; }.slip-column { width: 50%; height: 5.8in; box-sizing: border-box; padding: 0.4in 0.4in; position: relative; display: flex; flex-direction: column; }.slip-column:first-child { border-right: 1.5px dashed #444; }.content-box { height: 100%; display: flex; flex-direction: column; }.header { text-align: center; margin-bottom: 5px; }.header h1 { margin: 0; font-size: 20px; font-weight: 900; color: #000; text-transform: uppercase; }.header p { margin: 1px 0; font-size: 10px; font-weight: bold; }.header-line { width: 100%; height: 1.5px; background: black; margin-top: 8px; }.content-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; margin-top: 10px; border-bottom: 1px solid #ccc; padding-bottom: 6px; }.token-box { font-size: 18px; font-weight: bold; border: 2.5px solid #000; padding: 3px 12px; border-radius: 4px; }.date-time { font-size: 11px; }.info-table { width: 100%; border-collapse: collapse; font-size: 12px; }.info-table td { padding: 4px 0; }.label { font-weight: bold; width: 60px; color: #333; text-transform: uppercase; font-size: 9px; vertical-align: top; }.val { font-weight: 800; color: #000; }.name-val { white-space: nowrap; font-size: 14px; text-transform: uppercase; }.doc-box { margin-top: auto; border-top: 1.2px dashed #999; padding-top: 8px; text-align: right; }.doc-name { font-size: 13px; font-weight: bold; }.doc-deg { font-size: 10px; color: #444; }.footer { position: absolute; bottom: 0.3in; left: 0.4in; right: 0.4in; text-align: center; font-size: 8px; color: #777; border-top: 1px solid #eee; padding-top: 2px; }</style></head><body><div class="page-container"><div class="slip-column">${getSlipHtml('Patient Copy')}</div><div class="slip-column">${getSlipHtml('Office Copy')}</div></div></body></html>
-    `;
-
-    const win = window.open('', '_blank');
-    if (win) {
-        win.document.write(printContent);
-        win.document.close();
-        setTimeout(() => { win.print(); win.close(); }, 500);
-    }
-  };
-
-  const isAppointmentSelected = selectedAppointmentId !== null;
-  const selectedAppointmentStatus = appointments.find(a => a.appointment_id === selectedAppointmentId)?.status;
-  const canCancel = isAppointmentSelected && (selectedAppointmentStatus === 'Scheduled' || selectedAppointmentStatus === 'Completed');
-  const canReturn = isAppointmentSelected && selectedAppointmentStatus !== 'Returned' && selectedAppointmentStatus !== 'Cancelled';
-
-  return (
-    <div className="bg-slate-900 text-slate-200 rounded-xl p-4 sm:p-6 space-y-8 relative">
-      {/* SUCCESS MESSAGE */}
-      {successMessage && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center pointer-events-none">
-          <div className="bg-emerald-600 border-2 border-white text-white px-10 py-6 rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.5)] animate-fade-in-up flex flex-col items-center gap-4">
-             <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center text-emerald-600 text-2xl font-black shadow-lg">✓</div>
-             <span className="text-xl font-black uppercase tracking-widest">{successMessage}</span>
-          </div>
-        </div>
-      )}
-
-      {/* FORM AND CONTROLS SECTION */}
-      <div className="bg-sky-950 rounded-xl p-4 sm:p-6 border border-sky-800">
-        <h2 className="text-2xl font-bold text-sky-100 mb-6 border-b border-sky-800 pb-4">Doctor Appointment</h2>
-        <div className="flex flex-wrap items-center justify-start gap-4 border-b border-sky-800 pb-4 mb-4">
-            <div className="flex items-center gap-2 flex-wrap">
-                <label htmlFor="appointment_id" className="font-semibold text-sky-300 whitespace-nowrap">Appt. Id:</label>
-                <input type="text" id="appointment_id" name="appointment_id" disabled value={formData.appointment_id} className="w-48 border border-sky-800 rounded-md shadow-sm sm:text-sm px-3 py-2 bg-sky-900 text-sky-400 cursor-not-allowed" />
-                <button type="button" onClick={handleGetNewId} className="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700">Get New Appt. ID</button>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-                <button type="submit" form="appointment-form" className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md">Save Appointment</button>
-                <button type="button" onClick={resetForm} className="px-4 py-2 text-sm font-medium text-sky-200 bg-slate-600 rounded-md">Cancel</button>
-                <button type="button" onClick={handleEditAppointment} disabled={!isAppointmentSelected} className="px-4 py-2 text-sm font-medium text-white bg-yellow-500 rounded-md disabled:opacity-50">Edit</button>
-                <button type="button" onClick={handleCancelAppointment} disabled={!canCancel} className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md disabled:opacity-50">Cancel</button>
-                <button type="button" onClick={handleReturnAppointment} disabled={!canReturn} className="px-4 py-2 text-sm font-medium text-white bg-rose-600 rounded-md disabled:opacity-50">Return / Refund</button>
-                <button type="button" onClick={handlePrintAppointment} disabled={!isAppointmentSelected} className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md disabled:opacity-50">Print Slip</button>
-            </div>
-        </div>
-        <div className="mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="flex items-center gap-2"><label className="font-semibold text-sky-300 whitespace-nowrap">Search Appt:</label><input type="text" placeholder="Search Patient/Doctor Name or ID" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="flex-1 py-2 px-3 border border-sky-800 bg-sky-900 text-sky-200 rounded-md sm:text-sm" /></div>
-            <div className="flex items-center gap-2 bg-slate-800 p-2 rounded-lg border border-sky-500/30 shadow-inner">
-                <div className="bg-sky-600 p-1.5 rounded-md text-white shadow-lg animate-pulse"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M7 12h10"/></svg></div>
-                <label className="font-black text-xs text-sky-400 uppercase tracking-tighter whitespace-nowrap">Scanner Mode:</label>
-                <input type="text" placeholder="Scan Patient ID or Previous Invoice..." value={barcodeInput} onChange={(e) => setBarcodeInput(e.target.value)} onKeyDown={handleBarcodeScan} className="flex-1 py-2 px-3 border-2 border-sky-500/50 bg-slate-950 text-white rounded-md sm:text-sm font-mono" autoComplete="off" />
-            </div>
-        </div>
-        <form id="appointment-form" onSubmit={handleSaveAppointment} className="mb-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-5">
-            <div><SearchableSelect theme="dark" label="Patient" options={patients.map(p => ({ id: p.pt_id, name: p.pt_name, details: `${p.gender}, ${p.ageY}Y, ${p.co_pref} ${p.co_name}, Add: ${p.address}, Mob: ${p.mobile}` }))} value={formData.patient_id} onChange={handlePatientSelect} onAddNew={() => setShowNewPatientForm(true)} placeholder="Search or add patient" required /></div>
-            <div><SearchableSelect theme="dark" label="Select Doctor" options={doctors.map(d => ({ id: d.doctor_id, name: d.doctor_name, details: d.degree }))} value={formData.doctor_id || ''} onChange={handleDoctorSelect} onAddNew={() => setShowNewDoctorForm(true)} placeholder="Search or add doctor" required /></div>
-            <div><SearchableSelect theme="dark" label="Referrar (Optional)" options={referrars.map(r => ({ id: r.ref_id, name: r.ref_name, details: r.ref_degrees }))} value={formData.referrar_id || ''} onChange={handleReferrarSelect} onAddNew={() => setShowNewReferrarForm(true)} placeholder="Search or add referrar" /></div>
-            <div><label className={commonLabelClasses}>Appointment Date</label><input type="date" name="appointment_date" value={formData.appointment_date} onChange={handleInputChange} required className={commonInputClasses} /></div>
-            <div><label className={commonLabelClasses}>Appointment Time</label><input type="time" name="appointment_time" value={formData.appointment_time} onChange={handleInputChange} required className={commonInputClasses} /></div>
-            <div><label className={commonLabelClasses}>Doctor Fee (BDT)</label><input type="number" name="doctor_fee" value={formData.doctor_fee} onChange={handleInputChange} onFocus={handleFocusSelect} onBlur={handleDoctorFeeBlur} required min="0" className={commonInputClasses} /></div>
-            <div className="lg:col-span-1"><label className={commonLabelClasses}>Reason</label><input list="reasonOptions" name="reason" value={formData.reason} onChange={handleInputChange} required className={commonInputClasses} placeholder="Select reason..." /><datalist id="reasonOptions">{appointmentReasons.map(r => <option key={r} value={r} />)}</datalist></div>
-            <div className="lg:col-span-1"><label className={commonLabelClasses}>Status</label><select name="status" value={formData.status} onChange={handleInputChange} required className={commonInputClasses}><option value="Scheduled">Scheduled</option><option value="Completed">Completed</option><option value="Cancelled">Cancelled</option><option value="Returned">Returned</option></select></div>
-            <div className="lg:col-span-1"><label className={commonLabelClasses}>Notes (Optional)</label><input type="text" name="notes" value={formData.notes} onChange={handleInputChange} className={commonInputClasses} placeholder="Any additional notes..." /></div>
-            </div>
-        </form>
-      </div>
-
-      {/* --- MOVED: DOCTOR FEE REPORTS (SUMMARY BOXES) NOW APPEAR HERE --- */}
-      <div className="pt-2">
-        <h3 className="text-xl font-bold text-slate-100 mb-6 flex items-center gap-3">
-            <Activity className="text-blue-500" /> Collection Overview
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <div className="bg-sky-900/60 rounded-2xl p-5 border border-sky-700 shadow-xl backdrop-blur-sm group hover:scale-105 transition-all">
-            <div className="flex justify-between items-start mb-3">
-                <h4 className="text-sm font-black text-sky-300 uppercase tracking-widest leading-tight">{formData.doctor_name || 'Selected Doctor'}'s Daily Fee</h4>
-                <div className="p-2 bg-sky-500/20 rounded-lg"><MoneyIcon size={16} className="text-sky-400" /></div>
-            </div>
-            <div className="flex items-center justify-between mb-4">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Selected Date:</label>
-                <input type="date" value={selectedDateForDailyReport} onChange={(e) => setSelectedDateForDailyReport(e.target.value)} className="w-28 py-1 px-2 border border-sky-700 rounded-lg text-[10px] font-bold bg-sky-950 text-sky-200 outline-none focus:ring-1 focus:ring-sky-400" />
-            </div>
-            {formData.doctor_id ? ( <p className="text-3xl font-black text-white drop-shadow-md">৳ {selectedDoctorDailyFeeTotal.toFixed(2)}</p> ) : ( <p className="text-xs text-sky-400 italic font-bold">Select a Doctor Above</p> )}
-          </div>
-
-          <div className="bg-emerald-900/60 rounded-2xl p-5 border border-emerald-700 shadow-xl backdrop-blur-sm group hover:scale-105 transition-all">
-            <div className="flex justify-between items-start mb-3">
-                <h4 className="text-sm font-black text-emerald-300 uppercase tracking-widest leading-tight">{formData.doctor_name || 'Selected Doctor'}'s Monthly Fee</h4>
-                <div className="p-2 bg-emerald-500/20 rounded-lg"><Activity size={16} className="text-emerald-400" /></div>
-            </div>
-            <p className="text-[10px] text-slate-400 mb-4 uppercase font-bold tracking-widest">
-                Cycle: {new Date(selectedDateForDailyReport).toLocaleString('default', { month: 'long', year: 'numeric' })}
-            </p>
-            {formData.doctor_id ? ( <p className="text-3xl font-black text-white drop-shadow-md">৳ {selectedDoctorMonthlyFeeTotal.toFixed(2)}</p> ) : ( <p className="text-xs text-emerald-400 italic font-bold">Select a Doctor Above</p> )}
-          </div>
-
-          <div className="bg-purple-900/60 rounded-2xl p-5 border border-purple-700 shadow-xl backdrop-blur-sm group hover:scale-105 transition-all">
-            <div className="flex justify-between items-start mb-3">
-                <h4 className="text-sm font-black text-purple-300 uppercase tracking-widest leading-tight">All Doctors Daily Fee</h4>
-                <div className="p-2 bg-purple-500/20 rounded-lg"><UsersIcon size={16} className="text-purple-400" /></div>
-            </div>
-            <p className="text-[10px] text-slate-400 mb-4 uppercase font-bold tracking-widest">Target Date: {selectedDateForDailyReport}</p>
-            <p className="text-3xl font-black text-white drop-shadow-md">৳ {allDoctorsDailyFeeTotal.toFixed(2)}</p>
-          </div>
-
-          <div className="bg-amber-900/60 rounded-2xl p-5 border border-amber-700 shadow-xl backdrop-blur-sm group hover:scale-105 transition-all">
-            <div className="flex justify-between items-start mb-3">
-                <h4 className="text-sm font-black text-amber-300 uppercase tracking-widest leading-tight">All Doctors Monthly Fee</h4>
-                <div className="p-2 bg-amber-500/20 rounded-lg"><ChartIcon size={16} className="text-amber-400" /></div>
-            </div>
-            <p className="text-[10px] text-slate-400 mb-4 uppercase font-bold tracking-widest">
-                Cycle: {new Date(selectedDateForDailyReport).toLocaleString('default', { month: 'long', year: 'numeric' })}
-            </p>
-            <p className="text-3xl font-black text-white drop-shadow-md">৳ {allDoctorsMonthlyFeeTotal.toFixed(2)}</p>
-          </div>
-        </div>
-      </div>
-
-      {/* APPOINTMENT LIST TABLE SECTION */}
-      <div className="mt-8 border-t border-slate-700 pt-6">
-        <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
-            <h3 className="text-xl font-bold text-slate-100 flex items-center gap-3">
-                <UsersIcon className="text-indigo-400" /> Appointment Journal
-            </h3>
+        const html = `<html><head>
+            <style>
+                ${pageStyle}
+                body{font-family:sans-serif;} 
+                .box{padding:15px;} 
+                .h1{font-size:24px; font-weight:bold; margin:0; text-align:center;} 
+                .text-center{text-align:center;}
+                table{width:100%; border-collapse:collapse; margin-top: 20px; font-size:14px;} 
+                td, th{padding:6px 8px; text-align:left; border: 1px solid #000;}
+                th { background-color: #eee; }
+            </style>
+        </head><body><div class="box">
+            <div class="h1">Niramoy Clinic & Diagnostic</div>
+            <p class="text-center">Enayetpur, Sirajgonj | Mobile: 01730 923007</p>
+            <hr>
+            <h3 class="text-center">${reportTitle}</h3>
             
-            {/* NEW LIST FILTER CONTROLS */}
-            <div className="flex flex-wrap items-center gap-3 bg-slate-800/40 p-3 rounded-2xl border border-slate-700 shadow-inner no-print">
-                <div className="flex items-center gap-2">
-                    <SearchIcon size={16} className="text-slate-500" />
-                    <input 
-                        type="text" 
-                        placeholder="Filter by Doctor..." 
-                        value={listSearchDoctor} 
-                        onChange={(e) => setListSearchDoctor(e.target.value)}
-                        className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white font-bold outline-none focus:border-blue-500 w-40"
-                    />
-                </div>
-                <div className="flex items-center gap-2">
-                    <CalendarIcon size={16} className="text-slate-500" />
-                    <input 
-                        type="date" 
-                        value={listFilterDate} 
-                        onChange={(e) => { setListFilterDate(e.target.value); setListFilterMonth(''); }}
-                        className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white font-bold outline-none focus:border-blue-500"
-                        title="Filter by Specific Date"
-                    />
-                </div>
-                <div className="flex items-center gap-2">
-                    <CalendarIcon size={16} className="text-slate-500" />
-                    <input 
-                        type="month" 
-                        value={listFilterMonth} 
-                        onChange={(e) => { setListFilterMonth(e.target.value); setListFilterDate(''); }}
-                        className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white font-bold outline-none focus:border-blue-500"
-                        title="Filter by Entire Month"
-                    />
-                </div>
-                <div className="flex items-center gap-2 px-3 py-1.5 bg-indigo-900/40 border border-indigo-700/50 rounded-lg shadow-inner">
-                    <span className="text-[10px] font-black text-indigo-300 uppercase tracking-widest">Total:</span>
-                    <span className="text-xs font-black text-white">{filteredAppointments.length}</span>
-                </div>
-                <button 
-                    onClick={() => { setListSearchDoctor(''); setListFilterDate(''); setListFilterMonth(''); }}
-                    className="p-1.5 bg-slate-700 hover:bg-rose-600 text-white rounded-lg transition-colors"
-                    title="Clear List Filters"
-                >
-                    <TrashIcon size={16} />
-                </button>
-            </div>
-        </div>
-
-        <div className="overflow-x-auto border border-slate-700 rounded-2xl shadow-inner bg-slate-950/20">
-            <table className="min-w-full divide-y divide-slate-800">
-                <thead className="bg-slate-900/50">
-                    <tr>
-                        <th className="px-6 py-4 text-left text-[10px] font-black text-slate-500 uppercase tracking-widest">SL</th>
-                        <th className="px-6 py-4 text-left text-[10px] font-black text-slate-500 uppercase tracking-widest">ID</th>
-                        <th className="px-6 py-4 text-left text-[10px] font-black text-slate-500 uppercase tracking-widest">Schedule</th>
-                        <th className="px-6 py-4 text-left text-[10px] font-black text-slate-500 uppercase tracking-widest">Patient Details</th>
-                        <th className="px-6 py-4 text-left text-[10px] font-black text-slate-500 uppercase tracking-widest">Doctor</th>
-                        <th className="px-6 py-4 text-right text-[10px] font-black text-slate-500 uppercase tracking-widest">Fee</th>
-                        <th className="px-6 py-4 text-center text-[10px] font-black text-slate-500 uppercase tracking-widest">Status</th>
-                    </tr>
+            <table>
+                <thead>
+                    ${theadHtml}
                 </thead>
-                <tbody className="divide-y divide-slate-800/50">
-                    {filteredAppointments.length > 0 ? filteredAppointments.map((appt, index) => (
-                        <tr 
-                            key={appt.appointment_id} 
-                            className={`hover:bg-slate-800/40 cursor-pointer transition-colors ${selectedAppointmentId === appt.appointment_id ? 'bg-blue-900/20 border-l-4 border-blue-500' : ''}`} 
-                            onClick={() => handleRowClick(appt)}
-                        >
-                            <td className="px-6 py-4 whitespace-nowrap text-xs font-bold text-slate-400">{index + 1}</td>
-                            <td className="px-6 py-4 whitespace-nowrap text-xs font-mono text-sky-400">{appt.appointment_id}</td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                                <div className="text-sm font-bold text-slate-200">{appt.appointment_date}</div>
-                                <div className="text-[10px] text-slate-500 font-black uppercase tracking-tighter">{appt.appointment_time}</div>
-                            </td>
-                            <td className="px-6 py-4">
-                                <div className="text-sm font-black text-white uppercase">{appt.patient_name}</div>
-                                <div className="text-[10px] text-slate-400 italic">Reason: {appt.reason}</div>
-                            </td>
-                            <td className="px-6 py-4 text-sm font-medium text-slate-300">Dr. {appt.doctor_name}</td>
-                            <td className="px-6 py-4 text-right font-black text-slate-100">৳ {appt.doctor_fee.toFixed(2)}</td>
-                            <td className="px-6 py-4 whitespace-nowrap text-center">
-                                {/* Fix: Line 562 - Fixed the unintentional comparison by removing 'appt.status ===' prefix for the fallback class string */}
-                                <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase shadow-inner ${appt.status === 'Completed' ? 'bg-emerald-900/40 text-emerald-400' : appt.status === 'Scheduled' ? 'bg-blue-900/40 text-blue-400' : appt.status === 'Returned' ? 'bg-amber-900/40 text-amber-500' : 'bg-rose-900/40 text-rose-400'}`}>
-                                    {appt.status}
-                                </span>
-                            </td>
-                        </tr>
-                    )) : (
-                        <tr><td colSpan={7} className="p-20 text-center text-slate-700 italic font-black uppercase opacity-20 text-2xl tracking-[0.3em]">No Appointment Data</td></tr>
-                    )}
+                <tbody>
+                    ${contentHtml}
+                    ${tfootHtml}
                 </tbody>
             </table>
+            
+            <div style="margin-top:40px; text-align:right">
+                <b>Printed By:</b> ${collectedBy || ''} <br><br>
+                ..........................
+            </div>
         </div>
-      </div>
+        <script>
+            window.onload = function() {
+                setTimeout(function() { window.print(); }, 300);
+            }
+        </script>
+        </body></html>`;
+        
+        win.document.write(html); 
+        win.document.close(); 
+    };
 
-      {/* EMBEDDED MODALS */}
-      {showNewPatientForm && <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/80 backdrop-blur-md p-4"><div className="w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-[2.5rem] border border-slate-700 bg-slate-900 relative shadow-[0_0_100px_rgba(0,0,0,0.8)]"><button onClick={() => setShowNewPatientForm(false)} className="absolute top-6 right-6 text-slate-500 hover:text-white z-10 p-2 bg-slate-800 rounded-full">&times;</button><div className="p-2"><PatientInfoPage patients={patients} setPatients={setPatients} isEmbedded onClose={() => setShowNewPatientForm(false)} onSaveAndSelect={handlePatientSelect} /></div></div></div>}
-      {showNewDoctorForm && <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/80 backdrop-blur-md p-4"><div className="w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-[2.5rem] border border-slate-700 bg-slate-900 relative shadow-[0_0_100px_rgba(0,0,0,0.8)]"><button onClick={() => setShowNewDoctorForm(false)} className="absolute top-6 right-6 text-slate-500 hover:text-white z-10 p-2 bg-slate-800 rounded-full">&times;</button><div className="p-2"><DoctorInfoPage doctors={doctors} setDoctors={setDoctors} isEmbedded onClose={() => setShowNewDoctorForm(false)} onSaveAndSelect={handleDoctorSelect} /></div></div></div>}
-      {showNewReferrarForm && <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/80 backdrop-blur-md p-4"><div className="w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-[2.5rem] border border-slate-700 bg-slate-900 relative shadow-[0_0_100px_rgba(0,0,0,0.8)]"><button onClick={() => setShowNewReferrarForm(false)} className="absolute top-6 right-6 text-slate-500 hover:text-white z-10 p-2 bg-slate-800 rounded-full">&times;</button><div className="p-2"><ReferrerInfoPage referrars={referrars} setReferrars={setReferrars} isEmbedded onClose={() => setShowNewReferrarForm(false)} onSaveAndSelect={handleReferrarSelect} /></div></div></div>}
-    </div>
-  );
+    const filteredInvoices = (() => {
+
+        if (!Array.isArray(invoices)) return [];
+        return invoices.filter(inv => {
+            if (!inv || inv.due_amount <= 0.5) return false;
+            
+            const invDate = inv.invoice_date ? new Date(inv.invoice_date) : null;
+            const day = invDate ? String(invDate.getDate()).padStart(2, '0') : '';
+            const month = invDate ? String(invDate.getMonth() + 1).padStart(2, '0') : '';
+            const year = invDate ? String(invDate.getFullYear()) : '';
+
+            const matchesDay = !filterDay || day === filterDay.padStart(2, '0');
+            const matchesMonth = !filterMonth || month === filterMonth;
+            const matchesYear = !filterYear || year === filterYear;
+            const matchesPatient = !filterPatientName || (inv.patient_name || '').toLowerCase().includes(filterPatientName.toLowerCase());
+            const matchesSearch = !searchTerm || 
+                (inv.invoice_id || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
+                (inv.patient_name || '').toLowerCase().includes(searchTerm.toLowerCase());
+
+            return matchesDay && matchesMonth && matchesYear && matchesPatient && matchesSearch;
+        });
+    })();
+
+    const detailedPendingData = React.useMemo(() => {
+        const safeDcs = Array.isArray(dueCollections) ? dueCollections : [];
+        const safePatients = Array.isArray(patients) ? patients : [];
+        const items = filteredInvoices.map(inv => {
+            const dcs = safeDcs.filter(dc => dc && dc.invoice_id === inv.invoice_id).sort((a, b) => new Date(a.collection_date).getTime() - new Date(b.collection_date).getTime());
+            const sumDcs = dcs.reduce((sum, dc) => sum + (dc.amount_collected || 0), 0);
+            
+            const payments: { date: string; amount: number }[] = [];
+            const initialPaid = (inv.paid_amount || 0) - sumDcs;
+            if (initialPaid > 0) {
+                payments.push({ date: inv.invoice_date?.split(' ')[0] || '', amount: initialPaid });
+            }
+            dcs.forEach(dc => {
+                if (dc && dc.amount_collected > 0) {
+                    payments.push({ date: dc.collection_date?.split(' ')[0] || '', amount: dc.amount_collected });
+                }
+            });
+
+            const patientObj = safePatients.find(p => p && p.pt_id === inv.patient_id);
+            const addressParts = patientObj ? [patientObj.address, patientObj.thana, patientObj.district].filter(Boolean).join(', ') : '';
+
+            return {
+                ...inv,
+                payments,
+                addressStr: addressParts
+            };
+        });
+        const maxPayments = items.reduce((max, it) => Math.max(max, it.payments.length), 0);
+        return { items, maxPayments };
+    }, [filteredInvoices, dueCollections, patients]);
+
+const filteredHistory = (() => {
+        const safeDcs = Array.isArray(dueCollections) ? dueCollections : [];
+        const safeInvs = Array.isArray(invoices) ? invoices : [];
+        return safeDcs
+            .filter(dc => dc && dc.invoice_id && dc.invoice_id.startsWith('INV'))
+            .sort((a, b) => new Date(b.collection_date).getTime() - new Date(a.collection_date).getTime())
+            .filter(dc => {
+                const inv = safeInvs.find(i => i && i.invoice_id === dc.invoice_id);
+                const matchName = filterPatientName ? ((inv?.patient_name || '').toLowerCase().includes(filterPatientName.toLowerCase())) : true;
+                const matchId = searchTerm ? (dc.invoice_id || '').toLowerCase().includes(searchTerm.toLowerCase()) : true;
+                const [y, m, d] = (dc.collection_date || '').split(' ')[0].split('-');
+                const matchY = filterYear ? y === filterYear : true;
+                const matchM = filterMonth ? parseInt(m) === parseInt(filterMonth) : true;
+                const matchD = filterDay ? parseInt(d) === parseInt(filterDay) : true;
+                return matchName && matchId && matchY && matchM && matchD;
+            });
+    })();
+
+
+    const handlePrintReceipt = (invoice: LabInvoice, collectedAmt: number, colDate: string) => {
+        const win = window.open('', '_blank');
+        if (!win) return;
+        const styles = `<style>
+            @page{size:A5 landscape; margin:10mm} 
+            body{font-family:sans-serif;} 
+            .box{border:2px solid #000; padding:15px; border-radius:10px} 
+            .h1{font-size:20px; font-weight:bold; margin:0; text-align:center;} 
+            .text-center{text-align:center;}
+            table{width:100%; border-collapse:collapse} 
+            td, th{padding:5px; text-align:left}
+            .test-table{margin-top: 15px;}
+            .test-table th, .test-table td{border: 1px solid #000;}
+            .summary-table td{padding: 2px 5px;}
+        </style>`;
+        
+        const itemsHtml = (invoice.items || []).map((it: any) => 
+            `<tr>
+                <td>${it.test_name}</td>
+                <td style="text-align:center">${it.quantity}</td>
+                <td style="text-align:right">৳${Number(it.price * it.quantity).toFixed(2)}</td>
+            </tr>`
+        ).join('');
+
+        const html = `<html><head>${styles}</head><body><div class="box">
+            <div class="h1">Niramoy Clinic & Diagnostic</div>
+            <p class="text-center">Enayetpur, Sirajgonj | Mobile: 01730 923007</p>
+            <hr>
+            <h3 class="text-center">DUE PAYMENT RECEIPT & INVOICE DETAILS</h3>
+            <table>
+                <tr><td><b>Patient Name:</b> ${invoice.patient_name}</td><td><b>Date:</b> ${new Date(colDate).toLocaleDateString()}</td></tr>
+                <tr><td><b>Invoice ID:</b> ${invoice.invoice_id}</td><td><b>Receipt No:</b> DC-${new Date().getTime().toString().slice(-5)}</td></tr>
+                <tr><td><b>Ref by:</b> ${invoice.doctor_name || ''}</td><td></td></tr>
+            </table>
+            
+            <table class="test-table">
+                <thead>
+                    <tr style="background:#eee;">
+                        <th>Test Name</th>
+                        <th style="text-align:center">Qty</th>
+                        <th style="text-align:right">Price</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${itemsHtml}
+                </tbody>
+            </table>
+            
+            <table class="summary-table" style="width: 280px; float: right; margin-top: 15px;">
+                <tr><td><b>Total Amount:</b></td><td style="text-align:right">৳${Number(invoice.total_amount || 0).toFixed(2)}</td></tr>
+                <tr><td><b>Discount:</b></td><td style="text-align:right">৳${Number(invoice.discount_amount || 0).toFixed(2)}</td></tr>
+                <tr><td><b>Net Payable:</b></td><td style="text-align:right">৳${((invoice.total_amount || 0) - (invoice.discount_amount || 0)).toFixed(2)}</td></tr>
+                <tr><td><b>Previously Paid:</b></td><td style="text-align:right">৳${Number(invoice.paid_amount || 0).toFixed(2)}</td></tr>
+                <tr><td><b>Current Payment:</b></td><td style="text-align:right; font-size:16px; font-weight:bold">৳${collectedAmt.toFixed(2)}</td></tr>
+                <tr><td><b>Remaining Due:</b></td><td style="text-align:right; color:red; font-weight:bold;">৳${Number(invoice.due_amount - collectedAmt).toFixed(2)}</td></tr>
+            </table>
+            <div style="clear: both;"></div>
+            <div style="margin-top:40px; display: flex; justify-content: space-between;">
+                <div><b>Prepared By:</b> ${collectedBy || ''}</div>
+                <div style="text-align:right"><b>Authorized Sign</b><br>..........................</div>
+            </div>
+        </div></body></html>`;
+        win.document.write(html); 
+        win.document.close(); 
+        
+        // Timeout to let resources load before printing
+        win.setTimeout(() => {
+            win.print();
+        }, 300);
+    };
+
+    const handleConfirmCollection = async () => {
+        if (!selectedInvoice || collectionAmount < 0 || discountAmount < 0 || (collectionAmount === 0 && discountAmount === 0) || (collectionAmount + discountAmount) > selectedInvoice.due_amount + 0.1) {
+            alert("ভুল অ্যামাউন্ট!"); return;
+        }
+        
+        // Append current time to the selected date string
+        const d = new Date();
+        const hours = String(d.getHours()).padStart(2, '0');
+        const minutes = String(d.getMinutes()).padStart(2, '0');
+        const seconds = String(d.getSeconds()).padStart(2, '0');
+        const collectionDate = `${collectionDateInput} ${hours}:${minutes}:${seconds}`;
+
+        const newCols = [...dueCollections];
+        if (collectionAmount > 0) {
+            newCols.push({ collection_id: `DC-${new Date().getTime()}`, invoice_id: selectedInvoice.invoice_id, collection_date: collectionDate, amount_collected: collectionAmount, collected_by: collectedBy, payment_method: 'Cash' });
+        }
+        
+        const updatedInvoice: LabInvoice = { 
+            ...selectedInvoice, 
+            paid_amount: selectedInvoice.paid_amount + collectionAmount, 
+            discount_amount: (selectedInvoice.discount_amount || 0) + discountAmount,
+            due_amount: selectedInvoice.due_amount - (collectionAmount + discountAmount), 
+            status: (selectedInvoice.due_amount - (collectionAmount + discountAmount)) <= 0.5 ? 'Paid' : 'Due', 
+            last_modified: collectionDate 
+        };
+        const newInvs = invoices.map(inv => inv.invoice_id === updatedInvoice.invoice_id ? updatedInvoice : inv);
+
+        if (performBlockingSync) {
+            const success = await performBlockingSync({ dueCollections: newCols, labInvoices: newInvs });
+            if (success) {
+                setDueCollections(newCols);
+                setInvoices(newInvs);
+                handlePrintReceipt(selectedInvoice, collectionAmount, collectionDate);
+                setSuccessMessage('ডাটা সঠিকভাবে সেভ হয়েছে!');
+                setShowModal(false); setSelectedInvoice(null);
+            }
+        } else {
+            setDueCollections(newCols);
+            setInvoices(newInvs);
+            handlePrintReceipt(selectedInvoice, collectionAmount, collectionDate);
+            setSuccessMessage(`সফলভাবে ${collectionAmount} টাকা আদায় হয়েছে।`);
+            setShowModal(false); setSelectedInvoice(null);
+        }
+    };
+
+    const totalDueAmount = filteredInvoices.reduce((sum, inv) => sum + (inv.due_amount || 0), 0);
+
+    return (
+        <div className="bg-slate-900 text-slate-200 rounded-xl p-6 space-y-6">
+            {successMessage && <div className="fixed top-20 right-5 bg-green-900 border border-green-700 text-green-300 px-4 py-3 rounded-lg z-50 animate-bounce">{successMessage}</div>}
+            <div className="flex flex-col md:flex-row justify-between items-center border-b border-slate-700 pb-4 gap-4">
+                <div className="flex gap-4 items-center">
+                    <h2 
+                        className={`text-2xl font-bold cursor-pointer transition-colors ${activeTab === 'pending' ? 'text-sky-400' : 'text-slate-500 hover:text-slate-300'}`}
+                        onClick={() => setActiveTab('pending')}
+                    >
+                        Due Recovery
+                    </h2>
+                    <h2 
+                        className={`text-2xl font-bold cursor-pointer transition-colors ${activeTab === 'history' ? 'text-sky-400' : 'text-slate-500 hover:text-slate-300'}`}
+                        onClick={() => setActiveTab('history')}
+                    >
+                        Collection History
+                    </h2>
+                    {activeTab === 'pending' && (
+                        <div className="ml-4 bg-red-900/30 border border-red-800 text-red-400 px-4 py-1.5 rounded-lg">
+                            <span className="text-sm font-bold uppercase mr-2">Total Due:</span>
+                            <span className="text-xl font-black">৳{totalDueAmount.toFixed(2)}</span>
+                        </div>
+                    )}
+                </div>
+                
+                <div className="flex flex-wrap items-center gap-3 bg-slate-800/50 p-3 rounded-xl border border-slate-700">
+                    <div className="w-32">
+                        <input 
+                            type="text" 
+                            placeholder="Patient Name..." 
+                            value={filterPatientName} 
+                            onChange={(e) => setFilterPatientName(e.target.value)}
+                            className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-1.5 text-xs text-white outline-none focus:border-blue-500"
+                        />
+                    </div>
+                    <div className="w-20">
+                        <input 
+                            type="number" 
+                            placeholder="Day" 
+                            value={filterDay} 
+                            onChange={(e) => setFilterDay(e.target.value)}
+                            className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-1.5 text-xs text-white outline-none focus:border-blue-500"
+                            min="1" max="31"
+                        />
+                    </div>
+                    <div className="w-32">
+                        <select 
+                            value={filterMonth} 
+                            onChange={(e) => setFilterMonth(e.target.value)}
+                            className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-1.5 text-xs text-white outline-none focus:border-blue-500"
+                        >
+                            <option value="">Month...</option>
+                            {monthOptions.map(m => <option key={m.value} value={m.value}>{m.name}</option>)}
+                        </select>
+                    </div>
+                    <div className="w-24">
+                        <select 
+                            value={filterYear} 
+                            onChange={(e) => setFilterYear(e.target.value)}
+                            className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-1.5 text-xs text-white outline-none focus:border-blue-500"
+                        >
+                            <option value="">Year...</option>
+                            {[2023, 2024, 2025, 2026, 2027].map(y => <option key={y} value={y.toString()}>{y}</option>)}
+                        </select>
+                    </div>
+                    <div className="flex gap-2">
+                        <input 
+                            type="text" 
+                            placeholder="Search ID..." 
+                            value={searchTerm} 
+                            onChange={(e) => setSearchTerm(e.target.value)} 
+                            className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-1.5 text-xs text-white outline-none focus:border-blue-500" 
+                        />
+                        <button onClick={handlePrintList} className="bg-sky-600 hover:bg-sky-500 text-white px-4 py-2 rounded-md text-xs font-black uppercase tracking-widest transition-colors shadow-lg whitespace-nowrap">
+                            Print List
+                        </button>
+                    </div>
+                </div>
+            </div>
+            {activeTab === 'pending' && (
+            <div className="overflow-x-auto rounded-lg border border-slate-700 shadow-xl bg-slate-900">
+                <table className="w-full text-left">
+                    {(() => {
+                        let totalBillSum = 0;
+                        let totalDueSum = 0;
+                        const paymentsSum = new Array(detailedPendingData.maxPayments).fill(0);
+                        
+                        return (
+                            <>
+                                <thead className="bg-slate-800 text-sky-200 text-xs uppercase font-bold tracking-wider border-b border-slate-700">
+                                    <tr>
+                                        <th className="p-4 w-12 text-center">SL</th>
+                                        <th className="p-4">Invoice ID</th>
+                                        <th className="p-4">Patient Name & Address</th>
+                                        <th className="p-4 text-right whitespace-nowrap">Total <br/><span className="text-[10px] font-medium text-slate-300">(After Disc)</span></th>
+                                        {Array.from({length: detailedPendingData.maxPayments}).map((_, i) => (
+                                            <th key={i} className="p-4 text-right">Paid_{String(i+1).padStart(2, '0')}</th>
+                                        ))}
+                                        <th className="p-4 text-right text-rose-300">Due</th>
+                                        <th className="p-4 text-center">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-800">
+                                    {detailedPendingData.items.map((inv, index) => {
+                                        const netPayable = (inv.total_amount || 0) - (inv.discount_amount || 0);
+                                        totalBillSum += netPayable;
+                                        totalDueSum += (inv.due_amount || 0);
+                                        
+                                        return (
+                                            <tr 
+                                                key={inv.invoice_id} 
+                                                onDoubleClick={() => onViewInvoice && onViewInvoice(inv.invoice_id)}
+                                                className="hover:bg-slate-800/80 even:bg-slate-900/70 odd:bg-slate-850/40 transition-colors cursor-pointer group"
+                                                title="Double click to view invoice details"
+                                            >
+                                                <td className="p-4 text-center font-bold text-slate-300">{index + 1}</td>
+                                                <td className="p-4 font-mono text-sky-300 font-bold whitespace-nowrap">{inv.invoice_id}</td>
+                                                <td className="p-4">
+                                                    <div className="font-bold text-white">{inv.patient_name}</div>
+                                                    {inv.addressStr && <div className="text-xs text-slate-300 font-medium mt-0.5">{inv.addressStr}</div>}
+                                                </td>
+                                                <td className="p-4 text-right">
+                                                    <div className="font-bold text-white">৳{netPayable.toFixed(2)}</div>
+                                                    {inv.discount_amount > 0 && <div className="text-xs text-amber-300 font-medium">(Disc: ৳{inv.discount_amount.toFixed(2)})</div>}
+                                                </td>
+                                                {Array.from({length: detailedPendingData.maxPayments}).map((_, i) => {
+                                                    const p = inv.payments[i];
+                                                    if (p) {
+                                                        paymentsSum[i] += p.amount;
+                                                        return (
+                                                            <td key={i} className="p-4 text-right">
+                                                                <div className="text-xs text-slate-300 mb-0.5 whitespace-nowrap font-medium">{p.date}</div>
+                                                                <div className="font-bold text-emerald-400">৳{p.amount.toFixed(2)}</div>
+                                                            </td>
+                                                        );
+                                                    }
+                                                    return <td key={i} className="p-4 text-right"></td>;
+                                                })}
+                                                <td className="p-4 text-right text-rose-400 font-black">৳{Number(inv.due_amount || 0).toFixed(2)}</td>
+                                                <td className="p-4 text-center">
+                                                    <button onClick={(e) => { e.stopPropagation(); setSelectedInvoice(inv); setShowModal(true); setCollectionAmount(0); setDiscountAmount(0); }} className="bg-emerald-600 px-4 py-1.5 rounded-md text-xs font-bold text-white hover:bg-emerald-500 transition-colors shadow-lg shadow-emerald-900/20">Collect</button>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                    {detailedPendingData.items.length > 0 && (
+                                        <tr className="bg-slate-800 border-t-2 border-slate-600 font-bold uppercase text-xs">
+                                            <td colSpan={3} className="p-4 text-right text-slate-200">Total:</td>
+                                            <td className="p-4 text-right text-white font-bold">৳{totalBillSum.toFixed(2)}</td>
+                                            {Array.from({length: detailedPendingData.maxPayments}).map((_, i) => (
+                                                <td key={i} className="p-4 text-right text-emerald-300 font-bold">৳{paymentsSum[i].toFixed(2)}</td>
+                                            ))}
+                                            <td className="p-4 text-right text-rose-300 font-black text-sm">৳{totalDueSum.toFixed(2)}</td>
+                                            <td></td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </>
+                        );
+                    })()}
+                </table>
+            </div>
+            )}
+            
+            {activeTab === 'history' && (
+            <div className="overflow-x-auto rounded-lg border border-slate-700 shadow-xl bg-slate-900">
+                <table className="w-full text-left">
+                    <thead className="bg-slate-800 text-sky-200 text-xs uppercase font-bold tracking-wider border-b border-slate-700">
+                        <tr>
+                            <th className="p-4 w-12 text-center">SL</th>
+                            <th className="p-4">Collection Date</th>
+                            <th className="p-4">Invoice ID</th>
+                            <th className="p-4">Patient Name</th>
+                            <th className="p-4">Collected By</th>
+                            <th className="p-4 text-right text-emerald-300">Amount Collected</th>
+                            <th className="p-4 text-center">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800">
+                        {filteredHistory
+                            .slice(0, 100) // limit to 100 recent for performance
+                            .map((dc, index) => {
+                                const inv = invoices.find(i => i.invoice_id === dc.invoice_id);
+                                return (
+                                <tr 
+                                    key={dc.collection_id}
+                                    className="hover:bg-slate-800/80 even:bg-slate-900/70 odd:bg-slate-850/40 transition-colors"
+                                >
+                                    <td className="p-4 text-center font-bold text-slate-300">{index + 1}</td>
+                                    <td className="p-4 text-sm text-slate-200 font-medium">{dc.collection_date}</td>
+                                    <td className="p-4 font-mono text-sky-300 font-bold">{dc.invoice_id}</td>
+                                    <td className="p-4 font-bold text-white">{inv ? inv.patient_name : 'Unknown'}</td>
+                                    <td className="p-4 text-sm text-slate-200 font-medium">{dc.collected_by}</td>
+                                    <td className="p-4 text-right text-emerald-400 font-black">৳{Number(dc.amount_collected || 0).toFixed(2)}</td>
+                                    <td className="p-4 text-center">
+                                        <button 
+                                            onClick={() => inv && handlePrintReceipt(inv, dc.amount_collected, dc.collection_date)} 
+                                            className="bg-indigo-600 px-4 py-1.5 rounded-md text-xs font-bold text-white hover:bg-indigo-500 transition-colors"
+                                            disabled={!inv}
+                                        >
+                                            Print Receipt
+                                        </button>
+                                    </td>
+                                </tr>
+                            )})}
+                    </tbody>
+                </table>
+            </div>
+            )}
+
+            {showModal && selectedInvoice && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
+                    <div className="bg-slate-800 border border-slate-700 rounded-xl w-full max-w-md p-6">
+                        <h3 className="text-xl font-bold mb-4">বকেয়া টাকা আদায়</h3>
+                        <div className="bg-slate-900 p-4 rounded mb-6 flex justify-between items-center"><span className="text-slate-400">Current Due:</span><span className="text-red-400 text-2xl font-black">৳{Number(selectedInvoice.due_amount || 0).toFixed(2)}</span></div>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="text-xs text-slate-500 uppercase font-black">Date</label>
+                                <input 
+                                    type="date" 
+                                    value={collectionDateInput} 
+                                    onChange={e => setCollectionDateInput(e.target.value)} 
+                                    className="w-full bg-slate-900 border border-slate-700 p-3 rounded text-white font-bold" 
+                                />
+                            </div>
+                            <div><label className="text-xs text-slate-500 uppercase font-black">Amount to Pay (৳)</label><input type="number" value={collectionAmount === 0 ? '' : collectionAmount} onChange={e => setCollectionAmount(e.target.value ? parseFloat(e.target.value) : 0)} className="w-full bg-slate-900 border border-slate-700 p-3 rounded text-white text-xl font-bold" autoFocus /></div>
+                            <div><label className="text-xs text-slate-500 uppercase font-black">Waive/Discount (মওকুফ) (৳)</label><input type="number" value={discountAmount === 0 ? '' : discountAmount} onChange={e => setDiscountAmount(e.target.value ? parseFloat(e.target.value) : 0)} className="w-full bg-slate-900 border border-slate-700 p-3 rounded text-white text-xl font-bold" /></div>
+                            <SearchableSelect 
+                                label="Collected By" 
+                                theme="dark" 
+                                options={(() => {
+                                    const safeEmps = Array.isArray(employees) ? employees : [];
+                                    const filtered = safeEmps.filter(e => e && e.status !== 'Released');
+                                    const list = filtered.length > 0 ? filtered : safeEmps;
+                                    const opts = list.map(e => ({
+                                        id: e.emp_name, 
+                                        name: e.emp_name,
+                                        details: [e.job_position || e.designation, e.department, e.mobile ? `📞 ${e.mobile}` : ''].filter(Boolean).join(' | ')
+                                    }));
+                                    if (!opts.some(o => o.name === 'Admin')) {
+                                        opts.unshift({ id: 'Admin', name: 'Admin', details: 'System Administrator' });
+                                    }
+                                    return opts;
+                                })()} 
+                                value={collectedBy} 
+                                onChange={(id, name)=>setCollectedBy(name)} 
+                                allowCustom={true}
+                                placeholder="Select or search employee"
+                            />
+                        </div>
+                        <div className="mt-8 flex gap-3"><button onClick={() => setShowModal(false)} className="flex-1 py-2 bg-slate-700 rounded">বাতিল</button><button onClick={handleConfirmCollection} className="flex-1 py-2 bg-green-600 font-bold rounded">Confirm & Print</button></div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
 };
 
-export default DoctorAppointmentPage;
+export default PrevDueCollectionPage;
